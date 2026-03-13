@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Bot Dashboard - Team Management System</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .dashboard {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            width: 70px;
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .menu-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+        
+        .menu-item:hover {
+            background: rgba(255,255,255,0.1);
+            border-left-color: #4CAF50;
+        }
+        
+        .menu-item.active {
+            background: rgba(255,255,255,0.15);
+            border-left-color: #4CAF50;
+        }
+        
+        .main-content {
+            flex: 1;
+            background: white;
+            overflow-y: auto;
+        }
+        
+        .top-nav {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+            transition: color 0.3s ease;
+        }
+        
+        .notification-bell:hover {
+            color: #333;
+        }
+        
+        .notification-dot {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            background: #ff4757;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .bot-controls {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-run {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+        }
+        
+        .btn-run:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn-pause {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: white;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-running {
+            background: #4CAF50;
+        }
+        
+        .status-stopped {
+            background: #f44336;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border-left: 4px solid #4CAF50;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .draft-editor {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+        
+        .rich-editor {
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .campaign-config {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+        
+        .logs-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .status-sent {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+        
+        .status-failed {
+            color: #f44336;
+            font-weight: 600;
+        }
+        
+        .status-rate-limited {
+            color: #ff9800;
+            font-weight: 600;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%);
+            transition: width 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function Dashboard() {
+            const [activeMenu, setActiveMenu] = useState('dashboard');
+            const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+            const [botStatus, setBotStatus] = useState('stopped');
+            const [stats, setStats] = useState({
+                emailsSent: 1247,
+                failedEmails: 23,
+                remainingEmails: 500,
+                sendingSpeed: 2.5,
+                dailyLimit: 2000,
+                dailyUsed: 1247
+            });
+            const [campaigns, setCampaigns] = useState([
+                { id: 1, name: 'AI Leadership Campaign', status: 'Active', sendLimit: 2000, delayBetweenEmails: 60 },
+                { id: 2, name: 'Robotics Innovation', status: 'Draft', sendLimit: 1500, delayBetweenEmails: 45 },
+                { id: 3, name: 'Tech Summit 2026', status: 'Paused', sendLimit: 3000, delayBetweenEmails: 30 }
+            ]);
+            const [selectedCampaign, setSelectedCampaign] = useState(campaigns[0]);
+            const [emailLogs, setEmailLogs] = useState([
+                { email: 'john@example.com', status: 'Sent', time: '2026-03-02 14:52:00', responseCode: '200' },
+                { email: 'jane@company.com', status: 'Failed', time: '2026-03-02 14:53:00', responseCode: '550' },
+                { email: 'mike@startup.io', status: 'Rate Limited', time: '2026-03-02 14:54:00', responseCode: '429' },
+                { email: 'sarah@tech.com', status: 'Sent', time: '2026-03-02 14:55:00', responseCode: '200' },
+                { email: 'alex@ai.com', status: 'Sent', time: '2026-03-02 14:56:00', responseCode: '200' },
+                { email: 'lisa@robotics.com', status: 'Blocked', time: '2026-03-02 14:57:00', responseCode: '554' }
+            ]);
+            const [leads, setLeads] = useState([]);
+
+            const menuItems = [
+                { id: 'dashboard', icon: 'fas fa-tachometer-alt', label: 'Dashboard' },
+                { id: 'campaigns', icon: 'fas fa-bullhorn', label: 'Campaigns' },
+                { id: 'editor', icon: 'fas fa-edit', label: 'Draft Editor' },
+                { id: 'contacts', icon: 'fas fa-address-book', label: 'Contacts' },
+                { id: 'queue', icon: 'fas fa-paper-plane', label: 'Email Queue' },
+                { id: 'logs', icon: 'fas fa-list-alt', label: 'Logs' },
+                { id: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics' },
+                { id: 'team', icon: 'fas fa-users', label: 'Team Management' },
+                { id: 'settings', icon: 'fas fa-cog', label: 'Settings' }
+            ];
+
+            useEffect(() => {
+                // Initialize charts
+                const ctx = document.getElementById('emailChart');
+                if (ctx) {
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                            datasets: [{
+                                label: 'Emails Sent',
+                                data: [120, 150, 180, 200, 170, 220, 190],
+                                borderColor: '#4CAF50',
+                                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                }
+            }, []);
+
+            // load leads when user opens contacts section
+            useEffect(() => {
+                if (activeMenu === 'contacts') {
+                    fetchLeads();
+                }
+            }, [activeMenu]);
+
+            async function fetchLeads() {
+                try {
+                    const token = localStorage.getItem('auth_token') || '';
+                    const res = await fetch('/api/leads', {
+                        headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.leads) {
+                        setLeads(data.leads);
+                    } else {
+                        console.error('Failed to load leads', data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching leads', err);
+                }
+            }
+            async function handleUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const form = new FormData();
+                form.append('file', file);
+                try {
+                    const res = await fetch('/api/upload-leads', {
+                        method: 'POST',
+                        body: form
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        alert('Upload successful');
+                        fetchLeads();
+                    } else {
+                        alert('Upload failed: ' + JSON.stringify(data));
+                    }
+                } catch (err) {
+                    alert('Upload error: ' + err.message);
+                }
+            }
+
+            // campaign runner uses local state setters
+            async function runCampaign() {
+                try {
+                    setBotStatus('running');
+
+                    const token = localStorage.getItem('auth_token') || ''; // demo token handling
+
+                    const res = await fetch('/api/run-daily-campaign', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': token ? `Bearer ${token}` : ''
+                        }
+                    });
+
+                    const data = await res.json();
+
+                    // Update UI based on result
+                    if (res.ok && data && data.summary) {
+                        alert(`Campaign finished. Summary:\n` + JSON.stringify(data.summary, null, 2));
+                    } else if (res.ok) {
+                        alert('Campaign finished. Response: ' + JSON.stringify(data));
+                    } else {
+                        alert('Campaign failed: ' + JSON.stringify(data));
+                    }
+                } catch (err) {
+                    alert('Error starting campaign: ' + err.message);
+                } finally {
+                    setBotStatus('stopped');
+                }
+            }
+            const renderSidebar = () => (
+                <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <div className="sidebar-header">
+                        <div className="logo">
+                            <i className="fas fa-robot"></i>
+                            {!sidebarCollapsed && <span>EmailBot Pro</span>}
+                        </div>
+                    </div>
+                    {menuItems.map(item => (
+                        <div 
+                            key={item.id}
+                            className={`menu-item ${activeMenu === item.id ? 'active' : ''}`}
+                            onClick={() => setActiveMenu(item.id)}
+                        >
+                            <i className={item.icon}></i>
+                            {!sidebarCollapsed && <span>{item.label}</span>}
+                        </div>
+                    ))}
+                </div>
+            );
+
+            const renderTopNav = () => (
+                <div className="top-nav">
+                    <div className="user-profile">
+                        <div className="user-avatar">A</div>
+                        <div>
+                            <div style={{fontWeight: '600'}}>Admin User</div>
+                            <div style={{fontSize: '12px', color: '#666'}}>admin@emailbot.com</div>
+                        </div>
+                    </div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '20px'}}>
+                        <div className="notification-bell">
+                            <i className="fas fa-bell"></i>
+                            <div className="notification-dot"></div>
+                        </div>
+                        <button 
+                            className="btn"
+                            style={{background: '#6c757d', color: 'white', padding: '8px 16px'}}
+                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        >
+                            <i className="fas fa-bars"></i>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const renderBotControls = () => (
+                <div className="bot-controls">
+                    <div className="status-indicator">
+                        <div className={`status-dot status-${botStatus}`}></div>
+                        <span>Bot Status: <strong>{botStatus.toUpperCase()}</strong></span>
+                    </div>
+                    <div className="control-buttons">
+                        <button className="btn btn-run" onClick={runCampaign}>
+                            <i className="fas fa-play"></i>
+                            Run Email Bot
+                        </button>
+                        <button className="btn btn-pause" onClick={() => setBotStatus('paused')}>
+                            <i className="fas fa-pause"></i>
+                            Pause Bot
+                        </button>
+                        <button className="btn btn-stop" onClick={() => setBotStatus('stopped')}>
+                            <i className="fas fa-stop"></i>
+                            Stop Bot
+                        </button>
+                    </div>
+                    <div className="progress-bar">
+                        <div className="progress-fill" style={{width: `${(stats.dailyUsed / stats.dailyLimit) * 100}%`}}></div>
+                    </div>
+                    <div style={{marginTop: '10px', fontSize: '12px', color: '#666'}}>
+                        Daily Limit: {stats.dailyUsed} / {stats.dailyLimit} emails
+                    </div>
+                </div>
+            );
+
+            const renderStats = () => (
+                <div className="stats-grid">
+                    <div className="stat-card">
+                        <div className="stat-number">{stats.emailsSent.toLocaleString()}</div>
+                        <div className="stat-label">Emails Sent</div>
+                    </div>
+                    <div className="stat-card" style={{borderLeftColor: '#ff9800'}}>
+                        <div className="stat-number">{stats.failedEmails}</div>
+                        <div className="stat-label">Failed Emails</div>
+                    </div>
+                    <div className="stat-card" style={{borderLeftColor: '#2196F3'}}>
+                        <div className="stat-number">{stats.remainingEmails}</div>
+                        <div className="stat-label">Remaining Emails</div>
+                    </div>
+                    <div className="stat-card" style={{borderLeftColor: '#9C27B0'}}>
+                        <div className="stat-number">{stats.sendingSpeed}</div>
+                        <div className="stat-label">Emails/Min</div>
+                    </div>
+                </div>
+            );
+
+            const renderDraftEditor = () => (
+                <div className="draft-editor">
+                    <div className="editor-header">
+                        <h3>Campaign Draft Editor</h3>
+                        <div style={{display: 'flex', gap: '10px'}}>
+                            <select 
+                                className="input-field" 
+                                style={{width: '200px'}}
+                                value={selectedCampaign.id}
+                                onChange={(e) => setSelectedCampaign(campaigns.find(c => c.id == e.target.value))}
+                            >
+                                {campaigns.map(campaign => (
+                                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                                ))}
+                            </select>
+                            <button className="btn" style={{background: '#4CAF50', color: 'white'}}>
+                                <i className="fas fa-save"></i>
+                                Save Draft
+                            </button>
+                        </div>
+                    </div>
+                    <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="Subject Line"
+                        defaultValue="Cover Story Proposal - Top Visionary Leaders in AI 2026"
+                    />
+                    <textarea 
+                        className="rich-editor"
+                        placeholder="Compose your email content here..."
+                        defaultValue="Dear {{ name }},
+
+I hope you are doing well.
+
+I am writing to inform you that our editorial team at The Entrepreneurial Chronicles Magazine has shortlisted you for inclusion in our upcoming 2026 leadership edition..."
+                    />
+                    <div className="campaign-config">
+                        <div>
+                            <label style={{display: 'block', marginBottom: '5px', fontWeight: '600'}}>Send Limit</label>
+                            <input type="number" className="input-field" defaultValue="2000" />
+                        </div>
+                        <div>
+                            <label style={{display: 'block', marginBottom: '5px', fontWeight: '600'}}>Delay Between Emails (seconds)</label>
+                            <input type="number" className="input-field" defaultValue="60" />
+                        </div>
+                    </div>
+                    <div style={{marginTop: '20px', display: 'flex', gap: '10px'}}>
+                        <button className="btn" style={{background: '#6c757d', color: 'white'}}>
+                            <i className="fas fa-paperclip"></i>
+                            Add Attachment
+                        </button>
+                        <button className="btn" style={{background: '#17a2b8', color: 'white'}}>
+                            <i className="fas fa-eye"></i>
+                            Preview Email
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const renderContacts = () => (
+                <div>
+                    <h2 style={{marginBottom: '20px'}}>Contacts / Leads</h2>
+                    <div style={{marginBottom: '10px'}}>
+                        <button className="btn" style={{background: '#4CAF50', color: 'white', marginRight: '10px'}} onClick={fetchLeads}>
+                            <i className="fas fa-sync"></i> Reload Leads
+                        </button>
+                        <label className="btn" style={{background: '#2196F3', color: 'white', padding: '10px 16px', cursor: 'pointer'}}>
+                            <i className="fas fa-upload"></i> Upload Leads
+                            <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={handleUpload} />
+                        </label>
+                    </div>
+                    <div className="logs-table">
+                        <table className="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Stage</th>
+                                    <th>Cover Sent</th>
+                                    <th>Reminder Sent</th>
+                                    <th>FollowUp Sent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leads.map((lead, idx) => (
+                                    <tr key={idx}>
+                                        <td>{lead.Name || ''}</td>
+                                        <td>{lead.Clean_Email || lead.Email || ''}</td>
+                                        <td>{lead.stage || ''}</td>
+                                        <td>{lead.CoverSentDate || ''}</td>
+                                        <td>{lead.ReminderSent ? 'Yes' : 'No'}</td>
+                                        <td>{lead.FollowUpSent ? 'Yes' : 'No'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+
+            const renderAnalytics = () => (
+                <div>
+                    <div className="chart-container">
+                        <h3 style={{marginBottom: '20px'}}>Email Sending Analytics</h3>
+                        <canvas id="emailChart" width="400" height="150"></canvas>
+                    </div>
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-number">87.5%</div>
+                            <div className="stat-label">Success Rate</div>
+                        </div>
+                        <div className="stat-card" style={{borderLeftColor: '#ff9800'}}>
+                            <div className="stat-number">2.3%</div>
+                            <div className="stat-label">Bounce Rate</div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderLogs = () => (
+                <div className="logs-table">
+                    <h3 style={{padding: '20px', marginBottom: '0'}}>Email Logs</h3>
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Time</th>
+                                <th>Response Code</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {emailLogs.map((log, index) => (
+                                <tr key={index}>
+                                    <td>{log.email}</td>
+                                    <td className={`status-${log.status.toLowerCase().replace(' ', '-')}`}>
+                                        {log.status}
+                                    </td>
+                                    <td>{log.time}</td>
+                                    <td>{log.responseCode}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+
+            const renderContent = () => {
+                switch(activeMenu) {
+                    case 'dashboard':
+                        return (
+                            <div>
+                                {renderBotControls()}
+                                {renderStats()}
+                            </div>
+                        );
+                    case 'campaigns':
+                        return (
+                            <div>
+                                <h2 style={{marginBottom: '20px'}}>Campaign Management</h2>
+                                {campaigns.map(campaign => (
+                                    <div key={campaign.id} className="stat-card" style={{marginBottom: '15px'}}>
+                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                            <div>
+                                                <h4>{campaign.name}</h4>
+                                                <span style={{color: '#666', fontSize: '14px'}}>Status: {campaign.status}</span>
+                                            </div>
+                                            <div>
+                                                <button className="btn" style={{background: '#4CAF50', color: 'white', fontSize: '12px'}}>
+                                                    Edit
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div style={{marginTop: '10px', fontSize: '12px', color: '#666'}}>
+                                            Limit: {campaign.sendLimit} emails | Delay: {campaign.delayBetweenEmails}s
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    case 'editor':
+                        return renderDraftEditor();
+                    case 'contacts':
+                        return renderContacts();
+                    case 'analytics':
+                        return renderAnalytics();
+                    case 'logs':
+                        return renderLogs();
+                    default:
+                        return <div><h2>Page under construction</h2></div>;
+                }
+            };
+
+            return (
+                <div className="dashboard">
+                    {renderSidebar()}
+                    <div className="main-content">
+                        {renderTopNav()}
+                        <div className="content">
+                            {renderContent()}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // NOTE: runCampaign will be defined inside Dashboard component where setBotStatus is available.
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Dashboard />);
+    </script>
+</body>
+</html>

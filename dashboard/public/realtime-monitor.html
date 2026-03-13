@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Bot Real-time Monitor</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .monitor-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #4CAF50, #2196F3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #475569;
+            text-align: center;
+        }
+        
+        .status-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .status-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        .process-log {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #475569;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .log-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .log-sending {
+            background: linear-gradient(135deg, #1e40af, #3730a3);
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .log-success {
+            background: linear-gradient(135deg, #14532d, #166534);
+            border-left: 4px solid #22c55e;
+        }
+        
+        .log-failed {
+            background: linear-gradient(135deg, #7f1d1d, #991b1b);
+            border-left: 4px solid #ef4444;
+        }
+        
+        .log-waiting {
+            background: linear-gradient(135deg, #42307d, #5b21b6);
+            border-left: 4px solid #a855f7;
+        }
+        
+        .log-time {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            min-width: 80px;
+        }
+        
+        .log-message {
+            flex: 1;
+        }
+        
+        .log-email {
+            font-weight: 600;
+            color: #60a5fa;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #334155;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #2196F3);
+            transition: width 0.5s ease;
+        }
+        
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+            color: white;
+        }
+        
+        .btn-clear {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+        }
+        
+        .current-sending {
+            background: linear-gradient(135deg, #059669, #047857);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #047857;
+        }
+        
+        .sending-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #047857;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function RealtimeMonitor() {
+            const [isRunning, setIsRunning] = useState(false);
+            const [logs, setLogs] = useState([]);
+            const [stats, setStats] = useState({
+                totalSent: 0,
+                totalFailed: 0,
+                totalRemaining: 0,
+                currentBatch: 0,
+                sendingSpeed: 0
+            });
+            const [currentEmail, setCurrentEmail] = useState(null);
+            const [progress, setProgress] = useState(0);
+            const logsEndRef = useRef(null);
+
+            // Poll for real-time updates
+            useEffect(() => {
+                const interval = setInterval(async () => {
+                    try {
+                        const response = await fetch('/api/campaign-status');
+                        const data = await response.json();
+                        
+                        // Update all real data from backend
+                        setIsRunning(data.isRunning);
+                        setStats(data.stats);
+                        setCurrentEmail(data.currentEmail);
+                        setLogs(data.logs);
+                        
+                        // Calculate progress
+                        const total = data.stats.totalSent + data.stats.totalFailed + data.stats.totalRemaining;
+                        const completed = data.stats.totalSent + data.stats.totalFailed;
+                        setProgress(total > 0 ? (completed / total) * 100 : 0);
+                        
+                    } catch (error) {
+                        console.error('Error fetching campaign status:', error);
+                    }
+                }, 1000); // Update every second
+
+                return () => clearInterval(interval);
+            }, []);
+
+            const startCampaign = async () => {
+                try {
+                    const response = await fetch('/api/start-campaign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        alert(result.error || 'Failed to start campaign');
+                    }
+                } catch (error) {
+                    alert('Error starting campaign: ' + error.message);
+                }
+            };
+
+            const stopCampaign = async () => {
+                try {
+                    const response = await fetch('/api/stop-campaign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        alert(result.error || 'Failed to stop campaign');
+                    }
+                } catch (error) {
+                    alert('Error stopping campaign: ' + error.message);
+                }
+            };
+
+            const clearLogs = async () => {
+                try {
+                    const response = await fetch('/api/clear-logs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        alert(result.error || 'Failed to clear logs');
+                    }
+                } catch (error) {
+                    alert('Error clearing logs: ' + error.message);
+                }
+            };
+
+            return (
+                <div className="monitor-container">
+                    <div className="header">
+                        <h1>📧 Email Bot Real-time Monitor</h1>
+                        <p style={{color: '#94a3b8'}}>Watch your email campaign execute in real-time</p>
+                    </div>
+
+                    <div className="control-panel">
+                        <button 
+                            className="btn btn-start" 
+                            onClick={startCampaign}
+                            disabled={isRunning}
+                        >
+                            <i className="fas fa-play"></i>
+                            {isRunning ? 'Campaign Running...' : 'Start Campaign'}
+                        </button>
+                        <button 
+                            className="btn btn-stop" 
+                            onClick={stopCampaign}
+                            disabled={!isRunning}
+                        >
+                            <i className="fas fa-stop"></i>
+                            Stop Campaign
+                        </button>
+                        <button 
+                            className="btn btn-clear" 
+                            onClick={clearLogs}
+                            disabled={isRunning}
+                        >
+                            <i className="fas fa-trash"></i>
+                            Clear Logs
+                        </button>
+                    </div>
+
+                    <div className="status-grid">
+                        <div className="status-card">
+                            <div className="status-number" style={{color: '#4CAF50'}}>{stats.totalSent}</div>
+                            <div className="status-label">Emails Sent</div>
+                        </div>
+                        <div className="status-card">
+                            <div className="status-number" style={{color: '#f44336'}}>{stats.totalFailed}</div>
+                            <div className="status-label">Failed</div>
+                        </div>
+                        <div className="status-card">
+                            <div className="status-number" style={{color: '#ff9800'}}>{stats.totalRemaining}</div>
+                            <div className="status-label">Remaining</div>
+                        </div>
+                        <div className="status-card">
+                            <div className="status-number" style={{color: '#2196F3'}}>{stats.currentBatch}</div>
+                            <div className="status-label">Current Batch</div>
+                        </div>
+                    </div>
+
+                    {currentEmail && (
+                        <div className="current-sending">
+                            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                <div className="spinner"></div>
+                                <span className="pulse">Currently sending to: <span className="log-email">{currentEmail}</span></span>
+                            </div>
+                            <div className="sending-details">
+                                <div className="detail-item">
+                                    <span>Progress:</span>
+                                    <span>{Math.round(progress)}%</span>
+                                </div>
+                                <div className="detail-item">
+                                    <span>Total Sent:</span>
+                                    <span>{stats.totalSent}</span>
+                                </div>
+                                <div className="detail-item">
+                                    <span>Total Failed:</span>
+                                    <span>{stats.totalFailed}</span>
+                                </div>
+                                <div className="detail-item">
+                                    <span>Remaining:</span>
+                                    <span>{stats.totalRemaining}</span>
+                                </div>
+                            </div>
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{width: `${progress}%`}}></div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="process-log">
+                        <div className="log-header">
+                            <h3>📋 Process Log</h3>
+                            <span style={{color: '#94a3b8'}}>{logs.length} entries</span>
+                        </div>
+                        <div>
+                            {logs.map((log, index) => (
+                                <div key={index} className={`log-item log-${log.type}`}>
+                                    <span className="log-time">{log.timestamp}</span>
+                                    <span className="log-message">
+                                        {log.message}
+                                        {log.email && <span className="log-email"> ({log.email})</span>}
+                                    </span>
+                                </div>
+                            ))}
+                            <div ref={logsEndRef} />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<RealtimeMonitor />, document.getElementById('root'));
+    </script>
+</body>
+</html>
