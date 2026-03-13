@@ -65,6 +65,8 @@ campaign.log
 
 .next/
 
+# Next.js build output is ignored so deployments always start clean.
+
 # Excel files (optional - comment out if you want to track them)
 # data/*.xlsx
 
