@@ -63,6 +63,8 @@ Thumbs.db
 logs/
 campaign.log
 
+.next/
+
 # Excel files (optional - comment out if you want to track them)
 # data/*.xlsx
 
