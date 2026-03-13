@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../../lib/mongodb';
-import Campaign from '../../../../../models/Campaign';
+import connectDB from '@/lib/mongodb';
+import Campaign from '@/models/Campaign';
 
 export async function POST(_, { params }) {
   try {

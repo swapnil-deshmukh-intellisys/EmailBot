@@ -1,10 +1,10 @@
 ﻿import { NextResponse } from 'next/server';
-import connectDB from '../../../lib/mongodb';
-import GraphOAuthAccount from '../../../models/GraphOAuthAccount';
-import PresetSender from '../../../models/PresetSender';
-import SenderAccount from '../../../models/SenderAccount';
-import { verifyAccountConnection } from '../../../lib/emailSender';
-import { getRuntimeSenderAccounts } from '../../../lib/senderAccounts';
+import connectDB from '@/lib/mongodb';
+import GraphOAuthAccount from '@/models/GraphOAuthAccount';
+import PresetSender from '@/models/PresetSender';
+import SenderAccount from '@/models/SenderAccount';
+import { verifyAccountConnection } from '@/lib/emailSender';
+import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 
 function toPublicAccount(a) {
   return {

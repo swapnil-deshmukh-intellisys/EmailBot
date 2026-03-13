@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import LeadList from '../../../../models/LeadList';
+import connectDB from '@/lib/mongodb';
+import LeadList from '@/models/LeadList';
 
 export async function GET(_, { params }) {
   await connectDB();

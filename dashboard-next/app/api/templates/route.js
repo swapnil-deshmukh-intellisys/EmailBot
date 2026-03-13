@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../lib/mongodb';
-import EmailTemplate from '../../../models/EmailTemplate';
+import connectDB from '@/lib/mongodb';
+import EmailTemplate from '@/models/EmailTemplate';
 
 async function ensureDefaultTemplate() {
   const count = await EmailTemplate.countDocuments();

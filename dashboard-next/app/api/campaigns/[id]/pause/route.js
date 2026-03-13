@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../../lib/mongodb';
-import Campaign from '../../../../../models/Campaign';
-import { pauseCampaignRunner } from '../../../../../lib/campaignRunner';
+import connectDB from '@/lib/mongodb';
+import Campaign from '@/models/Campaign';
+import { pauseCampaignRunner } from '@/lib/campaignRunner';
 
 export async function POST(_, { params }) {
   await connectDB();

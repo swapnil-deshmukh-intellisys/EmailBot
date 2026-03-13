@@ -1,10 +1,10 @@
 {
-  "/api/stats/route": "app/api/stats/route.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/api/stats/route": "app/api/stats/route.js",
   "/api/accounts/route": "app/api/accounts/route.js",
   "/api/campaigns/route": "app/api/campaigns/route.js",
-  "/api/templates/route": "app/api/templates/route.js",
   "/api/uploads/route": "app/api/uploads/route.js",
+  "/api/templates/route": "app/api/templates/route.js",
   "/api/campaigns/[id]/start/route": "app/api/campaigns/[id]/start/route.js",
-  "/api/drafts/route": "app/api/drafts/route.js"
+  "/api/campaigns/[id]/route": "app/api/campaigns/[id]/route.js"
 }

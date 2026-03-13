@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sendEmailForLead } from '../../../lib/emailSender';
-import { resolveSenderAccountById } from '../../../lib/senderAccounts';
+import { sendEmailForLead } from '@/lib/emailSender';
+import { resolveSenderAccountById } from '@/lib/senderAccounts';
 
 export async function POST(req) {
   try {

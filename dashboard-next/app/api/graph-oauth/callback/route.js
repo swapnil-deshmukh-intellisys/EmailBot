@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import GraphOAuthAccount from '../../../../models/GraphOAuthAccount';
-import { encryptString } from '../../../../lib/tokenCrypto';
+import connectDB from '@/lib/mongodb';
+import GraphOAuthAccount from '@/models/GraphOAuthAccount';
+import { encryptString } from '@/lib/tokenCrypto';
 
 function base64UrlDecodeToJson(part) {
   const pad = '='.repeat((4 - (part.length % 4)) % 4);

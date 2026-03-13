@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../../lib/mongodb';
-import Campaign from '../../../../../models/Campaign';
-import { getRunnerState } from '../../../../../lib/campaignRunner';
+import connectDB from '@/lib/mongodb';
+import Campaign from '@/models/Campaign';
+import { getRunnerState } from '@/lib/campaignRunner';
 
 export async function GET(_, { params }) {
   await connectDB();

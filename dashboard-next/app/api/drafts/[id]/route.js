@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import EmailDraft from '../../../../models/EmailDraft';
+import connectDB from '@/lib/mongodb';
+import EmailDraft from '@/models/EmailDraft';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
 

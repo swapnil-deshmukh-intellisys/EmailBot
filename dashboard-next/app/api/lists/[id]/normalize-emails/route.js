@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../../lib/mongodb';
-import LeadList from '../../../../../models/LeadList';
+import connectDB from '@/lib/mongodb';
+import LeadList from '@/models/LeadList';
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
