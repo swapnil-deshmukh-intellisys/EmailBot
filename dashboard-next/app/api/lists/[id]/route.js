@@ -13,6 +13,7 @@ export async function GET(_, { params }) {
     _id: String(list._id),
     name: list.name,
     sourceFile: list.sourceFile,
+    columns: list.columns || [],
     leads: list.leads
   });
 }

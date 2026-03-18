@@ -17,6 +17,7 @@ const LeadListSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     sourceFile: { type: String, required: true },
+    columns: { type: [String], default: [] },
     leads: { type: [LeadSchema], default: [] },
     uploadedAt: { type: Date, default: Date.now }
   },

@@ -32,6 +32,22 @@ function normalizeRow(row) {
   };
 }
 
+function extractColumns(rows) {
+  const columns = [];
+  const seen = new Set();
+
+  for (const row of rows) {
+    for (const key of Object.keys(row || {})) {
+      const cleanKey = String(key || '').trim();
+      if (!cleanKey || seen.has(cleanKey)) continue;
+      seen.add(cleanKey);
+      columns.push(cleanKey);
+    }
+  }
+
+  return columns;
+}
+
 export async function POST(req) {
   await connectDB();
 
@@ -47,6 +63,7 @@ export async function POST(req) {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const firstSheet = workbook.SheetNames[0];
   const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+  const columns = extractColumns(rows);
 
   const leads = rows
     .map(normalizeRow)
@@ -59,6 +76,7 @@ export async function POST(req) {
   const list = await LeadList.create({
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,
+    columns,
     leads
   });
 
@@ -66,6 +84,8 @@ export async function POST(req) {
     ok: true,
     listId: String(list._id),
     count: leads.length,
+    previewColumns: columns,
+    previewRows: rows.slice(0, 20),
     preview: leads.slice(0, 20)
   });
 }

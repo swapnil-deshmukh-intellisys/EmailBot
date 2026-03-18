@@ -168,6 +168,7 @@ export default function DashboardPage() {
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [preview, setPreview] = useState([]);
+  const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignName, setCampaignName] = useState('New Campaign');
@@ -510,6 +511,34 @@ const handleDeleteDraft = async (draft) => {
     return () => clearInterval(id);
   }, [selectedListId, selectedTemplateId, project]);
 
+  useEffect(() => {
+    const loadListPreview = async () => {
+      if (!selectedListId) {
+        setPreview([]);
+        setPreviewColumns([]);
+        return;
+      }
+
+      try {
+        const data = await safeFetchJson(`/api/lists/${selectedListId}`);
+        const leads = data.leads || [];
+        const columns = data.columns?.length
+          ? data.columns
+          : Array.from(
+              new Set(
+                leads.flatMap((lead) => Object.keys(lead?.data || {})).filter(Boolean)
+              )
+            );
+        setPreviewColumns(columns);
+        setPreview(leads.slice(0, 20).map((lead) => lead.data || {}));
+      } catch (e) {
+        console.error('Failed to load list preview', e);
+      }
+    };
+
+    loadListPreview();
+  }, [selectedListId]);
+
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -521,7 +550,8 @@ const handleDeleteDraft = async (draft) => {
     try {
       const data = await safeFetchJson('/api/uploads', { method: 'POST', body: form });
       setLoading(false);
-      setPreview(data.preview || []);
+      setPreviewColumns(data.previewColumns || []);
+      setPreview(data.previewRows || []);
       setSelectedListId(data.listId);
       await loadAll();
     } catch (e) {
@@ -939,14 +969,18 @@ const normalizeSelectedListEmails = async () => {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Name</th><th>Email</th><th>Company</th></tr>
+                <tr>
+                  {(previewColumns.length ? previewColumns : Object.keys(preview[0] || {})).map((column) => (
+                    <th key={column}>{column}</th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
                 {preview.slice(0, 10).map((row, idx) => (
                   <tr key={idx}>
-                    <td>{row.Name || ''}</td>
-                    <td>{row.Email || ''}</td>
-                    <td>{row.Company || ''}</td>
+                    {(previewColumns.length ? previewColumns : Object.keys(row || {})).map((column) => (
+                      <td key={`${idx}-${column}`}>{row?.[column] ?? ''}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
