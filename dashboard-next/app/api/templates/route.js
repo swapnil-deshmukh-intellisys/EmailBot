@@ -7,7 +7,7 @@ async function ensureDefaultTemplate() {
   if (count > 0) return;
 
   await EmailTemplate.create({
-    name: 'Default Intro',
+    name: 'Customize Draft',
     subject: 'Opportunity for {{Name}} at {{Company}}',
     body: '<p>Hello {{Name}},</p><p>We would like to share an opportunity with {{Company}}.</p><p>Regards,<br/>Team</p>'
   });

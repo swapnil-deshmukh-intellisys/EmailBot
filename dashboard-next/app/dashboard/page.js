@@ -3,12 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 // import ScriptManager from "../dashboard/ScriptManager";
 
-function StatCard({ title, value }) {
+function StatCard({ title, value, onClick, active = false }) {
   return (
-    <div className="card">
+    <button
+      type="button"
+      className="card"
+      onClick={onClick}
+      style={{
+        textAlign: 'left',
+        cursor: onClick ? 'pointer' : 'default',
+        border: active ? '2px solid #0ea5e9' : undefined
+      }}
+    >
       <h3>{value}</h3>
       <p>{title}</p>
-    </div>
+    </button>
   );
 }
 
@@ -16,6 +25,8 @@ function StatusBadge({ status }) {
   const k = (status || '').toLowerCase();
   return <span className={`badge ${k}`}>{status}</span>;
 }
+
+const ACTIVE_CAMPAIGN_STATUSES = new Set(['Running', 'Paused']);
 
 function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
@@ -161,9 +172,86 @@ const DRAFT_CATEGORIES = [
   { label: "Final Cost", value: "final_cost" }
 ];
 
+const SUMMARY_RANGES = [
+  { label: '7 Days', value: '7d' },
+  { label: '15 Days', value: '15d' },
+  { label: '30 Days', value: '30d' },
+  { label: '3 Monthly Quarter', value: 'quarter' }
+];
+
+const COUNTRY_TIME_SLOTS = {
+  india: { timezone: 'Asia/Kolkata', slots: ['09:00 AM', '11:00 AM', '02:00 PM', '05:00 PM'] },
+  usa: { timezone: 'America/New_York', slots: ['08:00 AM', '10:00 AM', '01:00 PM', '04:00 PM'] },
+  uk: { timezone: 'Europe/London', slots: ['09:00 AM', '12:00 PM', '03:00 PM', '06:00 PM'] },
+  uae: { timezone: 'Asia/Dubai', slots: ['10:00 AM', '01:00 PM', '04:00 PM', '07:00 PM'] },
+  australia: { timezone: 'Australia/Sydney', slots: ['08:00 AM', '11:00 AM', '02:00 PM', '05:00 PM'] }
+};
+
+function getTimeZoneParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: Number(map.second)
+  };
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const parts = getTimeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUtc - date.getTime();
+}
+
+function buildScheduledDate(timeZone, slot) {
+  if (!slot) return null;
+  const now = new Date();
+  const zoneNow = getTimeZoneParts(now, timeZone);
+  const [timePart, meridiem] = slot.split(' ');
+  let [hours, minutes] = timePart.split(':').map(Number);
+  if (meridiem === 'PM' && hours !== 12) hours += 12;
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+
+  let targetUtcMs = Date.UTC(zoneNow.year, zoneNow.month - 1, zoneNow.day, hours, minutes, 0);
+  targetUtcMs -= getTimeZoneOffsetMs(new Date(targetUtcMs), timeZone);
+  let targetDate = new Date(targetUtcMs);
+
+  if (targetDate <= now) {
+    const tomorrowUtcMs = Date.UTC(zoneNow.year, zoneNow.month - 1, zoneNow.day + 1, hours, minutes, 0);
+    targetUtcMs = tomorrowUtcMs - getTimeZoneOffsetMs(new Date(tomorrowUtcMs), timeZone);
+    targetDate = new Date(targetUtcMs);
+  }
+
+  return targetDate;
+}
+
+const DEFAULT_SHEET_STYLE = {
+  fontFamily: 'Segoe UI',
+  fontSize: 14,
+  headerBg: '#edf2f7',
+  headerColor: '#1e293b',
+  cellBg: '#ffffff',
+  cellColor: '#0f172a',
+  columnWidths: {}
+};
+
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ totalUploaded: 0, sent: 0, pending: 0, failed: 0 });
+  const [stats, setStats] = useState({ totalUploaded: 0, sent: 0, pending: 0, failed: 0, last10DaysStats: 0, dailyMailCounts: [] });
+  const [selectedStatsDate, setSelectedStatsDate] = useState('');
+  const [selectedStatsRange, setSelectedStatsRange] = useState('');
   const [lists, setLists] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
@@ -171,7 +259,7 @@ export default function DashboardPage() {
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [campaignName, setCampaignName] = useState('New Campaign');
+  const [campaignName, setCampaignName] = useState('Write a Campaign name');
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [batchSize, setBatchSize] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -185,6 +273,7 @@ export default function DashboardPage() {
   const [selectedDraft, setSelectedDraft] = useState('cover_story');
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
+  const [blankWordPad, setBlankWordPad] = useState('');
 
   const [showAddDraft, setShowAddDraft] = useState(false);
   const [newDraftCategory, setNewDraftCategory] = useState("cover_story");
@@ -201,6 +290,22 @@ export default function DashboardPage() {
   const [editingDraftId, setEditingDraftId] = useState(null);
   const [newDraftTitle, setNewDraftTitle] = useState("");
   const [selectedCampaignIds, setSelectedCampaignIds] = useState([]);
+  const [showCampaignHistory, setShowCampaignHistory] = useState(false);
+  const [showDayCounts, setShowDayCounts] = useState(false);
+  const [showUploadedFilesDropdown, setShowUploadedFilesDropdown] = useState(false);
+  const [showUploadPreview, setShowUploadPreview] = useState(true);
+  const [showDraftEditor, setShowDraftEditor] = useState(true);
+  const [showBlankWordPad, setShowBlankWordPad] = useState(true);
+  const [changeInDraftValue, setChangeInDraftValue] = useState('');
+  const [showScheduledTimePicker, setShowScheduledTimePicker] = useState(false);
+  const [scheduledCountry, setScheduledCountry] = useState('india');
+  const [scheduledSlot, setScheduledSlot] = useState('');
+  const [scheduledStartLabel, setScheduledStartLabel] = useState('');
+  const [selectedUploadedFileIds, setSelectedUploadedFileIds] = useState([]);
+  const [previewDirty, setPreviewDirty] = useState(false);
+  const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
+  const fileInputRef = useRef(null);
+  const scheduledStartTimeoutRef = useRef(null);
   const handleSavedDraftSelect = (draft) => {
     const id = draft._id || draft.id;
     setActiveSavedDraftId(id);
@@ -258,7 +363,7 @@ const handleDeleteDraft = async (draft) => {
       setSelectedCampaignIds([]);
       return;
     }
-    setSelectedCampaignIds(allCampaignIds);
+    setSelectedCampaignIds(historyCampaignIds);
   };
 
   const deleteSelectedCampaigns = async () => {
@@ -319,11 +424,34 @@ const handleDeleteDraft = async (draft) => {
       alert(err.message || 'Failed to save draft');
     }
   };
-  const activeCampaign = useMemo(() => campaigns.find((c) => c.status === 'Running' || c.status === 'Paused'), [campaigns]);
+  const activeCampaigns = useMemo(
+    () => campaigns.filter((c) => ACTIVE_CAMPAIGN_STATUSES.has(c.status)),
+    [campaigns]
+  );
+  const historyCampaigns = useMemo(
+    () => campaigns.filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status)),
+    [campaigns]
+  );
+  const runningCampaign = useMemo(
+    () => activeCampaigns.find((c) => String(c.status || '').toLowerCase() === 'running') || null,
+    [activeCampaigns]
+  );
+  const activeCampaign = useMemo(() => activeCampaigns[0] || null, [activeCampaigns]);
   const progressText = activeCampaign ? `${activeCampaign.stats?.sent || 0}/${activeCampaign.stats?.total || 0} emails sent` : '0/0 emails sent';
-  const selectedAcc = useMemo(() => projectAccounts.find((a) => a.id === selectedAccount) || null, [projectAccounts, selectedAccount]);
-  const allCampaignIds = useMemo(() => campaigns.map((c) => c._id), [campaigns]);
-  const allCampaignsSelected = allCampaignIds.length > 0 && allCampaignIds.every((id) => selectedCampaignIds.includes(id));
+  const historyCampaignIds = useMemo(() => historyCampaigns.map((c) => c._id), [historyCampaigns]);
+  const allCampaignsSelected = historyCampaignIds.length > 0 && historyCampaignIds.every((id) => selectedCampaignIds.includes(id));
+  const selectedListName = useMemo(
+    () => lists.find((list) => list._id === selectedListId)?.name || '',
+    [lists, selectedListId]
+  );
+  const quickDraftButtons = useMemo(
+    () => ([
+      { label: 'cs1', draft: savedDrafts.find((draft) => draft.category === 'cover_story') || null },
+      { label: 'rem1', draft: savedDrafts.find((draft) => draft.category === 'reminder') || null },
+      { label: 'fu1', draft: savedDrafts.find((draft) => draft.category === 'follow_up') || null }
+    ]),
+    [savedDrafts]
+  );
 
   useEffect(() => {
     if (!projectAccounts.length) {
@@ -332,13 +460,9 @@ const handleDeleteDraft = async (draft) => {
       return;
     }
     const match = projectAccounts.find((a) => a.id === selectedAccount);
-    if (match) {
-      setActiveAccount(match.from || '');
-      return;
+    if (!match) {
+      setSelectedAccount('');
     }
-    const next = projectAccounts[0];
-    setSelectedAccount(next.id);
-    setActiveAccount(next.from || '');
   }, [projectAccounts, selectedAccount]);
 
   const draftTemplates = {
@@ -455,8 +579,14 @@ const handleDeleteDraft = async (draft) => {
 
   const loadAll = async () => {
     try {
+      let statsUrl = '/api/stats';
+      if (selectedStatsRange) {
+        statsUrl = `/api/stats?range=${encodeURIComponent(selectedStatsRange)}`;
+      } else if (selectedStatsDate) {
+        statsUrl = `/api/stats?date=${encodeURIComponent(selectedStatsDate)}`;
+      }
       const [st, tpl, cps, accRes] = await Promise.all([
-        safeFetchJson('/api/stats'),
+        safeFetchJson(statsUrl),
         safeFetchJson('/api/templates'),
         safeFetchJson('/api/campaigns'),
         safeFetchJson(`/api/accounts?project=${encodeURIComponent(project)}`)
@@ -468,14 +598,16 @@ const handleDeleteDraft = async (draft) => {
       setTemplates(tpl.templates || []);
       setCampaigns(cps.campaigns || []);
       setSelectedCampaignIds((prev) => 
-        (cps.campaigns || []).map((c) => c._id).filter((id) => prev.includes(id))
+        (cps.campaigns || [])
+          .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
+          .map((c) => c._id)
+          .filter((id) => prev.includes(id))
       );
       setAccounts(accRes.accounts || []);
 
       const accList = accRes.accounts || [];
       if (selectedAccount && !accList.find((a) => a.id === selectedAccount)) {
-        setSelectedAccount(accList[0]?.id || "");
-        setActiveAccount(accList[0]?.from || "");
+        setSelectedAccount("");
       }
 
       if (!selectedListId && st.lists?.[0]?._id) {
@@ -483,10 +615,6 @@ const handleDeleteDraft = async (draft) => {
       }
       if (!selectedTemplateId && tpl.templates?.[0]?._id) {
         setSelectedTemplateId(tpl.templates[0]._id);
-      }
-      if (!selectedAccount && accRes.accounts?.[0]?.id) {
-        setSelectedAccount(accRes.accounts[0].id);
-        setActiveAccount(accRes.accounts[0].from || '');
       }
     } catch (e) {
       setError(e.message || 'Failed to load dashboard data');
@@ -503,7 +631,7 @@ const handleDeleteDraft = async (draft) => {
 
   useEffect(() => {
     loadAll();
-  }, [project]);
+  }, [project, selectedStatsDate, selectedStatsRange]);
 
 
   useEffect(() => {
@@ -516,6 +644,8 @@ const handleDeleteDraft = async (draft) => {
       if (!selectedListId) {
         setPreview([]);
         setPreviewColumns([]);
+        setPreviewDirty(false);
+        setPreviewStyle(DEFAULT_SHEET_STYLE);
         return;
       }
 
@@ -530,7 +660,9 @@ const handleDeleteDraft = async (draft) => {
               )
             );
         setPreviewColumns(columns);
-        setPreview(leads.slice(0, 20).map((lead) => lead.data || {}));
+        setPreview(leads.map((lead) => lead.data || {}));
+        setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
+        setPreviewDirty(false);
       } catch (e) {
         console.error('Failed to load list preview', e);
       }
@@ -552,6 +684,8 @@ const handleDeleteDraft = async (draft) => {
       setLoading(false);
       setPreviewColumns(data.previewColumns || []);
       setPreview(data.previewRows || []);
+      setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
+      setPreviewDirty(false);
       setSelectedListId(data.listId);
       await loadAll();
     } catch (e) {
@@ -590,7 +724,7 @@ const handleDeleteDraft = async (draft) => {
 
   const connectSelectedAccount = async () => {
     const acc = accounts.find((a) => a.id === selectedAccount);
-    if (!acc) return alert('Select sender account');
+    if (!acc) return alert('Select Mail ID');
     if (acc.provider === "graph_oauth" && String(acc.status || "").toLowerCase() !== "connected") {
       startGraphOAuth(acc.from || "");
       return;
@@ -611,7 +745,7 @@ const handleDeleteDraft = async (draft) => {
 
   const sendTestEmail = async () => {
   const acc = accounts.find((a) => a.id === selectedAccount);
-  if (!acc) return alert('Select sender account');
+  if (!acc) return alert('Select Mail ID');
   if (!testEmailTo) return alert('Enter test recipient email');
   try {
     await safeFetchJson('/api/send-test', {
@@ -644,8 +778,39 @@ const normalizeSelectedListEmails = async () => {
     }
   };
 
-  const startCampaign = async (campaignId) => {
+  const startCampaign = async (campaignId, options = {}) => {
     try {
+      if (options.schedule) {
+        if (!scheduledSlot) {
+          alert('Select a scheduled time first');
+          return;
+        }
+        const zoneConfig = COUNTRY_TIME_SLOTS[scheduledCountry];
+        const targetDate = buildScheduledDate(zoneConfig.timezone, scheduledSlot);
+        if (!targetDate) {
+          alert('Invalid scheduled time');
+          return;
+        }
+        if (scheduledStartTimeoutRef.current) {
+          clearTimeout(scheduledStartTimeoutRef.current);
+        }
+        const delayMs = Math.max(0, targetDate.getTime() - Date.now());
+        scheduledStartTimeoutRef.current = setTimeout(async () => {
+          try {
+            const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
+            if (data.started === false && data.message) {
+              alert(data.message);
+            }
+            setScheduledStartLabel('');
+            await loadAll();
+          } catch (e) {
+            alert(e.message || 'Failed to start scheduled campaign');
+          }
+        }, delayMs);
+        setScheduledStartLabel(`${scheduledCountry.toUpperCase()} - ${scheduledSlot} (${targetDate.toLocaleString()})`);
+        alert(`Campaign scheduled for ${scheduledCountry.toUpperCase()} at ${scheduledSlot}`);
+        return;
+      }
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
       if (data.started === false && data.message) {
         alert(data.message);
@@ -705,6 +870,180 @@ const normalizeSelectedListEmails = async () => {
     }
   };
 
+  const deleteSelectedUploadedFile = async () => {
+    const idsToDelete = selectedUploadedFileIds.length ? selectedUploadedFileIds : (selectedListId ? [selectedListId] : []);
+    if (!idsToDelete.length) {
+      alert('Select uploaded file first');
+      return;
+    }
+    if (!window.confirm('Delete selected uploaded file(s)?')) {
+      return;
+    }
+
+    try {
+      await Promise.all(idsToDelete.map((id) => safeFetchJson(`/api/lists/${id}`, { method: 'DELETE' })));
+      setSelectedListId('');
+      setSelectedUploadedFileIds([]);
+      setPreview([]);
+      setPreviewColumns([]);
+      setShowUploadedFilesDropdown(false);
+      await loadAll();
+    } catch (e) {
+      alert(e.message || 'Failed to delete uploaded file');
+    }
+  };
+
+  const deleteAllUploadedFiles = async () => {
+    if (!lists.length) {
+      alert('No uploaded files to delete');
+      return;
+    }
+    if (!window.confirm('Delete all uploaded files?')) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        lists.map((list) => safeFetchJson(`/api/lists/${list._id}`, { method: 'DELETE' }))
+      );
+      setSelectedListId('');
+      setSelectedUploadedFileIds([]);
+      setPreview([]);
+      setPreviewColumns([]);
+      setShowUploadedFilesDropdown(false);
+      await loadAll();
+    } catch (e) {
+      alert(e.message || 'Failed to delete all uploaded files');
+    }
+  };
+
+  const updatePreviewCell = (rowIndex, column, value) => {
+    setPreview((prev) =>
+      prev.map((row, idx) => (idx === rowIndex ? { ...row, [column]: value } : row))
+    );
+    setPreviewDirty(true);
+  };
+
+  const savePreviewEdits = async () => {
+    if (!selectedListId) {
+      alert('Select uploaded file first');
+      return;
+    }
+
+    try {
+      await safeFetchJson(`/api/lists/${selectedListId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: preview, columns: previewColumns, sheetStyle: previewStyle })
+      });
+      setPreviewDirty(false);
+      await loadAll();
+      alert('Table changes saved');
+    } catch (e) {
+      alert(e.message || 'Failed to save table changes');
+    }
+  };
+
+  const getPreviewColumns = () =>
+    previewColumns.length
+      ? previewColumns
+      : Array.from(new Set(preview.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
+
+  const addPreviewRow = () => {
+    const columns = getPreviewColumns();
+    const newRow = Object.fromEntries(columns.map((column) => [column, '']));
+    setPreview((prev) => [...prev, newRow]);
+    setPreviewDirty(true);
+    setShowUploadPreview(true);
+  };
+
+  const addPreviewColumn = () => {
+    const existingColumns = getPreviewColumns();
+    let nextIndex = existingColumns.length + 1;
+    let nextName = `Column${nextIndex}`;
+    while (existingColumns.includes(nextName)) {
+      nextIndex += 1;
+      nextName = `Column${nextIndex}`;
+    }
+
+    setPreviewColumns([...existingColumns, nextName]);
+    setPreview((prev) => prev.map((row) => ({ ...row, [nextName]: '' })));
+    setPreviewDirty(true);
+    setShowUploadPreview(true);
+  };
+
+  const renamePreviewColumn = (oldName, newName) => {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed || trimmed === oldName) return;
+
+    const columns = getPreviewColumns();
+    if (columns.includes(trimmed)) {
+      alert('Column name already exists');
+      return;
+    }
+
+    setPreviewColumns(columns.map((column) => (column === oldName ? trimmed : column)));
+    setPreview((prev) =>
+      prev.map((row) => {
+        const updated = { ...row, [trimmed]: row?.[oldName] ?? '' };
+        delete updated[oldName];
+        return updated;
+      })
+    );
+    setPreviewDirty(true);
+  };
+
+  const deletePreviewColumn = (columnToDelete) => {
+    const columns = getPreviewColumns();
+    if (columns.length <= 1) {
+      alert('At least one column is required');
+      return;
+    }
+    if (!window.confirm(`Delete column "${columnToDelete}"?`)) {
+      return;
+    }
+
+    setPreviewColumns(columns.filter((column) => column !== columnToDelete));
+    setPreviewStyle((prev) => {
+      const nextWidths = { ...(prev.columnWidths || {}) };
+      delete nextWidths[columnToDelete];
+      return { ...prev, columnWidths: nextWidths };
+    });
+    setPreview((prev) =>
+      prev.map((row) => {
+        const updated = { ...row };
+        delete updated[columnToDelete];
+        return updated;
+      })
+    );
+    setPreviewDirty(true);
+  };
+
+  const deletePreviewRow = (rowIndex) => {
+    if (!window.confirm('Delete this row?')) {
+      return;
+    }
+    setPreview((prev) => prev.filter((_, idx) => idx !== rowIndex));
+    setPreviewDirty(true);
+  };
+
+  const updatePreviewStyle = (key, value) => {
+    setPreviewStyle((prev) => ({ ...prev, [key]: value }));
+    setPreviewDirty(true);
+  };
+
+  const updateColumnWidth = (column, value) => {
+    const width = Math.max(80, Number(value || 140));
+    setPreviewStyle((prev) => ({
+      ...prev,
+      columnWidths: {
+        ...(prev.columnWidths || {}),
+        [column]: width
+      }
+    }));
+    setPreviewDirty(true);
+  };
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     window.location.href = '/login';
@@ -717,105 +1056,722 @@ const normalizeSelectedListEmails = async () => {
           <h1>Email Automation Dashboard</h1>
           <p>Upload leads, run campaigns, track delivery in real-time.</p>
         </div>
-        <button className="button secondary" onClick={logout}>Logout</button>
+        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className={`badge ${project ? 'sent' : 'failed'}`}>
+            Active Project: {project ? String(project).toUpperCase() : 'Select Project'}
+          </span>
+          <span className={`badge ${activeAccount ? 'sent' : 'failed'}`}>
+            Working Mail: {activeAccount || "Select Mail ID"}
+          </span>
+          <button className="button secondary" onClick={logout}>Logout</button>
+        </div>
       </div>
       {error ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
+      <section className="card grid">
+        <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
+          <div>
+            <h3 style={{ margin: '0 0 6px' }}>Summary</h3>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Project / Client</p>
+            <select
+              className="select"
+              style={{
+                maxWidth: 160,
+                borderColor: project ? '#0ea5e9' : undefined,
+                background: project ? '#e0f2fe' : undefined,
+                color: project ? '#0f172a' : undefined,
+                fontWeight: project ? 700 : undefined
+              }}
+              value={project}
+              onChange={(e) => {
+                setProject(e.target.value);
+                setSelectedAccount("");
+                setActiveAccount("");
+              }}
+            >
+              <option value="tec">TEC</option>
+              <option value="tut">TUT</option>
+            </select>
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Mail ID</p>
+            <select
+              className="select"
+              style={{ maxWidth: 420 }}
+              value={selectedAccount}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "__oauth_add__") {
+                  startGraphOAuth();
+                  return;
+                }
+                setSelectedAccount(v);
+              }}
+            >
+              <option value="">Select Mail ID</option>
+              {projectAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.from}
+                </option>
+              ))}
+              <option value="__oauth_add__">Connect New Account</option>
+            </select>
+          </div>
+          <button className="button" type="button" onClick={connectSelectedAccount}>Select Sender</button>
+          <button className="button secondary" type="button" onClick={startGraphOAuth}>Add New Mail</button>
+          <div>
+            <h3 style={{ margin: '0 0 6px' }}>Filter</h3>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Starting Date</p>
+            <input
+              className="input"
+              type="date"
+              value={selectedStatsDate}
+              onChange={(e) => {
+                setSelectedStatsDate(e.target.value);
+                setSelectedStatsRange('');
+                setShowDayCounts(Boolean(e.target.value));
+              }}
+            />
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Quick Range</p>
+            <select
+              className="select"
+              value={selectedStatsRange}
+              onChange={(e) => {
+                setSelectedStatsRange(e.target.value);
+                setSelectedStatsDate('');
+                setShowDayCounts(Boolean(e.target.value));
+              }}
+            >
+              <option value="">Select Range</option>
+              {SUMMARY_RANGES.map((range) => (
+                <option key={range.value} value={range.value}>
+                  {range.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => {
+              setSelectedStatsDate('');
+              setSelectedStatsRange('');
+              setShowDayCounts(false);
+            }}
+            disabled={!selectedStatsDate && !selectedStatsRange}
+          >
+            Clear Filter
+          </button>
+        </div>
+      </section>
+
       <section className="grid stats-grid">
-        <StatCard title="Total Emails Uploaded" value={stats.totalUploaded} />
+        <StatCard title="Total mails" value={stats.totalUploaded} />
         <StatCard title="Sent" value={stats.sent} />
         <StatCard title="Pending" value={stats.pending} />
         <StatCard title="Failed" value={stats.failed} />
+        <StatCard
+          title="Last 10 days stats"
+          value={stats.last10DaysStats}
+          onClick={() => setShowDayCounts((prev) => !prev)}
+          active={showDayCounts}
+        />
       </section>
+      {showDayCounts ? (
+        <section className="card grid">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>
+              {selectedStatsRange
+                ? `${SUMMARY_RANGES.find((range) => range.value === selectedStatsRange)?.label || 'Selected Range'} Data`
+                : selectedStatsDate
+                  ? `${selectedStatsDate} Data`
+                  : 'Total Day Mail Count'}
+            </h3>
+            <button className="button secondary" type="button" onClick={() => setShowDayCounts(false)}>
+              Close
+            </button>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Mail Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(stats.dailyMailCounts || []).map((item) => (
+                  <tr key={item.date}>
+                    <td>{item.date}</td>
+                    <td>{item.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card grid">
-        <h3>Select Sender Email</h3>
-        <div className="row" style={{ flexWrap: "wrap" }}>
-          <select
-            className="select"
-            style={{ maxWidth: 160 }}
-            value={project}
-            onChange={(e) => {
-              setProject(e.target.value);
-              setSelectedAccount("");
-              setActiveAccount("");
-            }}
-          >
-            <option value="tec">TEC</option>
-            <option value="tut">TUT</option>
-          </select>
-          <select
-            className="select"
-            style={{ maxWidth: 420 }}
-            value={selectedAccount}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "__oauth_add__") {
-                startGraphOAuth();
-                return;
-              }
-              setSelectedAccount(v);
-              const acc = accounts.find((a) => a.id === v);
-              setActiveAccount(acc?.from || "");
-            }}
-          >
-            <option value="">Select Account</option>
-            {projectAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.from}
-              </option>
-            ))}
-            <option value="__oauth_add__">Connect New Account</option>
-          </select>
-          <button className="button secondary" type="button" onClick={startGraphOAuth}>Login / Connect Outlook Account</button>
-          <button className="button secondary" type="button" onClick={connectSelectedAccount}>Use Selected Sender</button>
-          <span className="badge sent">Active Sender: {activeAccount || "none"}</span>
-        </div>
-        {selectedAcc ? (
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <p style={{ margin: 0 }}>{selectedAcc.label} - {selectedAcc.from}</p>
-            <p style={{ margin: 0 }}>Status: Connected / Active</p>
-          </div>
-        ) : null}
-      </section>
-
-              <section className="card grid">
-        <h3>Select Email Draft</h3>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-          <select
-            className="select"
-            style={{ maxWidth: 320 }}
-            value={selectedDraft}
-            onChange={(e) => setSelectedDraft(e.target.value)}
-          >
-            <option value="cover_story">Cover Story</option>
-            <option value="reminder">Reminder</option>
-            <option value="follow_up">Follow Up</option>
-            <option value="updated_cost">Updated Cost</option>
-            <option value="final_cost">Final Call</option>
-          </select>
+        <h3>Upload Client Files</h3>
+        <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.csv"
+            onChange={onUpload}
+            style={{ display: 'none' }}
+          />
           <button
             className="button"
             type="button"
-            onClick={() => setShowAddDraft((prev) => !prev)}
+            onClick={() => fileInputRef.current?.click()}
           >
-            + Add Draft Script
+            Upload File
           </button>
+          <span className={`badge ${selectedListName ? 'sent' : 'failed'}`}>
+            {selectedListName || 'No file selected'}
+          </span>
+          <div
+            style={{
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'nowrap'
+            }}
+          >
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
+              style={{ minWidth: 140, flexShrink: 0 }}
+            >
+              Uploaded Files
+            </button>
+            {showUploadedFilesDropdown ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  zIndex: 20,
+                  minWidth: 320,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  margin: 0,
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  background: '#fff',
+                  padding: 8,
+                  boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                }}
+              >
+                {lists.length ? (
+                  lists.map((list) => (
+                    <label
+                      key={list._id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 4px',
+                        cursor: 'pointer',
+                        borderRadius: 6,
+                        background: selectedListId === list._id ? '#eff6ff' : 'transparent'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUploadedFileIds.includes(list._id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
+                          } else {
+                            setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
+                          }
+                        }}
+                      />
+                      <span
+                        onClick={() => setSelectedListId(list._id)}
+                        style={{ flex: 1 }}
+                      >
+                        {list.name}
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <p>No uploaded files</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+          {showUploadedFilesDropdown ? (
+            <>
+              <button
+                className="button danger"
+                type="button"
+                onClick={deleteSelectedUploadedFile}
+                disabled={!selectedListId && !selectedUploadedFileIds.length}
+              >
+                Delete Selected
+              </button>
+              <button
+                className="button danger"
+                type="button"
+                onClick={deleteAllUploadedFiles}
+                disabled={!lists.length}
+              >
+                Delete All
+              </button>
+            </>
+          ) : null}
+          {loading ? <p>Uploading...</p> : null}
         </div>
-        {showAddDraft && (
-          <div className="card" style={{ marginTop: 10 }}>
-            <h4>{editingDraftId ? 'Edit Draft Script' : 'Create Draft Script'}</h4>
+        {preview.length ? (
+          <>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <p>Uploaded file preview</p>
+              <div className="row">
+                {showUploadPreview ? (
+                  <>
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={addPreviewColumn}
+                    >
+                      Add Column
+                    </button>
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={addPreviewRow}
+                    >
+                      Add Row
+                    </button>
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={savePreviewEdits}
+                      disabled={!previewDirty}
+                    >
+                      Save Changes
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setShowUploadPreview((prev) => !prev)}
+                >
+                  {showUploadPreview ? 'Minimize Table' : 'Show Table'}
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={normalizeSelectedListEmails}
+                >
+                  Normalize Emails List
+                </button>
+              </div>
+            </div>
+            {showUploadPreview ? (
+              <>
+                <div className="row" style={{ gap: 12, alignItems: 'end' }}>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font</p>
+                    <select
+                      className="select"
+                      value={previewStyle.fontFamily}
+                      onChange={(e) => updatePreviewStyle('fontFamily', e.target.value)}
+                      style={{ minWidth: 150 }}
+                    >
+                      <option value="Segoe UI">Segoe UI</option>
+                      <option value="Arial">Arial</option>
+                      <option value="Calibri">Calibri</option>
+                      <option value="Verdana">Verdana</option>
+                      <option value="Georgia">Georgia</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                    </select>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font Size</p>
+                    <input
+                      className="input"
+                      type="number"
+                      min="10"
+                      max="24"
+                      value={previewStyle.fontSize}
+                      onChange={(e) => updatePreviewStyle('fontSize', Number(e.target.value || 14))}
+                      style={{ width: 90 }}
+                    />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Color</p>
+                    <input type="color" value={previewStyle.headerBg} onChange={(e) => updatePreviewStyle('headerBg', e.target.value)} />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Text</p>
+                    <input type="color" value={previewStyle.headerColor} onChange={(e) => updatePreviewStyle('headerColor', e.target.value)} />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Color</p>
+                    <input type="color" value={previewStyle.cellBg} onChange={(e) => updatePreviewStyle('cellBg', e.target.value)} />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Text</p>
+                    <input type="color" value={previewStyle.cellColor} onChange={(e) => updatePreviewStyle('cellColor', e.target.value)} />
+                  </div>
+                </div>
+                <div className="table-wrap excel-preview" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <table
+                    className="excel-table"
+                    style={{
+                      fontFamily: previewStyle.fontFamily,
+                      fontSize: `${previewStyle.fontSize}px`
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: 90 }}>Actions</th>
+                        {getPreviewColumns().map((column) => (
+                          <th
+                            key={column}
+                            style={{
+                              background: previewStyle.headerBg,
+                              color: previewStyle.headerColor,
+                              minWidth: previewStyle.columnWidths?.[column] || 140
+                            }}
+                          >
+                            <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
+                              <input
+                                className="input"
+                                defaultValue={column}
+                                onBlur={(e) => renamePreviewColumn(column, e.target.value)}
+                                style={{ minWidth: 140, fontWeight: 700, padding: 6, background: 'transparent' }}
+                              />
+                              <input
+                                className="input"
+                                type="number"
+                                min="80"
+                                value={previewStyle.columnWidths?.[column] || 140}
+                                onChange={(e) => updateColumnWidth(column, e.target.value)}
+                                style={{ width: 82, padding: 6 }}
+                              />
+                              <button
+                                className="button danger"
+                                type="button"
+                                onClick={() => deletePreviewColumn(column)}
+                                style={{ padding: '6px 8px' }}
+                              >
+                                X
+                              </button>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((row, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <button
+                              className="button danger"
+                              type="button"
+                              onClick={() => deletePreviewRow(idx)}
+                              style={{ padding: '6px 8px' }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                          {getPreviewColumns().map((column) => (
+                            <td
+                              key={`${idx}-${column}`}
+                              style={{
+                                background: previewStyle.cellBg,
+                                color: previewStyle.cellColor,
+                                minWidth: previewStyle.columnWidths?.[column] || 140
+                              }}
+                            >
+                              <input
+                                className="input"
+                                value={row?.[column] ?? ''}
+                                onChange={(e) => updatePreviewCell(idx, column, e.target.value)}
+                                style={{
+                                  minWidth: previewStyle.columnWidths?.[column] || 140,
+                                  border: 'none',
+                                  padding: 6,
+                                  background: 'transparent',
+                                  color: previewStyle.cellColor,
+                                  fontFamily: previewStyle.fontFamily,
+                                  fontSize: `${previewStyle.fontSize}px`
+                                }}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </section>
+
+      <section className="card grid">
+        <h3>Campaign Management</h3>
+        <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+          <button
+            className="button"
+            type="button"
+            onClick={() => runningCampaign && startCampaign(runningCampaign._id)}
+            disabled={!runningCampaign}
+          >
+            Start
+          </button>
+          <button className="button secondary" type="button">Sheduled Time</button>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'end' }}>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Campaign Name</p>
+            <input className="input" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign Name" />
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Campaign Type</p>
             <select
               className="select"
-              value={newDraftCategory}
-              onChange={(e) => setNewDraftCategory(e.target.value)}
+              value={selectedDraft}
+              onChange={(e) => setSelectedDraft(e.target.value)}
             >
               <option value="cover_story">Cover Story</option>
               <option value="reminder">Reminder</option>
               <option value="follow_up">Follow Up</option>
               <option value="updated_cost">Updated Cost</option>
-              <option value="final_cost">Final Cost</option>
+              <option value="final_cost">Final Call</option>
             </select>
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Client List</p>
+            <select className="select" value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)}>
+              <option value="">Select List</option>
+              {lists.map((l) => <option key={l._id} value={l._id}>{l.name} ({l.leadCount})</option>)}
+            </select>
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Batch Size</p>
+            <input className="input" type="number" min="1" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="Batch" />
+          </div>
+          <div>
+            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Delay (Seconds)</p>
+            <input className="input" type="number" min="1" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
+          </div>
+        </div>
+        <div className="row">
+          <div>
+            <button className="button" onClick={createCampaign}>Create Campaign</button>
+          </div>
+        </div>
+      </section>
+
+              <section className="card grid">
+        <h3>Draft Editing and Setting</h3>
+        <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 20, alignItems: 'end' }}>
+          <div className="row" style={{ gap: 28, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+            <div style={{ flex: '1 1 auto' }}>
+              <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  Upload File
+                </button>
+                <span className={`badge ${selectedListName ? 'sent' : 'failed'}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  {selectedListName || 'No file selected'}
+                </span>
+                <div style={{ width: 260, minWidth: 260, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Draft Type</p>
+                  <select
+                    className="select"
+                    value={newDraftCategory}
+                    onChange={(e) => setNewDraftCategory(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Customize Draft</option>
+                    <option value="cover_story">Cover Story</option>
+                    <option value="reminder">Reminder</option>
+                    <option value="follow_up">Follow Up</option>
+                    <option value="updated_cost">Updated Cost</option>
+                    <option value="final_cost">Final Cost</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div style={{ minWidth: 360 }}>
+              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Give Draft Name</p>
+              <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
+                <input
+                  className="input"
+                  value={changeInDraftValue}
+                  onChange={(e) => setChangeInDraftValue(e.target.value)}
+                  placeholder=""
+                  style={{ width: 260, minWidth: 260 }}
+                />
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => setShowAddDraft((prev) => !prev)}
+                  style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  + Add Draft Script
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'nowrap'
+                }}
+              >
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
+                  style={{ minWidth: 140, flexShrink: 0 }}
+                >
+                  Uploaded Files
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    if (selectedUploadedFileIds.length) {
+                      setSelectedListId(selectedUploadedFileIds[0]);
+                    }
+                  }}
+                  style={{ minWidth: 180, flexShrink: 0 }}
+                  disabled={!selectedUploadedFileIds.length}
+                >
+                  Choose Uploaded File
+                </button>
+                {showUploadedFilesDropdown ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      left: 0,
+                      zIndex: 20,
+                      minWidth: 320,
+                      maxHeight: 200,
+                      overflowY: 'auto',
+                      margin: 0,
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 10,
+                      background: '#fff',
+                      padding: 8,
+                      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                    }}
+                  >
+                    {lists.length ? (
+                      lists.map((list) => (
+                        <label
+                          key={list._id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 4px',
+                            cursor: 'pointer',
+                            borderRadius: 6,
+                            background: selectedListId === list._id ? '#eff6ff' : 'transparent'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedUploadedFileIds.includes(list._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
+                              } else {
+                                setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
+                              }
+                            }}
+                          />
+                          <span
+                            onClick={() => setSelectedListId(list._id)}
+                            style={{ flex: 1 }}
+                          >
+                            {list.name}
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <p>No uploaded files</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              {showUploadedFilesDropdown ? (
+                <>
+                  <button
+                    className="button danger"
+                    type="button"
+                    onClick={deleteSelectedUploadedFile}
+                    disabled={!selectedListId && !selectedUploadedFileIds.length}
+                  >
+                    Delete Selected
+                  </button>
+                  <button
+                    className="button danger"
+                    type="button"
+                    onClick={deleteAllUploadedFiles}
+                    disabled={!lists.length}
+                  >
+                    Delete All
+                  </button>
+                </>
+              ) : null}
+            </div>
+            <h4 style={{ margin: '12px 0 6px' }}>Saved Draft Scripts (for quick draft selection)</h4>
+            <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+              <button
+                className="button"
+                type="button"
+                onClick={() => setShowAddDraft((prev) => !prev)}
+                style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+              >
+                Create Script
+              </button>
+              {quickDraftButtons.map(({ label, draft }) => (
+                <button
+                  key={label}
+                  className="button secondary"
+                  type="button"
+                  disabled={!draft}
+                  onClick={() => {
+                    if (draft) handleSavedDraftSelect(draft);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {showAddDraft && (
+          <div className="card" style={{ marginTop: 10 }}>
+            <h4>{editingDraftId ? 'Edit Draft Script' : 'Create Draft Script'}</h4>
             <p style={{ marginTop: 12, marginBottom: 6 }}>Script Title (optional)</p>
             <input
               className="input"
@@ -854,94 +1810,58 @@ const normalizeSelectedListEmails = async () => {
               </button>
             </div>
           </div>
-        )} 
-        {savedDrafts.length > 0 && (
-          <div className="card" style={{ marginTop: 18 }}>
-            <h4>Saved Draft Scripts</h4>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 14 }}>
-              {DRAFT_CATEGORIES.map((cat) => {
-                const scripts = savedDrafts.filter((draft) => draft.category === cat.value);
-                if (!scripts.length) return null;
-                return (
-                  <div
-                    key={cat.value}
-                    className="card"
-                    style={{ padding: 14, borderRadius: 10, background: '#f4f4f4' }}
-                  >
-                    <strong style={{ display: 'block', marginBottom: 10 }}>{cat.label}</strong>
-                    {scripts.map((draft) => {
-                      const scriptId = draft._id || draft.id || `${cat.value}-${draft.title || 'script'}`;
-                      const isActiveScript = scriptId === activeSavedDraftId;
-                      const borderStyle = isActiveScript ? '2px solid #0ea5e9' : '1px solid #e5e7eb';
-                      const bgColor = isActiveScript ? '#e0f2fe' : '#fff';
-                      return (
-                        <div
-                          key={scriptId}
-                          className="card"
-                          style={{
-                            marginBottom: 12,
-                            cursor: 'pointer',
-                            padding: 10,
-                            border: borderStyle,
-                            background: bgColor
-                          }}
-                          onClick={() => handleSavedDraftSelect(draft)}
-                        >
-                          <p style={{ margin: 0, fontWeight: 600 }}>{draft.title}</p>
-                          <small style={{ color: 'var(--muted)' }}>{draft.subject}</small>
-                          {draft.createdAt ? (
-                            <p style={{ fontSize: 11, margin: '6px 0 0', color: 'var(--muted)' }}>
-                              {new Date(draft.createdAt).toLocaleString()}
-                            </p>
-                          ) : null}
-                          <div className="row" style={{ marginTop: 10, gap: 6 }}>
-                            <button
-                              className="button"
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEditingDraft(draft);
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="button danger"
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDraft(draft);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         )}
-        <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
-          Subject Line
-        </p>
-        <input
-          className="input"
-          value={draftSubject}
-          onChange={(e) => setDraftSubject(e.target.value)}
-          placeholder="Email Subject"
-        />
-        <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
-          Draft / Email Body (HTML)
-        </p>
-        <RichTextEditor
-          value={draftBody}
-          onChange={setDraftBody}
-        />
-        <div className="row">
+        <div style={{ marginTop: 12 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              Edit Word File
+            </p>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => setShowBlankWordPad((prev) => !prev)}
+            >
+              {showBlankWordPad ? 'Minimize' : 'Show'}
+            </button>
+          </div>
+          {showBlankWordPad ? (
+            <RichTextEditor
+              value={blankWordPad}
+              onChange={setBlankWordPad}
+              placeholder="Write here..."
+            />
+          ) : null}
+        </div>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+          <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+            Draft / Email Body (HTML)
+          </p>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setShowDraftEditor((prev) => !prev)}
+          >
+            {showDraftEditor ? 'Minimize' : 'Show'}
+          </button>
+        </div>
+        {showDraftEditor ? (
+          <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6, marginTop: 8 }}>
+            <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
+              Subject Line
+            </p>
+            <input
+              className="input"
+              value={draftSubject}
+              onChange={(e) => setDraftSubject(e.target.value)}
+              placeholder="Email Subject"
+            />
+            <RichTextEditor
+              value={draftBody}
+              onChange={setDraftBody}
+            />
+          </div>
+        ) : null}
+        <div className="row" style={{ marginTop: 12 }}>
           <input
             className="input"
             style={{ maxWidth: 320 }}
@@ -958,87 +1878,110 @@ const normalizeSelectedListEmails = async () => {
         </div>
       </section>
 
-      
       <section className="card grid">
-        <h3>Excel Upload (.xlsx / .csv)</h3>
-        <div className="row">
-          <input type="file" accept=".xlsx,.csv" onChange={onUpload} />
-          {loading ? <p>Uploading...</p> : null}
+        <h3>Sheduled Active Campaign</h3>
+        <div className="row" style={{ gap: 10 }}>
+          <button
+            className="button"
+            type="button"
+            onClick={() => runningCampaign && startCampaign(runningCampaign._id, { schedule: Boolean(scheduledSlot) })}
+            disabled={!runningCampaign}
+          >
+            Start
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setShowScheduledTimePicker((prev) => !prev)}
+          >
+            Sheduled Time
+          </button>
         </div>
-        {preview.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  {(previewColumns.length ? previewColumns : Object.keys(preview[0] || {})).map((column) => (
-                    <th key={column}>{column}</th>
+        {showScheduledTimePicker ? (
+          <div className="card" style={{ padding: 14, background: '#f8fafc' }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Country</p>
+                <select
+                  className="select"
+                  value={scheduledCountry}
+                  onChange={(e) => {
+                    setScheduledCountry(e.target.value);
+                    setScheduledSlot('');
+                  }}
+                >
+                  <option value="india">India</option>
+                  <option value="usa">USA</option>
+                  <option value="uk">UK</option>
+                  <option value="uae">UAE</option>
+                  <option value="australia">Australia</option>
+                </select>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Time Slot</p>
+                <select
+                  className="select"
+                  value={scheduledSlot}
+                  onChange={(e) => setScheduledSlot(e.target.value)}
+                >
+                  <option value="">Select time</option>
+                  {(COUNTRY_TIME_SLOTS[scheduledCountry]?.slots || []).map((slot) => (
+                    <option key={slot} value={slot}>{slot}</option>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.slice(0, 10).map((row, idx) => (
-                  <tr key={idx}>
-                    {(previewColumns.length ? previewColumns : Object.keys(row || {})).map((column) => (
-                      <td key={`${idx}-${column}`}>{row?.[column] ?? ''}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </select>
+              </div>
+            </div>
+            <p style={{ margin: '10px 0 0', color: 'var(--muted)' }}>
+              {scheduledSlot ? `Selected: ${scheduledCountry.toUpperCase()} - ${scheduledSlot}` : 'Choose a country and time slot.'}
+            </p>
+            {scheduledStartLabel ? (
+              <p style={{ margin: '6px 0 0', color: '#166534', fontWeight: 600 }}>
+                Scheduled Start: {scheduledStartLabel}
+              </p>
+            ) : null}
           </div>
         ) : null}
-      </section>
-
-      <section className="card grid">
-        <h3>Campaign Management</h3>
-        <div className="grid" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'end' }}>
-          <input className="input" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign Name" />
-          <select className="select" value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)}>
-            <option value="">Select List</option>
-            {lists.map((l) => <option key={l._id} value={l._id}>{l.name} ({l.leadCount})</option>)}
-          </select>
-          <select className="select" value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
-            <option value="">Select Template</option>
-            {templates.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
-          </select>
-          <input className="input" type="number" min="1" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="Batch" />
-          <input className="input" type="number" min="1" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
-        </div>
-        <div className="row">
-          <button className="button secondary" onClick={normalizeSelectedListEmails}>Normalize List Emails</button>
-          <button className="button" onClick={createCampaign}>Create Campaign</button>
-        </div>
+        {!runningCampaign ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>No running campaign right now.</p>
+        ) : (
+          <>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 700 }}>{runningCampaign.name}</p>
+                <span className="badge running">{runningCampaign.status}</span>
+              </div>
+              <div className="row">
+                <button className="button warn" onClick={() => pauseCampaign(runningCampaign._id)}>Pause</button>
+                <button className="button danger" onClick={() => stopCampaign(runningCampaign._id)}>Stop</button>
+                <button className="button danger" onClick={() => clearCampaignLogs(runningCampaign._id)}>Clear Logs</button>
+              </div>
+            </div>
+            <p style={{ margin: 0 }}>
+              {(runningCampaign.stats?.sent || 0)}/{(runningCampaign.stats?.total || 0)} sent, {(runningCampaign.stats?.failed || 0)} failed
+            </p>
+            <div className="progress">
+              <div
+                style={{
+                  width: `${runningCampaign.stats?.total ? Math.round(((runningCampaign.stats?.sent || 0) / runningCampaign.stats.total) * 100) : 0}%`
+                }}
+              />
+            </div>
+          </>
+        )}
       </section>
 
       <section className="card grid">
         <h3>Campaigns</h3>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <button
-            className="button danger"
-            type="button"
-            onClick={deleteSelectedCampaigns}
-            disabled={!selectedCampaignIds.length}
-          >
-            Delete Selected
-          </button>
-          <button className="button secondary" type="button" onClick={toggleSelectAllCampaigns}>
-            {allCampaignsSelected ? 'Clear Selection' : 'Select All'}
-          </button>
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
-            {selectedCampaignIds.length} selected
-          </span>
-        </div>
+        <p style={{ margin: 0, color: 'var(--muted)' }}>
+          Showing only active campaigns here.
+        </p>
+        {!activeCampaigns.length ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>No active campaigns right now.</p>
+        ) : null}
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th style={{ width: 56 }}>
-                  <input
-                    type="checkbox"
-                    checked={allCampaignsSelected}
-                    onChange={toggleSelectAllCampaigns}
-                  />
-                </th>
                 <th>Name</th>
                 <th>Status</th>
                 <th>Progress</th>
@@ -1047,20 +1990,12 @@ const normalizeSelectedListEmails = async () => {
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((c) => {
+              {activeCampaigns.map((c) => {
                 const total = c.stats?.total || 0;
                 const sent = c.stats?.sent || 0;
                 const percent = total ? Math.round((sent / total) * 100) : 0;
-                const isChecked = selectedCampaignIds.includes(c._id);
                 return (
                   <tr key={c._id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleCampaignSelection(c._id)}
-                      />
-                    </td>
                     <td>{c.name}</td>
                     <td><StatusBadge status={c.status} /></td>
                     <td>
@@ -1082,7 +2017,95 @@ const normalizeSelectedListEmails = async () => {
             </tbody>
           </table>
         </div>
+        <div className="row" style={{ justifyContent: 'center' }}>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setShowCampaignHistory((prev) => !prev)}
+          >
+            {showCampaignHistory ? 'Hide History' : 'History'}
+          </button>
+        </div>
       </section>
+
+      {showCampaignHistory ? (
+        <section className="card grid">
+          <h3>Campaign History</h3>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button
+              className="button danger"
+              type="button"
+              onClick={deleteSelectedCampaigns}
+              disabled={!selectedCampaignIds.length}
+            >
+              Delete Selected
+            </button>
+            <button className="button secondary" type="button" onClick={toggleSelectAllCampaigns}>
+              {allCampaignsSelected ? 'Clear Selection' : 'Select All'}
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
+              {selectedCampaignIds.length} selected
+            </span>
+          </div>
+          {!historyCampaigns.length ? (
+            <p style={{ margin: 0, color: 'var(--muted)' }}>No campaign history yet.</p>
+          ) : null}
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 56 }}>
+                    <input
+                      type="checkbox"
+                      checked={allCampaignsSelected}
+                      onChange={toggleSelectAllCampaigns}
+                    />
+                  </th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Stats</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyCampaigns.map((c) => {
+                  const total = c.stats?.total || 0;
+                  const sent = c.stats?.sent || 0;
+                  const percent = total ? Math.round((sent / total) * 100) : 0;
+                  const isChecked = selectedCampaignIds.includes(c._id);
+                  return (
+                    <tr key={c._id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleCampaignSelection(c._id)}
+                        />
+                      </td>
+                      <td>{c.name}</td>
+                      <td><StatusBadge status={c.status} /></td>
+                      <td>
+                        <div className="progress"><div style={{ width: `${percent}%` }} /></div>
+                        <small>{percent}%</small>
+                      </td>
+                      <td>{sent}/{total} sent, {c.stats?.failed || 0} failed</td>
+                      <td className="row">
+                        <button className="button" onClick={() => startCampaign(c._id)}>Start</button>
+                        <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
+                        <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
+                        <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
+                        <button className="button danger" onClick={() => clearCampaignLogs(c._id)}>Clear Logs</button>
+                        <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {activeCampaign ? (
         <section className="card grid">

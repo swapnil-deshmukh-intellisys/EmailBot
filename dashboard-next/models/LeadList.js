@@ -8,7 +8,8 @@ const LeadSchema = new mongoose.Schema(
     data: { type: mongoose.Schema.Types.Mixed, default: {} },
     status: { type: String, enum: ['Pending', 'Sent', 'Failed'], default: 'Pending' },
     error: { type: String, default: '' },
-    sentAt: { type: Date, default: null }
+    sentAt: { type: Date, default: null },
+    failedAt: { type: Date, default: null }
   },
   { _id: false }
 );
@@ -18,6 +19,15 @@ const LeadListSchema = new mongoose.Schema(
     name: { type: String, required: true },
     sourceFile: { type: String, required: true },
     columns: { type: [String], default: [] },
+    sheetStyle: {
+      fontFamily: { type: String, default: 'Segoe UI' },
+      fontSize: { type: Number, default: 14 },
+      headerBg: { type: String, default: '#edf2f7' },
+      headerColor: { type: String, default: '#1e293b' },
+      cellBg: { type: String, default: '#ffffff' },
+      cellColor: { type: String, default: '#0f172a' },
+      columnWidths: { type: mongoose.Schema.Types.Mixed, default: {} }
+    },
     leads: { type: [LeadSchema], default: [] },
     uploadedAt: { type: Date, default: Date.now }
   },

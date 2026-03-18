@@ -109,11 +109,13 @@ export async function startCampaignRunner(campaignId) {
             lead.status = 'Sent';
             lead.error = '';
             lead.sentAt = new Date();
+            lead.failedAt = null;
             campaign.stats.sent += 1;
             appendLog(campaign, `Sent: ${lead.Email || lead.email || 'unknown'}`);
           } catch (error) {
             lead.status = 'Failed';
             lead.error = error.message;
+            lead.failedAt = new Date();
             campaign.stats.failed += 1;
             appendLog(campaign, `Failed: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
           }

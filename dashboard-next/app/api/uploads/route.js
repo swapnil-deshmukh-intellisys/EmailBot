@@ -77,6 +77,15 @@ export async function POST(req) {
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,
     columns,
+    sheetStyle: {
+      fontFamily: 'Segoe UI',
+      fontSize: 14,
+      headerBg: '#edf2f7',
+      headerColor: '#1e293b',
+      cellBg: '#ffffff',
+      cellColor: '#0f172a',
+      columnWidths: {}
+    },
     leads
   });
 
@@ -85,7 +94,8 @@ export async function POST(req) {
     listId: String(list._id),
     count: leads.length,
     previewColumns: columns,
-    previewRows: rows.slice(0, 20),
-    preview: leads.slice(0, 20)
+    previewRows: rows,
+    sheetStyle: list.sheetStyle,
+    preview: leads
   });
 }

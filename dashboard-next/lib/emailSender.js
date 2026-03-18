@@ -93,9 +93,21 @@ export function buildAccountCatalogFromEnv() {
   return out;
 }
 
+function getLeadValue(lead, key) {
+  if (lead?.[key] !== undefined && lead?.[key] !== null) {
+    return lead[key];
+  }
+  if (lead?.data?.[key] !== undefined && lead?.data?.[key] !== null) {
+    return lead.data[key];
+  }
+  return '';
+}
+
 function renderTemplate(template, lead) {
-  const replacer = (_, key) => (lead?.[key] ?? '').toString();
-  const subject = (template.subject || '').replace(/{{\s*([\w.]+)\s*}}/g, replacer);
+  const replacer = (_, key) => getLeadValue(lead, key).toString();
+  const customSubject = String(lead?.data?.title || '').trim();
+  const subjectTemplate = customSubject || (template.subject || '');
+  const subject = subjectTemplate.replace(/{{\s*([\w.]+)\s*}}/g, replacer);
   const body = (template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, replacer);
   return { subject, body };
 }

@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 
+function normalizeEmail(raw) {
+  let value = String(raw || '').trim();
+  const mdMailto = value.match(/\]\(mailto:([^)]+)\)/i);
+  if (mdMailto?.[1]) value = mdMailto[1].trim();
+  value = value.replace(/^mailto:/i, '').trim();
+  value = value.replace(/^[<[\("'`\s]+/, '').replace(/[>\])"'`\s]+$/, '');
+  if (value.includes(',')) value = value.split(',')[0].trim();
+  if (value.includes(';')) value = value.split(';')[0].trim();
+  return value;
+}
+
 export async function GET(_, { params }) {
   await connectDB();
   const list = await LeadList.findById(params.id).lean();
@@ -14,6 +25,69 @@ export async function GET(_, { params }) {
     name: list.name,
     sourceFile: list.sourceFile,
     columns: list.columns || [],
+    sheetStyle: list.sheetStyle || {},
     leads: list.leads
   });
+}
+
+export async function PATCH(req, { params }) {
+  await connectDB();
+
+  const list = await LeadList.findById(params.id);
+  if (!list) {
+    return NextResponse.json({ error: 'List not found' }, { status: 404 });
+  }
+
+  const body = await req.json();
+  const rows = Array.isArray(body.rows) ? body.rows : null;
+  const columns = Array.isArray(body.columns) ? body.columns.map((c) => String(c || '').trim()).filter(Boolean) : null;
+  const sheetStyle = body.sheetStyle && typeof body.sheetStyle === 'object' ? body.sheetStyle : null;
+
+  if (!rows) {
+    return NextResponse.json({ error: 'rows are required' }, { status: 400 });
+  }
+
+  list.columns = columns || list.columns || [];
+  if (sheetStyle) {
+    list.sheetStyle = {
+      ...list.sheetStyle?.toObject?.(),
+      ...sheetStyle,
+      columnWidths: {
+        ...(list.sheetStyle?.columnWidths || {}),
+        ...(sheetStyle.columnWidths || {})
+      }
+    };
+  }
+  list.leads = rows.map((row, index) => {
+    const data = Object.fromEntries(
+      Object.entries(row || {}).map(([key, value]) => [String(key || '').trim(), value ?? ''])
+    );
+    const previousLead = list.leads[index] || {};
+
+    return {
+      ...previousLead.toObject?.(),
+      Name: data.Name || data.name || '',
+      Email: normalizeEmail(data.Email || data.email || ''),
+      Company: data.Company || data.company || '',
+      data,
+      status: previousLead.status || 'Pending',
+      error: previousLead.error || '',
+      sentAt: previousLead.sentAt || null,
+      failedAt: previousLead.failedAt || null
+    };
+  });
+
+  await list.save();
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(_, { params }) {
+  await connectDB();
+  const deleted = await LeadList.findByIdAndDelete(params.id);
+  if (!deleted) {
+    return NextResponse.json({ error: 'List not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true, deletedId: String(params.id) });
 }
