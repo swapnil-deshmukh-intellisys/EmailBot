@@ -7,12 +7,15 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000']
     }
   },
-  webpack(config) {
+  webpack(config, { dev }) {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@/lib': path.resolve(__dirname, 'lib'),
       '@/models': path.resolve(__dirname, 'models')
     };
+    if (dev) {
+      config.cache = false;
+    }
     return config;
   }
 };

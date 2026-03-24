@@ -9,6 +9,8 @@ export async function GET(req) {
     const url = new URL(req.url);
     const selectedDate = String(url.searchParams.get('date') || '').trim();
     const selectedRange = String(url.searchParams.get('range') || '').trim();
+    const customStartDate = String(url.searchParams.get('startDate') || '').trim();
+    const customEndDate = String(url.searchParams.get('endDate') || '').trim();
     const lists = await LeadList.find().sort({ createdAt: -1 }).lean();
 
     let totalUploaded = 0;
@@ -27,13 +29,19 @@ export async function GET(req) {
       today.setHours(23, 59, 59, 999);
       selectedDayEnd = today;
 
-      const start = new Date(today);
-      if (selectedRange === '7d') start.setDate(start.getDate() - 6);
-      else if (selectedRange === '15d') start.setDate(start.getDate() - 14);
-      else if (selectedRange === '30d') start.setDate(start.getDate() - 29);
-      else if (selectedRange === 'quarter') start.setMonth(start.getMonth() - 3);
-      start.setHours(0, 0, 0, 0);
-      selectedDayStart = start;
+      if (selectedRange === 'customize' && customStartDate && customEndDate) {
+        selectedDayStart = new Date(`${customStartDate}T00:00:00`);
+        selectedDayEnd = new Date(`${customEndDate}T23:59:59.999`);
+      } else {
+        const start = new Date(today);
+        if (selectedRange === 'today') start.setDate(start.getDate());
+        else if (selectedRange === '7d') start.setDate(start.getDate() - 6);
+        else if (selectedRange === '15d') start.setDate(start.getDate() - 14);
+        else if (selectedRange === '30d') start.setDate(start.getDate() - 29);
+        else if (selectedRange === 'quarter') start.setMonth(start.getMonth() - 3);
+        start.setHours(0, 0, 0, 0);
+        selectedDayStart = start;
+      }
     }
 
     for (let i = 9; i >= 0; i -= 1) {
@@ -103,6 +111,8 @@ export async function GET(req) {
       dailyMailCounts,
       selectedDate,
       selectedRange,
+      customStartDate,
+      customEndDate,
       lists: normalizedLists
     });
   } catch (error) {
@@ -114,6 +124,8 @@ export async function GET(req) {
       last10DaysStats: 0,
       dailyMailCounts: [],
       selectedRange: '',
+      customStartDate: '',
+      customEndDate: '',
       lists: [],
       error: error.message || 'Failed to load stats'
     });

@@ -84,7 +84,20 @@ export async function POST(req) {
 
 
 
-    const total = list.leads.length;
+    const rawBatchInput = String(options?.batchSize ?? '').trim();
+    const rangeMatch = rawBatchInput.match(/^(\d+)\s*-\s*(\d+)$/);
+    const rowRange = rangeMatch ? `${rangeMatch[1]}-${rangeMatch[2]}` : '';
+    const rangeStart = rangeMatch ? Number(rangeMatch[1]) : null;
+    const rangeEnd = rangeMatch ? Number(rangeMatch[2]) : null;
+
+    if (rangeMatch && (!rangeStart || !rangeEnd || rangeStart > rangeEnd || rangeStart < 1 || rangeEnd > list.leads.length)) {
+
+      return NextResponse.json({ error: `Invalid row range. Use values between 1 and ${list.leads.length}.` }, { status: 400 });
+
+    }
+
+    const total = rowRange ? (rangeEnd - rangeStart + 1) : list.leads.length;
+    const batchSize = rangeMatch ? 1 : Math.max(1, Number(options?.batchSize || 1));
 
     const campaign = await Campaign.create({
 
@@ -108,9 +121,11 @@ export async function POST(req) {
 
       options: {
 
-        batchSize: Number(options?.batchSize || 1),
+        batchSize,
 
-        delaySeconds: Number(options?.delaySeconds || 5)
+        delaySeconds: Math.max(60, Number(options?.delaySeconds || 60)),
+
+        rowRange
 
       },
 

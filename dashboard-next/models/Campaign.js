@@ -41,13 +41,21 @@ const CampaignSchema = new mongoose.Schema(
     },
     options: {
       batchSize: { type: Number, default: 1 },
-      delaySeconds: { type: Number, default: 5 }
+      delaySeconds: { type: Number, default: 60 },
+      rowRange: { type: String, default: '' }
     },
     logs: [{
       at: { type: Date, default: Date.now },
       level: { type: String, default: 'info' },
       message: String
     }],
+    scheduledStart: {
+      country: { type: String, default: '' },
+      slot: { type: String, default: '' },
+      timezone: { type: String, default: '' },
+      label: { type: String, default: '' },
+      at: { type: Date, default: null }
+    },
     startedAt: Date,
     finishedAt: Date
   },

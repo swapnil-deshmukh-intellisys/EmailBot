@@ -10,7 +10,7 @@ export async function POST(_, { params }) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
   }
   if (campaign.status === 'Running') {
-    return NextResponse.json({ error: 'Campaign is already running' }, { status: 400 });
+    return NextResponse.json({ ok: true, started: false, message: 'Campaign is already running' });
   }
 
   try {

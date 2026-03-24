@@ -10,11 +10,32 @@ global.campaignRunners = runners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function saveCampaignIfExists(campaign) {
+  try {
+    await campaign.save();
+    return true;
+  } catch (error) {
+    if (error?.name === 'DocumentNotFoundError' || /No document found/i.test(error?.message || '')) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 function appendLog(campaign, message, level = 'info') {
   campaign.logs.push({ message, level, at: new Date() });
   if (campaign.logs.length > 200) {
     campaign.logs = campaign.logs.slice(-200);
   }
+}
+
+function parseRowRange(rowRange = '', totalLeads = 0) {
+  const match = String(rowRange || '').trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!match) return null;
+  const start = Math.max(1, Number(match[1]));
+  const end = Math.min(Number(match[2]), totalLeads);
+  if (!start || !end || start > end) return null;
+  return { start, end };
 }
 
 export async function startCampaignRunner(campaignId) {
@@ -58,25 +79,38 @@ export async function startCampaignRunner(campaignId) {
 
   const state = { running: true, paused: false, stop: false };
   runners.set(campaignId, state);
+  const selectedRange = parseRowRange(campaign.options?.rowRange, list.leads.length);
+  const allowedIndexes = selectedRange
+    ? new Set(Array.from({ length: selectedRange.end - selectedRange.start + 1 }, (_, i) => selectedRange.start - 1 + i))
+    : null;
+  const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
   campaign.status = 'Running';
+  campaign.options.delaySeconds = Math.max(60, Number(campaign.options?.delaySeconds || 60));
   campaign.startedAt = new Date();
-  campaign.stats.total = list.leads.length;
-  campaign.stats.sent = list.leads.filter((x) => x.status === 'Sent').length;
-  campaign.stats.failed = list.leads.filter((x) => x.status === 'Failed').length;
-  campaign.stats.pending = list.leads.filter((x) => x.status !== 'Sent').length;
+  campaign.stats.total = scopedLeads.length;
+  campaign.stats.sent = scopedLeads.filter((x) => x.status === 'Sent').length;
+  campaign.stats.failed = scopedLeads.filter((x) => x.status === 'Failed').length;
+  campaign.stats.pending = scopedLeads.filter((x) => x.status !== 'Sent').length;
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
+  if (selectedRange) {
+    appendLog(campaign, `Row range selected: ${selectedRange.start}-${selectedRange.end}`);
+  }
   appendLog(campaign, 'Campaign started');
-  await campaign.save();
+  if (!(await saveCampaignIfExists(campaign))) {
+    state.running = false;
+    return { started: false, message: 'Campaign was removed before start' };
+  }
 
   const batchSize = Math.max(1, Number(campaign.options.batchSize || 1));
-  const delayMs = Math.max(1000, Number(campaign.options.delaySeconds || 5) * 1000);
+  const delayMs = Math.max(60000, Number(campaign.options.delaySeconds || 60) * 1000);
+  appendLog(campaign, `Mail gap: ${Math.round(delayMs / 1000)} seconds per email`);
 
   (async () => {
     try {
       const pendingIndexes = [];
       list.leads.forEach((lead, idx) => {
-        if (lead.status !== 'Sent') {
+        if ((!allowedIndexes || allowedIndexes.has(idx)) && lead.status !== 'Sent') {
           pendingIndexes.push(idx);
           if (lead.status !== 'Failed') {
             lead.status = 'Pending';
@@ -92,7 +126,10 @@ export async function startCampaignRunner(campaignId) {
 
         while (state.paused) {
           campaign.status = 'Paused';
-          await campaign.save();
+          if (!(await saveCampaignIfExists(campaign))) {
+            state.running = false;
+            return;
+          }
           await wait(1000);
         }
 
@@ -122,7 +159,10 @@ export async function startCampaignRunner(campaignId) {
 
           campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
           await list.save();
-          await campaign.save();
+          if (!(await saveCampaignIfExists(campaign))) {
+            state.running = false;
+            return;
+          }
 
           if (state.stop) {
             break;
@@ -140,12 +180,15 @@ export async function startCampaignRunner(campaignId) {
         appendLog(campaign, 'Campaign completed');
       }
 
-      await campaign.save();
+      if (!(await saveCampaignIfExists(campaign))) {
+        state.running = false;
+        return;
+      }
       state.running = false;
     } catch (error) {
       campaign.status = 'Failed';
       appendLog(campaign, `Fatal campaign error: ${error.message}`, 'error');
-      await campaign.save();
+      await saveCampaignIfExists(campaign);
       state.running = false;
     }
   })();

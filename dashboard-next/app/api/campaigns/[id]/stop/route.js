@@ -12,7 +12,10 @@ export async function POST(_, { params }) {
 
   const result = await stopCampaignRunner(String(campaign._id));
   if (!result.ok) {
-    return NextResponse.json(result, { status: 400 });
+    campaign.status = 'Paused';
+    campaign.logs.push({ level: 'info', message: 'Stop requested', at: new Date() });
+    await campaign.save();
+    return NextResponse.json({ ok: true, message: result.message || 'Stop requested' });
   }
 
   campaign.status = 'Paused';

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
+import { stopCampaignRunner } from '@/lib/campaignRunner';
 
 export async function DELETE(_, { params }) {
   await connectDB();
@@ -11,10 +12,7 @@ export async function DELETE(_, { params }) {
   }
 
   if (campaign.status === 'Running' || campaign.status === 'Paused') {
-    return NextResponse.json(
-      { error: 'Stop the campaign before deleting it' },
-      { status: 400 }
-    );
+    await stopCampaignRunner(String(campaign._id));
   }
 
   await Campaign.deleteOne({ _id: campaign._id });

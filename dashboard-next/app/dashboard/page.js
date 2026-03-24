@@ -21,12 +21,84 @@ function StatCard({ title, value, onClick, active = false }) {
   );
 }
 
+function FancyStatCard({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
+  const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+  const positive = trend >= 0;
+  return (
+    <div className="fancy-stat-card">
+      <div className="fancy-stat-top">
+        <span className={`fancy-stat-badge ${positive ? 'up' : 'down'}`}>
+          {positive ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
+        </span>
+        <span className="fancy-stat-menu">⋮</span>
+      </div>
+      <div className="fancy-stat-body">
+        <div>
+          <p className="fancy-stat-title">{title}</p>
+          <h3 className="fancy-stat-value">{value}</h3>
+        </div>
+        <div
+          className="fancy-stat-ring"
+          style={{
+            background: `conic-gradient(${color} 0% ${safePercent}%, #f2f4f8 ${safePercent}% 100%)`
+          }}
+        >
+          <div className="fancy-stat-ring-inner">{safePercent}%</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }) {
   const k = (status || '').toLowerCase();
   return <span className={`badge ${k}`}>{status}</span>;
 }
 
+function getCampaignTimeLabel(campaign) {
+  if (campaign?.scheduledStart?.at) {
+    const when = new Date(campaign.scheduledStart.at);
+    return {
+      text: `Scheduled Start: ${campaign.scheduledStart.label || when.toLocaleString()}`,
+      color: '#166534',
+      strong: true
+    };
+  }
+  if (campaign?.startedAt) {
+    return {
+      text: `Started: ${new Date(campaign.startedAt).toLocaleString()}`,
+      color: 'var(--muted)',
+      strong: false
+    };
+  }
+  return null;
+}
+
 const ACTIVE_CAMPAIGN_STATUSES = new Set(['Running', 'Paused']);
+
+function isCampaignFinished(campaign) {
+  const status = String(campaign?.status || '').toLowerCase();
+  if (status === 'completed' || status === 'failed') {
+    return true;
+  }
+
+  const total = Number(campaign?.stats?.total || 0);
+  const sent = Number(campaign?.stats?.sent || 0);
+  const failed = Number(campaign?.stats?.failed || 0);
+
+  return total > 0 && sent + failed >= total;
+}
+
+function shouldShowInActiveCampaigns(campaign) {
+  if (!campaign || isCampaignFinished(campaign)) return false;
+
+  const status = String(campaign?.status || '').toLowerCase();
+  if (status && status !== 'draft') {
+    return true;
+  }
+
+  return Boolean(campaign?.startedAt || campaign?.scheduledStart?.at);
+}
 
 function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
@@ -173,10 +245,12 @@ const DRAFT_CATEGORIES = [
 ];
 
 const SUMMARY_RANGES = [
+  { label: 'Today', value: 'today' },
   { label: '7 Days', value: '7d' },
   { label: '15 Days', value: '15d' },
   { label: '30 Days', value: '30d' },
-  { label: '3 Monthly Quarter', value: 'quarter' }
+  { label: '3 Monthly Quarter', value: 'quarter' },
+  { label: 'Customize', value: 'customize' }
 ];
 
 const COUNTRY_TIME_SLOTS = {
@@ -219,8 +293,12 @@ function buildScheduledDate(timeZone, slot) {
   if (!slot) return null;
   const now = new Date();
   const zoneNow = getTimeZoneParts(now, timeZone);
-  const [timePart, meridiem] = slot.split(' ');
+  const normalizedSlot = String(slot || '').trim().replace(/\s+/g, ' ');
+  const [timePart, rawMeridiem] = normalizedSlot.split(' ');
+  const meridiem = String(rawMeridiem || '').toUpperCase();
+  if (!timePart || !meridiem || !['AM', 'PM'].includes(meridiem)) return null;
   let [hours, minutes] = timePart.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
   if (meridiem === 'PM' && hours !== 12) hours += 12;
   if (meridiem === 'AM' && hours === 12) hours = 0;
 
@@ -237,6 +315,17 @@ function buildScheduledDate(timeZone, slot) {
   return targetDate;
 }
 
+function normalizeScheduledSlotInput(value = '') {
+  const trimmed = String(value || '').trim().replace(/\s+/g, ' ');
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*([aApP][mM])$/);
+  if (!match) return '';
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const meridiem = match[3].toUpperCase();
+  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return '';
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${meridiem}`;
+}
+
 const DEFAULT_SHEET_STYLE = {
   fontFamily: 'Segoe UI',
   fontSize: 14,
@@ -247,11 +336,92 @@ const DEFAULT_SHEET_STYLE = {
   columnWidths: {}
 };
 
+const QUICK_DRAFT_PREFIX = {
+  cover_story: 'cs',
+  reminder: 'rem',
+  follow_up: 'fu',
+  updated_cost: 'uc',
+  final_cost: 'fc'
+};
+
+function calculateRate(value, total) {
+  if (!total) return 0;
+  return (Number(value || 0) / Number(total || 0)) * 100;
+}
+
+const SIDEBAR_PRIMARY_ITEMS = [
+  { label: 'Dashboard', href: '#dashboard-top', tone: 'primary', icon: 'DB' },
+  { label: 'Task Automation', href: '#campaign-management', tone: 'warm', icon: 'TA' },
+  { label: 'Mail Insights', href: '#campaigns-panel', tone: 'cool', icon: 'MI' }
+];
+
+const SIDEBAR_WORKSPACE_ITEMS = [
+  { label: 'Home', href: '#dashboard-top', icon: 'HM', subItems: ['Reports', 'Insights', 'Orders'] },
+  { label: 'Summary', href: '#summary-panel', icon: 'SM', subItems: ['Revenue', 'CPC (Paid ads)'] },
+  { label: 'Brands', href: '#upload-client-files', icon: 'BR' },
+  { label: 'Analysis', href: '#campaigns-panel', icon: 'AN' },
+  { label: 'Settings', href: '#draft-editing-panel', icon: 'ST' },
+  { label: 'Profile', href: '#dashboard-top', icon: 'PR' }
+];
+
+const TOP_NAV_ITEMS = [
+  { label: 'Home', href: '#dashboard-top' },
+  { label: 'Summary', href: '#summary-panel' },
+  { label: 'Revenue', href: '#summary-panel' },
+  { label: 'CPC (Paid ads)', href: '#summary-panel' }
+];
+
+const escapeHtml = (value = '') =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildWordPadTableHtml = (columns = [], rows = []) => {
+  if (!columns.length) {
+    return '<div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">No data available.</div>';
+  }
+
+  const headerHtml = columns
+    .map(
+      (column) =>
+        `<th style="border:1px solid #d7e0ea;padding:8px 10px;background:#f8fafc;text-align:left;">${escapeHtml(column)}</th>`
+    )
+    .join('');
+
+  const rowsHtml = (rows || [])
+    .map((row) => {
+      const cells = columns
+        .map(
+          (column) =>
+            `<td style="border:1px solid #d7e0ea;padding:8px 10px;vertical-align:top;">${escapeHtml(row?.[column] ?? '')}</td>`
+        )
+        .join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+
+  return `
+    <div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>${headerHtml}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+};
+
 
 export default function DashboardPage() {
+  const defaultProjectOptions = ['tec', 'tut'];
   const [stats, setStats] = useState({ totalUploaded: 0, sent: 0, pending: 0, failed: 0, last10DaysStats: 0, dailyMailCounts: [] });
   const [selectedStatsDate, setSelectedStatsDate] = useState('');
   const [selectedStatsRange, setSelectedStatsRange] = useState('');
+  const [customStatsStartDate, setCustomStatsStartDate] = useState('');
+  const [customStatsEndDate, setCustomStatsEndDate] = useState('');
+  const [showCustomRangePopup, setShowCustomRangePopup] = useState(false);
   const [lists, setLists] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
@@ -260,11 +430,18 @@ export default function DashboardPage() {
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignName, setCampaignName] = useState('Write a Campaign name');
-  const [delaySeconds, setDelaySeconds] = useState(5);
-  const [batchSize, setBatchSize] = useState(1);
+  const [delaySeconds, setDelaySeconds] = useState(60);
+  const [batchSize, setBatchSize] = useState('1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTopNav, setActiveTopNav] = useState('Home');
+  const [activeSidebarView, setActiveSidebarView] = useState('');
   const [project, setProject] = useState('tec');
+  const [projectOptions, setProjectOptions] = useState(defaultProjectOptions);
+  const [showTopbarProjectDropdown, setShowTopbarProjectDropdown] = useState(false);
+  const [showTopbarRangeDropdown, setShowTopbarRangeDropdown] = useState(false);
+  const [showTopbarMailDropdown, setShowTopbarMailDropdown] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
@@ -289,27 +466,127 @@ export default function DashboardPage() {
   const [activeSavedDraftId, setActiveSavedDraftId] = useState(null);
   const [editingDraftId, setEditingDraftId] = useState(null);
   const [newDraftTitle, setNewDraftTitle] = useState("");
+  const [selectedActiveCampaignIds, setSelectedActiveCampaignIds] = useState([]);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState([]);
   const [showCampaignHistory, setShowCampaignHistory] = useState(false);
   const [showDayCounts, setShowDayCounts] = useState(false);
   const [showUploadedFilesDropdown, setShowUploadedFilesDropdown] = useState(false);
-  const [showUploadPreview, setShowUploadPreview] = useState(true);
-  const [showDraftEditor, setShowDraftEditor] = useState(true);
-  const [showBlankWordPad, setShowBlankWordPad] = useState(true);
+  const [showDraftUploadedFilesDropdown, setShowDraftUploadedFilesDropdown] = useState(false);
+  const [showUploadPreview, setShowUploadPreview] = useState(false);
+  const [showDraftEditor, setShowDraftEditor] = useState(false);
+  const [showBlankWordPad, setShowBlankWordPad] = useState(false);
+  const [showDraftEditingSection, setShowDraftEditingSection] = useState(false);
   const [changeInDraftValue, setChangeInDraftValue] = useState('');
   const [showScheduledTimePicker, setShowScheduledTimePicker] = useState(false);
   const [scheduledCountry, setScheduledCountry] = useState('india');
   const [scheduledSlot, setScheduledSlot] = useState('');
+  const [manualScheduledSlot, setManualScheduledSlot] = useState('');
   const [scheduledStartLabel, setScheduledStartLabel] = useState('');
+  const [pendingCampaignId, setPendingCampaignId] = useState('');
   const [selectedUploadedFileIds, setSelectedUploadedFileIds] = useState([]);
+  const [selectedDraftUploadedFileIds, setSelectedDraftUploadedFileIds] = useState([]);
+  const [savedDraftFilterCategory, setSavedDraftFilterCategory] = useState('');
   const [previewDirty, setPreviewDirty] = useState(false);
   const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
+  const [preferredActiveCampaignId, setPreferredActiveCampaignId] = useState('');
+  const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
-  const scheduledStartTimeoutRef = useRef(null);
+  const uploadedFilesDropdownRef = useRef(null);
+  const draftUploadedFilesDropdownRef = useRef(null);
+  const topbarProjectDropdownRef = useRef(null);
+  const topbarRangeDropdownRef = useRef(null);
+  const topbarMailDropdownRef = useRef(null);
+  const toastTimeoutRef = useRef(null);
+  const notify = (message, tone = 'info') => {
+    if (!message) return;
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, tone });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 3200);
+  };
+  const selectedAccountLabel =
+    activeAccount ||
+    projectAccounts.find((account) => account.id === selectedAccount)?.from ||
+    'Select Mail ID';
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const handleSavedDraftSelect = (draft) => {
     const id = draft._id || draft.id;
     setActiveSavedDraftId(id);
     loadScript(draft);
+  };
+
+  const selectProject = (value) => {
+    setProject(value);
+    setSelectedAccount("");
+    setActiveAccount("");
+    setShowTopbarProjectDropdown(false);
+  };
+
+  const addProjectOption = () => {
+    const value = String(window.prompt('Enter new project name', '') || '').trim().toLowerCase();
+    if (!value) return;
+    setProjectOptions((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    selectProject(value);
+    notify(`Project ${value.toUpperCase()} added.`, 'success');
+  };
+
+  const handleStatsRangeSelection = (value) => {
+    setSelectedStatsRange(value);
+    setSelectedStatsDate('');
+    if (value !== 'customize') {
+      setCustomStatsStartDate('');
+      setCustomStatsEndDate('');
+      setShowCustomRangePopup(false);
+    } else {
+      setShowCustomRangePopup(true);
+    }
+    setShowDayCounts(Boolean(value));
+  };
+
+  const selectTopbarRange = (value) => {
+    handleStatsRangeSelection(value);
+    setShowTopbarRangeDropdown(false);
+  };
+
+  const selectTopbarMail = (value) => {
+    if (value === "__oauth_add__") {
+      setShowTopbarMailDropdown(false);
+      startGraphOAuth();
+      return;
+    }
+    const selectedMail = projectAccounts.find((account) => account.id === value);
+    if (!window.confirm(`Set ${selectedMail?.from || 'this mail ID'} as the active sending mail?`)) {
+      notify('Mail selection cancelled.', 'info');
+      return;
+    }
+    setSelectedAccount(value);
+    setActiveAccount(selectedMail?.from || '');
+    setShowTopbarMailDropdown(false);
+    notify(`Working mail set to ${selectedMail?.from || 'selected account'}.`, 'success');
+  };
+
+  const loadSelectedDraftUploadedFile = async () => {
+    if (!selectedDraftUploadedFileIds.length) return;
+
+    try {
+      const fileId = selectedDraftUploadedFileIds[0];
+      const data = await safeFetchJson(`/api/lists/${fileId}`);
+      const leads = data.leads || [];
+      const columns = data.columns?.length
+        ? data.columns
+        : Array.from(new Set(leads.flatMap((lead) => Object.keys(lead?.data || {})).filter(Boolean)));
+      const rows = leads.map((lead) => lead.data || {});
+      setBlankWordPad(buildWordPadTableHtml(columns, rows));
+      setShowBlankWordPad(true);
+      setShowDraftUploadedFilesDropdown(false);
+      notify('Uploaded file opened in Edit Word File.', 'success');
+    } catch (e) {
+      notify(e.message || 'Failed to load uploaded file into Edit Word File', 'error');
+    }
   };
 
 
@@ -334,8 +611,9 @@ const handleDeleteDraft = async (draft) => {
       setDraftBody('');
     }
     loadSavedDrafts();
+    notify('Draft deleted successfully.', 'success');
   } catch (err) {
-    alert(err.message || 'Failed to delete draft');
+    notify(err.message || 'Failed to delete draft', 'error');
   }
 };
 
@@ -358,12 +636,29 @@ const handleDeleteDraft = async (draft) => {
     });
   };
 
+  const toggleActiveCampaignSelection = (campaignId) => {
+    setSelectedActiveCampaignIds((prev) => {
+      if (prev.includes(campaignId)) {
+        return prev.filter((id) => id !== campaignId);
+      }
+      return [...prev, campaignId];
+    });
+  };
+
   const toggleSelectAllCampaigns = () => {
     if (allCampaignsSelected) {
       setSelectedCampaignIds([]);
       return;
     }
     setSelectedCampaignIds(historyCampaignIds);
+  };
+
+  const toggleSelectAllActiveCampaigns = () => {
+    if (allActiveCampaignsSelected) {
+      setSelectedActiveCampaignIds([]);
+      return;
+    }
+    setSelectedActiveCampaignIds(activeCampaignIds);
   };
 
   const deleteSelectedCampaigns = async () => {
@@ -377,14 +672,49 @@ const handleDeleteDraft = async (draft) => {
       );
       setSelectedCampaignIds([]);
       await loadAll();
+      notify('Selected history campaigns deleted.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to delete selected campaigns');
+      notify(err.message || 'Failed to delete selected campaigns', 'error');
+    }
+  };
+
+  const deleteSelectedActiveCampaigns = async () => {
+    if (!selectedActiveCampaignIds.length) return;
+    if (!window.confirm('Delete selected active campaigns? This cannot be undone.')) return;
+    try {
+      await Promise.all(
+        selectedActiveCampaignIds.map((id) =>
+          safeFetchJson(`/api/campaigns/${id}`, { method: 'DELETE' })
+        )
+      );
+      setSelectedActiveCampaignIds([]);
+      await loadAll();
+      notify('Selected active campaigns deleted.', 'success');
+    } catch (err) {
+      notify(err.message || 'Failed to delete selected active campaigns', 'error');
+    }
+  };
+
+  const deleteAllActiveCampaigns = async () => {
+    if (!activeCampaignIds.length) return;
+    if (!window.confirm('Delete all campaigns in the Campaigns section? This cannot be undone.')) return;
+    try {
+      await Promise.all(
+        activeCampaignIds.map((id) =>
+          safeFetchJson(`/api/campaigns/${id}`, { method: 'DELETE' })
+        )
+      );
+      setSelectedActiveCampaignIds([]);
+      await loadAll();
+      notify('All active campaigns deleted.', 'success');
+    } catch (err) {
+      notify(err.message || 'Failed to delete all active campaigns', 'error');
     }
   };
 
   const addNewDraft = async () => {
     if (!newDraftSubject || !newDraftBody) {
-      alert("Please enter subject and body");
+      notify('Please enter subject and body.', 'info');
       return;
     }
 
@@ -412,7 +742,8 @@ const handleDeleteDraft = async (draft) => {
       setNewDraftTitle("");
       setShowAddDraft(false);
       setEditingDraftId(null);
-      alert("Draft Script Added");
+      setSavedDraftFilterCategory(newDraftCategory);
+      notify('Draft script added successfully.', 'success');
       const saved = result.draft;
       if (isEditing && saved) {
         setSavedDrafts((prev) => prev.map((d) => (d._id === saved._id ? saved : d)));
@@ -421,15 +752,75 @@ const handleDeleteDraft = async (draft) => {
       }
       await loadSavedDrafts();
     } catch (err) {
-      alert(err.message || 'Failed to save draft');
+      notify(err.message || 'Failed to save draft', 'error');
+    }
+  };
+
+  const openCreateScriptForm = () => {
+    setEditingDraftId(null);
+    const category = newDraftCategory || selectedDraft || 'cover_story';
+    setNewDraftCategory(category);
+    setNewDraftTitle(changeInDraftValue || '');
+    setNewDraftSubject('');
+    setNewDraftBody('');
+    setShowAddDraft(true);
+  };
+
+  const saveCurrentDraftScript = async () => {
+    if (!draftSubject || !draftBody) {
+      notify('Please enter subject and draft body.', 'info');
+      return;
+    }
+
+    try {
+      const category = selectedDraft || 'cover_story';
+      const count = savedDrafts.filter((d) => d.category === category).length;
+      const baseTitle = changeInDraftValue
+        ? changeInDraftValue
+        : `${DRAFT_CATEGORIES.find((c) => c.value === category)?.label || category} Draft ${count + 1}`;
+
+      await safeFetchJson('/api/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          title: baseTitle,
+          subject: draftSubject,
+          body: draftBody
+        })
+      });
+
+      setSavedDraftFilterCategory(category);
+      await loadSavedDrafts();
+      notify('Draft script added successfully.', 'success');
+    } catch (err) {
+      notify(err.message || 'Failed to save draft', 'error');
     }
   };
   const activeCampaigns = useMemo(
-    () => campaigns.filter((c) => ACTIVE_CAMPAIGN_STATUSES.has(c.status)),
-    [campaigns]
+    () =>
+      campaigns
+        .filter((c) => shouldShowInActiveCampaigns(c))
+        .sort((a, b) => {
+          if (preferredActiveCampaignId) {
+            if (a._id === preferredActiveCampaignId) return -1;
+            if (b._id === preferredActiveCampaignId) return 1;
+          }
+
+          const aRunning = String(a.status || '').toLowerCase() === 'running';
+          const bRunning = String(b.status || '').toLowerCase() === 'running';
+          if (aRunning !== bRunning) {
+            return aRunning ? -1 : 1;
+          }
+
+          const aTime = new Date(a.startedAt || a.scheduledStart?.at || a.createdAt || 0).getTime();
+          const bTime = new Date(b.startedAt || b.scheduledStart?.at || b.createdAt || 0).getTime();
+          return bTime - aTime;
+        }),
+    [campaigns, preferredActiveCampaignId]
   );
   const historyCampaigns = useMemo(
-    () => campaigns.filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status)),
+    () => campaigns.filter((c) => isCampaignFinished(c)),
     [campaigns]
   );
   const runningCampaign = useMemo(
@@ -438,19 +829,105 @@ const handleDeleteDraft = async (draft) => {
   );
   const activeCampaign = useMemo(() => activeCampaigns[0] || null, [activeCampaigns]);
   const progressText = activeCampaign ? `${activeCampaign.stats?.sent || 0}/${activeCampaign.stats?.total || 0} emails sent` : '0/0 emails sent';
+  const activeCampaignIds = useMemo(() => activeCampaigns.map((c) => c._id), [activeCampaigns]);
+  const allActiveCampaignsSelected = activeCampaignIds.length > 0 && activeCampaignIds.every((id) => selectedActiveCampaignIds.includes(id));
   const historyCampaignIds = useMemo(() => historyCampaigns.map((c) => c._id), [historyCampaigns]);
   const allCampaignsSelected = historyCampaignIds.length > 0 && historyCampaignIds.every((id) => selectedCampaignIds.includes(id));
   const selectedListName = useMemo(
     () => lists.find((list) => list._id === selectedListId)?.name || '',
     [lists, selectedListId]
   );
-  const quickDraftButtons = useMemo(
-    () => ([
-      { label: 'cs1', draft: savedDrafts.find((draft) => draft.category === 'cover_story') || null },
-      { label: 'rem1', draft: savedDrafts.find((draft) => draft.category === 'reminder') || null },
-      { label: 'fu1', draft: savedDrafts.find((draft) => draft.category === 'follow_up') || null }
-    ]),
-    [savedDrafts]
+  const selectedListLabel = useMemo(() => {
+    const selectedList = lists.find((list) => list._id === selectedListId);
+    if (!selectedList) return 'Select List';
+    return `${selectedList.name} (${selectedList.leadCount || 0})`;
+  }, [lists, selectedListId]);
+  const searchableSectionText = useMemo(
+    () => ({
+      summary: `summary filter project client active project working mail select mail id quick range starting date today total mails sent pending failed ${project} ${selectedAccountLabel} ${(stats.dailyMailCounts || []).map((item) => `${item.date} ${item.count}`).join(' ')}`,
+      upload: `upload client files uploaded file preview show table normalize emails list add column add row save changes ${selectedListName} ${lists.map((list) => list.name).join(' ')}`,
+      campaignManagement: `campaign management campaign name campaign type client list batch size delay seconds create campaign ${campaignName} ${selectedDraft} ${selectedListName}`,
+      draftEditing: `draft editing and setting select draft type give draft name create script uploaded files choose uploaded file saved draft scripts edit word file draft email body subject line test email ${draftSubject} ${changeInDraftValue} ${savedDrafts.map((draft) => `${draft.title} ${draft.category}`).join(' ')}`,
+      schedule: `schedule time slot country time slot add select time scheduled start ${scheduledCountry} ${scheduledSlot} ${manualScheduledSlot} ${scheduledStartLabel}`,
+      campaigns: `campaigns campaign history live logs ${campaigns.map((campaign) => `${campaign.name} ${campaign.status}`).join(' ')}`
+    }),
+    [
+      campaignName,
+      campaigns,
+      changeInDraftValue,
+      draftSubject,
+      lists,
+      manualScheduledSlot,
+      project,
+      savedDrafts,
+      scheduledCountry,
+      scheduledSlot,
+      scheduledStartLabel,
+      selectedDraft,
+      selectedListName,
+      selectedAccountLabel,
+      stats.dailyMailCounts
+    ]
+  );
+  const isSearchMatch = (sectionKey) =>
+    normalizedSearchQuery && String(searchableSectionText[sectionKey] || '').toLowerCase().includes(normalizedSearchQuery);
+  const fancyStats = useMemo(() => {
+    const totalValue = Number(stats.totalUploaded || 0);
+    const safeTotal = Math.max(totalValue, 1);
+    const sentRate = calculateRate(stats.sent, totalValue);
+    const pendingRate = calculateRate(stats.pending, totalValue);
+    const failedRate = calculateRate(stats.failed, totalValue);
+    const recentActivityRate = calculateRate(stats.last10DaysStats, totalValue);
+
+    return [
+      {
+        title: 'Total mails',
+        value: stats.totalUploaded,
+        percent: 100,
+        trend: recentActivityRate,
+        color: '#3b82f6'
+      },
+      {
+        title: 'Sent',
+        value: stats.sent,
+        percent: (Number(stats.sent || 0) / safeTotal) * 100,
+        trend: sentRate,
+        color: '#ef4444'
+      },
+      {
+        title: 'Pending',
+        value: stats.pending,
+        percent: (Number(stats.pending || 0) / safeTotal) * 100,
+        trend: pendingRate,
+        color: '#7c3aed'
+      },
+      {
+        title: 'Failed',
+        value: stats.failed,
+        percent: (Number(stats.failed || 0) / safeTotal) * 100,
+        trend: failedRate ? -failedRate : 0,
+        color: '#f59e0b'
+      }
+    ];
+  }, [stats.totalUploaded, stats.sent, stats.pending, stats.failed, stats.last10DaysStats]);
+  const quickDraftButtons = useMemo(() => {
+    const supportedCategories = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
+    return supportedCategories.flatMap((category) => {
+      const draftsByCategory = savedDrafts.filter((draft) => draft.category === category);
+      const prefix = QUICK_DRAFT_PREFIX[category] || 'draft';
+      return draftsByCategory.map((draft, index) => ({
+        label: `${prefix}${index + 1}`,
+        draft,
+        category
+      }));
+    });
+  }, [savedDrafts]);
+  const visibleQuickDraftButtons = useMemo(
+    () =>
+      savedDraftFilterCategory
+        ? quickDraftButtons.filter(({ category }) => category === savedDraftFilterCategory)
+        : quickDraftButtons,
+    [quickDraftButtons, savedDraftFilterCategory]
   );
 
   useEffect(() => {
@@ -464,6 +941,33 @@ const handleDeleteDraft = async (draft) => {
       setSelectedAccount('');
     }
   }, [projectAccounts, selectedAccount]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (
+        showUploadedFilesDropdown &&
+        uploadedFilesDropdownRef.current &&
+        !uploadedFilesDropdownRef.current.contains(event.target)
+      ) {
+        setShowUploadedFilesDropdown(false);
+      }
+
+      if (
+        showDraftUploadedFilesDropdown &&
+        draftUploadedFilesDropdownRef.current &&
+        !draftUploadedFilesDropdownRef.current.contains(event.target)
+      ) {
+        setShowDraftUploadedFilesDropdown(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [showUploadedFilesDropdown, showDraftUploadedFilesDropdown]);
+
+  useEffect(() => {
+    setSelectedActiveCampaignIds((prev) => prev.filter((id) => activeCampaignIds.includes(id)));
+  }, [activeCampaignIds]);
 
   const draftTemplates = {
     cover_story: {
@@ -577,13 +1081,32 @@ const handleDeleteDraft = async (draft) => {
     return data;
   };
 
-  const loadAll = async () => {
+  const loadAll = async (filterOverrides = {}) => {
     try {
+      const effectiveDate =
+        filterOverrides.selectedStatsDate !== undefined
+          ? filterOverrides.selectedStatsDate
+          : selectedStatsDate;
+      const effectiveRange =
+        filterOverrides.selectedStatsRange !== undefined
+          ? filterOverrides.selectedStatsRange
+          : selectedStatsRange;
+      const effectiveCustomStartDate =
+        filterOverrides.customStatsStartDate !== undefined
+          ? filterOverrides.customStatsStartDate
+          : customStatsStartDate;
+      const effectiveCustomEndDate =
+        filterOverrides.customStatsEndDate !== undefined
+          ? filterOverrides.customStatsEndDate
+          : customStatsEndDate;
+
       let statsUrl = '/api/stats';
-      if (selectedStatsRange) {
-        statsUrl = `/api/stats?range=${encodeURIComponent(selectedStatsRange)}`;
-      } else if (selectedStatsDate) {
-        statsUrl = `/api/stats?date=${encodeURIComponent(selectedStatsDate)}`;
+      if (effectiveRange === 'customize' && effectiveCustomStartDate && effectiveCustomEndDate) {
+        statsUrl = `/api/stats?range=customize&startDate=${encodeURIComponent(effectiveCustomStartDate)}&endDate=${encodeURIComponent(effectiveCustomEndDate)}`;
+      } else if (effectiveRange) {
+        statsUrl = `/api/stats?range=${encodeURIComponent(effectiveRange)}`;
+      } else if (effectiveDate) {
+        statsUrl = `/api/stats?date=${encodeURIComponent(effectiveDate)}`;
       }
       const [st, tpl, cps, accRes] = await Promise.all([
         safeFetchJson(statsUrl),
@@ -630,14 +1153,47 @@ const handleDeleteDraft = async (draft) => {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!topbarProjectDropdownRef.current?.contains(event.target)) {
+        setShowTopbarProjectDropdown(false);
+      }
+      if (!topbarRangeDropdownRef.current?.contains(event.target)) {
+        setShowTopbarRangeDropdown(false);
+      }
+      if (!topbarMailDropdownRef.current?.contains(event.target)) {
+        setShowTopbarMailDropdown(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => document.removeEventListener('pointerdown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
     loadAll();
-  }, [project, selectedStatsDate, selectedStatsRange]);
+  }, [project, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
 
 
   useEffect(() => {
     const id = setInterval(loadAll, 5000);
     return () => clearInterval(id);
-  }, [selectedListId, selectedTemplateId, project]);
+  }, [
+    selectedListId,
+    selectedTemplateId,
+    project,
+    selectedStatsDate,
+    selectedStatsRange,
+    customStatsStartDate,
+    customStatsEndDate
+  ]);
 
   useEffect(() => {
     const loadListPreview = async () => {
@@ -688,15 +1244,16 @@ const handleDeleteDraft = async (draft) => {
       setPreviewDirty(false);
       setSelectedListId(data.listId);
       await loadAll();
+      notify('File uploaded successfully.', 'success');
     } catch (e) {
       setLoading(false);
-      alert(e.message || 'Upload failed');
+      notify(e.message || 'Upload failed', 'error');
     }
   };
 
-  const createCampaign = async () => {
+  const createCampaign = async ({ skipReload = false } = {}) => {
     try {
-      await safeFetchJson('/api/campaigns', {
+      const data = await safeFetchJson('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -706,14 +1263,52 @@ const handleDeleteDraft = async (draft) => {
           draftType: selectedDraft,
           inlineTemplate: { subject: draftSubject, body: draftBody },
           senderAccountId: selectedAccount || null,
-          options: { batchSize: Number(batchSize), delaySeconds: Number(delaySeconds) }
+          options: { batchSize, delaySeconds: Number(delaySeconds) }
         })
       });
-      await loadAll();
+      const createdCampaign = data.campaign || null;
+      if (createdCampaign?._id) {
+        setPendingCampaignId(createdCampaign._id);
+        setShowDraftEditor(true);
+      }
+      if (!skipReload) {
+        await loadAll();
+      }
+      notify('Campaign created successfully.', 'success');
+      return createdCampaign;
     } catch (e) {
-      alert(e.message || 'Failed to create campaign');
+      notify(e.message || 'Failed to create campaign', 'error');
+      return null;
     }
   };
+
+  const createAndStartCampaign = async () => {
+    let campaignId = pendingCampaignId;
+
+    if (!campaignId) {
+      const campaign = await createCampaign({ skipReload: Boolean(scheduledSlot) });
+      campaignId = campaign?._id || '';
+    }
+
+    if (!campaignId) return;
+
+    await startCampaign(campaignId, { schedule: Boolean(scheduledSlot) });
+  };
+
+  useEffect(() => {
+    if (!pendingCampaignId) return;
+
+    const matchingCampaign = campaigns.find((campaign) => campaign._id === pendingCampaignId);
+    if (!matchingCampaign) {
+      setPendingCampaignId('');
+      return;
+    }
+
+    const status = String(matchingCampaign.status || '').toLowerCase();
+    if (status !== 'draft') {
+      setPendingCampaignId('');
+    }
+  }, [campaigns, pendingCampaignId]);
 
   const startGraphOAuth = (expectedEmail = "") => {
     const returnTo = window.location.pathname + window.location.search;
@@ -724,7 +1319,7 @@ const handleDeleteDraft = async (draft) => {
 
   const connectSelectedAccount = async () => {
     const acc = accounts.find((a) => a.id === selectedAccount);
-    if (!acc) return alert('Select Mail ID');
+    if (!acc) return notify('Select Mail ID.', 'info');
     if (acc.provider === "graph_oauth" && String(acc.status || "").toLowerCase() !== "connected") {
       startGraphOAuth(acc.from || "");
       return;
@@ -736,17 +1331,17 @@ const handleDeleteDraft = async (draft) => {
         body: JSON.stringify({ accountId: acc.id })
       });
       setActiveAccount(acc.from || '');
-      alert('Account connected');
+      notify('Account connected successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Account connection failed');
+      notify(e.message || 'Account connection failed', 'error');
     }
   };
 
 
   const sendTestEmail = async () => {
   const acc = accounts.find((a) => a.id === selectedAccount);
-  if (!acc) return alert('Select Mail ID');
-  if (!testEmailTo) return alert('Enter test recipient email');
+  if (!acc) return notify('Select Mail ID.', 'info');
+  if (!testEmailTo) return notify('Enter test recipient email.', 'info');
   try {
     await safeFetchJson('/api/send-test', {
       method: 'POST',
@@ -758,66 +1353,69 @@ const handleDeleteDraft = async (draft) => {
         body: draftBody
       })
     });
-    alert('Test email sent');
+    notify('Test email sent successfully.', 'success');
   } catch (e) {
-    alert(e.message || 'Test email failed');
+    notify(e.message || 'Test email failed', 'error');
   }
 };
 
 const normalizeSelectedListEmails = async () => {
     if (!selectedListId) {
-      alert('Select a list first');
+      notify('Select a list first.', 'info');
       return;
     }
     try {
       const data = await safeFetchJson(`/api/lists/${selectedListId}/normalize-emails`, { method: 'POST' });
-      alert(`Email normalization complete. Updated rows: ${data.changed || 0}`);
+      notify(`Email normalization complete. Updated rows: ${data.changed || 0}`, 'success');
       await loadAll();
     } catch (e) {
-      alert(e.message || 'Failed to normalize emails');
+      notify(e.message || 'Failed to normalize emails', 'error');
     }
   };
 
   const startCampaign = async (campaignId, options = {}) => {
     try {
+      setPreferredActiveCampaignId(campaignId);
       if (options.schedule) {
-        if (!scheduledSlot) {
-          alert('Select a scheduled time first');
+        const effectiveSlot = scheduledSlot;
+        if (!effectiveSlot) {
+          notify('Select a scheduled time first.', 'info');
           return;
         }
         const zoneConfig = COUNTRY_TIME_SLOTS[scheduledCountry];
-        const targetDate = buildScheduledDate(zoneConfig.timezone, scheduledSlot);
+        const targetDate = buildScheduledDate(zoneConfig.timezone, effectiveSlot);
         if (!targetDate) {
-          alert('Invalid scheduled time');
+          notify('Invalid scheduled time.', 'error');
           return;
         }
-        if (scheduledStartTimeoutRef.current) {
-          clearTimeout(scheduledStartTimeoutRef.current);
-        }
-        const delayMs = Math.max(0, targetDate.getTime() - Date.now());
-        scheduledStartTimeoutRef.current = setTimeout(async () => {
-          try {
-            const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
-            if (data.started === false && data.message) {
-              alert(data.message);
-            }
-            setScheduledStartLabel('');
-            await loadAll();
-          } catch (e) {
-            alert(e.message || 'Failed to start scheduled campaign');
-          }
-        }, delayMs);
-        setScheduledStartLabel(`${scheduledCountry.toUpperCase()} - ${scheduledSlot} (${targetDate.toLocaleString()})`);
-        alert(`Campaign scheduled for ${scheduledCountry.toUpperCase()} at ${scheduledSlot}`);
+        const label = `${scheduledCountry.toUpperCase()} - ${effectiveSlot} (${targetDate.toLocaleString()})`;
+        await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            country: scheduledCountry,
+            slot: effectiveSlot,
+            timezone: zoneConfig.timezone,
+            label,
+            scheduledAt: targetDate.toISOString()
+          })
+        });
+        setScheduledStartLabel(label);
+        setPendingCampaignId('');
+        notify(`Campaign scheduled for ${scheduledCountry.toUpperCase()} at ${effectiveSlot}`, 'success');
+        await loadAll();
         return;
       }
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
+      setPendingCampaignId('');
       if (data.started === false && data.message) {
-        alert(data.message);
+        notify(data.message, 'info');
+      } else {
+        notify('Campaign started successfully.', 'success');
       }
       await loadAll();
     } catch (e) {
-      alert(e.message || 'Failed to start campaign');
+      notify(e.message || 'Failed to start campaign', 'error');
     }
   };
 
@@ -825,8 +1423,9 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/pause`, { method: 'POST' });
       await loadAll();
+      notify('Campaign paused successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to pause campaign');
+      notify(e.message || 'Failed to pause campaign', 'error');
     }
   };
 
@@ -834,8 +1433,9 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/resume`, { method: 'POST' });
       await loadAll();
+      notify('Campaign resumed successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to resume campaign');
+      notify(e.message || 'Failed to resume campaign', 'error');
     }
   };
 
@@ -843,8 +1443,9 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/stop`, { method: 'POST' });
       await loadAll();
+      notify('Campaign stopped successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to stop campaign');
+      notify(e.message || 'Failed to stop campaign', 'error');
     }
   };
 
@@ -852,8 +1453,9 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/clear-logs`, { method: 'POST' });
       await loadAll();
+      notify('Campaign logs cleared.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to clear campaign logs');
+      notify(e.message || 'Failed to clear campaign logs', 'error');
     }
   };
 
@@ -865,15 +1467,16 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
       await loadAll();
+      notify('Campaign deleted successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to delete campaign');
+      notify(e.message || 'Failed to delete campaign', 'error');
     }
   };
 
   const deleteSelectedUploadedFile = async () => {
     const idsToDelete = selectedUploadedFileIds.length ? selectedUploadedFileIds : (selectedListId ? [selectedListId] : []);
     if (!idsToDelete.length) {
-      alert('Select uploaded file first');
+      notify('Select uploaded file first.', 'info');
       return;
     }
     if (!window.confirm('Delete selected uploaded file(s)?')) {
@@ -888,14 +1491,15 @@ const normalizeSelectedListEmails = async () => {
       setPreviewColumns([]);
       setShowUploadedFilesDropdown(false);
       await loadAll();
+      notify('Uploaded file deleted successfully.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to delete uploaded file');
+      notify(e.message || 'Failed to delete uploaded file', 'error');
     }
   };
 
   const deleteAllUploadedFiles = async () => {
     if (!lists.length) {
-      alert('No uploaded files to delete');
+      notify('No uploaded files to delete.', 'info');
       return;
     }
     if (!window.confirm('Delete all uploaded files?')) {
@@ -912,8 +1516,9 @@ const normalizeSelectedListEmails = async () => {
       setPreviewColumns([]);
       setShowUploadedFilesDropdown(false);
       await loadAll();
+      notify('All uploaded files deleted.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to delete all uploaded files');
+      notify(e.message || 'Failed to delete all uploaded files', 'error');
     }
   };
 
@@ -926,7 +1531,7 @@ const normalizeSelectedListEmails = async () => {
 
   const savePreviewEdits = async () => {
     if (!selectedListId) {
-      alert('Select uploaded file first');
+      notify('Select uploaded file first.', 'info');
       return;
     }
 
@@ -938,9 +1543,9 @@ const normalizeSelectedListEmails = async () => {
       });
       setPreviewDirty(false);
       await loadAll();
-      alert('Table changes saved');
+      notify('Table changes saved.', 'success');
     } catch (e) {
-      alert(e.message || 'Failed to save table changes');
+      notify(e.message || 'Failed to save table changes', 'error');
     }
   };
 
@@ -978,7 +1583,7 @@ const normalizeSelectedListEmails = async () => {
 
     const columns = getPreviewColumns();
     if (columns.includes(trimmed)) {
-      alert('Column name already exists');
+      notify('Column name already exists.', 'info');
       return;
     }
 
@@ -996,7 +1601,7 @@ const normalizeSelectedListEmails = async () => {
   const deletePreviewColumn = (columnToDelete) => {
     const columns = getPreviewColumns();
     if (columns.length <= 1) {
-      alert('At least one column is required');
+      notify('At least one column is required.', 'info');
       return;
     }
     if (!window.confirm(`Delete column "${columnToDelete}"?`)) {
@@ -1049,135 +1654,680 @@ const normalizeSelectedListEmails = async () => {
     window.location.href = '/login';
   };
 
-  return (
-    <main className="container grid">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <h1>Email Automation Dashboard</h1>
-          <p>Upload leads, run campaigns, track delivery in real-time.</p>
-        </div>
-        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span className={`badge ${project ? 'sent' : 'failed'}`}>
-            Active Project: {project ? String(project).toUpperCase() : 'Select Project'}
-          </span>
-          <span className={`badge ${activeAccount ? 'sent' : 'failed'}`}>
-            Working Mail: {activeAccount || "Select Mail ID"}
-          </span>
-          <button className="button secondary" onClick={logout}>Logout</button>
-        </div>
-      </div>
-      {error ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
+  const resetSummaryFilters = () => {
+    setSelectedStatsDate('');
+    setSelectedStatsRange('');
+    setCustomStatsStartDate('');
+    setCustomStatsEndDate('');
+    setShowDayCounts(false);
+    loadAll({
+      selectedStatsDate: '',
+      selectedStatsRange: '',
+      customStatsStartDate: '',
+      customStatsEndDate: ''
+    });
+  };
 
-      <section className="card grid">
-        <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
-          <div>
-            <h3 style={{ margin: '0 0 6px' }}>Summary</h3>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Project / Client</p>
-            <select
-              className="select"
-              style={{
-                maxWidth: 160,
-                borderColor: project ? '#0ea5e9' : undefined,
-                background: project ? '#e0f2fe' : undefined,
-                color: project ? '#0f172a' : undefined,
-                fontWeight: project ? 700 : undefined
-              }}
-              value={project}
-              onChange={(e) => {
-                setProject(e.target.value);
-                setSelectedAccount("");
-                setActiveAccount("");
-              }}
-            >
-              <option value="tec">TEC</option>
-              <option value="tut">TUT</option>
-            </select>
+  const applyCustomRangeSelection = () => {
+    if (!customStatsStartDate || !customStatsEndDate) {
+      notify('Please select both start date and end date.', 'info');
+      return;
+    }
+    if (customStatsStartDate > customStatsEndDate) {
+      notify('Start date cannot be after end date.', 'error');
+      return;
+    }
+    setSelectedStatsRange('customize');
+    setSelectedStatsDate('');
+    setShowDayCounts(true);
+    setShowCustomRangePopup(false);
+    notify('Custom date range selected.', 'success');
+  };
+
+  const handleTopNavSelect = (item) => {
+    setActiveTopNav(item.label);
+    if (item.label === 'Revenue') {
+      setActiveSidebarView('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (item.label === 'Home' && activeSidebarView) {
+      setActiveSidebarView('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const target = document.querySelector(item.href);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const openSidebarBlankView = (label, event) => {
+    if (event) {
+      event.preventDefault();
+    }
+    if (label === 'Revenue') {
+      setActiveTopNav('Revenue');
+      setActiveSidebarView('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setActiveSidebarView(label);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const showSidebarBlankView = Boolean(activeSidebarView);
+
+  return (
+    <main className="dashboard-shell">
+      <aside className="dashboard-sidebar">
+        <div className="dashboard-sidebar-card">
+          <div className="dashboard-brand">
+            <div className="dashboard-brand-mark">AM</div>
+            <div>
+              <h2>automail</h2>
+            </div>
           </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Mail ID</p>
-            <select
-              className="select"
-              style={{ maxWidth: 420 }}
-              value={selectedAccount}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "__oauth_add__") {
-                  startGraphOAuth();
-                  return;
-                }
-                setSelectedAccount(v);
-              }}
-            >
-              <option value="">Select Mail ID</option>
-              {projectAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.from}
-                </option>
+
+          <div className="dashboard-sidebar-stack">
+            {SIDEBAR_PRIMARY_ITEMS.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`dashboard-primary-link ${item.tone}`}
+                onClick={(event) => openSidebarBlankView(item.label, event)}
+              >
+                <span className="dashboard-link-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
+          </div>
+          <div className="dashboard-sidebar-nav" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #e5e7eb' }}>
+            <div className="dashboard-sidebar-section-head">
+              <div>
+                <h3>Workspace</h3>
+              </div>
+              <button type="button" className="dashboard-sidebar-plus" onClick={(event) => openSidebarBlankView('Workspace', event)}>+</button>
+            </div>
+
+            <nav className="dashboard-sidebar-menu">
+              {SIDEBAR_WORKSPACE_ITEMS.map((item) => (
+                <div key={item.label} className="dashboard-sidebar-item">
+                  <a
+                    href={item.href}
+                    className="dashboard-sidebar-link"
+                    onClick={(event) => openSidebarBlankView(item.label, event)}
+                  >
+                    <span className="dashboard-link-icon soft">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </a>
+                  {item.subItems?.length ? (
+                    <div className="dashboard-sidebar-submenu">
+                      {item.subItems.map((subItem) => (
+                        <button
+                          key={subItem}
+                          type="button"
+                          className="dashboard-sidebar-subitem"
+                          onClick={(event) => openSidebarBlankView(subItem, event)}
+                        >
+                          {subItem}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               ))}
-              <option value="__oauth_add__">Connect New Account</option>
-            </select>
+            </nav>
+
+            <button type="button" className="dashboard-logout-link" onClick={logout}>
+              <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
+              <span className="dashboard-logout-text">Log out</span>
+            </button>
           </div>
-          <button className="button" type="button" onClick={connectSelectedAccount}>Select Sender</button>
-          <button className="button secondary" type="button" onClick={startGraphOAuth}>Add New Mail</button>
-          <div>
-            <h3 style={{ margin: '0 0 6px' }}>Filter</h3>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Starting Date</p>
-            <input
-              className="input"
-              type="date"
-              value={selectedStatsDate}
-              onChange={(e) => {
-                setSelectedStatsDate(e.target.value);
-                setSelectedStatsRange('');
-                setShowDayCounts(Boolean(e.target.value));
-              }}
-            />
-          </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Quick Range</p>
-            <select
-              className="select"
-              value={selectedStatsRange}
-              onChange={(e) => {
-                setSelectedStatsRange(e.target.value);
-                setSelectedStatsDate('');
-                setShowDayCounts(Boolean(e.target.value));
-              }}
+        </div>
+      </aside>
+
+      <div className="container grid dashboard-main">
+      <div id="dashboard-top" />
+      <section className="dashboard-topbar">
+        <div className="dashboard-topbar-tabs">
+          {TOP_NAV_ITEMS.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className={`dashboard-topbar-tab ${activeTopNav === item.label ? 'active' : ''}`}
+              onClick={() => handleTopNavSelect(item)}
             >
-              <option value="">Select Range</option>
-              {SUMMARY_RANGES.map((range) => (
-                <option key={range.value} value={range.value}>
-                  {range.label}
-                </option>
-              ))}
-            </select>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className={`dashboard-topbar-search ${normalizedSearchQuery ? 'active' : ''}`}>
+          <span className="dashboard-topbar-search-icon">⌕</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search"
+            placeholder="Search"
+          />
+        </div>
+
+        <div className="dashboard-topbar-actions">
+          <div className="dashboard-topbar-dropdown" ref={topbarRangeDropdownRef}>
+            <button
+              type="button"
+              className="dashboard-topbar-pill"
+              onClick={() => setShowTopbarRangeDropdown((prev) => !prev)}
+            >
+              {SUMMARY_RANGES.find((range) => range.value === selectedStatsRange)?.label || 'Quick Range'}
+            </button>
+            {showTopbarRangeDropdown ? (
+              <div className="dashboard-topbar-dropdown-menu">
+                {SUMMARY_RANGES.map((range) => (
+                  <button
+                    key={range.value}
+                    type="button"
+                    className={`dashboard-topbar-dropdown-item ${selectedStatsRange === range.value ? 'active' : ''}`}
+                    onClick={() => selectTopbarRange(range.value)}
+                  >
+                    {range.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => {
-              setSelectedStatsDate('');
-              setSelectedStatsRange('');
-              setShowDayCounts(false);
-            }}
-            disabled={!selectedStatsDate && !selectedStatsRange}
-          >
-            Clear Filter
+          <div className="dashboard-topbar-dropdown" ref={topbarProjectDropdownRef}>
+            <button
+              type="button"
+              className={`badge ${project ? 'sent' : 'failed'}`}
+              onClick={() => setShowTopbarProjectDropdown((prev) => !prev)}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
+            >
+              <span>Active Project:</span>
+              <span>{project ? String(project).toUpperCase() : 'Select Project'}</span>
+            </button>
+            {showTopbarProjectDropdown ? (
+              <div className="dashboard-topbar-dropdown-menu">
+                {projectOptions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`dashboard-topbar-dropdown-item ${project === item ? 'active' : ''}`}
+                    onClick={() => selectProject(item)}
+                  >
+                    {item.toUpperCase()}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={addProjectOption}
+                >
+                  Add Project
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div className="dashboard-topbar-dropdown" ref={topbarMailDropdownRef}>
+            <button
+              type="button"
+              className={`badge ${activeAccount ? 'sent' : 'failed'}`}
+              onClick={() => setShowTopbarMailDropdown((prev) => !prev)}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
+            >
+              <span>Working Mail:</span>
+              <span>{selectedAccountLabel}</span>
+            </button>
+            {showTopbarMailDropdown ? (
+              <div className="dashboard-topbar-dropdown-menu" style={{ minWidth: 280, maxHeight: 220, overflowY: 'auto' }}>
+                {projectAccounts.map((account) => (
+                  <button
+                    key={account.id}
+                    type="button"
+                    className={`dashboard-topbar-dropdown-item ${selectedAccount === account.id ? 'active' : ''}`}
+                    onClick={() => selectTopbarMail(account.id)}
+                  >
+                    {account.from}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={() => selectTopbarMail('__oauth_add__')}
+                >
+                  Add New Mail
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <button type="button" className="dashboard-topbar-profile">
+            <span className="dashboard-topbar-avatar">RY</span>
+            <span>Rylic</span>
           </button>
         </div>
       </section>
+      {toast ? (
+        <div className={`dashboard-toast dashboard-toast-${toast.tone}`} role="status" aria-live="polite">
+          <div>
+            <strong>{toast.tone === 'error' ? 'Action failed' : toast.tone === 'success' ? 'Action completed' : 'Notification'}</strong>
+            <p>{toast.message}</p>
+          </div>
+          <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">
+            ×
+          </button>
+        </div>
+      ) : null}
 
-      <section className="grid stats-grid">
-        <StatCard title="Total mails" value={stats.totalUploaded} />
-        <StatCard title="Sent" value={stats.sent} />
-        <StatCard title="Pending" value={stats.pending} />
-        <StatCard title="Failed" value={stats.failed} />
-        <StatCard
-          title="Last 10 days stats"
-          value={stats.last10DaysStats}
-          onClick={() => setShowDayCounts((prev) => !prev)}
-          active={showDayCounts}
-        />
+      {error ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
+
+      {showSidebarBlankView ? (
+        <section className="grid" id="summary-panel">
+          <div
+            style={{
+              minHeight: 'calc(100vh - 140px)',
+              border: '1px solid #d7e0ea',
+              borderRadius: 24,
+              background: 'linear-gradient(180deg, #ffffff, #f8fbff)',
+              boxShadow: '0 20px 44px rgba(15, 23, 42, 0.06)',
+              padding: 24,
+              display: 'grid',
+              gap: 22,
+              alignContent: 'start'
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gap: 10,
+                textAlign: 'center',
+                justifyItems: 'center'
+              }}
+            >
+              {activeSidebarView !== 'Dashboard' ? <h3 style={{ margin: 0 }}>{activeSidebarView}</h3> : null}
+            </div>
+            <section className="grid stats-grid">
+              {fancyStats.map((item) => (
+                <FancyStatCard
+                  key={`blank-${item.title}`}
+                  title={item.title}
+                  value={item.value}
+                  percent={item.percent}
+                  trend={item.trend}
+                  color={item.color}
+                />
+              ))}
+            </section>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 560px))', gap: 20, alignItems: 'start' }}>
+              <section
+                className="card grid"
+                id="upload-client-files-blank"
+                style={{ margin: 0, width: '100%', justifySelf: 'start' }}
+              >
+                <h3>Upload Client Files</h3>
+                <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+                  <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.csv"
+                      onChange={onUpload}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Upload File
+                    </button>
+                    <span
+                      className={`badge ${selectedListName ? 'sent' : 'failed'}`}
+                      style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {selectedListName || 'No file selected'}
+                    </span>
+                    <div
+                      ref={uploadedFilesDropdownRef}
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'nowrap'
+                      }}
+                    >
+                      <button
+                        className="button secondary"
+                        type="button"
+                        onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
+                        style={{ minWidth: 128, flexShrink: 0 }}
+                      >
+                        Uploaded Files
+                      </button>
+                      {showUploadedFilesDropdown ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 8px)',
+                            left: 0,
+                            zIndex: 20,
+                            minWidth: 320,
+                            maxHeight: 200,
+                            overflowY: 'auto',
+                            margin: 0,
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 10,
+                            background: '#fff',
+                            padding: 8,
+                            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                          }}
+                        >
+                          {lists.length ? (
+                            lists.map((list) => (
+                              <label
+                                key={`blank-${list._id}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 4px',
+                                  cursor: 'pointer',
+                                  borderRadius: 6,
+                                  background: selectedListId === list._id ? '#eff6ff' : 'transparent'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedUploadedFileIds.includes(list._id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
+                                    } else {
+                                      setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
+                                    }
+                                  }}
+                                />
+                                <span onClick={() => setSelectedListId(list._id)} style={{ flex: 1 }}>
+                                  {list.name}
+                                </span>
+                              </label>
+                            ))
+                          ) : (
+                            <p>No uploaded files</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    {loading ? <p>Uploading...</p> : null}
+                  </div>
+                </div>
+                {preview.length ? (
+                  <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, overflow: 'hidden' }}>
+                    <div className="row" style={{ justifyContent: 'space-between' }}>
+                      <p>Uploaded file preview</p>
+                      <div className="row">
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => setShowUploadPreview((prev) => !prev)}
+                        >
+                          {showUploadPreview ? 'Minimize Table' : 'Show Table'}
+                        </button>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={normalizeSelectedListEmails}
+                        >
+                          Normalize Emails List
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+              <section
+                className="card grid"
+                id="campaign-management-blank"
+                style={{ margin: 0, width: '100%', justifySelf: 'start', alignSelf: 'start', paddingTop: 14, paddingBottom: 14, minHeight: 0 }}
+              >
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div>
+                    <input className="input" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign Name" />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Campaign Type</p>
+                    <select
+                      className="select"
+                      style={{ width: '50%', minWidth: 140 }}
+                      value={selectedDraft}
+                      onChange={(e) => setSelectedDraft(e.target.value)}
+                    >
+                      <option value="cover_story">Cover Story</option>
+                      <option value="reminder">Reminder</option>
+                      <option value="follow_up">Follow Up</option>
+                      <option value="updated_cost">Updated Cost</option>
+                      <option value="final_cost">Final Call</option>
+                    </select>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Client List</p>
+                    <span className={`badge ${selectedListId ? 'sent' : 'failed'}`} style={{ maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {selectedListLabel}
+                    </span>
+                  </div>
+                  <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Batch Size</p>
+                      <input className="input" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="1-9 or 25-50" />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Delay (Seconds)</p>
+                      <input className="input" type="number" min="60" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
+                    </div>
+                  </div>
+                  <div className="row" style={{ marginTop: 2 }}>
+                    <button className="button" onClick={createCampaign}>Create Campaign</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : (
+      <>
+      {activeTopNav === 'Revenue' ? (
+        <section className={`card grid ${isSearchMatch('summary') ? 'dashboard-search-match' : ''}`} id="summary-panel">
+          <div className="row" style={{ flexWrap: "wrap", gap: 16, alignItems: 'stretch' }}>
+            <div style={{ flex: '1 1 420px', border: '1px solid #cfe3ff', borderRadius: 14, padding: 14, background: '#f8fbff' }}>
+              <h3 style={{ margin: '0 0 6px' }}>Summary</h3>
+              <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Project / Client</p>
+                  <select
+                    className="select"
+                    style={{
+                      maxWidth: 160,
+                      borderColor: project ? '#0ea5e9' : undefined,
+                      background: project ? '#e0f2fe' : undefined,
+                      color: project ? '#0f172a' : undefined,
+                      fontWeight: project ? 700 : undefined
+                    }}
+                    value={project}
+                    onChange={(e) => selectProject(e.target.value)}
+                  >
+                    {projectOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Mail ID</p>
+                  <select
+                    className="select"
+                    style={{ maxWidth: 420 }}
+                    value={selectedAccount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__oauth_add__") {
+                        startGraphOAuth();
+                        return;
+                      }
+                      setSelectedAccount(v);
+                    }}
+                  >
+                    <option value="">Select Mail ID</option>
+                    {projectAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.from}
+                      </option>
+                    ))}
+                    <option value="__oauth_add__">Connect New Account</option>
+                  </select>
+                </div>
+                <button className="button" type="button" onClick={connectSelectedAccount}>Select Sender</button>
+                <button className="button secondary" type="button" onClick={startGraphOAuth}>Add New Mail</button>
+              </div>
+            </div>
+            <div style={{ flex: '1 1 420px', border: '1px solid #d8e6dc', borderRadius: 14, padding: 14, background: '#f8fcf8' }}>
+              <h3 style={{ margin: '0 0 6px' }}>Filter</h3>
+              <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Starting Date</p>
+                  <input
+                    className="input"
+                    type="date"
+                    value={selectedStatsDate}
+                    onChange={(e) => {
+                      setSelectedStatsDate(e.target.value);
+                      setSelectedStatsRange('');
+                      setCustomStatsStartDate('');
+                      setCustomStatsEndDate('');
+                      setShowDayCounts(Boolean(e.target.value));
+                    }}
+                  />
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Quick Range</p>
+                  <select
+                    className="select"
+                    value={selectedStatsRange}
+                    onChange={(e) => handleStatsRangeSelection(e.target.value)}
+                  >
+                    <option value="">Select Range</option>
+                    {SUMMARY_RANGES.map((range) => (
+                      <option key={range.value} value={range.value}>
+                        {range.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={resetSummaryFilters}
+                  disabled={!selectedStatsDate && !selectedStatsRange && !customStatsStartDate && !customStatsEndDate}
+                >
+                  Clear Filter
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={resetSummaryFilters}
+                  style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : <div id="summary-panel" />}
+      {showCustomRangePopup ? (
+        <div className="dashboard-popup-backdrop" onClick={() => setShowCustomRangePopup(false)}>
+          <div className="dashboard-popup-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 10px' }}>Filter</h3>
+            <div className="grid" style={{ gap: 12 }}>
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Start Date</p>
+                <input
+                  className="input"
+                  type="date"
+                  value={customStatsStartDate}
+                  onChange={(e) => {
+                    setCustomStatsStartDate(e.target.value);
+                    setShowDayCounts(Boolean(e.target.value || customStatsEndDate));
+                  }}
+                />
+              </div>
+              <div>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>End Date</p>
+                <input
+                  className="input"
+                  type="date"
+                  value={customStatsEndDate}
+                  onChange={(e) => {
+                    setCustomStatsEndDate(e.target.value);
+                    setShowDayCounts(Boolean(customStatsStartDate || e.target.value));
+                  }}
+                />
+              </div>
+              <div className="row" style={{ gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    resetSummaryFilters();
+                    setShowCustomRangePopup(false);
+                  }}
+                >
+                  Clear Filter
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    resetSummaryFilters();
+                    setShowCustomRangePopup(false);
+                  }}
+                >
+                  Reset
+                </button>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={applyCustomRangeSelection}
+                >
+                  Select
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setShowCustomRangePopup(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <section className={`grid stats-grid ${isSearchMatch('summary') ? 'dashboard-search-match' : ''}`}>
+        {fancyStats.map((item) => (
+          <FancyStatCard
+            key={item.title}
+            title={item.title}
+            value={item.value}
+            percent={item.percent}
+            trend={item.trend}
+            color={item.color}
+          />
+        ))}
       </section>
       {showDayCounts ? (
         <section className="card grid">
@@ -1214,330 +2364,324 @@ const normalizeSelectedListEmails = async () => {
         </section>
       ) : null}
 
-      <section className="card grid">
+      <section className={`card grid ${isSearchMatch('upload') ? 'dashboard-search-match' : ''}`} id="upload-client-files">
         <h3>Upload Client Files</h3>
-        <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.csv"
-            onChange={onUpload}
-            style={{ display: 'none' }}
-          />
-          <button
-            className="button"
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Upload File
-          </button>
-          <span className={`badge ${selectedListName ? 'sent' : 'failed'}`}>
-            {selectedListName || 'No file selected'}
-          </span>
-          <div
-            style={{
-              position: 'relative',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'nowrap'
-            }}
-          >
+        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+          <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={onUpload}
+              style={{ display: 'none' }}
+            />
             <button
-              className="button secondary"
+              className="button"
               type="button"
-              onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
-              style={{ minWidth: 140, flexShrink: 0 }}
+              onClick={() => fileInputRef.current?.click()}
             >
-              Uploaded Files
+              Upload File
             </button>
-            {showUploadedFilesDropdown ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  left: 0,
-                  zIndex: 20,
-                  minWidth: 320,
-                  maxHeight: 200,
-                  overflowY: 'auto',
-                  margin: 0,
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 10,
-                  background: '#fff',
-                  padding: 8,
-                  boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
-                }}
+            <span className={`badge ${selectedListName ? 'sent' : 'failed'}`}>
+              {selectedListName || 'No file selected'}
+            </span>
+            <div
+            ref={uploadedFilesDropdownRef}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'nowrap'
+              }}
+            >
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
+                style={{ minWidth: 140, flexShrink: 0 }}
               >
-                {lists.length ? (
-                  lists.map((list) => (
-                    <label
-                      key={list._id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '6px 4px',
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        background: selectedListId === list._id ? '#eff6ff' : 'transparent'
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedUploadedFileIds.includes(list._id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
-                          } else {
-                            setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
-                          }
+                Uploaded Files
+              </button>
+              {showUploadedFilesDropdown ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    left: 0,
+                    zIndex: 20,
+                    minWidth: 320,
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                    margin: 0,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 10,
+                    background: '#fff',
+                    padding: 8,
+                    boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                  }}
+                >
+                  {lists.length ? (
+                    lists.map((list) => (
+                      <label
+                        key={list._id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 4px',
+                          cursor: 'pointer',
+                          borderRadius: 6,
+                          background: selectedListId === list._id ? '#eff6ff' : 'transparent'
                         }}
-                      />
-                      <span
-                        onClick={() => setSelectedListId(list._id)}
-                        style={{ flex: 1 }}
                       >
-                        {list.name}
-                      </span>
-                    </label>
-                  ))
-                ) : (
-                  <p>No uploaded files</p>
-                )}
-              </div>
+                        <input
+                          type="checkbox"
+                          checked={selectedUploadedFileIds.includes(list._id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
+                            } else {
+                              setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
+                            }
+                          }}
+                        />
+                        <span
+                          onClick={() => setSelectedListId(list._id)}
+                          style={{ flex: 1 }}
+                        >
+                          {list.name}
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <p>No uploaded files</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            {showUploadedFilesDropdown ? (
+              <>
+                <button
+                  className="button danger"
+                  type="button"
+                  onClick={deleteSelectedUploadedFile}
+                  disabled={!selectedListId && !selectedUploadedFileIds.length}
+                >
+                  Delete Selected
+                </button>
+                <button
+                  className="button danger"
+                  type="button"
+                  onClick={deleteAllUploadedFiles}
+                  disabled={!lists.length}
+                >
+                  Delete All
+                </button>
+              </>
             ) : null}
+            {loading ? <p>Uploading...</p> : null}
           </div>
-          {showUploadedFilesDropdown ? (
-            <>
-              <button
-                className="button danger"
-                type="button"
-                onClick={deleteSelectedUploadedFile}
-                disabled={!selectedListId && !selectedUploadedFileIds.length}
-              >
-                Delete Selected
-              </button>
-              <button
-                className="button danger"
-                type="button"
-                onClick={deleteAllUploadedFiles}
-                disabled={!lists.length}
-              >
-                Delete All
-              </button>
-            </>
-          ) : null}
-          {loading ? <p>Uploading...</p> : null}
         </div>
         {preview.length ? (
           <>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <p>Uploaded file preview</p>
-              <div className="row">
-                {showUploadPreview ? (
-                  <>
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={addPreviewColumn}
-                    >
-                      Add Column
-                    </button>
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={addPreviewRow}
-                    >
-                      Add Row
-                    </button>
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={savePreviewEdits}
-                      disabled={!previewDirty}
-                    >
-                      Save Changes
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => setShowUploadPreview((prev) => !prev)}
-                >
-                  {showUploadPreview ? 'Minimize Table' : 'Show Table'}
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={normalizeSelectedListEmails}
-                >
-                  Normalize Emails List
-                </button>
-              </div>
-            </div>
-            {showUploadPreview ? (
-              <>
-                <div className="row" style={{ gap: 12, alignItems: 'end' }}>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font</p>
-                    <select
-                      className="select"
-                      value={previewStyle.fontFamily}
-                      onChange={(e) => updatePreviewStyle('fontFamily', e.target.value)}
-                      style={{ minWidth: 150 }}
-                    >
-                      <option value="Segoe UI">Segoe UI</option>
-                      <option value="Arial">Arial</option>
-                      <option value="Calibri">Calibri</option>
-                      <option value="Verdana">Verdana</option>
-                      <option value="Georgia">Georgia</option>
-                      <option value="Times New Roman">Times New Roman</option>
-                    </select>
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font Size</p>
-                    <input
-                      className="input"
-                      type="number"
-                      min="10"
-                      max="24"
-                      value={previewStyle.fontSize}
-                      onChange={(e) => updatePreviewStyle('fontSize', Number(e.target.value || 14))}
-                      style={{ width: 90 }}
-                    />
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Color</p>
-                    <input type="color" value={previewStyle.headerBg} onChange={(e) => updatePreviewStyle('headerBg', e.target.value)} />
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Text</p>
-                    <input type="color" value={previewStyle.headerColor} onChange={(e) => updatePreviewStyle('headerColor', e.target.value)} />
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Color</p>
-                    <input type="color" value={previewStyle.cellBg} onChange={(e) => updatePreviewStyle('cellBg', e.target.value)} />
-                  </div>
-                  <div>
-                    <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Text</p>
-                    <input type="color" value={previewStyle.cellColor} onChange={(e) => updatePreviewStyle('cellColor', e.target.value)} />
-                  </div>
-                </div>
-                <div className="table-wrap excel-preview" style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  <table
-                    className="excel-table"
-                    style={{
-                      fontFamily: previewStyle.fontFamily,
-                      fontSize: `${previewStyle.fontSize}px`
-                    }}
+            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, overflow: 'hidden' }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <p>Uploaded file preview</p>
+                <div className="row">
+                  {showUploadPreview ? (
+                    <>
+                      <button
+                        className="button"
+                        type="button"
+                        onClick={addPreviewColumn}
+                      >
+                        Add Column
+                      </button>
+                      <button
+                        className="button"
+                        type="button"
+                        onClick={addPreviewRow}
+                      >
+                        Add Row
+                      </button>
+                      <button
+                        className="button"
+                        type="button"
+                        onClick={savePreviewEdits}
+                        disabled={!previewDirty}
+                      >
+                        Save Changes
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => setShowUploadPreview((prev) => !prev)}
                   >
-                    <thead>
-                      <tr>
-                        <th style={{ minWidth: 90 }}>Actions</th>
-                        {getPreviewColumns().map((column) => (
-                          <th
-                            key={column}
-                            style={{
-                              background: previewStyle.headerBg,
-                              color: previewStyle.headerColor,
-                              minWidth: previewStyle.columnWidths?.[column] || 140
-                            }}
-                          >
-                            <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
-                              <input
-                                className="input"
-                                defaultValue={column}
-                                onBlur={(e) => renamePreviewColumn(column, e.target.value)}
-                                style={{ minWidth: 140, fontWeight: 700, padding: 6, background: 'transparent' }}
-                              />
-                              <input
-                                className="input"
-                                type="number"
-                                min="80"
-                                value={previewStyle.columnWidths?.[column] || 140}
-                                onChange={(e) => updateColumnWidth(column, e.target.value)}
-                                style={{ width: 82, padding: 6 }}
-                              />
-                              <button
-                                className="button danger"
-                                type="button"
-                                onClick={() => deletePreviewColumn(column)}
-                                style={{ padding: '6px 8px' }}
-                              >
-                                X
-                              </button>
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.map((row, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            <button
-                              className="button danger"
-                              type="button"
-                              onClick={() => deletePreviewRow(idx)}
-                              style={{ padding: '6px 8px' }}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                          {getPreviewColumns().map((column) => (
-                            <td
-                              key={`${idx}-${column}`}
-                              style={{
-                                background: previewStyle.cellBg,
-                                color: previewStyle.cellColor,
-                                minWidth: previewStyle.columnWidths?.[column] || 140
-                              }}
-                            >
-                              <input
-                                className="input"
-                                value={row?.[column] ?? ''}
-                                onChange={(e) => updatePreviewCell(idx, column, e.target.value)}
-                                style={{
-                                  minWidth: previewStyle.columnWidths?.[column] || 140,
-                                  border: 'none',
-                                  padding: 6,
-                                  background: 'transparent',
-                                  color: previewStyle.cellColor,
-                                  fontFamily: previewStyle.fontFamily,
-                                  fontSize: `${previewStyle.fontSize}px`
-                                }}
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    {showUploadPreview ? 'Minimize Table' : 'Show Table'}
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={normalizeSelectedListEmails}
+                  >
+                    Normalize Emails List
+                  </button>
                 </div>
-              </>
-            ) : null}
+              </div>
+              {showUploadPreview ? (
+                <div style={{ marginTop: 12, maxHeight: 470, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
+                  <div className="row" style={{ gap: 12, alignItems: 'end', marginTop: 12 }}>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font</p>
+                      <select
+                        className="select"
+                        value={previewStyle.fontFamily}
+                        onChange={(e) => updatePreviewStyle('fontFamily', e.target.value)}
+                        style={{ minWidth: 150 }}
+                      >
+                        <option value="Segoe UI">Segoe UI</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Calibri">Calibri</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                      </select>
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font Size</p>
+                      <input
+                        className="input"
+                        type="number"
+                        min="10"
+                        max="24"
+                        value={previewStyle.fontSize}
+                        onChange={(e) => updatePreviewStyle('fontSize', Number(e.target.value || 14))}
+                        style={{ width: 90 }}
+                      />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Color</p>
+                      <input type="color" value={previewStyle.headerBg} onChange={(e) => updatePreviewStyle('headerBg', e.target.value)} />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Text</p>
+                      <input type="color" value={previewStyle.headerColor} onChange={(e) => updatePreviewStyle('headerColor', e.target.value)} />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Color</p>
+                      <input type="color" value={previewStyle.cellBg} onChange={(e) => updatePreviewStyle('cellBg', e.target.value)} />
+                    </div>
+                    <div>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Text</p>
+                      <input type="color" value={previewStyle.cellColor} onChange={(e) => updatePreviewStyle('cellColor', e.target.value)} />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12, height: 320, overflow: 'hidden' }}>
+                    <div className="table-wrap excel-preview" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto' }}>
+                      <table
+                        className="excel-table"
+                        style={{
+                          fontFamily: previewStyle.fontFamily,
+                          fontSize: `${previewStyle.fontSize}px`
+                        }}
+                      >
+                        <thead>
+                          <tr>
+                            <th style={{ minWidth: 90 }}>Actions</th>
+                            {getPreviewColumns().map((column) => (
+                              <th
+                                key={column}
+                                style={{
+                                  background: previewStyle.headerBg,
+                                  color: previewStyle.headerColor,
+                                  minWidth: previewStyle.columnWidths?.[column] || 140
+                                }}
+                              >
+                                <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
+                                  <input
+                                    className="input"
+                                    defaultValue={column}
+                                    onBlur={(e) => renamePreviewColumn(column, e.target.value)}
+                                    style={{ minWidth: 140, fontWeight: 700, padding: 6, background: 'transparent' }}
+                                  />
+                                  <input
+                                    className="input"
+                                    type="number"
+                                    min="80"
+                                    value={previewStyle.columnWidths?.[column] || 140}
+                                    onChange={(e) => updateColumnWidth(column, e.target.value)}
+                                    style={{ width: 82, padding: 6 }}
+                                  />
+                                  <button
+                                    className="button danger"
+                                    type="button"
+                                    onClick={() => deletePreviewColumn(column)}
+                                    style={{ padding: '6px 8px' }}
+                                  >
+                                    X
+                                  </button>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.map((row, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                <button
+                                  className="button danger"
+                                  type="button"
+                                  onClick={() => deletePreviewRow(idx)}
+                                  style={{ padding: '6px 8px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                              {getPreviewColumns().map((column) => (
+                                <td
+                                  key={`${idx}-${column}`}
+                                  style={{
+                                    background: previewStyle.cellBg,
+                                    color: previewStyle.cellColor,
+                                    minWidth: previewStyle.columnWidths?.[column] || 140
+                                  }}
+                                >
+                                  <input
+                                    className="input"
+                                    value={row?.[column] ?? ''}
+                                    onChange={(e) => updatePreviewCell(idx, column, e.target.value)}
+                                    style={{
+                                      minWidth: previewStyle.columnWidths?.[column] || 140,
+                                      border: 'none',
+                                      padding: 6,
+                                      background: 'transparent',
+                                      color: previewStyle.cellColor,
+                                      fontFamily: previewStyle.fontFamily,
+                                      fontSize: `${previewStyle.fontSize}px`
+                                    }}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </>
         ) : null}
       </section>
 
-      <section className="card grid">
-        <h3>Campaign Management</h3>
-        <div className="row" style={{ gap: 10, marginBottom: 8 }}>
-          <button
-            className="button"
-            type="button"
-            onClick={() => runningCampaign && startCampaign(runningCampaign._id)}
-            disabled={!runningCampaign}
-          >
-            Start
-          </button>
-          <button className="button secondary" type="button">Sheduled Time</button>
-        </div>
+      <section className={`card grid ${isSearchMatch('campaignManagement') ? 'dashboard-search-match' : ''}`} id="campaign-management">
         <div className="grid" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'end' }}>
           <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Campaign Name</p>
             <input className="input" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign Name" />
           </div>
           <div>
@@ -1563,11 +2707,11 @@ const normalizeSelectedListEmails = async () => {
           </div>
           <div>
             <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Batch Size</p>
-            <input className="input" type="number" min="1" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="Batch" />
+            <input className="input" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="1-9 or 25-50" />
           </div>
           <div>
             <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Delay (Seconds)</p>
-            <input className="input" type="number" min="1" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
+            <input className="input" type="number" min="60" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
           </div>
         </div>
         <div className="row">
@@ -1577,318 +2721,435 @@ const normalizeSelectedListEmails = async () => {
         </div>
       </section>
 
-              <section className="card grid">
-        <h3>Draft Editing and Setting</h3>
-        <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 20, alignItems: 'end' }}>
-          <div className="row" style={{ gap: 28, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
-            <div style={{ flex: '1 1 auto' }}>
-              <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
-                <button
-                  className="button"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  Upload File
-                </button>
-                <span className={`badge ${selectedListName ? 'sent' : 'failed'}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-                  {selectedListName || 'No file selected'}
-                </span>
-                <div style={{ width: 260, minWidth: 260, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Draft Type</p>
-                  <select
-                    className="select"
-                    value={newDraftCategory}
-                    onChange={(e) => setNewDraftCategory(e.target.value)}
-                    style={{ width: '100%' }}
-                  >
-                    <option value="">Customize Draft</option>
-                    <option value="cover_story">Cover Story</option>
-                    <option value="reminder">Reminder</option>
-                    <option value="follow_up">Follow Up</option>
-                    <option value="updated_cost">Updated Cost</option>
-                    <option value="final_cost">Final Cost</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div style={{ minWidth: 360 }}>
-              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Give Draft Name</p>
-              <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
-                <input
-                  className="input"
-                  value={changeInDraftValue}
-                  onChange={(e) => setChangeInDraftValue(e.target.value)}
-                  placeholder=""
-                  style={{ width: 260, minWidth: 260 }}
-                />
-                <button
-                  className="button"
-                  type="button"
-                  onClick={() => setShowAddDraft((prev) => !prev)}
-                  style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  + Add Draft Script
-                </button>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
-              <div
-                style={{
-                  position: 'relative',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  flexWrap: 'nowrap'
-                }}
-              >
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
-                  style={{ minWidth: 140, flexShrink: 0 }}
-                >
-                  Uploaded Files
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => {
-                    if (selectedUploadedFileIds.length) {
-                      setSelectedListId(selectedUploadedFileIds[0]);
-                    }
-                  }}
-                  style={{ minWidth: 180, flexShrink: 0 }}
-                  disabled={!selectedUploadedFileIds.length}
-                >
-                  Choose Uploaded File
-                </button>
-                {showUploadedFilesDropdown ? (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      left: 0,
-                      zIndex: 20,
-                      minWidth: 320,
-                      maxHeight: 200,
-                      overflowY: 'auto',
-                      margin: 0,
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 10,
-                      background: '#fff',
-                      padding: 8,
-                      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
-                    }}
-                  >
-                    {lists.length ? (
-                      lists.map((list) => (
-                        <label
-                          key={list._id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '6px 4px',
-                            cursor: 'pointer',
-                            borderRadius: 6,
-                            background: selectedListId === list._id ? '#eff6ff' : 'transparent'
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedUploadedFileIds.includes(list._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
-                              } else {
-                                setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
-                              }
-                            }}
-                          />
-                          <span
-                            onClick={() => setSelectedListId(list._id)}
-                            style={{ flex: 1 }}
-                          >
-                            {list.name}
-                          </span>
-                        </label>
-                      ))
-                    ) : (
-                      <p>No uploaded files</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              {showUploadedFilesDropdown ? (
-                <>
-                  <button
-                    className="button danger"
-                    type="button"
-                    onClick={deleteSelectedUploadedFile}
-                    disabled={!selectedListId && !selectedUploadedFileIds.length}
-                  >
-                    Delete Selected
-                  </button>
-                  <button
-                    className="button danger"
-                    type="button"
-                    onClick={deleteAllUploadedFiles}
-                    disabled={!lists.length}
-                  >
-                    Delete All
-                  </button>
-                </>
-              ) : null}
-            </div>
-            <h4 style={{ margin: '12px 0 6px' }}>Saved Draft Scripts (for quick draft selection)</h4>
-            <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
-              <button
-                className="button"
-                type="button"
-                onClick={() => setShowAddDraft((prev) => !prev)}
-                style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
-              >
-                Create Script
-              </button>
-              {quickDraftButtons.map(({ label, draft }) => (
-                <button
-                  key={label}
-                  className="button secondary"
-                  type="button"
-                  disabled={!draft}
-                  onClick={() => {
-                    if (draft) handleSavedDraftSelect(draft);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        {showAddDraft && (
-          <div className="card" style={{ marginTop: 10 }}>
-            <h4>{editingDraftId ? 'Edit Draft Script' : 'Create Draft Script'}</h4>
-            <p style={{ marginTop: 12, marginBottom: 6 }}>Script Title (optional)</p>
-            <input
-              className="input"
-              value={newDraftTitle}
-              onChange={(e) => setNewDraftTitle(e.target.value)}
-              placeholder="Script 1, Script 2, etc."
-            />
-            <p style={{ marginTop: 12, marginBottom: 6 }}>Subject</p>
-            <input
-              className="input"
-              value={newDraftSubject}
-              onChange={(e) => setNewDraftSubject(e.target.value)}
-              placeholder="Enter Subject"
-            />
-            <p style={{ marginTop: 12, marginBottom: 6 }}>Draft Body</p>
-            <RichTextEditor
-              value={newDraftBody}
-              onChange={setNewDraftBody}
-            />
-            <div className="row" style={{ gap: 8, marginTop: 12 }}>
-              <button className="button" type="button" onClick={addNewDraft}>
-                {editingDraftId ? 'Update Draft' : 'Submit Draft'}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => {
-                  setShowAddDraft(false);
-                  setEditingDraftId(null);
-                  setNewDraftTitle('');
-                  setNewDraftSubject('');
-                  setNewDraftBody('');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-        <div style={{ marginTop: 12 }}>
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-              Edit Word File
-            </p>
+      <section className={`card grid ${isSearchMatch('draftEditing') ? 'dashboard-search-match' : ''}`} id="draft-editing-panel">
+        <div style={{ border: '1px solid #0f172a', borderRadius: 12, padding: 12 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Draft Editing and Setting</h3>
             <button
               className="button secondary"
               type="button"
-              onClick={() => setShowBlankWordPad((prev) => !prev)}
+              onClick={() => setShowDraftEditingSection((prev) => !prev)}
             >
-              {showBlankWordPad ? 'Minimize' : 'Show'}
+              {showDraftEditingSection ? 'Minimize' : 'Show'}
             </button>
           </div>
-          {showBlankWordPad ? (
-            <RichTextEditor
-              value={blankWordPad}
-              onChange={setBlankWordPad}
-              placeholder="Write here..."
-            />
-          ) : null}
         </div>
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-          <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-            Draft / Email Body (HTML)
-          </p>
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => setShowDraftEditor((prev) => !prev)}
+        {showDraftEditingSection ? (
+        <div style={{ border: '1px solid #0f172a', borderRadius: 12, padding: 12, marginTop: 4, height: 640, overflow: 'hidden' }}>
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: '1fr',
+              gap: 20,
+              alignItems: 'end',
+              height: '100%',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              paddingRight: 6
+            }}
           >
-            {showDraftEditor ? 'Minimize' : 'Show'}
-          </button>
-        </div>
-        {showDraftEditor ? (
-          <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6, marginTop: 8 }}>
-            <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
-              Subject Line
-            </p>
-            <input
-              className="input"
-              value={draftSubject}
-              onChange={(e) => setDraftSubject(e.target.value)}
-              placeholder="Email Subject"
-            />
-            <RichTextEditor
-              value={draftBody}
-              onChange={setDraftBody}
-            />
+            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+              <div className="row" style={{ gap: 28, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                <div style={{ flex: '1 1 auto' }}>
+                  <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                    >
+                      Upload File
+                    </button>
+                    <span className={`badge ${selectedListName ? 'sent' : 'failed'}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {selectedListName || 'No file selected'}
+                    </span>
+                    <div style={{ width: 260, minWidth: 260, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Draft Type</p>
+                      <select
+                        className="select"
+                        value={newDraftCategory}
+                        onChange={(e) => setNewDraftCategory(e.target.value)}
+                        style={{ width: '100%' }}
+                      >
+                        <option value="">Customize Draft</option>
+                        <option value="cover_story">Cover Story</option>
+                        <option value="reminder">Reminder</option>
+                        <option value="follow_up">Follow Up</option>
+                        <option value="updated_cost">Updated Cost</option>
+                        <option value="final_cost">Final Cost</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ minWidth: 360 }}>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Give Draft Name</p>
+                  <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
+                    <input
+                      className="input"
+                      value={changeInDraftValue}
+                      onChange={(e) => setChangeInDraftValue(e.target.value)}
+                      placeholder=""
+                      style={{ width: 260, minWidth: 260 }}
+                    />
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={openCreateScriptForm}
+                      style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                    >
+                      Create Script
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 4, paddingBottom: 4 }}>
+                <div
+                  ref={draftUploadedFilesDropdownRef}
+                  style={{
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'nowrap'
+                  }}
+                >
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => setShowDraftUploadedFilesDropdown((prev) => !prev)}
+                    style={{ minWidth: 140, flexShrink: 0 }}
+                  >
+                    Uploaded Files
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={loadSelectedDraftUploadedFile}
+                    style={{ minWidth: 180, flexShrink: 0 }}
+                    disabled={!selectedDraftUploadedFileIds.length}
+                  >
+                    Choose Uploaded File
+                  </button>
+                  {showDraftUploadedFilesDropdown ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 8px)',
+                        left: 0,
+                        zIndex: 20,
+                        minWidth: 320,
+                        maxHeight: 200,
+                        overflowY: 'auto',
+                        margin: 0,
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 10,
+                        background: '#fff',
+                        padding: 8,
+                        boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                      }}
+                    >
+                      {lists.length ? (
+                        lists.map((list) => (
+                          <label
+                            key={list._id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '6px 4px',
+                              cursor: 'pointer',
+                              borderRadius: 6,
+                              background: selectedListId === list._id ? '#eff6ff' : 'transparent'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedDraftUploadedFileIds.includes(list._id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedDraftUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
+                                } else {
+                                  setSelectedDraftUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
+                                }
+                              }}
+                            />
+                            <span
+                              onClick={() => setSelectedDraftUploadedFileIds([list._id])}
+                              style={{ flex: 1 }}
+                            >
+                              {list.name}
+                            </span>
+                          </label>
+                        ))
+                      ) : (
+                        <p>No uploaded files</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                {showDraftUploadedFilesDropdown ? (
+                  <>
+                    <button
+                      className="button danger"
+                      type="button"
+                      onClick={deleteSelectedUploadedFile}
+                      disabled={!selectedListId && !selectedUploadedFileIds.length}
+                    >
+                      Delete Selected
+                    </button>
+                    <button
+                      className="button danger"
+                      type="button"
+                      onClick={deleteAllUploadedFiles}
+                      disabled={!lists.length}
+                    >
+                      Delete All
+                    </button>
+                  </>
+                ) : null}
+              </div>
+              <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 4 }}>
+                <h4 style={{ margin: '12px 0 6px' }}>Saved Draft Scripts (for quick draft selection)</h4>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 12 }}>
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={openCreateScriptForm}
+                    style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                  >
+                    Create Script
+                  </button>
+                  {DRAFT_CATEGORIES.map((item) => {
+                    const isActive = savedDraftFilterCategory === item.value;
+                    return (
+                      <div key={item.value} style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => setSavedDraftFilterCategory(item.value)}
+                          style={
+                            isActive
+                              ? {
+                                  background: '#eff6ff',
+                                  borderColor: '#2563eb',
+                                  color: '#1d4ed8',
+                                  fontWeight: 700
+                                }
+                              : undefined
+                          }
+                        >
+                          {item.label}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    marginTop: 14,
+                    borderRadius: 12,
+                    background: '#f1f5f9',
+                    border: '1px solid #d7e0ea',
+                    padding: 12,
+                    minHeight: 58
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {visibleQuickDraftButtons.length ? (
+                      visibleQuickDraftButtons.map(({ label, draft }) => (
+                        <button
+                          key={label}
+                          className="button secondary"
+                          type="button"
+                          disabled={!draft}
+                          onClick={() => {
+                            if (draft) handleSavedDraftSelect(draft);
+                          }}
+                          style={{
+                            background: '#eff6ff',
+                            borderColor: '#2563eb',
+                            color: '#1d4ed8',
+                            fontWeight: 700
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))
+                    ) : (
+                      <p style={{ margin: 0, color: '#64748b' }}>No scripts for this draft type.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: showBlankWordPad ? 8 : 0 }}>
+                <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                  Edit Word File
+                </p>
+                <div className="row" style={{ gap: 8 }}>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => setBlankWordPad('')}
+                    disabled={!blankWordPad}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => setShowBlankWordPad((prev) => !prev)}
+                  >
+                    {showBlankWordPad ? 'Minimize' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              {showBlankWordPad ? (
+                <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
+                  <RichTextEditor
+                    value={blankWordPad}
+                    onChange={setBlankWordPad}
+                    placeholder="Write here..."
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
         ) : null}
-        <div className="row" style={{ marginTop: 12 }}>
-          <input
-            className="input"
-            style={{ maxWidth: 320 }}
-            value={testEmailTo}
-            onChange={(e) => setTestEmailTo(e.target.value)}
-            placeholder="Test recipient email"
-          />
-          <button
-            className="button secondary"
-            onClick={sendTestEmail}
-          >
-            Test Email
-          </button>
+        {showDraftEditingSection && showAddDraft && (
+          <div className="card" style={{ marginTop: 10, border: '1px solid #0f172a', boxShadow: 'inset 0 0 0 1px #0f172a' }}>
+            <div style={{ maxHeight: 620, overflowY: 'auto', paddingRight: 6 }}>
+              <h4>{editingDraftId ? 'Edit Draft Script' : 'Create Draft Script'}</h4>
+              <p style={{ marginTop: 12, marginBottom: 6 }}>Script Title (optional)</p>
+              <input
+                className="input"
+                value={newDraftTitle}
+                onChange={(e) => setNewDraftTitle(e.target.value)}
+                placeholder="Script 1, Script 2, etc."
+              />
+              <p style={{ marginTop: 12, marginBottom: 6 }}>Subject</p>
+              <input
+                className="input"
+                value={newDraftSubject}
+                onChange={(e) => setNewDraftSubject(e.target.value)}
+                placeholder="Enter Subject"
+              />
+              <p style={{ marginTop: 12, marginBottom: 6 }}>Draft Body</p>
+              <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
+                <RichTextEditor
+                  value={newDraftBody}
+                  onChange={setNewDraftBody}
+                />
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 12 }}>
+                <button className="button" type="button" onClick={addNewDraft}>
+                  {editingDraftId ? 'Update Draft' : 'Submit Draft'}
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    setShowAddDraft(false);
+                    setEditingDraftId(null);
+                    setNewDraftTitle('');
+                    setNewDraftSubject('');
+                    setNewDraftBody('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 12 }}>
+          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: showDraftEditor ? 8 : 0 }}>
+              <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                Draft / Email Body (HTML)
+              </p>
+              <div className="row" style={{ gap: 8 }}>
+                <button
+                  className="button"
+                  type="button"
+                  onClick={saveCurrentDraftScript}
+                  disabled={!draftSubject && !draftBody}
+                >
+                  Add Draft
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => {
+                    setDraftSubject('');
+                    setDraftBody('');
+                  }}
+                  disabled={!draftSubject && !draftBody}
+                >
+                  Clear
+                </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setShowDraftEditor((prev) => !prev)}
+                >
+                  {showDraftEditor ? 'Minimize' : 'Show'}
+                </button>
+              </div>
+            </div>
+            {showDraftEditor ? (
+              <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
+                <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
+                  Subject Line
+                </p>
+                <input
+                  className="input"
+                  value={draftSubject}
+                  onChange={(e) => setDraftSubject(e.target.value)}
+                  placeholder="Email Subject"
+                />
+                <RichTextEditor
+                  value={draftBody}
+                  onChange={setDraftBody}
+                />
+              </div>
+            ) : null}
+          </div>
+          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 12 }}>
+            <div className="row">
+              <input
+                className="input"
+                style={{ maxWidth: 320 }}
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                placeholder="Test recipient email"
+              />
+              <button
+                className="button secondary"
+                onClick={sendTestEmail}
+              >
+                Test Email
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="card grid">
-        <h3>Sheduled Active Campaign</h3>
-        <div className="row" style={{ gap: 10 }}>
-          <button
-            className="button"
-            type="button"
-            onClick={() => runningCampaign && startCampaign(runningCampaign._id, { schedule: Boolean(scheduledSlot) })}
-            disabled={!runningCampaign}
-          >
-            Start
-          </button>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ minHeight: 24, marginBottom: 8, textAlign: 'right' }}>
+          {scheduledStartLabel ? (
+            <span style={{ color: '#166534', fontWeight: 600 }}>
+              Scheduled Start: {scheduledStartLabel}
+            </span>
+          ) : null}
+        </div>
+        <div className="row" style={{ gap: 10, justifyContent: 'center' }}>
           <button
             className="button secondary"
             type="button"
@@ -1896,140 +3157,199 @@ const normalizeSelectedListEmails = async () => {
           >
             Sheduled Time
           </button>
-        </div>
-        {showScheduledTimePicker ? (
-          <div className="card" style={{ padding: 14, background: '#f8fafc' }}>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
-              <div>
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Country</p>
-                <select
-                  className="select"
-                  value={scheduledCountry}
-                  onChange={(e) => {
-                    setScheduledCountry(e.target.value);
-                    setScheduledSlot('');
-                  }}
-                >
-                  <option value="india">India</option>
-                  <option value="usa">USA</option>
-                  <option value="uk">UK</option>
-                  <option value="uae">UAE</option>
-                  <option value="australia">Australia</option>
-                </select>
-              </div>
-              <div>
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Time Slot</p>
-                <select
-                  className="select"
-                  value={scheduledSlot}
-                  onChange={(e) => setScheduledSlot(e.target.value)}
-                >
-                  <option value="">Select time</option>
-                  {(COUNTRY_TIME_SLOTS[scheduledCountry]?.slots || []).map((slot) => (
-                    <option key={slot} value={slot}>{slot}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <p style={{ margin: '10px 0 0', color: 'var(--muted)' }}>
-              {scheduledSlot ? `Selected: ${scheduledCountry.toUpperCase()} - ${scheduledSlot}` : 'Choose a country and time slot.'}
-            </p>
-            {scheduledStartLabel ? (
-              <p style={{ margin: '6px 0 0', color: '#166534', fontWeight: 600 }}>
-                Scheduled Start: {scheduledStartLabel}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {!runningCampaign ? (
-          <p style={{ margin: 0, color: 'var(--muted)' }}>No running campaign right now.</p>
-        ) : (
-          <>
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ margin: '0 0 6px', fontWeight: 700 }}>{runningCampaign.name}</p>
-                <span className="badge running">{runningCampaign.status}</span>
-              </div>
-              <div className="row">
-                <button className="button warn" onClick={() => pauseCampaign(runningCampaign._id)}>Pause</button>
-                <button className="button danger" onClick={() => stopCampaign(runningCampaign._id)}>Stop</button>
-                <button className="button danger" onClick={() => clearCampaignLogs(runningCampaign._id)}>Clear Logs</button>
-              </div>
-            </div>
-            <p style={{ margin: 0 }}>
-              {(runningCampaign.stats?.sent || 0)}/{(runningCampaign.stats?.total || 0)} sent, {(runningCampaign.stats?.failed || 0)} failed
-            </p>
-            <div className="progress">
-              <div
-                style={{
-                  width: `${runningCampaign.stats?.total ? Math.round(((runningCampaign.stats?.sent || 0) / runningCampaign.stats.total) * 100) : 0}%`
-                }}
-              />
-            </div>
-          </>
-        )}
-      </section>
+        <button
+          className="button"
+          type="button"
+          onClick={createAndStartCampaign}
+        >
+          Start Campaign
+        </button>
+      </div>
+      </div>
 
-      <section className="card grid">
+      {showScheduledTimePicker ? (
+        <section className={`card grid ${isSearchMatch('schedule') ? 'dashboard-search-match' : ''}`} style={{ marginTop: -4 }}>
+          <h3>Schedule Time Slot</h3>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+            <div>
+              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Country</p>
+              <select
+                className="select"
+                value={scheduledCountry}
+                onChange={(e) => {
+                  setScheduledCountry(e.target.value);
+                  setScheduledSlot('');
+                }}
+              >
+                <option value="india">India</option>
+                <option value="usa">USA</option>
+                <option value="uk">UK</option>
+                <option value="uae">UAE</option>
+                <option value="australia">Australia</option>
+              </select>
+            </div>
+            <div>
+              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Time Slot</p>
+              <select
+                className="select"
+                value={scheduledSlot}
+                onChange={(e) => setScheduledSlot(e.target.value)}
+              >
+                <option value="">Select time</option>
+                {(COUNTRY_TIME_SLOTS[scheduledCountry]?.slots || []).map((slot) => (
+                  <option key={slot} value={slot}>{slot}</option>
+                ))}
+              </select>
+              <input
+                className="input"
+                value={manualScheduledSlot}
+                onChange={(e) => setManualScheduledSlot(e.target.value)}
+                placeholder="Manual time like 09:30 AM"
+                style={{ marginTop: 8 }}
+              />
+              <button
+                className="button secondary"
+                type="button"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  const normalized = normalizeScheduledSlotInput(manualScheduledSlot);
+                  if (!normalized) {
+                    notify('Enter time like 09:30 AM.', 'info');
+                    return;
+                  }
+                  setScheduledSlot(normalized);
+                  setManualScheduledSlot(normalized);
+                  setShowScheduledTimePicker(false);
+                }}
+                disabled={!manualScheduledSlot.trim()}
+              >
+                Add Select Time
+              </button>
+            </div>
+          </div>
+          <p style={{ margin: '8px 0 0', color: 'var(--muted)' }}>
+            {scheduledSlot ? `Selected: ${scheduledCountry.toUpperCase()} - ${scheduledSlot}` : 'Choose a country and time slot.'}
+          </p>
+        </section>
+      ) : null}
+
+      <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`} id="campaigns-panel">
         <h3>Campaigns</h3>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Showing only active campaigns here.
-        </p>
-        {!activeCampaigns.length ? (
-          <p style={{ margin: 0, color: 'var(--muted)' }}>No active campaigns right now.</p>
-        ) : null}
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Stats</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeCampaigns.map((c) => {
-                const total = c.stats?.total || 0;
-                const sent = c.stats?.sent || 0;
-                const percent = total ? Math.round((sent / total) * 100) : 0;
-                return (
-                  <tr key={c._id}>
-                    <td>{c.name}</td>
-                    <td><StatusBadge status={c.status} /></td>
-                    <td>
-                      <div className="progress"><div style={{ width: `${percent}%` }} /></div>
-                      <small>{percent}%</small>
-                    </td>
-                    <td>{sent}/{total} sent, {c.stats?.failed || 0} failed</td>
-                    <td className="row">
-                      <button className="button" onClick={() => startCampaign(c._id)}>Start</button>
-                      <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
-                      <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
-                      <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
-                      <button className="button danger" onClick={() => clearCampaignLogs(c._id)}>Clear Logs</button>
-                      <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="row" style={{ justifyContent: 'center' }}>
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => setShowCampaignHistory((prev) => !prev)}
-          >
-            {showCampaignHistory ? 'Hide History' : 'History'}
-          </button>
+        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+          <p style={{ margin: 0, color: 'var(--muted)' }}>
+            Showing only active campaigns here.
+          </p>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
+            <button
+              className="button danger"
+              type="button"
+              onClick={deleteSelectedActiveCampaigns}
+              disabled={!selectedActiveCampaignIds.length}
+            >
+              Delete Selected
+            </button>
+            <button
+              className="button danger"
+              type="button"
+              onClick={deleteAllActiveCampaigns}
+              disabled={!activeCampaignIds.length}
+            >
+              Delete All
+            </button>
+            <button className="button secondary" type="button" onClick={toggleSelectAllActiveCampaigns}>
+              {allActiveCampaignsSelected ? 'Clear Selection' : 'Select All'}
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
+              {selectedActiveCampaignIds.length} selected
+            </span>
+          </div>
+          {!activeCampaigns.length ? (
+            <p style={{ margin: '12px 0 0', color: 'var(--muted)' }}>No active campaigns right now.</p>
+          ) : null}
+          <div className="table-wrap" style={{ marginTop: 12 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: 56 }}>
+                    <input
+                      type="checkbox"
+                      checked={allActiveCampaignsSelected}
+                      onChange={toggleSelectAllActiveCampaigns}
+                    />
+                  </th>
+                  <th style={{ width: 72 }}>Sr. No.</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Stats</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeCampaigns.map((c, idx) => {
+                  const total = c.stats?.total || 0;
+                  const sent = c.stats?.sent || 0;
+                  const percent = total ? Math.round((sent / total) * 100) : 0;
+                  const timeLabel = getCampaignTimeLabel(c);
+                  const isChecked = selectedActiveCampaignIds.includes(c._id);
+                  return (
+                    <tr key={c._id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleActiveCampaignSelection(c._id)}
+                        />
+                      </td>
+                      <td>{idx + 1}</td>
+                      <td>
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <span>{c.name}</span>
+                          {timeLabel ? (
+                            <small
+                              style={{
+                                color: timeLabel.color,
+                                fontWeight: timeLabel.strong ? 700 : 500
+                              }}
+                            >
+                              {timeLabel.text}
+                            </small>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td><StatusBadge status={c.status} /></td>
+                      <td>
+                        <div className="progress"><div style={{ width: `${percent}%` }} /></div>
+                        <small>{percent}%</small>
+                      </td>
+                      <td>{sent}/{total} sent, {c.stats?.failed || 0} failed</td>
+                      <td className="row">
+                        <button className="button" onClick={() => startCampaign(c._id)}>Start</button>
+                        <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
+                        <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
+                        <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
+                        <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => setShowCampaignHistory((prev) => !prev)}
+            >
+              {showCampaignHistory ? 'Hide History' : 'History'}
+            </button>
+          </div>
         </div>
       </section>
 
       {showCampaignHistory ? (
-        <section className="card grid">
+        <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`}>
           <h3>Campaign History</h3>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             <button
@@ -2061,6 +3381,7 @@ const normalizeSelectedListEmails = async () => {
                       onChange={toggleSelectAllCampaigns}
                     />
                   </th>
+                  <th style={{ width: 72 }}>Sr. No.</th>
                   <th>Name</th>
                   <th>Status</th>
                   <th>Progress</th>
@@ -2069,11 +3390,12 @@ const normalizeSelectedListEmails = async () => {
                 </tr>
               </thead>
               <tbody>
-                {historyCampaigns.map((c) => {
+                {historyCampaigns.map((c, idx) => {
                   const total = c.stats?.total || 0;
                   const sent = c.stats?.sent || 0;
                   const percent = total ? Math.round((sent / total) * 100) : 0;
                   const isChecked = selectedCampaignIds.includes(c._id);
+                  const timeLabel = getCampaignTimeLabel(c);
                   return (
                     <tr key={c._id}>
                       <td>
@@ -2083,7 +3405,22 @@ const normalizeSelectedListEmails = async () => {
                           onChange={() => toggleCampaignSelection(c._id)}
                         />
                       </td>
-                      <td>{c.name}</td>
+                      <td>{idx + 1}</td>
+                      <td>
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <span>{c.name}</span>
+                          {timeLabel ? (
+                            <small
+                              style={{
+                                color: timeLabel.color,
+                                fontWeight: timeLabel.strong ? 700 : 500
+                              }}
+                            >
+                              {timeLabel.text}
+                            </small>
+                          ) : null}
+                        </div>
+                      </td>
                       <td><StatusBadge status={c.status} /></td>
                       <td>
                         <div className="progress"><div style={{ width: `${percent}%` }} /></div>
@@ -2095,7 +3432,6 @@ const normalizeSelectedListEmails = async () => {
                         <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
                         <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
                         <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
-                        <button className="button danger" onClick={() => clearCampaignLogs(c._id)}>Clear Logs</button>
                         <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
                       </td>
                     </tr>
@@ -2108,7 +3444,7 @@ const normalizeSelectedListEmails = async () => {
       ) : null}
 
       {activeCampaign ? (
-        <section className="card grid">
+        <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h3>Live Logs: {activeCampaign.name}</h3>
             <div className="row">
@@ -2117,18 +3453,22 @@ const normalizeSelectedListEmails = async () => {
               <button className="button danger" onClick={() => deleteCampaign(activeCampaign._id)}>Delete</button>
             </div>
           </div>
-          <p>{progressText}</p>
-          <div style={{ maxHeight: 220, overflow: 'auto', background: '#0f172a', color: '#e2e8f0', borderRadius: 10, padding: 10 }}>
-            {(activeCampaign.logs || []).slice(-40).map((log, idx) => (
-              <div key={idx} style={{ fontSize: 13, marginBottom: 4 }}>
-                [{new Date(log.at).toLocaleTimeString()}] {log.message}
-              </div>
-            ))}
+          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+            <p style={{ marginTop: 0 }}>{progressText}</p>
+            <div style={{ maxHeight: 220, overflow: 'auto', background: '#0f172a', color: '#e2e8f0', borderRadius: 10, padding: 10 }}>
+              {(activeCampaign.logs || []).slice(-40).map((log, idx) => (
+                <div key={idx} style={{ fontSize: 13, marginBottom: 4 }}>
+                  [{new Date(log.at).toLocaleTimeString()}] {log.message}
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
+      </>
+      )}
+      </div>
     </main>
   );
 }
-
 

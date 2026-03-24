@@ -13,6 +13,8 @@ if (!cached) {
 
 export default async function connectDB() {
   if (cached.conn) {
+    const { initCampaignScheduler } = await import('./campaignScheduler');
+    initCampaignScheduler();
     return cached.conn;
   }
 
@@ -25,5 +27,7 @@ export default async function connectDB() {
   }
 
   cached.conn = await cached.promise;
+  const { initCampaignScheduler } = await import('./campaignScheduler');
+  initCampaignScheduler();
   return cached.conn;
 }
