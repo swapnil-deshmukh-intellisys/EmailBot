@@ -186,6 +186,10 @@ function RichTextEditor({ value, onChange, placeholder }) {
 }
 const PROJECT_PRESET_SENDERS = {
   tec: [
+    'lily@theentrepreneurialchronicle.com',
+    'charlie@theentrepreneurialchronicle.com',
+    'robert@theentrepreneurialchronicle.com',
+    'mark@theentrepreneurialchronicle.com',
     'sam@theentrepreneurialchronicle.com',
     'clara@theentrepreneurialchronicle.com',
     'sophia@theentrepreneurialchronicle.com',
@@ -200,7 +204,8 @@ const PROJECT_PRESET_SENDERS = {
     'emma@theentrepreneurialchronicle.com',
     'fiona@theentrepreneurialchronicle.com',
     'daniel@theentrepreneurialchronicle.com',
-    'lacy@theentrepreneurialchronicle.com'
+    'lacy@theentrepreneurialchronicle.com',
+    'victoria@theentrepreneurialchronicle.com'
   ],
   tut: [
     'matt@theunicorntimes.com',
