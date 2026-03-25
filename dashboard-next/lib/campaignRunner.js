@@ -29,6 +29,23 @@ function appendLog(campaign, message, level = 'info') {
   }
 }
 
+async function persistLeadProgress(listId, idx, lead) {
+  const result = await LeadList.updateOne(
+    { _id: listId },
+    {
+      $set: {
+        [`leads.${idx}.status`]: lead.status || 'Pending',
+        [`leads.${idx}.error`]: lead.error || '',
+        [`leads.${idx}.sentAt`]: lead.sentAt || null,
+        [`leads.${idx}.failedAt`]: lead.failedAt || null
+      }
+    }
+  );
+
+  if (!result.matchedCount) {
+    throw new Error(`Lead list not found for campaign update: ${listId}`);
+  }
+}
 function parseRowRange(rowRange = '', totalLeads = 0) {
   const match = String(rowRange || '').trim().match(/^(\d+)\s*-\s*(\d+)$/);
   if (!match) return null;
@@ -77,6 +94,24 @@ export async function startCampaignRunner(campaignId) {
     throw new Error('No email provider account configured. Set Graph (TENANT_ID/CLIENT_ID/CLIENT_SECRET/GRAPH_SENDER_EMAIL) or SMTP env values.');
   }
 
+  const startTime = new Date();
+  const claim = await Campaign.updateOne(
+    {
+      _id: campaign._id,
+      status: { $nin: ['Running', 'Completed', 'Failed'] }
+    },
+    {
+      $set: {
+        status: 'Running',
+        startedAt: startTime
+      }
+    }
+  );
+
+  if (!claim.matchedCount) {
+    return { started: false, message: 'Campaign already started by another process' };
+  }
+
   const state = { running: true, paused: false, stop: false };
   runners.set(campaignId, state);
   const selectedRange = parseRowRange(campaign.options?.rowRange, list.leads.length);
@@ -85,13 +120,21 @@ export async function startCampaignRunner(campaignId) {
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
+  scopedLeads.forEach((lead) => {
+    lead.status = 'Pending';
+    lead.error = '';
+    lead.sentAt = null;
+    lead.failedAt = null;
+  });
+  await list.save();
+
   campaign.status = 'Running';
   campaign.options.delaySeconds = Math.max(60, Number(campaign.options?.delaySeconds || 60));
-  campaign.startedAt = new Date();
+  campaign.startedAt = startTime;
   campaign.stats.total = scopedLeads.length;
-  campaign.stats.sent = scopedLeads.filter((x) => x.status === 'Sent').length;
-  campaign.stats.failed = scopedLeads.filter((x) => x.status === 'Failed').length;
-  campaign.stats.pending = scopedLeads.filter((x) => x.status !== 'Sent').length;
+  campaign.stats.sent = 0;
+  campaign.stats.failed = 0;
+  campaign.stats.pending = scopedLeads.length;
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
   if (selectedRange) {
     appendLog(campaign, `Row range selected: ${selectedRange.start}-${selectedRange.end}`);
@@ -158,7 +201,7 @@ export async function startCampaignRunner(campaignId) {
           }
 
           campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
-          await list.save();
+          await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
             return;

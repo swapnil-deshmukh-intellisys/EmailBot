@@ -1,4 +1,4 @@
-﻿import nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 import connectDB from './mongodb';
 import GraphOAuthAccount from '../models/GraphOAuthAccount';
 import { decryptString, encryptString } from './tokenCrypto';
@@ -103,12 +103,69 @@ function getLeadValue(lead, key) {
   return '';
 }
 
+function getFirstNonEmptyLeadValue(lead, keys = []) {
+  for (const key of keys) {
+    const value = getLeadValue(lead, key);
+    if (String(value || '').trim()) {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function getLeadNameParts(lead) {
+  const baseName = getFirstNonEmptyLeadValue(lead, [
+    'Name',
+    'name',
+    'Full Name',
+    'full name',
+    'FullName',
+    'fullName',
+    'full_name',
+    'fullname'
+  ]);
+  const surname = getFirstNonEmptyLeadValue(lead, [
+    'Surname',
+    'surname',
+    'Last Name',
+    'last name',
+    'LastName',
+    'lastName',
+    'last_name',
+    'lastname'
+  ]);
+  const fullName = [baseName, surname].filter(Boolean).join(' ').trim() || baseName;
+  const explicitFirstName = getFirstNonEmptyLeadValue(lead, [
+    'FirstName',
+    'First Name',
+    'first name',
+    'firstName',
+    'first_name',
+    'firstname'
+  ]);
+  const firstName = explicitFirstName || String(fullName || '').split(/\s+/).filter(Boolean)[0] || '';
+  return { fullName, firstName };
+}
+
 function renderTemplate(template, lead) {
-  const replacer = (_, key) => getLeadValue(lead, key).toString();
+  const { fullName, firstName } = getLeadNameParts(lead);
+  const buildReplacer = ({ useFirstNameForName = false } = {}) => (_, key) => {
+    const normalizedKey = String(key || '').toLowerCase();
+    if (normalizedKey === 'name') {
+      return (useFirstNameForName ? firstName || fullName : fullName || firstName || '').toString();
+    }
+    if (normalizedKey === 'firstname' || normalizedKey === 'first_name') {
+      return (firstName || fullName || '').toString();
+    }
+    if (normalizedKey === 'fullname' || normalizedKey === 'full_name') {
+      return (fullName || firstName || '').toString();
+    }
+    return getLeadValue(lead, key).toString();
+  };
   const customSubject = String(lead?.data?.title || '').trim();
   const subjectTemplate = customSubject || (template.subject || '');
-  const subject = subjectTemplate.replace(/{{\s*([\w.]+)\s*}}/g, replacer);
-  const body = (template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, replacer);
+  const subject = subjectTemplate.replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer());
+  const body = (template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
   return { subject, body };
 }
 
@@ -372,3 +429,4 @@ export async function sendEmailForLead({ template, lead, account }) {
 
   return { to, subject };
 }
+
