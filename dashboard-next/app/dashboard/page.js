@@ -261,6 +261,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
+  const [showAllUserActivity, setShowAllUserActivity] = useState(true);
   const projectAccounts = useMemo(() => accounts, [accounts]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('cover_story');
@@ -330,6 +331,11 @@ export default function DashboardPage() {
     activeAccount ||
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
     'Select Mail ID';
+  const selectedAccountObj = useMemo(
+    () => projectAccounts.find((account) => account.id === selectedAccount) || null,
+    [projectAccounts, selectedAccount]
+  );
+  const selectedSenderEmail = String(selectedAccountObj?.from || activeAccount || '').trim().toLowerCase();
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
   const previewTotalRows = preview.length;
   const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_ROWS_PER_PAGE));
@@ -816,6 +822,21 @@ const handleDeleteDraft = async (draft) => {
     return '/api/stats';
   };
 
+  const buildCampaignsUrl = () => {
+    if (showAllUserActivity) {
+      return '/api/campaigns';
+    }
+    const params = new URLSearchParams();
+    if (project) {
+      params.set('project', String(project).trim().toLowerCase());
+    }
+    if (selectedSenderEmail) {
+      params.set('sender', selectedSenderEmail);
+    }
+    const qs = params.toString();
+    return qs ? `/api/campaigns?${qs}` : '/api/campaigns';
+  };
+
   const loadAll = async (filterOverrides = {}) => {
     try {
       const statsUrl = buildStatsUrl(filterOverrides);
@@ -829,7 +850,7 @@ const handleDeleteDraft = async (draft) => {
       const [statsRes, templatesRes, campaignsRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
         safeFetchJson('/api/templates'),
-        safeFetchJson('/api/campaigns')
+        safeFetchJson(buildCampaignsUrl())
       ]);
       const errors = [];
 
@@ -902,7 +923,7 @@ const handleDeleteDraft = async (draft) => {
       const statsUrl = buildStatsUrl(filterOverrides);
       const [statsRes, campaignsRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
-        safeFetchJson('/api/campaigns')
+        safeFetchJson(buildCampaignsUrl())
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -966,14 +987,17 @@ const handleDeleteDraft = async (draft) => {
 
   useEffect(() => {
     loadAll();
-  }, [project, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
+  }, [showAllUserActivity, project, selectedAccount, activeAccount, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
 
 
   useEffect(() => {
     const id = setInterval(() => loadLiveData(), 30000);
     return () => clearInterval(id);
   }, [
+    showAllUserActivity,
     project,
+    selectedAccount,
+    activeAccount,
     selectedStatsDate,
     selectedStatsRange,
     customStatsStartDate,
@@ -1046,6 +1070,8 @@ const handleDeleteDraft = async (draft) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: campaignName,
+          project,
+          senderFrom: selectedSenderEmail,
           listId: selectedListId,
           templateId: null,
           type: selectedDraft,
@@ -1936,6 +1962,14 @@ const normalizeSelectedListEmails = async () => {
             <div style={{ flex: '1 1 420px', border: '1px solid #cfe3ff', borderRadius: 14, padding: 14, background: '#f8fbff' }}>
               <h3 style={{ margin: '0 0 6px' }}>Summary</h3>
               <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8, fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={showAllUserActivity}
+                    onChange={(e) => setShowAllUserActivity(e.target.checked)}
+                  />
+                  Show All User Activity (Admin)
+                </label>
                 <div>
                   <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Project / Client</p>
                   <select
@@ -1984,6 +2018,11 @@ const normalizeSelectedListEmails = async () => {
                 <button className="button" type="button" onClick={connectSelectedAccount}>Select Sender</button>
                 <button className="button secondary" type="button" onClick={startGraphOAuth}>Add New Mail</button>
               </div>
+              <p style={{ margin: '8px 0 0', color: '#475569', fontSize: 12 }}>
+                {showAllUserActivity
+                  ? 'Admin view is ON: campaigns and logs from all users are visible.'
+                  : 'Admin view is OFF: campaigns and logs are filtered by selected Project and Mail ID.'}
+              </p>
             </div>
             <div style={{ flex: '1 1 420px', border: '1px solid #d8e6dc', borderRadius: 14, padding: 14, background: '#f8fcf8' }}>
               <h3 style={{ margin: '0 0 6px' }}>Filter</h3>

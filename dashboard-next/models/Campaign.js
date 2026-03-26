@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 const CampaignSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    project: { type: String, default: '' },
+    senderFrom: { type: String, default: '' },
     type: { type: String, default: '' },
     listId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadList', required: true },
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate', required: false },
@@ -64,5 +66,8 @@ const CampaignSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+CampaignSchema.index({ project: 1, senderFrom: 1, createdAt: -1 });
+CampaignSchema.index({ status: 1, project: 1, senderFrom: 1 });
 
 export default mongoose.models.Campaign || mongoose.model('Campaign', CampaignSchema);

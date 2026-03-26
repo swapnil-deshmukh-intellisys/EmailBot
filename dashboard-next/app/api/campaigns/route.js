@@ -16,14 +16,34 @@ function normalizeCampaignType(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
 }
 
+function escapeRegex(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-export async function GET() {
+
+export async function GET(req) {
 
   try {
 
     await connectDB();
+    const query = {};
+    const url = new URL(req.url);
+    const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
+    const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
 
-    const campaigns = await Campaign.find().sort({ createdAt: -1 }).lean();
+    if (project) {
+      query.project = project;
+    }
+    if (sender) {
+      const senderRegex = new RegExp(`^${escapeRegex(sender)}$`, 'i');
+      query.$or = [
+        { senderFrom: senderRegex },
+        { 'senderAccount.from': senderRegex },
+        { 'senderAccount.user': senderRegex }
+      ];
+    }
+
+    const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json({ campaigns });
 
@@ -47,7 +67,7 @@ export async function POST(req) {
 
 
 
-    const { name, listId, templateId, options, draftType, inlineTemplate, senderAccountId, type } = body;
+    const { name, listId, templateId, options, draftType, inlineTemplate, senderAccountId, type, project, senderFrom } = body;
 
     if (!name || !listId) {
 
@@ -110,6 +130,8 @@ export async function POST(req) {
     const campaign = await Campaign.create({
 
       name,
+      project: String(project || '').trim().toLowerCase(),
+      senderFrom: String(senderFrom || senderAccount?.from || '').trim().toLowerCase(),
       type: campaignType,
 
       listId,

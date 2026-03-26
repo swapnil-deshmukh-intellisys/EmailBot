@@ -11,6 +11,7 @@ global.campaignRunners = runners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
 
 function senderThreadKey(account = {}) {
   const from = normalizeEmail(account?.from || account?.user || '');
@@ -123,6 +124,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
     return { started: false, message: 'Campaign already running' };
   }
 
+  const runningCount = Array.from(runners.values()).filter((state) => state?.running).length;
+  if (runningCount >= MAX_CONCURRENT_CAMPAIGNS) {
+    return {
+      started: false,
+      message: `Maximum concurrent running campaigns reached (${MAX_CONCURRENT_CAMPAIGNS}).`
+    };
+  }
+
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
     throw new Error('Campaign not found');
@@ -195,6 +204,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.stats.failed = 0;
   campaign.stats.pending = scopedLeads.length;
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
+  appendLog(campaign, `Concurrent runner capacity: ${MAX_CONCURRENT_CAMPAIGNS}`);
   if (trigger === 'scheduler') {
     appendLog(campaign, 'Campaign auto-started by scheduler');
   }
@@ -250,6 +260,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
         const batch = pendingIndexes.slice(i, i + batchSize);
 
         for (const idx of batch) {
+          const sendCycleStartedAt = Date.now();
           const lead = list.leads[idx];
           const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
           const selectedTemplate = inlineTemplate || templateFromDb;
@@ -304,7 +315,11 @@ export async function startCampaignRunner(campaignId, options = {}) {
             break;
           }
 
-          await wait(delayMs);
+          const elapsedMs = Date.now() - sendCycleStartedAt;
+          const waitMs = Math.max(0, delayMs - elapsedMs);
+          if (waitMs > 0) {
+            await wait(waitMs);
+          }
         }
       }
 
