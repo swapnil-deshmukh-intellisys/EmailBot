@@ -10,6 +10,11 @@ import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 
+const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
+
+function normalizeCampaignType(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+}
 
 
 export async function GET() {
@@ -42,7 +47,7 @@ export async function POST(req) {
 
 
 
-    const { name, listId, templateId, options, draftType, inlineTemplate, senderAccountId } = body;
+    const { name, listId, templateId, options, draftType, inlineTemplate, senderAccountId, type } = body;
 
     if (!name || !listId) {
 
@@ -96,12 +101,16 @@ export async function POST(req) {
 
     }
 
+    const campaignType = normalizeCampaignType(type || draftType);
+    const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
+    const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
     const total = rowRange ? (rangeEnd - rangeStart + 1) : list.leads.length;
     const batchSize = rangeMatch ? 1 : Math.max(1, Number(options?.batchSize || 1));
 
     const campaign = await Campaign.create({
 
       name,
+      type: campaignType,
 
       listId,
 
@@ -125,7 +134,8 @@ export async function POST(req) {
 
         delaySeconds: Math.max(60, Number(options?.delaySeconds || 60)),
 
-        rowRange
+        rowRange,
+        replyMode
 
       },
 

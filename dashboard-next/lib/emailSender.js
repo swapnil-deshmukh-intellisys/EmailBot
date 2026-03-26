@@ -355,25 +355,6 @@ async function sendViaGraphDelegated({ account, to, subject, body }) {
   }
 }
 
-async function sendViaSmtp({ account, to, subject, body }) {
-  const transport = nodemailer.createTransport({
-    host: account.host,
-    port: account.port,
-    secure: account.secure,
-    auth: {
-      user: account.user,
-      pass: account.pass
-    }
-  });
-
-  await transport.sendMail({
-    from: account.from,
-    to,
-    subject,
-    html: body
-  });
-}
-
 export async function verifyAccountConnection(account) {
   if (!account?.provider) {
     throw new Error('Account provider is required');
@@ -411,7 +392,51 @@ export async function verifyAccountConnection(account) {
   return { ok: true, message: 'SMTP account connected' };
 }
 
-export async function sendEmailForLead({ template, lead, account }) {
+function splitRecipients(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => splitRecipients(item));
+  }
+  return String(value || '')
+    .split(/[;,]/)
+    .map((entry) => normalizeRecipient(entry))
+    .filter(Boolean);
+}
+
+function dedupeRecipients(values = []) {
+  return [...new Set(values.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function normalizeSubjectForReply(subject = '') {
+  const trimmed = String(subject || '').trim();
+  if (!trimmed) return 'Re:';
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inReplyTo, references = [] }) {
+  const transport = nodemailer.createTransport({
+    host: account.host,
+    port: account.port,
+    secure: account.secure,
+    auth: {
+      user: account.user,
+      pass: account.pass
+    }
+  });
+
+  const info = await transport.sendMail({
+    from: account.from,
+    to,
+    cc: cc.length ? cc : undefined,
+    subject,
+    html: body,
+    inReplyTo: inReplyTo || undefined,
+    references: references.length ? references : undefined
+  });
+
+  return { messageId: String(info?.messageId || '').trim() };
+}
+
+export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null }) {
   const { subject, body } = renderTemplate(template, lead);
   const to = normalizeRecipient(lead.Email || lead.email);
 
@@ -419,14 +444,52 @@ export async function sendEmailForLead({ template, lead, account }) {
     throw new Error('Lead has no email address');
   }
 
+  const normalizedType = String(campaignType || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  const supportsReply = replyMode && ['reminder', 'follow_up', 'updated_cost', 'final_cost'].includes(normalizedType);
+  const previousMessageId = String(replyContext?.messageId || '').trim();
+  const isReply = supportsReply && Boolean(previousMessageId);
+
+  const previousTo = splitRecipients(replyContext?.to);
+  const previousCc = splitRecipients(replyContext?.cc);
+  const toRecipients = dedupeRecipients([to, ...previousTo]);
+  const ccRecipients = dedupeRecipients(previousCc.filter((entry) => !toRecipients.includes(entry)));
+  const finalSubject = isReply ? normalizeSubjectForReply(replyContext?.subject || subject) : subject;
+
+  let sentMessageId = '';
+
   if (account.provider === 'graph_oauth') {
-    await sendViaGraphDelegated({ account, to, subject, body });
+    await sendViaGraphDelegated({ account, to, subject: finalSubject, body });
   } else if (account.provider === 'graph') {
-    await sendViaGraphApp({ account, to, subject, body });
+    await sendViaGraphApp({ account, to, subject: finalSubject, body });
   } else {
-    await sendViaSmtp({ account, to, subject, body });
+    const result = await sendViaSmtpThreaded({
+      account,
+      to: toRecipients.join(', '),
+      cc: ccRecipients,
+      subject: finalSubject,
+      body,
+      inReplyTo: isReply ? previousMessageId : undefined,
+      references: isReply ? [previousMessageId] : []
+    });
+    sentMessageId = result?.messageId || '';
   }
 
-  return { to, subject };
-}
+  const references = dedupeRecipients([previousMessageId, ...(Array.isArray(replyContext?.references) ? replyContext.references : [])]);
 
+  return {
+    to,
+    subject: finalSubject,
+    messageId: sentMessageId,
+    isReply,
+    thread: {
+      messageId: sentMessageId || previousMessageId || '',
+      subject: finalSubject,
+      recipientEmail: to,
+      to: toRecipients,
+      cc: ccRecipients,
+      references,
+      lastCampaignType: normalizedType,
+      updatedAt: new Date()
+    }
+  };
+}

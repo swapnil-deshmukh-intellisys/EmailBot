@@ -1,7 +1,0 @@
-{
-  "/dashboard/page": "app/dashboard/page.js",
-  "/api/templates/route": "app/api/templates/route.js",
-  "/api/accounts/route": "app/api/accounts/route.js",
-  "/api/campaigns/route": "app/api/campaigns/route.js",
-  "/api/stats/route": "app/api/stats/route.js"
-}

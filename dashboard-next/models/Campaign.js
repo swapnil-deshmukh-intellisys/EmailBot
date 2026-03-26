@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const CampaignSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    type: { type: String, default: '' },
     listId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadList', required: true },
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate', required: false },
     draftType: { type: String, default: '' },
@@ -42,7 +43,8 @@ const CampaignSchema = new mongoose.Schema(
     options: {
       batchSize: { type: Number, default: 1 },
       delaySeconds: { type: Number, default: 60 },
-      rowRange: { type: String, default: '' }
+      rowRange: { type: String, default: '' },
+      replyMode: { type: Boolean, default: false }
     },
     logs: [{
       at: { type: Date, default: Date.now },

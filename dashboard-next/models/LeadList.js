@@ -9,7 +9,17 @@ const LeadSchema = new mongoose.Schema(
     status: { type: String, enum: ['Pending', 'Sent', 'Failed'], default: 'Pending' },
     error: { type: String, default: '' },
     sentAt: { type: Date, default: null },
-    failedAt: { type: Date, default: null }
+    failedAt: { type: Date, default: null },
+    thread: {
+      messageId: { type: String, default: '' },
+      subject: { type: String, default: '' },
+      recipientEmail: { type: String, default: '' },
+      to: { type: [String], default: [] },
+      cc: { type: [String], default: [] },
+      references: { type: [String], default: [] },
+      lastCampaignType: { type: String, default: '' },
+      updatedAt: { type: Date, default: null }
+    }
   },
   { _id: false }
 );

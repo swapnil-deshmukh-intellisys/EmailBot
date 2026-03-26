@@ -102,6 +102,7 @@ function shouldShowInActiveCampaigns(campaign) {
 
 function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
+  const changeTimerRef = useRef(null);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -110,15 +111,30 @@ function RichTextEditor({ value, onChange, placeholder }) {
     }
   }, [value]);
 
-  const updateValue = () => {
-    onChange(editorRef.current?.innerHTML || '');
+  useEffect(() => {
+    return () => {
+      if (changeTimerRef.current) {
+        clearTimeout(changeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const updateValue = (immediate = false) => {
+    const next = editorRef.current?.innerHTML || '';
+    if (immediate) {
+      if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+      onChange(next);
+      return;
+    }
+    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+    changeTimerRef.current = setTimeout(() => onChange(next), 220);
   };
 
   const runCommand = (command, val = null) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(command, false, val);
-    updateValue();
+    updateValue(true);
   };
 
   const onPaste = (e) => {
@@ -177,8 +193,8 @@ function RichTextEditor({ value, onChange, placeholder }) {
         contentEditable
         suppressContentEditableWarning
         data-placeholder={placeholder || 'Compose your draft here...'}
-        onInput={updateValue}
-        onBlur={updateValue}
+        onInput={() => updateValue(false)}
+        onBlur={() => updateValue(true)}
         onPaste={onPaste}
       />
     </div>
@@ -248,6 +264,8 @@ const DRAFT_CATEGORIES = [
   { label: "Updated Cost", value: "updated_cost" },
   { label: "Final Cost", value: "final_cost" }
 ];
+
+const REPLY_MODE_DRAFT_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost']);
 
 const SUMMARY_RANGES = [
   { label: 'Today', value: 'today' },
@@ -450,7 +468,7 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
-  const projectAccounts = useMemo(() => filterAccountsByProject(accounts, project), [accounts, project]);
+  const projectAccounts = useMemo(() => accounts, [accounts]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('cover_story');
   const [draftSubject, setDraftSubject] = useState('');
@@ -495,6 +513,7 @@ export default function DashboardPage() {
   const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
   const [preferredActiveCampaignId, setPreferredActiveCampaignId] = useState('');
   const [toast, setToast] = useState(null);
+  const isReplyModeCampaignType = REPLY_MODE_DRAFT_TYPES.has(String(selectedDraft || '').toLowerCase());
   const fileInputRef = useRef(null);
   const uploadedFilesDropdownRef = useRef(null);
   const draftUploadedFilesDropdownRef = useRef(null);
@@ -1086,72 +1105,129 @@ const handleDeleteDraft = async (draft) => {
     return data;
   };
 
+  const buildStatsUrl = (filterOverrides = {}) => {
+    const effectiveDate =
+      filterOverrides.selectedStatsDate !== undefined
+        ? filterOverrides.selectedStatsDate
+        : selectedStatsDate;
+    const effectiveRange =
+      filterOverrides.selectedStatsRange !== undefined
+        ? filterOverrides.selectedStatsRange
+        : selectedStatsRange;
+    const effectiveCustomStartDate =
+      filterOverrides.customStatsStartDate !== undefined
+        ? filterOverrides.customStatsStartDate
+        : customStatsStartDate;
+    const effectiveCustomEndDate =
+      filterOverrides.customStatsEndDate !== undefined
+        ? filterOverrides.customStatsEndDate
+        : customStatsEndDate;
+
+    if (effectiveRange === 'customize' && effectiveCustomStartDate && effectiveCustomEndDate) {
+      return `/api/stats?range=customize&startDate=${encodeURIComponent(effectiveCustomStartDate)}&endDate=${encodeURIComponent(effectiveCustomEndDate)}`;
+    }
+    if (effectiveRange) {
+      return `/api/stats?range=${encodeURIComponent(effectiveRange)}`;
+    }
+    if (effectiveDate) {
+      return `/api/stats?date=${encodeURIComponent(effectiveDate)}`;
+    }
+    return '/api/stats';
+  };
+
   const loadAll = async (filterOverrides = {}) => {
     try {
-      const effectiveDate =
-        filterOverrides.selectedStatsDate !== undefined
-          ? filterOverrides.selectedStatsDate
-          : selectedStatsDate;
-      const effectiveRange =
-        filterOverrides.selectedStatsRange !== undefined
-          ? filterOverrides.selectedStatsRange
-          : selectedStatsRange;
-      const effectiveCustomStartDate =
-        filterOverrides.customStatsStartDate !== undefined
-          ? filterOverrides.customStatsStartDate
-          : customStatsStartDate;
-      const effectiveCustomEndDate =
-        filterOverrides.customStatsEndDate !== undefined
-          ? filterOverrides.customStatsEndDate
-          : customStatsEndDate;
-
-      let statsUrl = '/api/stats';
-      if (effectiveRange === 'customize' && effectiveCustomStartDate && effectiveCustomEndDate) {
-        statsUrl = `/api/stats?range=customize&startDate=${encodeURIComponent(effectiveCustomStartDate)}&endDate=${encodeURIComponent(effectiveCustomEndDate)}`;
-      } else if (effectiveRange) {
-        statsUrl = `/api/stats?range=${encodeURIComponent(effectiveRange)}`;
-      } else if (effectiveDate) {
-        statsUrl = `/api/stats?date=${encodeURIComponent(effectiveDate)}`;
-      }
-      const [st, tpl, cps, accRes] = await Promise.all([
+      const statsUrl = buildStatsUrl(filterOverrides);
+      const results = await Promise.allSettled([
         safeFetchJson(statsUrl),
         safeFetchJson('/api/templates'),
         safeFetchJson('/api/campaigns'),
         safeFetchJson(`/api/accounts?project=${encodeURIComponent(project)}`)
       ]);
 
-      setError('');
-      setStats(st);
-      setLists(st.lists || []);
-      setTemplates(tpl.templates || []);
-      setCampaigns(cps.campaigns || []);
-      setSelectedCampaignIds((prev) => 
-        (cps.campaigns || [])
-          .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
-          .map((c) => c._id)
-          .filter((id) => prev.includes(id))
-      );
-      setAccounts(accRes.accounts || []);
+      const [statsRes, templatesRes, campaignsRes, accountsRes] = results;
+      const errors = [];
 
-      const accList = accRes.accounts || [];
+      if (statsRes.status === 'fulfilled') {
+        const st = statsRes.value || {};
+        setStats(st);
+        setLists(st.lists || []);
+      } else {
+        errors.push(statsRes.reason?.message || 'Failed to load stats');
+      }
+
+      if (templatesRes.status === 'fulfilled') {
+        const tpl = templatesRes.value || {};
+        setTemplates(tpl.templates || []);
+      } else {
+        errors.push(templatesRes.reason?.message || 'Failed to load templates');
+      }
+
+      if (campaignsRes.status === 'fulfilled') {
+        const cps = campaignsRes.value || {};
+        setCampaigns(cps.campaigns || []);
+        setSelectedCampaignIds((prev) =>
+          (cps.campaigns || [])
+            .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
+            .map((c) => c._id)
+            .filter((id) => prev.includes(id))
+        );
+      } else {
+        errors.push(campaignsRes.reason?.message || 'Failed to load campaigns');
+      }
+
+      if (accountsRes.status === 'fulfilled') {
+        const accRes = accountsRes.value || {};
+        setAccounts(accRes.accounts || []);
+      } else {
+        errors.push(accountsRes.reason?.message || 'Failed to load accounts');
+      }
+
+      const accList =
+        accountsRes.status === 'fulfilled'
+          ? (accountsRes.value?.accounts || [])
+          : [];
       if (selectedAccount && !accList.find((a) => a.id === selectedAccount)) {
         setSelectedAccount("");
       }
 
-      if (!selectedListId && st.lists?.[0]?._id) {
-        setSelectedListId(st.lists[0]._id);
+      const firstListId =
+        statsRes.status === 'fulfilled' ? statsRes.value?.lists?.[0]?._id : '';
+      if (!selectedListId && firstListId) {
+        setSelectedListId(firstListId);
       }
-      if (!selectedTemplateId && tpl.templates?.[0]?._id) {
-        setSelectedTemplateId(tpl.templates[0]._id);
+      const firstTemplateId =
+        templatesRes.status === 'fulfilled' ? templatesRes.value?.templates?.[0]?._id : '';
+      if (!selectedTemplateId && firstTemplateId) {
+        setSelectedTemplateId(firstTemplateId);
       }
+      setError(errors[0] || '');
     } catch (e) {
       setError(e.message || 'Failed to load dashboard data');
     }
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  const loadLiveData = async (filterOverrides = {}) => {
+    try {
+      const statsUrl = buildStatsUrl(filterOverrides);
+      const [st, cps] = await Promise.all([
+        safeFetchJson(statsUrl),
+        safeFetchJson('/api/campaigns')
+      ]);
+      setError('');
+      setStats(st);
+      setLists(st.lists || []);
+      setCampaigns(cps.campaigns || []);
+      setSelectedCampaignIds((prev) =>
+        (cps.campaigns || [])
+          .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
+          .map((c) => c._id)
+          .filter((id) => prev.includes(id))
+      );
+    } catch (e) {
+      setError(e.message || 'Failed to refresh live data');
+    }
+  };
 
   useEffect(() => {
     loadSavedDrafts();
@@ -1188,11 +1264,9 @@ const handleDeleteDraft = async (draft) => {
 
 
   useEffect(() => {
-    const id = setInterval(loadAll, 5000);
+    const id = setInterval(() => loadLiveData(), 15000);
     return () => clearInterval(id);
   }, [
-    selectedListId,
-    selectedTemplateId,
     project,
     selectedStatsDate,
     selectedStatsRange,
@@ -1265,10 +1339,11 @@ const handleDeleteDraft = async (draft) => {
           name: campaignName,
           listId: selectedListId,
           templateId: null,
+          type: selectedDraft,
           draftType: selectedDraft,
           inlineTemplate: { subject: draftSubject, body: draftBody },
           senderAccountId: selectedAccount || null,
-          options: { batchSize, delaySeconds: Number(delaySeconds) }
+          options: { batchSize, delaySeconds: Number(delaySeconds), replyMode: isReplyModeCampaignType }
         })
       });
       const createdCampaign = data.campaign || null;
@@ -2116,6 +2191,9 @@ const normalizeSelectedListEmails = async () => {
                       <option value="updated_cost">Updated Cost</option>
                       <option value="final_cost">Final Call</option>
                     </select>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: isReplyModeCampaignType ? '#166534' : 'var(--muted)', fontWeight: 600 }}>
+                      Reply Mode: {isReplyModeCampaignType ? 'ON (Reply All in thread)' : 'OFF (New Email)'}
+                    </p>
                   </div>
                   <div>
                     <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Client List</p>
@@ -2702,6 +2780,9 @@ const normalizeSelectedListEmails = async () => {
               <option value="updated_cost">Updated Cost</option>
               <option value="final_cost">Final Call</option>
             </select>
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: isReplyModeCampaignType ? '#166534' : 'var(--muted)', fontWeight: 600 }}>
+              Reply Mode: {isReplyModeCampaignType ? 'ON (Reply All in thread)' : 'OFF (New Email)'}
+            </p>
           </div>
           <div>
             <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Client List</p>

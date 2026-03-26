@@ -2,6 +2,7 @@ import connectDB from './mongodb';
 import Campaign from '../models/Campaign';
 import LeadList from '../models/LeadList';
 import EmailTemplate from '../models/EmailTemplate';
+import EmailThread from '../models/EmailThread';
 import { getAvailableAccounts, sendEmailForLead } from './emailSender';
 import { resolveSenderAccountById } from './senderAccounts';
 
@@ -9,6 +10,56 @@ const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+
+function senderThreadKey(account = {}) {
+  const from = normalizeEmail(account?.from || account?.user || '');
+  const provider = String(account?.provider || 'smtp').toLowerCase();
+  return `${provider}:${from}`;
+}
+
+async function getStoredThreadForLead(lead, account) {
+  const recipientEmail = normalizeEmail(lead?.Email || lead?.email || lead?.thread?.recipientEmail || '');
+  if (!recipientEmail) return null;
+  const senderKey = senderThreadKey(account);
+  const doc = await EmailThread.findOne({ recipientEmail, senderKey }).lean();
+  if (!doc) return null;
+  return {
+    messageId: doc.messageId || '',
+    subject: doc.subject || '',
+    recipientEmail,
+    to: Array.isArray(doc.to) ? doc.to : [],
+    cc: Array.isArray(doc.cc) ? doc.cc : [],
+    references: Array.isArray(doc.references) ? doc.references : [],
+    lastCampaignType: doc.lastCampaignType || '',
+    updatedAt: doc.updatedAt || null
+  };
+}
+
+async function upsertStoredThreadForLead(lead, account, thread, campaignType = '') {
+  if (!String(thread?.messageId || '').trim()) return;
+  const recipientEmail = normalizeEmail(lead?.Email || lead?.email || thread?.recipientEmail || '');
+  if (!recipientEmail) return;
+  const senderKey = senderThreadKey(account);
+  await EmailThread.updateOne(
+    { recipientEmail, senderKey },
+    {
+      $set: {
+        recipientEmail,
+        senderKey,
+        messageId: String(thread?.messageId || ''),
+        subject: String(thread?.subject || ''),
+        to: Array.isArray(thread?.to) ? thread.to : [],
+        cc: Array.isArray(thread?.cc) ? thread.cc : [],
+        references: Array.isArray(thread?.references) ? thread.references : [],
+        provider: String(account?.provider || 'smtp'),
+        lastCampaignType: String(campaignType || ''),
+        updatedAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
+}
 
 async function saveCampaignIfExists(campaign) {
   try {
@@ -30,6 +81,7 @@ function appendLog(campaign, message, level = 'info') {
 }
 
 async function persistLeadProgress(listId, idx, lead) {
+  const thread = lead?.thread || {};
   const result = await LeadList.updateOne(
     { _id: listId },
     {
@@ -37,7 +89,15 @@ async function persistLeadProgress(listId, idx, lead) {
         [`leads.${idx}.status`]: lead.status || 'Pending',
         [`leads.${idx}.error`]: lead.error || '',
         [`leads.${idx}.sentAt`]: lead.sentAt || null,
-        [`leads.${idx}.failedAt`]: lead.failedAt || null
+        [`leads.${idx}.failedAt`]: lead.failedAt || null,
+        [`leads.${idx}.thread.messageId`]: String(thread.messageId || ''),
+        [`leads.${idx}.thread.subject`]: String(thread.subject || ''),
+        [`leads.${idx}.thread.recipientEmail`]: String(thread.recipientEmail || ''),
+        [`leads.${idx}.thread.to`]: Array.isArray(thread.to) ? thread.to : [],
+        [`leads.${idx}.thread.cc`]: Array.isArray(thread.cc) ? thread.cc : [],
+        [`leads.${idx}.thread.references`]: Array.isArray(thread.references) ? thread.references : [],
+        [`leads.${idx}.thread.lastCampaignType`]: String(thread.lastCampaignType || ''),
+        [`leads.${idx}.thread.updatedAt`]: thread.updatedAt || null
       }
     }
   );
@@ -114,6 +174,10 @@ export async function startCampaignRunner(campaignId) {
 
   const state = { running: true, paused: false, stop: false };
   runners.set(campaignId, state);
+  const campaignType = String(campaign.type || campaign.draftType || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  const replyMode = typeof campaign.options?.replyMode === 'boolean'
+    ? campaign.options.replyMode
+    : ['reminder', 'follow_up', 'updated_cost', 'final_cost'].includes(campaignType);
   const selectedRange = parseRowRange(campaign.options?.rowRange, list.leads.length);
   const allowedIndexes = selectedRange
     ? new Set(Array.from({ length: selectedRange.end - selectedRange.start + 1 }, (_, i) => selectedRange.start - 1 + i))
@@ -183,15 +247,38 @@ export async function startCampaignRunner(campaignId) {
           const lead = list.leads[idx];
           const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
           const selectedTemplate = inlineTemplate || templateFromDb;
+          const storedThread = await getStoredThreadForLead(lead, account);
+          const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
 
           try {
-            await sendEmailForLead({ template: selectedTemplate, lead, account });
+            const sendResult = await sendEmailForLead({
+              template: selectedTemplate,
+              lead,
+              account,
+              campaignType,
+              replyMode,
+              replyContext: replyContext || null
+            });
             lead.status = 'Sent';
             lead.error = '';
             lead.sentAt = new Date();
             lead.failedAt = null;
+            if (sendResult?.thread) {
+              lead.thread = sendResult.thread;
+              await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType);
+            }
             campaign.stats.sent += 1;
-            appendLog(campaign, `Sent: ${lead.Email || lead.email || 'unknown'}`);
+            appendLog(
+              campaign,
+              `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
+            );
+            if (replyMode && !sendResult?.isReply) {
+              appendLog(
+                campaign,
+                `Reply mode fallback to new email: no previous messageId for ${lead.Email || lead.email || 'unknown'}`,
+                'info'
+              );
+            }
           } catch (error) {
             lead.status = 'Failed';
             lead.error = error.message;
