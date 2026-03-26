@@ -115,8 +115,9 @@ function parseRowRange(rowRange = '', totalLeads = 0) {
   return { start, end };
 }
 
-export async function startCampaignRunner(campaignId) {
+export async function startCampaignRunner(campaignId, options = {}) {
   await connectDB();
+  const trigger = String(options?.trigger || 'manual').toLowerCase();
 
   if (runners.get(campaignId)?.running) {
     return { started: false, message: 'Campaign already running' };
@@ -163,7 +164,8 @@ export async function startCampaignRunner(campaignId) {
     {
       $set: {
         status: 'Running',
-        startedAt: startTime
+        startedAt: startTime,
+        scheduledAt: null
       }
     }
   );
@@ -184,22 +186,18 @@ export async function startCampaignRunner(campaignId) {
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
-  scopedLeads.forEach((lead) => {
-    lead.status = 'Pending';
-    lead.error = '';
-    lead.sentAt = null;
-    lead.failedAt = null;
-  });
-  await list.save();
-
   campaign.status = 'Running';
   campaign.options.delaySeconds = Math.max(60, Number(campaign.options?.delaySeconds || 60));
   campaign.startedAt = startTime;
+  campaign.scheduledAt = null;
   campaign.stats.total = scopedLeads.length;
   campaign.stats.sent = 0;
   campaign.stats.failed = 0;
   campaign.stats.pending = scopedLeads.length;
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
+  if (trigger === 'scheduler') {
+    appendLog(campaign, 'Campaign auto-started by scheduler');
+  }
   if (selectedRange) {
     appendLog(campaign, `Row range selected: ${selectedRange.start}-${selectedRange.end}`);
   }
@@ -215,6 +213,14 @@ export async function startCampaignRunner(campaignId) {
 
   (async () => {
     try {
+      scopedLeads.forEach((lead) => {
+        lead.status = 'Pending';
+        lead.error = '';
+        lead.sentAt = null;
+        lead.failedAt = null;
+      });
+      await list.save();
+
       const pendingIndexes = [];
       list.leads.forEach((lead, idx) => {
         if ((!allowedIndexes || allowedIndexes.has(idx)) && lead.status !== 'Sent') {

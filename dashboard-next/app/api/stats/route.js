@@ -2,8 +2,25 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 
+const STATS_CACHE_TTL_MS = 10000;
+
+function getStatsCache() {
+  if (!global.__dashboardStatsCache) {
+    global.__dashboardStatsCache = new Map();
+  }
+  return global.__dashboardStatsCache;
+}
+
 export async function GET(req) {
   try {
+    const cache = getStatsCache();
+    const cacheKey = req.url;
+    const now = Date.now();
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return NextResponse.json(cached.payload);
+    }
+
     await connectDB();
 
     const url = new URL(req.url);
@@ -102,7 +119,7 @@ export async function GET(req) {
 
     const dailyMailCounts = Array.from(dayCountMap.entries()).map(([date, count]) => ({ date, count }));
 
-    return NextResponse.json({
+    const payload = {
       totalUploaded,
       sent,
       pending,
@@ -114,7 +131,14 @@ export async function GET(req) {
       customStartDate,
       customEndDate,
       lists: normalizedLists
+    };
+
+    cache.set(cacheKey, {
+      payload,
+      expiresAt: now + STATS_CACHE_TTL_MS
     });
+
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json({
       totalUploaded: 0,

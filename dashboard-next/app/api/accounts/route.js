@@ -6,6 +6,15 @@ import SenderAccount from '@/models/SenderAccount';
 import { verifyAccountConnection } from '@/lib/emailSender';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 
+const ACCOUNTS_CACHE_TTL_MS = 15000;
+
+function getAccountsCache() {
+  if (!global.__accountsCache) {
+    global.__accountsCache = new Map();
+  }
+  return global.__accountsCache;
+}
+
 function toPublicAccount(a) {
   return {
     id: a.id,
@@ -35,10 +44,21 @@ export async function GET(req) {
 
   const url = new URL(req.url);
   const project = String(url.searchParams.get("project") || "").trim().toLowerCase();
+  const cacheKey = project || '__all__';
+  const cache = getAccountsCache();
+  const now = Date.now();
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return NextResponse.json({ accounts: cached.accounts });
+  }
 
   const envAccounts = getRuntimeSenderAccounts().map(toPublicAccount);
 
-  const oauthAccounts = await GraphOAuthAccount.find().sort({ createdAt: -1 }).lean();
+  const [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
+    GraphOAuthAccount.find().sort({ createdAt: -1 }).lean(),
+    SenderAccount.find().sort({ createdAt: -1 }).lean(),
+    PresetSender.find().lean()
+  ]);
   const oauthPublic = oauthAccounts.map((a) => ({
     id: `oauth:${String(a._id)}`,
     provider: 'graph_oauth',
@@ -47,7 +67,6 @@ export async function GET(req) {
     status: 'Connected'
   }));
 
-  const dbAccounts = await SenderAccount.find().sort({ createdAt: -1 }).lean();
   const dbPublic = dbAccounts.map((a) => ({
     id: `db:${String(a._id)}`,
     provider: a.provider,
@@ -66,7 +85,6 @@ export async function GET(req) {
 
   const graphAppReady = Boolean(process.env.TENANT_ID && process.env.CLIENT_ID && process.env.CLIENT_SECRET);
 
-  const dbPreset = await PresetSender.find().lean();
   const dbPresetPublic = dbPreset
     .filter((entry) => !seen.has(String(entry.email || "").toLowerCase()))
     .map((entry) => ({
@@ -94,6 +112,11 @@ export async function GET(req) {
     const allowed = new Set(presetEmails);
     accounts = accounts.filter((a) => allowed.has(String(a.from || "").toLowerCase()));
   }
+
+  cache.set(cacheKey, {
+    accounts,
+    expiresAt: now + ACCOUNTS_CACHE_TTL_MS
+  });
 
   return NextResponse.json({ accounts });
 }

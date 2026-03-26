@@ -10,11 +10,26 @@ let cached = global.mongoose;
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
+let schedulerInitPromise = global.__schedulerInitPromise || null;
+global.__schedulerInitPromise = schedulerInitPromise;
+
+async function ensureSchedulerInitialized() {
+  if (schedulerInitPromise) {
+    await schedulerInitPromise;
+    return;
+  }
+
+  schedulerInitPromise = (async () => {
+    const { initCampaignScheduler } = await import('./campaignScheduler');
+    initCampaignScheduler();
+  })();
+  global.__schedulerInitPromise = schedulerInitPromise;
+  await schedulerInitPromise;
+}
 
 export default async function connectDB() {
   if (cached.conn) {
-    const { initCampaignScheduler } = await import('./campaignScheduler');
-    initCampaignScheduler();
+    await ensureSchedulerInitialized();
     return cached.conn;
   }
 
@@ -27,7 +42,6 @@ export default async function connectDB() {
   }
 
   cached.conn = await cached.promise;
-  const { initCampaignScheduler } = await import('./campaignScheduler');
-  initCampaignScheduler();
+  await ensureSchedulerInitialized();
   return cached.conn;
 }

@@ -15,8 +15,11 @@ async function runCampaignSchedulerTick() {
 
   const now = new Date();
   const dueCampaigns = await Campaign.find({
-    'scheduledStart.at': { $ne: null, $lte: now },
-    status: { $nin: ['Running', 'Completed', 'Failed'] }
+    status: 'Scheduled',
+    $or: [
+      { scheduledAt: { $ne: null, $lte: now } },
+      { 'scheduledStart.at': { $ne: null, $lte: now } }
+    ]
   })
     .select('_id')
     .lean();
@@ -27,7 +30,7 @@ async function runCampaignSchedulerTick() {
 
     schedulerState.inFlight.add(id);
     try {
-      await startCampaignRunner(id);
+      await startCampaignRunner(id, { trigger: 'scheduler' });
     } catch (error) {
       console.error(`Failed to auto-start scheduled campaign ${id}:`, error);
     } finally {
@@ -44,7 +47,7 @@ export function initCampaignScheduler() {
     runCampaignSchedulerTick().catch((error) => {
       console.error('Campaign scheduler tick failed:', error);
     });
-  }, 10000);
+  }, 60000);
 
   if (typeof schedulerState.intervalId?.unref === 'function') {
     schedulerState.intervalId.unref();

@@ -1,27 +1,31 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import RichTextEditor from './components/RichTextEditor';
+import { FancyStatCard } from './components/DashboardUiBits';
+import {
+  COUNTRY_TIME_SLOTS,
+  DRAFT_CATEGORIES,
+  PREVIEW_ROWS_PER_PAGE,
+  QUICK_DRAFT_PREFIX,
+  REPLY_MODE_DRAFT_TYPES,
+  SUMMARY_RANGES
+} from './dashboardConstants';
+import useStats from './hooks/useStats';
+import useCampaigns from './hooks/useCampaigns';
+import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS, TOP_NAV_ITEMS } from './dashboardLayoutConfig';
+import { buildScheduledDate, normalizeScheduledSlotInput } from './utils/schedule';
+import { buildWordPadTableHtml } from './utils/wordPad';
+import draftTemplates from './draftTemplates';
 // import ScriptManager from "../dashboard/ScriptManager";
 
-function StatCard({ title, value, onClick, active = false }) {
-  return (
-    <button
-      type="button"
-      className="card"
-      onClick={onClick}
-      style={{
-        textAlign: 'left',
-        cursor: onClick ? 'pointer' : 'default',
-        border: active ? '2px solid #0ea5e9' : undefined
-      }}
-    >
-      <h3>{value}</h3>
-      <p>{title}</p>
-    </button>
-  );
-}
+const DashboardStats = dynamic(() => import('./components/DashboardStats'));
+const CampaignTable = dynamic(() => import('./components/CampaignTable'));
+const LeadList = dynamic(() => import('./components/LeadList'));
+const ActivityPanel = dynamic(() => import('./components/ActivityPanel'));
 
-function FancyStatCard({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
+function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
   const positive = trend >= 0;
   return (
@@ -50,57 +54,14 @@ function FancyStatCard({ title, value, percent = 0, trend = 0, color = '#2563eb'
   );
 }
 
-function StatusBadge({ status }) {
+function StatusBadgeLegacy({ status }) {
   const k = (status || '').toLowerCase();
   return <span className={`badge ${k}`}>{status}</span>;
 }
 
-function getCampaignTimeLabel(campaign) {
-  if (campaign?.scheduledStart?.at) {
-    const when = new Date(campaign.scheduledStart.at);
-    return {
-      text: `Scheduled Start: ${campaign.scheduledStart.label || when.toLocaleString()}`,
-      color: '#166534',
-      strong: true
-    };
-  }
-  if (campaign?.startedAt) {
-    return {
-      text: `Started: ${new Date(campaign.startedAt).toLocaleString()}`,
-      color: 'var(--muted)',
-      strong: false
-    };
-  }
-  return null;
-}
-
 const ACTIVE_CAMPAIGN_STATUSES = new Set(['Running', 'Paused']);
 
-function isCampaignFinished(campaign) {
-  const status = String(campaign?.status || '').toLowerCase();
-  if (status === 'completed' || status === 'failed') {
-    return true;
-  }
-
-  const total = Number(campaign?.stats?.total || 0);
-  const sent = Number(campaign?.stats?.sent || 0);
-  const failed = Number(campaign?.stats?.failed || 0);
-
-  return total > 0 && sent + failed >= total;
-}
-
-function shouldShowInActiveCampaigns(campaign) {
-  if (!campaign || isCampaignFinished(campaign)) return false;
-
-  const status = String(campaign?.status || '').toLowerCase();
-  if (status && status !== 'draft') {
-    return true;
-  }
-
-  return Boolean(campaign?.startedAt || campaign?.scheduledStart?.at);
-}
-
-function RichTextEditor({ value, onChange, placeholder }) {
+function RichTextEditorLegacy({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
   const changeTimerRef = useRef(null);
 
@@ -257,98 +218,6 @@ const filterAccountsByProject = (list = [], projectKey = '') => {
   });
 };
 
-const DRAFT_CATEGORIES = [
-  { label: "Cover Story", value: "cover_story" },
-  { label: "Reminder", value: "reminder" },
-  { label: "Follow Up", value: "follow_up" },
-  { label: "Updated Cost", value: "updated_cost" },
-  { label: "Final Cost", value: "final_cost" }
-];
-
-const REPLY_MODE_DRAFT_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost']);
-
-const SUMMARY_RANGES = [
-  { label: 'Today', value: 'today' },
-  { label: '7 Days', value: '7d' },
-  { label: '15 Days', value: '15d' },
-  { label: '30 Days', value: '30d' },
-  { label: '3 Monthly Quarter', value: 'quarter' },
-  { label: 'Customize', value: 'customize' }
-];
-
-const COUNTRY_TIME_SLOTS = {
-  india: { timezone: 'Asia/Kolkata', slots: ['09:00 AM', '11:00 AM', '02:00 PM', '05:00 PM'] },
-  usa: { timezone: 'America/New_York', slots: ['08:00 AM', '10:00 AM', '01:00 PM', '04:00 PM'] },
-  uk: { timezone: 'Europe/London', slots: ['09:00 AM', '12:00 PM', '03:00 PM', '06:00 PM'] },
-  uae: { timezone: 'Asia/Dubai', slots: ['10:00 AM', '01:00 PM', '04:00 PM', '07:00 PM'] },
-  australia: { timezone: 'Australia/Sydney', slots: ['08:00 AM', '11:00 AM', '02:00 PM', '05:00 PM'] }
-};
-
-function getTimeZoneParts(date, timeZone) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).formatToParts(date);
-  const map = Object.fromEntries(parts.filter((p) => p.type !== 'literal').map((p) => [p.type, p.value]));
-  return {
-    year: Number(map.year),
-    month: Number(map.month),
-    day: Number(map.day),
-    hour: Number(map.hour),
-    minute: Number(map.minute),
-    second: Number(map.second)
-  };
-}
-
-function getTimeZoneOffsetMs(date, timeZone) {
-  const parts = getTimeZoneParts(date, timeZone);
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return asUtc - date.getTime();
-}
-
-function buildScheduledDate(timeZone, slot) {
-  if (!slot) return null;
-  const now = new Date();
-  const zoneNow = getTimeZoneParts(now, timeZone);
-  const normalizedSlot = String(slot || '').trim().replace(/\s+/g, ' ');
-  const [timePart, rawMeridiem] = normalizedSlot.split(' ');
-  const meridiem = String(rawMeridiem || '').toUpperCase();
-  if (!timePart || !meridiem || !['AM', 'PM'].includes(meridiem)) return null;
-  let [hours, minutes] = timePart.split(':').map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  if (meridiem === 'PM' && hours !== 12) hours += 12;
-  if (meridiem === 'AM' && hours === 12) hours = 0;
-
-  let targetUtcMs = Date.UTC(zoneNow.year, zoneNow.month - 1, zoneNow.day, hours, minutes, 0);
-  targetUtcMs -= getTimeZoneOffsetMs(new Date(targetUtcMs), timeZone);
-  let targetDate = new Date(targetUtcMs);
-
-  if (targetDate <= now) {
-    const tomorrowUtcMs = Date.UTC(zoneNow.year, zoneNow.month - 1, zoneNow.day + 1, hours, minutes, 0);
-    targetUtcMs = tomorrowUtcMs - getTimeZoneOffsetMs(new Date(tomorrowUtcMs), timeZone);
-    targetDate = new Date(targetUtcMs);
-  }
-
-  return targetDate;
-}
-
-function normalizeScheduledSlotInput(value = '') {
-  const trimmed = String(value || '').trim().replace(/\s+/g, ' ');
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*([aApP][mM])$/);
-  if (!match) return '';
-  let hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  const meridiem = match[3].toUpperCase();
-  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return '';
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${meridiem}`;
-}
-
 const DEFAULT_SHEET_STYLE = {
   fontFamily: 'Segoe UI',
   fontSize: 14,
@@ -357,83 +226,6 @@ const DEFAULT_SHEET_STYLE = {
   cellBg: '#ffffff',
   cellColor: '#0f172a',
   columnWidths: {}
-};
-
-const QUICK_DRAFT_PREFIX = {
-  cover_story: 'cs',
-  reminder: 'rem',
-  follow_up: 'fu',
-  updated_cost: 'uc',
-  final_cost: 'fc'
-};
-
-function calculateRate(value, total) {
-  if (!total) return 0;
-  return (Number(value || 0) / Number(total || 0)) * 100;
-}
-
-const SIDEBAR_PRIMARY_ITEMS = [
-  { label: 'Dashboard', href: '#dashboard-top', tone: 'primary', icon: 'DB' },
-  { label: 'Task Automation', href: '#campaign-management', tone: 'warm', icon: 'TA' },
-  { label: 'Mail Insights', href: '#campaigns-panel', tone: 'cool', icon: 'MI' }
-];
-
-const SIDEBAR_WORKSPACE_ITEMS = [
-  { label: 'Home', href: '#dashboard-top', icon: 'HM', subItems: ['Reports', 'Insights', 'Orders'] },
-  { label: 'Summary', href: '#summary-panel', icon: 'SM', subItems: ['Revenue', 'CPC (Paid ads)'] },
-  { label: 'Brands', href: '#upload-client-files', icon: 'BR' },
-  { label: 'Analysis', href: '#campaigns-panel', icon: 'AN' },
-  { label: 'Settings', href: '#draft-editing-panel', icon: 'ST' },
-  { label: 'Profile', href: '#dashboard-top', icon: 'PR' }
-];
-
-const TOP_NAV_ITEMS = [
-  { label: 'Home', href: '#dashboard-top' },
-  { label: 'Summary', href: '#summary-panel' },
-  { label: 'Revenue', href: '#summary-panel' },
-  { label: 'CPC (Paid ads)', href: '#summary-panel' }
-];
-
-const escapeHtml = (value = '') =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-const buildWordPadTableHtml = (columns = [], rows = []) => {
-  if (!columns.length) {
-    return '<div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">No data available.</div>';
-  }
-
-  const headerHtml = columns
-    .map(
-      (column) =>
-        `<th style="border:1px solid #d7e0ea;padding:8px 10px;background:#f8fafc;text-align:left;">${escapeHtml(column)}</th>`
-    )
-    .join('');
-
-  const rowsHtml = (rows || [])
-    .map((row) => {
-      const cells = columns
-        .map(
-          (column) =>
-            `<td style="border:1px solid #d7e0ea;padding:8px 10px;vertical-align:top;">${escapeHtml(row?.[column] ?? '')}</td>`
-        )
-        .join('');
-      return `<tr>${cells}</tr>`;
-    })
-    .join('');
-
-  return `
-    <div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr>${headerHtml}</tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-    </div>
-  `;
 };
 
 
@@ -458,6 +250,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeTopNav, setActiveTopNav] = useState('Home');
   const [activeSidebarView, setActiveSidebarView] = useState('');
   const [project, setProject] = useState('tec');
@@ -510,6 +303,7 @@ export default function DashboardPage() {
   const [selectedDraftUploadedFileIds, setSelectedDraftUploadedFileIds] = useState([]);
   const [savedDraftFilterCategory, setSavedDraftFilterCategory] = useState('');
   const [previewDirty, setPreviewDirty] = useState(false);
+  const [previewPage, setPreviewPage] = useState(1);
   const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
   const [preferredActiveCampaignId, setPreferredActiveCampaignId] = useState('');
   const [toast, setToast] = useState(null);
@@ -536,7 +330,14 @@ export default function DashboardPage() {
     activeAccount ||
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
     'Select Mail ID';
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+  const previewTotalRows = preview.length;
+  const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_ROWS_PER_PAGE));
+  const previewStartIndex = (previewPage - 1) * PREVIEW_ROWS_PER_PAGE;
+  const pagedPreviewRows = useMemo(
+    () => preview.slice(previewStartIndex, previewStartIndex + PREVIEW_ROWS_PER_PAGE),
+    [preview, previewStartIndex]
+  );
   const handleSavedDraftSelect = (draft) => {
     const id = draft._id || draft.id;
     setActiveSavedDraftId(id);
@@ -821,42 +622,18 @@ const handleDeleteDraft = async (draft) => {
       notify(err.message || 'Failed to save draft', 'error');
     }
   };
-  const activeCampaigns = useMemo(
-    () =>
-      campaigns
-        .filter((c) => shouldShowInActiveCampaigns(c))
-        .sort((a, b) => {
-          if (preferredActiveCampaignId) {
-            if (a._id === preferredActiveCampaignId) return -1;
-            if (b._id === preferredActiveCampaignId) return 1;
-          }
-
-          const aRunning = String(a.status || '').toLowerCase() === 'running';
-          const bRunning = String(b.status || '').toLowerCase() === 'running';
-          if (aRunning !== bRunning) {
-            return aRunning ? -1 : 1;
-          }
-
-          const aTime = new Date(a.startedAt || a.scheduledStart?.at || a.createdAt || 0).getTime();
-          const bTime = new Date(b.startedAt || b.scheduledStart?.at || b.createdAt || 0).getTime();
-          return bTime - aTime;
-        }),
-    [campaigns, preferredActiveCampaignId]
-  );
-  const historyCampaigns = useMemo(
-    () => campaigns.filter((c) => isCampaignFinished(c)),
-    [campaigns]
-  );
-  const runningCampaign = useMemo(
-    () => activeCampaigns.find((c) => String(c.status || '').toLowerCase() === 'running') || null,
-    [activeCampaigns]
-  );
-  const activeCampaign = useMemo(() => activeCampaigns[0] || null, [activeCampaigns]);
-  const progressText = activeCampaign ? `${activeCampaign.stats?.sent || 0}/${activeCampaign.stats?.total || 0} emails sent` : '0/0 emails sent';
-  const activeCampaignIds = useMemo(() => activeCampaigns.map((c) => c._id), [activeCampaigns]);
-  const allActiveCampaignsSelected = activeCampaignIds.length > 0 && activeCampaignIds.every((id) => selectedActiveCampaignIds.includes(id));
-  const historyCampaignIds = useMemo(() => historyCampaigns.map((c) => c._id), [historyCampaigns]);
-  const allCampaignsSelected = historyCampaignIds.length > 0 && historyCampaignIds.every((id) => selectedCampaignIds.includes(id));
+  const {
+    activeCampaigns,
+    historyCampaigns,
+    activeCampaign,
+    activeCampaignIds,
+    historyCampaignIds,
+    progressText
+  } = useCampaigns(campaigns, preferredActiveCampaignId);
+  const allActiveCampaignsSelected =
+    activeCampaignIds.length > 0 && activeCampaignIds.every((id) => selectedActiveCampaignIds.includes(id));
+  const allCampaignsSelected =
+    historyCampaignIds.length > 0 && historyCampaignIds.every((id) => selectedCampaignIds.includes(id));
   const selectedListName = useMemo(
     () => lists.find((list) => list._id === selectedListId)?.name || '',
     [lists, selectedListId]
@@ -895,45 +672,7 @@ const handleDeleteDraft = async (draft) => {
   );
   const isSearchMatch = (sectionKey) =>
     normalizedSearchQuery && String(searchableSectionText[sectionKey] || '').toLowerCase().includes(normalizedSearchQuery);
-  const fancyStats = useMemo(() => {
-    const totalValue = Number(stats.totalUploaded || 0);
-    const safeTotal = Math.max(totalValue, 1);
-    const sentRate = calculateRate(stats.sent, totalValue);
-    const pendingRate = calculateRate(stats.pending, totalValue);
-    const failedRate = calculateRate(stats.failed, totalValue);
-    const recentActivityRate = calculateRate(stats.last10DaysStats, totalValue);
-
-    return [
-      {
-        title: 'Total mails',
-        value: stats.totalUploaded,
-        percent: 100,
-        trend: recentActivityRate,
-        color: '#3b82f6'
-      },
-      {
-        title: 'Sent',
-        value: stats.sent,
-        percent: (Number(stats.sent || 0) / safeTotal) * 100,
-        trend: sentRate,
-        color: '#ef4444'
-      },
-      {
-        title: 'Pending',
-        value: stats.pending,
-        percent: (Number(stats.pending || 0) / safeTotal) * 100,
-        trend: pendingRate,
-        color: '#7c3aed'
-      },
-      {
-        title: 'Failed',
-        value: stats.failed,
-        percent: (Number(stats.failed || 0) / safeTotal) * 100,
-        trend: failedRate ? -failedRate : 0,
-        color: '#f59e0b'
-      }
-    ];
-  }, [stats.totalUploaded, stats.sent, stats.pending, stats.failed, stats.last10DaysStats]);
+  const fancyStats = useStats(stats);
   const quickDraftButtons = useMemo(() => {
     const supportedCategories = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
     return supportedCategories.flatMap((category) => {
@@ -967,6 +706,10 @@ const handleDeleteDraft = async (draft) => {
   }, [projectAccounts, selectedAccount]);
 
   useEffect(() => {
+    setPreviewPage((prev) => Math.min(Math.max(prev, 1), previewTotalPages));
+  }, [previewTotalPages]);
+
+  useEffect(() => {
     const handlePointerDown = (event) => {
       if (
         showUploadedFilesDropdown &&
@@ -993,90 +736,6 @@ const handleDeleteDraft = async (draft) => {
     setSelectedActiveCampaignIds((prev) => prev.filter((id) => activeCampaignIds.includes(id)));
   }, [activeCampaignIds]);
 
-  const draftTemplates = {
-    cover_story: {
-      label: "Cover Story",
-      subject: "Cover Story: {{Name}} Shortlisted for The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026",
-      body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
-  <p style="margin:0 0 12px;">Dear {{Name}},</p>
-  <p style="margin:0 0 12px;">I hope you are doing well.</p>
-  <p style="margin:0 0 12px;">I am writing to inform you that our editorial team at The Entrepreneurial Chronicles Magazine has shortlisted you for inclusion in one of our upcoming 2026 leadership editions, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026", recognizing professionals who are driving innovation, growth, and meaningful impact within their respective industries.</p>
-  <p style="margin:0 0 12px;">This edition highlights distinguished leaders who are advancing the industry through strategic vision, operational excellence, and forward-thinking leadership. Based on our editorial review, we believe your professional journey and contributions align strongly with the purpose of this feature.</p>
-  <p style="margin:0 0 8px;"><strong>Cover Story Feature - Key Inclusions:</strong></p>
-  <ul style="margin:0 0 12px;padding-left:18px;">
-    <li>A dedicated 12+ page editorial profile in the print and digital magazine, covering your leadership journey, achievements, and future vision</li>
-    <li>Your professional image featured on the cover of the edition</li>
-    <li>A high-resolution, print-ready PDF version of your profile with reprint rights</li>
-    <li>Official recognition logo for use on your website, media, and professional communications</li>
-    <li>A digital certificate and commemorative recognition trophy</li>
-    <li>10 to 20 complimentary hard copies</li>
-    <li>Two full-page advertisements for your organization, usable within 12 months</li>
-    <li>Two full-page CXO profile features</li>
-    <li>Video feature promotion across our digital and social media platforms</li>
-    <li>Additional visibility through our website, including announcements and press releases</li>
-    <li>A direct backlink to your company website</li>
-    <li>One full back-page advertisement in an upcoming edition</li>
-  </ul>
-  <p style="margin:0 0 8px;"><strong>Sponsorship and Production Cost:</strong></p>
-  <p style="margin:0 0 12px;">The total investment for this complete editorial and branding package is USD 1,600, which covers editorial development, design, publication, and promotional activities associated with your feature.</p>
-  <p style="margin:0 0 12px;">If this aligns with your current branding and visibility objectives, I would be happy to share the formal proposal and next steps for your review.</p>
-  <p style="margin:0 0 12px;">Please feel free to reply with your interest or suggest a convenient time if you would like to discuss this further.</p>
-  <p style="margin:0 0 12px;">To connect with us, please provide your convenient time here.</p>
-  <p style="margin:0;">Warm regards,<br/>Victoria Langley | Marketing Coordinator<br/>The Entrepreneurial Chronicle</p>
-</div>`,
-    },
-    reminder: {
-      label: "Reminder",
-      subject: "Reminder: Feature Opportunity in The Visionary Leader Shaping the Future of Industry - 2026",
-      body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
-  <p style="margin:0 0 12px;">Hello {{Name}},</p>
-  <p style="margin:0 0 12px;">This is a gentle reminder about the exclusive feature opportunity we shared with you recently.</p>
-  <p style="margin:0 0 12px;">Our upcoming Special Edition, "The Visionary Leader Shaping the Future of Industry - 2026," aims to spotlight leaders transforming the healthcare industry, and we believe your story would be a strong fit.</p>
-  <p style="margin:0 0 12px;">The package includes a multi-page profile, cover feature, digital promotions, and year-long branding support.</p>
-  <p style="margin:0 0 12px;">Please let us know if you're interested or would like to confirm your participation so we can proceed with the next steps.</p>
-  <p style="margin:0;">Best regards,<br/>Victoria Langley</p>
-</div>`,
-    },
-    follow_up: {
-      label: "Follow Up",
-      subject: "Follow-Up on Cover Story Proposal - The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026",
-      body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
-  <p style="margin:0 0 12px;">Dear {{Name}},</p>
-  <p style="margin:0 0 12px;">I hope you're doing well.</p>
-  <p style="margin:0 0 12px;">I wanted to kindly follow up on the proposal I shared regarding our upcoming special edition, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026." We believe your leadership journey would be an excellent fit for this feature, and the cover story package offers a strong platform to showcase your success and inspire a global audience.</p>
-  <p style="margin:0 0 12px;">May I ask if you've had a chance to review the details? I'd be happy to discuss the next steps at a time that works best for you.</p>
-  <p style="margin:0 0 12px;">Looking forward to your thoughts.</p>
-  <p style="margin:0;">Warm Regards,<br/>Victoria Langley</p>
-</div>`,
-    },
-    updated_cost: {
-      label: "Updated Cost",
-      subject: "Updated Sponsorship Details - The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026",
-      body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
-  <p style="margin:0 0 12px;">Hello {{Name}},</p>
-  <p style="margin:0 0 12px;">I hope everything is going great on your end.</p>
-  <p style="margin:0 0 12px;">I'm reaching out regarding our proposal to feature you in our upcoming special edition, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026." Your remarkable contributions to the industry make you an excellent fit, and we'd be delighted to showcase your journey to our 295,000+ C-Suite subscribers and 370,000 readers worldwide.</p>
-  <p style="margin:0 0 12px;">As the Halloween offer has now ended, the updated sponsorship cost for your feature is $1,000 USD (revised from the original $1,600 USD). This still includes all the benefits outlined in the original proposal from your cover story feature and editorial write-up to digital promotions, advertisements, and recognition awards.</p>
-  <p style="margin:0 0 12px;">We'd love to confirm your participation and reserve your spot in this upcoming edition. Please let me know your thoughts, and I'll share the updated Media Partnership Contract for your review and signature.</p>
-  <p style="margin:0 0 12px;">Looking forward to your positive response and confirmation.</p>
-  <p style="margin:0;">Warm regards,<br/>Victoria Langley</p>
-</div>`,
-    },
-    final_cost: {
-      label: "Final Call",
-      subject: "Final Call: Special Rate for The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026",
-      body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
-  <p style="margin:0 0 12px;">Dear {{Name}},</p>
-  <p style="margin:0 0 12px;">I wanted to reach out one last time regarding your feature in "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026."</p>
-  <p style="margin:0 0 12px;">To make this opportunity even more exciting, we are offering a final special rate of $700 USD for the full premium package, which includes your cover story, multi-page profile, digital promotions, social media features, advertisements, recognition awards, and a back-link to your website.</p>
-  <p style="margin:0 0 12px;">This is a limited-time offer, and we would love to confirm your participation to secure your spot in this edition. Don't miss the chance to showcase your leadership to our 295,000+ C-Suite subscribers and 370,000 readers worldwide.</p>
-  <p style="margin:0 0 12px;">Please confirm at your earliest convenience so we can proceed with the next steps.</p>
-  <p style="margin:0;">Warm regards,<br/>Victoria Langley</p>
-</div>`,
-    }
-  };
-
-
   useEffect(() => {
     const tpl = draftTemplates[selectedDraft];
     if (tpl) {
@@ -1085,8 +744,30 @@ const handleDeleteDraft = async (draft) => {
     }
   }, [selectedDraft]);
 
-  const safeFetchJson = async (url, options) => {
-    const res = await fetch(url, options);
+  const safeFetchJson = async (url, options = {}) => {
+    const controller = new AbortController();
+    const timeoutMs = Number(options?.timeoutMs || 20000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const { timeoutMs: _timeoutMs, signal: externalSignal, ...restOptions } = options || {};
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
+    let res;
+    try {
+      res = await fetch(url, { ...restOptions, signal: controller.signal, cache: 'no-store' });
+    } catch (fetchError) {
+      if (fetchError?.name === 'AbortError') {
+        throw new Error(`Request timeout: ${url}`);
+      }
+      if (String(fetchError?.message || '').includes('ERR_NETWORK_IO_SUSPENDED')) {
+        throw new Error('Network suspended by browser/system. Resume network and retry.');
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timer);
+    }
+
     const text = await res.text();
     let data = {};
 
@@ -1138,14 +819,18 @@ const handleDeleteDraft = async (draft) => {
   const loadAll = async (filterOverrides = {}) => {
     try {
       const statsUrl = buildStatsUrl(filterOverrides);
-      const results = await Promise.allSettled([
-        safeFetchJson(statsUrl),
-        safeFetchJson('/api/templates'),
-        safeFetchJson('/api/campaigns'),
-        safeFetchJson(`/api/accounts?project=${encodeURIComponent(project)}`)
-      ]);
+      const accountsPromise = safeFetchJson(`/api/accounts?project=${encodeURIComponent(project)}`)
+        .then((accRes) => {
+          setAccounts(accRes.accounts || []);
+          return accRes;
+        })
+        .catch((err) => ({ __error: err }));
 
-      const [statsRes, templatesRes, campaignsRes, accountsRes] = results;
+      const [statsRes, templatesRes, campaignsRes] = await Promise.allSettled([
+        safeFetchJson(statsUrl, { timeoutMs: 45000 }),
+        safeFetchJson('/api/templates'),
+        safeFetchJson('/api/campaigns')
+      ]);
       const errors = [];
 
       if (statsRes.status === 'fulfilled') {
@@ -1176,16 +861,14 @@ const handleDeleteDraft = async (draft) => {
         errors.push(campaignsRes.reason?.message || 'Failed to load campaigns');
       }
 
-      if (accountsRes.status === 'fulfilled') {
-        const accRes = accountsRes.value || {};
-        setAccounts(accRes.accounts || []);
-      } else {
-        errors.push(accountsRes.reason?.message || 'Failed to load accounts');
+      const accountsRes = await accountsPromise;
+      if (accountsRes?.__error) {
+        errors.push(accountsRes.__error?.message || 'Failed to load accounts');
       }
 
       const accList =
-        accountsRes.status === 'fulfilled'
-          ? (accountsRes.value?.accounts || [])
+        !accountsRes?.__error
+          ? (accountsRes?.accounts || [])
           : [];
       if (selectedAccount && !accList.find((a) => a.id === selectedAccount)) {
         setSelectedAccount("");
@@ -1209,21 +892,44 @@ const handleDeleteDraft = async (draft) => {
 
   const loadLiveData = async (filterOverrides = {}) => {
     try {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return;
+      }
+
       const statsUrl = buildStatsUrl(filterOverrides);
-      const [st, cps] = await Promise.all([
-        safeFetchJson(statsUrl),
+      const [statsRes, campaignsRes] = await Promise.allSettled([
+        safeFetchJson(statsUrl, { timeoutMs: 45000 }),
         safeFetchJson('/api/campaigns')
       ]);
-      setError('');
-      setStats(st);
-      setLists(st.lists || []);
-      setCampaigns(cps.campaigns || []);
-      setSelectedCampaignIds((prev) =>
-        (cps.campaigns || [])
-          .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
-          .map((c) => c._id)
-          .filter((id) => prev.includes(id))
-      );
+
+      if (statsRes.status === 'fulfilled') {
+        const st = statsRes.value || {};
+        setStats(st);
+        setLists(st.lists || []);
+      }
+
+      if (campaignsRes.status === 'fulfilled') {
+        const cps = campaignsRes.value || {};
+        setCampaigns(cps.campaigns || []);
+        setSelectedCampaignIds((prev) =>
+          (cps.campaigns || [])
+            .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
+            .map((c) => c._id)
+            .filter((id) => prev.includes(id))
+        );
+      }
+
+      const errors = [];
+      if (statsRes.status === 'rejected') {
+        errors.push(statsRes.reason?.message || 'Failed to refresh stats');
+      }
+      if (campaignsRes.status === 'rejected') {
+        errors.push(campaignsRes.reason?.message || 'Failed to refresh campaigns');
+      }
+      setError(errors[0] || '');
     } catch (e) {
       setError(e.message || 'Failed to refresh live data');
     }
@@ -1264,7 +970,7 @@ const handleDeleteDraft = async (draft) => {
 
 
   useEffect(() => {
-    const id = setInterval(() => loadLiveData(), 15000);
+    const id = setInterval(() => loadLiveData(), 30000);
     return () => clearInterval(id);
   }, [
     project,
@@ -1280,6 +986,7 @@ const handleDeleteDraft = async (draft) => {
         setPreview([]);
         setPreviewColumns([]);
         setPreviewDirty(false);
+        setPreviewPage(1);
         setPreviewStyle(DEFAULT_SHEET_STYLE);
         return;
       }
@@ -1296,6 +1003,7 @@ const handleDeleteDraft = async (draft) => {
             );
         setPreviewColumns(columns);
         setPreview(leads.map((lead) => lead.data || {}));
+        setPreviewPage(1);
         setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
         setPreviewDirty(false);
       } catch (e) {
@@ -1319,6 +1027,7 @@ const handleDeleteDraft = async (draft) => {
       setLoading(false);
       setPreviewColumns(data.previewColumns || []);
       setPreview(data.previewRows || []);
+      setPreviewPage(1);
       setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
       setPreviewDirty(false);
       setSelectedListId(data.listId);
@@ -1351,10 +1060,10 @@ const handleDeleteDraft = async (draft) => {
         setPendingCampaignId(createdCampaign._id);
         setShowDraftEditor(true);
       }
-      if (!skipReload) {
-        await loadAll();
-      }
       notify('Campaign created successfully.', 'success');
+      if (!skipReload) {
+        void loadAll();
+      }
       return createdCampaign;
     } catch (e) {
       notify(e.message || 'Failed to create campaign', 'error');
@@ -1366,7 +1075,7 @@ const handleDeleteDraft = async (draft) => {
     let campaignId = pendingCampaignId;
 
     if (!campaignId) {
-      const campaign = await createCampaign({ skipReload: Boolean(scheduledSlot) });
+      const campaign = await createCampaign({ skipReload: true });
       campaignId = campaign?._id || '';
     }
 
@@ -1502,8 +1211,8 @@ const normalizeSelectedListEmails = async () => {
   const pauseCampaign = async (campaignId) => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/pause`, { method: 'POST' });
-      await loadAll();
       notify('Campaign paused successfully.', 'success');
+      void loadAll();
     } catch (e) {
       notify(e.message || 'Failed to pause campaign', 'error');
     }
@@ -1512,8 +1221,8 @@ const normalizeSelectedListEmails = async () => {
   const resumeCampaign = async (campaignId) => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/resume`, { method: 'POST' });
-      await loadAll();
       notify('Campaign resumed successfully.', 'success');
+      void loadAll();
     } catch (e) {
       notify(e.message || 'Failed to resume campaign', 'error');
     }
@@ -1522,8 +1231,8 @@ const normalizeSelectedListEmails = async () => {
   const stopCampaign = async (campaignId) => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/stop`, { method: 'POST' });
-      await loadAll();
       notify('Campaign stopped successfully.', 'success');
+      void loadAll();
     } catch (e) {
       notify(e.message || 'Failed to stop campaign', 'error');
     }
@@ -1532,8 +1241,8 @@ const normalizeSelectedListEmails = async () => {
   const clearCampaignLogs = async (campaignId) => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/clear-logs`, { method: 'POST' });
-      await loadAll();
       notify('Campaign logs cleared.', 'success');
+      void loadAll();
     } catch (e) {
       notify(e.message || 'Failed to clear campaign logs', 'error');
     }
@@ -1546,8 +1255,8 @@ const normalizeSelectedListEmails = async () => {
 
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
-      await loadAll();
       notify('Campaign deleted successfully.', 'success');
+      void loadAll();
     } catch (e) {
       notify(e.message || 'Failed to delete campaign', 'error');
     }
@@ -2400,52 +2109,16 @@ const normalizeSelectedListEmails = async () => {
         </div>
       ) : null}
 
-      <section className={`grid stats-grid ${isSearchMatch('summary') ? 'dashboard-search-match' : ''}`}>
-        {fancyStats.map((item) => (
-          <FancyStatCard
-            key={item.title}
-            title={item.title}
-            value={item.value}
-            percent={item.percent}
-            trend={item.trend}
-            color={item.color}
-          />
-        ))}
-      </section>
-      {showDayCounts ? (
-        <section className="card grid">
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>
-              {selectedStatsRange
-                ? `${SUMMARY_RANGES.find((range) => range.value === selectedStatsRange)?.label || 'Selected Range'} Data`
-                : selectedStatsDate
-                  ? `${selectedStatsDate} Data`
-                  : 'Total Day Mail Count'}
-            </h3>
-            <button className="button secondary" type="button" onClick={() => setShowDayCounts(false)}>
-              Close
-            </button>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Mail Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(stats.dailyMailCounts || []).map((item) => (
-                  <tr key={item.date}>
-                    <td>{item.date}</td>
-                    <td>{item.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
+      <DashboardStats
+        isSearchMatch={isSearchMatch}
+        fancyStats={fancyStats}
+        showDayCounts={showDayCounts}
+        selectedStatsRange={selectedStatsRange}
+        selectedStatsDate={selectedStatsDate}
+        summaryRanges={SUMMARY_RANGES}
+        dailyMailCounts={stats.dailyMailCounts}
+        onCloseDayCounts={() => setShowDayCounts(false)}
+      />
 
       <section className={`card grid ${isSearchMatch('upload') ? 'dashboard-search-match' : ''}`} id="upload-client-files">
         <h3>Upload Client Files</h3>
@@ -2468,101 +2141,19 @@ const normalizeSelectedListEmails = async () => {
             <span className={`badge ${selectedListName ? 'sent' : 'failed'}`}>
               {selectedListName || 'No file selected'}
             </span>
-            <div
-            ref={uploadedFilesDropdownRef}
-              style={{
-                position: 'relative',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                flexWrap: 'nowrap'
-              }}
-            >
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => setShowUploadedFilesDropdown((prev) => !prev)}
-                style={{ minWidth: 140, flexShrink: 0 }}
-              >
-                Uploaded Files
-              </button>
-              {showUploadedFilesDropdown ? (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 8px)',
-                    left: 0,
-                    zIndex: 20,
-                    minWidth: 320,
-                    maxHeight: 200,
-                    overflowY: 'auto',
-                    margin: 0,
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 10,
-                    background: '#fff',
-                    padding: 8,
-                    boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
-                  }}
-                >
-                  {lists.length ? (
-                    lists.map((list) => (
-                      <label
-                        key={list._id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '6px 4px',
-                          cursor: 'pointer',
-                          borderRadius: 6,
-                          background: selectedListId === list._id ? '#eff6ff' : 'transparent'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedUploadedFileIds.includes(list._id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
-                            } else {
-                              setSelectedUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
-                            }
-                          }}
-                        />
-                        <span
-                          onClick={() => setSelectedListId(list._id)}
-                          style={{ flex: 1 }}
-                        >
-                          {list.name}
-                        </span>
-                      </label>
-                    ))
-                  ) : (
-                    <p>No uploaded files</p>
-                  )}
-                </div>
-              ) : null}
+            <div ref={uploadedFilesDropdownRef}>
+              <LeadList
+                lists={lists}
+                selectedListId={selectedListId}
+                selectedUploadedFileIds={selectedUploadedFileIds}
+                showUploadedFilesDropdown={showUploadedFilesDropdown}
+                setShowUploadedFilesDropdown={setShowUploadedFilesDropdown}
+                setSelectedUploadedFileIds={setSelectedUploadedFileIds}
+                setSelectedListId={setSelectedListId}
+                onDeleteSelected={deleteSelectedUploadedFile}
+                onDeleteAll={deleteAllUploadedFiles}
+              />
             </div>
-            {showUploadedFilesDropdown ? (
-              <>
-                <button
-                  className="button danger"
-                  type="button"
-                  onClick={deleteSelectedUploadedFile}
-                  disabled={!selectedListId && !selectedUploadedFileIds.length}
-                >
-                  Delete Selected
-                </button>
-                <button
-                  className="button danger"
-                  type="button"
-                  onClick={deleteAllUploadedFiles}
-                  disabled={!lists.length}
-                >
-                  Delete All
-                </button>
-              </>
-            ) : null}
             {loading ? <p>Uploading...</p> : null}
           </div>
         </div>
@@ -2663,6 +2254,32 @@ const normalizeSelectedListEmails = async () => {
                     </div>
                   </div>
                   <div style={{ marginTop: 12, height: 320, overflow: 'hidden' }}>
+                    <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+                        Showing {previewTotalRows ? previewStartIndex + 1 : 0} - {Math.min(previewStartIndex + PREVIEW_ROWS_PER_PAGE, previewTotalRows)} of {previewTotalRows} rows
+                      </p>
+                      <div className="row" style={{ gap: 8 }}>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => setPreviewPage((prev) => Math.max(1, prev - 1))}
+                          disabled={previewPage <= 1}
+                        >
+                          Prev
+                        </button>
+                        <span style={{ fontSize: 12, alignSelf: 'center' }}>
+                          Page {previewPage}/{previewTotalPages}
+                        </span>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          onClick={() => setPreviewPage((prev) => Math.min(previewTotalPages, prev + 1))}
+                          disabled={previewPage >= previewTotalPages}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
                     <div className="table-wrap excel-preview" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto' }}>
                       <table
                         className="excel-table"
@@ -2712,13 +2329,15 @@ const normalizeSelectedListEmails = async () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {preview.map((row, idx) => (
-                            <tr key={idx}>
+                          {pagedPreviewRows.map((row, idx) => {
+                            const rowIndex = previewStartIndex + idx;
+                            return (
+                            <tr key={rowIndex}>
                               <td>
                                 <button
                                   className="button danger"
                                   type="button"
-                                  onClick={() => deletePreviewRow(idx)}
+                                  onClick={() => deletePreviewRow(rowIndex)}
                                   style={{ padding: '6px 8px' }}
                                 >
                                   Delete
@@ -2726,7 +2345,7 @@ const normalizeSelectedListEmails = async () => {
                               </td>
                               {getPreviewColumns().map((column) => (
                                 <td
-                                  key={`${idx}-${column}`}
+                                  key={`${rowIndex}-${column}`}
                                   style={{
                                     background: previewStyle.cellBg,
                                     color: previewStyle.cellColor,
@@ -2736,7 +2355,7 @@ const normalizeSelectedListEmails = async () => {
                                   <input
                                     className="input"
                                     value={row?.[column] ?? ''}
-                                    onChange={(e) => updatePreviewCell(idx, column, e.target.value)}
+                                    onChange={(e) => updatePreviewCell(rowIndex, column, e.target.value)}
                                     style={{
                                       minWidth: previewStyle.columnWidths?.[column] || 140,
                                       border: 'none',
@@ -2750,7 +2369,7 @@ const normalizeSelectedListEmails = async () => {
                                 </td>
                               ))}
                             </tr>
-                          ))}
+                          )})}
                         </tbody>
                       </table>
                     </div>
@@ -3319,238 +2938,51 @@ const normalizeSelectedListEmails = async () => {
         </section>
       ) : null}
 
-      <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`} id="campaigns-panel">
-        <h3>Campaigns</h3>
-        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-          <p style={{ margin: 0, color: 'var(--muted)' }}>
-            Showing only active campaigns here.
-          </p>
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12, marginBottom: 12 }}>
-            <button
-              className="button danger"
-              type="button"
-              onClick={deleteSelectedActiveCampaigns}
-              disabled={!selectedActiveCampaignIds.length}
-            >
-              Delete Selected
-            </button>
-            <button
-              className="button danger"
-              type="button"
-              onClick={deleteAllActiveCampaigns}
-              disabled={!activeCampaignIds.length}
-            >
-              Delete All
-            </button>
-            <button className="button secondary" type="button" onClick={toggleSelectAllActiveCampaigns}>
-              {allActiveCampaignsSelected ? 'Clear Selection' : 'Select All'}
-            </button>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
-              {selectedActiveCampaignIds.length} selected
-            </span>
-          </div>
-          {!activeCampaigns.length ? (
-            <p style={{ margin: '12px 0 0', color: 'var(--muted)' }}>No active campaigns right now.</p>
-          ) : null}
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: 56 }}>
-                    <input
-                      type="checkbox"
-                      checked={allActiveCampaignsSelected}
-                      onChange={toggleSelectAllActiveCampaigns}
-                    />
-                  </th>
-                  <th style={{ width: 72 }}>Sr. No.</th>
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Stats</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeCampaigns.map((c, idx) => {
-                  const total = c.stats?.total || 0;
-                  const sent = c.stats?.sent || 0;
-                  const percent = total ? Math.round((sent / total) * 100) : 0;
-                  const timeLabel = getCampaignTimeLabel(c);
-                  const isChecked = selectedActiveCampaignIds.includes(c._id);
-                  return (
-                    <tr key={c._id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleActiveCampaignSelection(c._id)}
-                        />
-                      </td>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <div style={{ display: 'grid', gap: 4 }}>
-                          <span>{c.name}</span>
-                          {timeLabel ? (
-                            <small
-                              style={{
-                                color: timeLabel.color,
-                                fontWeight: timeLabel.strong ? 700 : 500
-                              }}
-                            >
-                              {timeLabel.text}
-                            </small>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td><StatusBadge status={c.status} /></td>
-                      <td>
-                        <div className="progress"><div style={{ width: `${percent}%` }} /></div>
-                        <small>{percent}%</small>
-                      </td>
-                      <td>{sent}/{total} sent, {c.stats?.failed || 0} failed</td>
-                      <td className="row">
-                        <button className="button" onClick={() => startCampaign(c._id)}>Start</button>
-                        <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
-                        <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
-                        <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
-                        <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => setShowCampaignHistory((prev) => !prev)}
-            >
-              {showCampaignHistory ? 'Hide History' : 'History'}
-            </button>
-          </div>
-        </div>
-      </section>
+      <CampaignTable
+        title="Campaigns"
+        campaigns={activeCampaigns}
+        selectedIds={selectedActiveCampaignIds}
+        allSelected={allActiveCampaignsSelected}
+        onToggleSelectAll={toggleSelectAllActiveCampaigns}
+        onToggleSelect={toggleActiveCampaignSelection}
+        onDeleteSelected={deleteSelectedActiveCampaigns}
+        onDeleteAll={deleteAllActiveCampaigns}
+        onToggleHistory={() => setShowCampaignHistory((prev) => !prev)}
+        showHistoryButton
+        showHistory={showCampaignHistory}
+        onStart={startCampaign}
+        onPause={pauseCampaign}
+        onStop={stopCampaign}
+        onResume={resumeCampaign}
+        onDelete={deleteCampaign}
+        emptyText="No active campaigns right now."
+      />
 
       {showCampaignHistory ? (
-        <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`}>
-          <h3>Campaign History</h3>
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <button
-              className="button danger"
-              type="button"
-              onClick={deleteSelectedCampaigns}
-              disabled={!selectedCampaignIds.length}
-            >
-              Delete Selected
-            </button>
-            <button className="button secondary" type="button" onClick={toggleSelectAllCampaigns}>
-              {allCampaignsSelected ? 'Clear Selection' : 'Select All'}
-            </button>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>
-              {selectedCampaignIds.length} selected
-            </span>
-          </div>
-          {!historyCampaigns.length ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>No campaign history yet.</p>
-          ) : null}
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: 56 }}>
-                    <input
-                      type="checkbox"
-                      checked={allCampaignsSelected}
-                      onChange={toggleSelectAllCampaigns}
-                    />
-                  </th>
-                  <th style={{ width: 72 }}>Sr. No.</th>
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Stats</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyCampaigns.map((c, idx) => {
-                  const total = c.stats?.total || 0;
-                  const sent = c.stats?.sent || 0;
-                  const percent = total ? Math.round((sent / total) * 100) : 0;
-                  const isChecked = selectedCampaignIds.includes(c._id);
-                  const timeLabel = getCampaignTimeLabel(c);
-                  return (
-                    <tr key={c._id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleCampaignSelection(c._id)}
-                        />
-                      </td>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <div style={{ display: 'grid', gap: 4 }}>
-                          <span>{c.name}</span>
-                          {timeLabel ? (
-                            <small
-                              style={{
-                                color: timeLabel.color,
-                                fontWeight: timeLabel.strong ? 700 : 500
-                              }}
-                            >
-                              {timeLabel.text}
-                            </small>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td><StatusBadge status={c.status} /></td>
-                      <td>
-                        <div className="progress"><div style={{ width: `${percent}%` }} /></div>
-                        <small>{percent}%</small>
-                      </td>
-                      <td>{sent}/{total} sent, {c.stats?.failed || 0} failed</td>
-                      <td className="row">
-                        <button className="button" onClick={() => startCampaign(c._id)}>Start</button>
-                        <button className="button warn" onClick={() => pauseCampaign(c._id)}>Pause</button>
-                        <button className="button danger" onClick={() => stopCampaign(c._id)}>Stop</button>
-                        <button className="button secondary" onClick={() => resumeCampaign(c._id)}>Resume</button>
-                        <button className="button danger" onClick={() => deleteCampaign(c._id)}>Delete</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <CampaignTable
+          title="Campaign History"
+          campaigns={historyCampaigns}
+          selectedIds={selectedCampaignIds}
+          allSelected={allCampaignsSelected}
+          onToggleSelectAll={toggleSelectAllCampaigns}
+          onToggleSelect={toggleCampaignSelection}
+          onDeleteSelected={deleteSelectedCampaigns}
+          onStart={startCampaign}
+          onPause={pauseCampaign}
+          onStop={stopCampaign}
+          onResume={resumeCampaign}
+          onDelete={deleteCampaign}
+          emptyText="No campaign history yet."
+        />
       ) : null}
 
-      {activeCampaign ? (
-        <section className={`card grid ${isSearchMatch('campaigns') ? 'dashboard-search-match' : ''}`}>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <h3>Live Logs: {activeCampaign.name}</h3>
-            <div className="row">
-              <button className="button danger" onClick={() => stopCampaign(activeCampaign._id)}>Stop</button>
-              <button className="button danger" onClick={() => clearCampaignLogs(activeCampaign._id)}>Clear Logs</button>
-              <button className="button danger" onClick={() => deleteCampaign(activeCampaign._id)}>Delete</button>
-            </div>
-          </div>
-          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-            <p style={{ marginTop: 0 }}>{progressText}</p>
-            <div style={{ maxHeight: 220, overflow: 'auto', background: '#0f172a', color: '#e2e8f0', borderRadius: 10, padding: 10 }}>
-              {(activeCampaign.logs || []).slice(-40).map((log, idx) => (
-                <div key={idx} style={{ fontSize: 13, marginBottom: 4 }}>
-                  [{new Date(log.at).toLocaleTimeString()}] {log.message}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <ActivityPanel
+        activeCampaign={activeCampaign}
+        progressText={progressText}
+        onStop={stopCampaign}
+        onClearLogs={clearCampaignLogs}
+        onDelete={deleteCampaign}
+      />
       </>
       )}
       </div>
