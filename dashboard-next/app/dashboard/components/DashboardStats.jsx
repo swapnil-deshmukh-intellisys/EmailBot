@@ -1,4 +1,7 @@
 import React from 'react';
+import Button from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from '../../components/ui/Table';
 import { FancyStatCard } from './DashboardUiBits';
 
 function DashboardStats({
@@ -26,38 +29,40 @@ function DashboardStats({
         ))}
       </section>
       {showDayCounts ? (
-        <section className="card grid">
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>
+        <Card className="ui-panel-card">
+          <CardHeader className="ui-panel-card-header">
+            <CardTitle>
               {selectedStatsRange
                 ? `${summaryRanges.find((range) => range.value === selectedStatsRange)?.label || 'Selected Range'} Data`
                 : selectedStatsDate
                   ? `${selectedStatsDate} Data`
                   : 'Total Day Mail Count'}
-            </h3>
-            <button className="button secondary" type="button" onClick={onCloseDayCounts}>
+            </CardTitle>
+            <Button variant="secondary" onClick={onCloseDayCounts}>
               Close
-            </button>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Mail Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dailyMailCounts || []).map((item) => (
-                  <tr key={item.date}>
-                    <td>{item.date}</td>
-                    <td>{item.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            </Button>
+          </CardHeader>
+          <CardContent className="ui-panel-card-content">
+            <TableWrapper>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Mail Count</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(dailyMailCounts || []).map((item) => (
+                    <TableRow key={item.date}>
+                      <TableCell>{item.date}</TableCell>
+                      <TableCell>{item.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableWrapper>
+          </CardContent>
+        </Card>
       ) : null}
     </>
   );

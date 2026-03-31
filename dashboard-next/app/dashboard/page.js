@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import RichTextEditor from './components/RichTextEditor';
 import { FancyStatCard } from './components/DashboardUiBits';
 import {
@@ -18,6 +19,7 @@ import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS, TOP_NAV_ITEMS } from '.
 import { buildScheduledDate, normalizeScheduledSlotInput } from './utils/schedule';
 import { buildWordPadTableHtml } from './utils/wordPad';
 import draftTemplates from './draftTemplates';
+import PremiumDashboardShell from './components/PremiumDashboardShell';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('./components/DashboardStats'));
@@ -221,15 +223,16 @@ const filterAccountsByProject = (list = [], projectKey = '') => {
 const DEFAULT_SHEET_STYLE = {
   fontFamily: 'Segoe UI',
   fontSize: 14,
-  headerBg: '#edf2f7',
-  headerColor: '#1e293b',
-  cellBg: '#ffffff',
-  cellColor: '#0f172a',
+  headerBg: 'var(--bg-secondary)',
+  headerColor: 'var(--text-secondary)',
+  cellBg: 'var(--panel-strong)',
+  cellColor: 'var(--text-primary)',
   columnWidths: {}
 };
 
 
 export default function DashboardPage() {
+  const router = useRouter();
   const defaultProjectOptions = ['tec', 'tut'];
   const [stats, setStats] = useState({ totalUploaded: 0, sent: 0, pending: 0, failed: 0, last10DaysStats: 0, dailyMailCounts: [] });
   const [selectedStatsDate, setSelectedStatsDate] = useState('');
@@ -251,7 +254,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const [activeTopNav, setActiveTopNav] = useState('Home');
+  const [activeTopNav, setActiveTopNav] = useState('Dashboard');
   const [activeSidebarView, setActiveSidebarView] = useState('');
   const [project, setProject] = useState('tec');
   const [projectOptions, setProjectOptions] = useState(defaultProjectOptions);
@@ -348,6 +351,23 @@ export default function DashboardPage() {
     const id = draft._id || draft.id;
     setActiveSavedDraftId(id);
     loadScript(draft);
+  };
+
+  const handleSavedDraftSelectById = (draftId) => {
+    const draft = savedDrafts.find((item) => (item._id || item.id) === draftId);
+    if (draft) {
+      handleSavedDraftSelect(draft);
+    }
+  };
+
+  const applyPremiumShellScheduledTime = (timeValue) => {
+    const normalized = normalizeScheduledSlotInput(timeValue);
+    if (!normalized) {
+      notify('Enter a valid scheduled time.', 'info');
+      return;
+    }
+    setScheduledSlot(normalized);
+    setManualScheduledSlot(normalized);
   };
 
   const selectProject = (value) => {
@@ -698,6 +718,201 @@ const handleDeleteDraft = async (draft) => {
         : quickDraftButtons,
     [quickDraftButtons, savedDraftFilterCategory]
   );
+  const totalTrackedMails = Math.max(
+    Number(stats?.totalUploaded || 0),
+    Number(stats?.sent || 0) + Number(stats?.pending || 0) + Number(stats?.failed || 0)
+  );
+  const safeTrackedMails = Math.max(totalTrackedMails, 1);
+  const completionRate = Math.round((Number(stats?.sent || 0) / safeTrackedMails) * 100);
+  const selectedRangeLabel =
+    SUMMARY_RANGES.find((option) => option.value === selectedStatsRange)?.label || 'This Week';
+  const reportDateLabel =
+    selectedStatsDate ||
+    (selectedStatsRange === 'custom' && customStatsStartDate && customStatsEndDate
+      ? 'Custom Range'
+      : selectedRangeLabel);
+  const reportRangeLabel =
+    selectedStatsRange === 'custom' && customStatsStartDate && customStatsEndDate
+      ? `${customStatsStartDate} - ${customStatsEndDate}`
+      : 'Sep 01 - Nov 30, 2025';
+  const reportMetricCards = [
+    {
+      title: 'Total',
+      value: Number(stats?.totalUploaded || 0),
+      percent: 100,
+      meta: '',
+      tone: 'total',
+      color: '#f59e0b'
+    },
+    {
+      title: 'Sent',
+      value: Number(stats?.sent || 0),
+      percent: completionRate,
+      meta: '',
+      tone: 'sent',
+      color: '#4f46e5'
+    },
+    {
+      title: 'Pending',
+      value: Number(stats?.pending || 0),
+      percent: Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100),
+      meta: '',
+      tone: 'pending',
+      color: '#3b82f6'
+    },
+    {
+      title: 'Failed',
+      value: Number(stats?.failed || 0),
+      percent: Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100),
+      meta: '',
+      tone: 'failed',
+      color: '#ef4444'
+    },
+    {
+      title: 'Bounced',
+      value: Number(stats?.bounced || 0),
+      percent: Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100),
+      meta: '',
+      tone: 'bounced',
+      color: '#14b8a6'
+    },
+    {
+      title: 'Spam',
+      value: Number(stats?.spam || 0),
+      percent: Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100),
+      meta: '',
+      tone: 'spam',
+      color: '#fb7185'
+    }
+  ];
+  const workflowSteps = [
+    { index: 1, title: 'Upload File / Select File', action: 'Client List' },
+    { index: 2, title: 'View List / Overview', action: 'Overview Data' },
+    { index: 3, title: 'Campaign Setup', action: 'Campaign' },
+    { index: 4, title: 'Draft Upload / Select', action: 'Draft / Templete' },
+    { index: 5, title: 'Draft Overview', action: 'Draft Summary' },
+    { index: 6, title: 'Test Mail', action: 'Teast Mail' },
+    { index: 7, title: 'Shedule Operation', action: 'Final Setup' }
+  ];
+  const calendarDays = ['30', '31', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
+  const notificationCards = (campaigns || []).slice(0, 3).map((campaign, index) => ({
+      avatar: String(campaign?.name || 'CP').slice(0, 2).toUpperCase(),
+      name: campaign?.name || `Campaign ${index + 1}`,
+      time: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : '26/03/2026',
+      text: `${Number(campaign?.stats?.sent || 0)} sent / ${Number(campaign?.stats?.total || 0)} total`
+    }));
+  const timelineCards = [
+    {
+      date: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleDateString('en-GB') : '27/03/2026',
+      title: activeCampaign?.status ? `Campaign ${String(activeCampaign.status).toLowerCase()}` : 'Campaign resumed'
+    },
+    {
+      date: activeCampaign?.createdAt ? new Date(activeCampaign.createdAt).toLocaleDateString('en-GB') : '27/03/2026',
+      title: activeCampaign?.name || 'Campaign started'
+    },
+    {
+      date: '27/03/2026',
+      title: `Concurrent runner capacity: ${Number(stats?.dailyMailCounts?.length || 20)}`
+    }
+  ];
+  const performanceCampaigns = (campaigns || [])
+    .slice()
+    .sort((a, b) => {
+      const aRunning = String(a?.status || '').toLowerCase() === 'running' ? 1 : 0;
+      const bRunning = String(b?.status || '').toLowerCase() === 'running' ? 1 : 0;
+      if (aRunning !== bRunning) return bRunning - aRunning;
+      const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 6)
+    .map((campaign, index) => {
+    const total = Number(campaign?.stats?.total || 0);
+    const sent = Number(campaign?.stats?.sent || 0);
+    const failed = Number(campaign?.stats?.failed || 0);
+    const pending = Number(campaign?.stats?.pending || Math.max(total - sent - failed, 0));
+    const projectKey = String(project || 'tec').toUpperCase();
+    const senderEmail = String(campaign?.senderEmail || campaign?.sender || campaign?.from || '');
+    const senderName = senderEmail ? senderEmail.split('@')[0] : 'Unassigned';
+    const status = campaign?.status || 'Unknown';
+    const country =
+      campaign?.country ||
+      campaign?.options?.country ||
+      campaign?.schedule?.country ||
+      '';
+    const sector =
+      campaign?.sector ||
+      campaign?.industry ||
+      campaign?.category ||
+      '';
+    const broadcast =
+      campaign?.broadcast ||
+      campaign?.code ||
+      `${projectKey}-${String(index + 1).padStart(2, '0')}`;
+    return {
+      id: campaign?._id || index,
+      srNo: index + 1,
+      name: campaign?.name || `Campaign ${index + 1}`,
+      publishDate: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : '',
+      total,
+      sent,
+      pending,
+      failed,
+      open: Number(campaign?.stats?.opened || campaign?.openedCount || 0),
+      bounced: Number(campaign?.stats?.bounced || campaign?.bouncedCount || 0),
+      spam: Number(campaign?.stats?.spam || campaign?.spamCount || 0),
+      tag: status,
+      person: senderName,
+      broadcast,
+      country,
+      sector,
+      tags: [status, country, sector, senderName].filter(Boolean)
+    };
+  });
+  const barChartMetrics = [
+    { label: 'Total', height: 88, color: '#94a3b8' },
+    { label: 'Sent', height: Math.max(18, completionRate), color: '#4f46e5' },
+    {
+      label: 'Pending',
+      height: Math.max(12, Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100)),
+      color: '#3b82f6'
+    },
+    {
+      label: 'Failed',
+      height: Math.max(8, Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100)),
+      color: '#ef4444'
+    },
+    {
+      label: 'Bounce',
+      height: Math.max(8, Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100)),
+      color: '#14b8a6'
+    },
+    {
+      label: 'Spam',
+      height: Math.max(6, Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100)),
+      color: '#f97316'
+    }
+  ];
+  const logs = [
+    ...timelineCards.map((item, index) => ({
+      time: item.date,
+      tag: index === 0 ? 'Live' : 'Info',
+      msg: item.title,
+      detail: item.text || 'Timeline update recorded on the dashboard.'
+    })),
+    ...notificationCards.map((item) => ({
+      time: item.time,
+      tag: 'Mail',
+      msg: item.name,
+      detail: item.text
+    })),
+    ...performanceCampaigns.slice(0, 4).map((item) => ({
+      time: item.publishDate,
+      tag: 'Campaign',
+      msg: `${item.name} (${item.tag})`,
+      detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`
+    }))
+  ];
 
   useEffect(() => {
     if (!projectAccounts.length) {
@@ -837,6 +1052,19 @@ const handleDeleteDraft = async (draft) => {
     return qs ? `/api/campaigns?${qs}` : '/api/campaigns';
   };
 
+  const fetchCampaignsWithFallback = async () => {
+    const primaryUrl = buildCampaignsUrl();
+    const primary = await safeFetchJson(primaryUrl);
+    const primaryCampaigns = primary?.campaigns || [];
+
+    if (primaryUrl !== '/api/campaigns' && primaryCampaigns.length === 0) {
+      const fallback = await safeFetchJson('/api/campaigns');
+      return fallback?.campaigns || [];
+    }
+
+    return primaryCampaigns;
+  };
+
   const loadAll = async (filterOverrides = {}) => {
     try {
       const statsUrl = buildStatsUrl(filterOverrides);
@@ -850,7 +1078,7 @@ const handleDeleteDraft = async (draft) => {
       const [statsRes, templatesRes, campaignsRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
         safeFetchJson('/api/templates'),
-        safeFetchJson(buildCampaignsUrl())
+        fetchCampaignsWithFallback()
       ]);
       const errors = [];
 
@@ -870,10 +1098,10 @@ const handleDeleteDraft = async (draft) => {
       }
 
       if (campaignsRes.status === 'fulfilled') {
-        const cps = campaignsRes.value || {};
-        setCampaigns(cps.campaigns || []);
+        const campaignList = campaignsRes.value || [];
+        setCampaigns(campaignList);
         setSelectedCampaignIds((prev) =>
-          (cps.campaigns || [])
+          campaignList
             .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
             .map((c) => c._id)
             .filter((id) => prev.includes(id))
@@ -923,7 +1151,7 @@ const handleDeleteDraft = async (draft) => {
       const statsUrl = buildStatsUrl(filterOverrides);
       const [statsRes, campaignsRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
-        safeFetchJson(buildCampaignsUrl())
+        fetchCampaignsWithFallback()
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -933,10 +1161,10 @@ const handleDeleteDraft = async (draft) => {
       }
 
       if (campaignsRes.status === 'fulfilled') {
-        const cps = campaignsRes.value || {};
-        setCampaigns(cps.campaigns || []);
+        const campaignList = campaignsRes.value || [];
+        setCampaigns(campaignList);
         setSelectedCampaignIds((prev) =>
-          (cps.campaigns || [])
+          campaignList
             .filter((c) => !ACTIVE_CAMPAIGN_STATUSES.has(c.status))
             .map((c) => c._id)
             .filter((id) => prev.includes(id))
@@ -988,6 +1216,12 @@ const handleDeleteDraft = async (draft) => {
   useEffect(() => {
     loadAll();
   }, [showAllUserActivity, project, selectedAccount, activeAccount, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
+
+  useEffect(() => {
+    if (historyCampaigns.length > 0) {
+      setShowCampaignHistory(true);
+    }
+  }, [historyCampaigns.length]);
 
 
   useEffect(() => {
@@ -1501,6 +1735,10 @@ const normalizeSelectedListEmails = async () => {
 
   const handleTopNavSelect = (item) => {
     setActiveTopNav(item.label);
+    if (item.href?.startsWith('/')) {
+      router.push(item.href);
+      return;
+    }
     if (item.label === 'Revenue') {
       setActiveSidebarView('');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1517,10 +1755,15 @@ const normalizeSelectedListEmails = async () => {
     }
   };
 
-  const openSidebarBlankView = (label, event) => {
+  const openSidebarBlankView = (item, event) => {
     if (event) {
       event.preventDefault();
     }
+    if (item.href?.startsWith('/')) {
+      router.push(item.href);
+      return;
+    }
+    const label = item.label;
     if (label === 'Revenue') {
       setActiveTopNav('Revenue');
       setActiveSidebarView('');
@@ -1531,6 +1774,28 @@ const normalizeSelectedListEmails = async () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const renderSidebarNode = (item, depth = 0) => (
+    <div
+      key={`${item.label}-${depth}`}
+      className="dashboard-sidebar-item"
+      style={depth > 0 ? { marginLeft: depth * 14 } : undefined}
+    >
+      <a
+        href={item.href}
+        className={depth === 0 ? 'dashboard-sidebar-link' : 'dashboard-sidebar-subitem-link'}
+        onClick={(event) => openSidebarBlankView(item, event)}
+      >
+        {depth === 0 ? <span className="dashboard-link-icon soft">{item.icon}</span> : null}
+        <span>{item.label}</span>
+      </a>
+      {item.items?.length ? (
+        <div className="dashboard-sidebar-submenu">
+          {item.items.map((child) => renderSidebarNode(child, depth + 1))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   const showSidebarBlankView = Boolean(activeSidebarView);
 
   return (
@@ -1538,19 +1803,29 @@ const normalizeSelectedListEmails = async () => {
       <aside className="dashboard-sidebar">
         <div className="dashboard-sidebar-card">
           <div className="dashboard-brand">
-            <div className="dashboard-brand-mark">AM</div>
+            <div className="dashboard-brand-mark">CD</div>
             <div>
-              <h2>automail</h2>
+              <h2>CODENAME.COM</h2>
             </div>
           </div>
 
           <div className="dashboard-sidebar-stack">
+            <div className={`dashboard-topbar-search dashboard-sidebar-search ${normalizedSearchQuery ? 'active' : ''}`}>
+              <span className="dashboard-topbar-search-icon">⌕</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search"
+                placeholder="Search"
+              />
+            </div>
             {SIDEBAR_PRIMARY_ITEMS.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
                 className={`dashboard-primary-link ${item.tone}`}
-                onClick={(event) => openSidebarBlankView(item.label, event)}
+                onClick={(event) => openSidebarBlankView(item, event)}
               >
                 <span className="dashboard-link-icon">{item.icon}</span>
                 <span>{item.label}</span>
@@ -1558,41 +1833,24 @@ const normalizeSelectedListEmails = async () => {
             ))}
           </div>
           <div className="dashboard-sidebar-nav" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #e5e7eb' }}>
-            <div className="dashboard-sidebar-section-head">
-              <div>
-                <h3>Workspace</h3>
-              </div>
-              <button type="button" className="dashboard-sidebar-plus" onClick={(event) => openSidebarBlankView('Workspace', event)}>+</button>
-            </div>
-
             <nav className="dashboard-sidebar-menu">
-              {SIDEBAR_WORKSPACE_ITEMS.map((item) => (
-                <div key={item.label} className="dashboard-sidebar-item">
-                  <a
-                    href={item.href}
-                    className="dashboard-sidebar-link"
-                    onClick={(event) => openSidebarBlankView(item.label, event)}
-                  >
-                    <span className="dashboard-link-icon soft">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </a>
-                  {item.subItems?.length ? (
-                    <div className="dashboard-sidebar-submenu">
-                      {item.subItems.map((subItem) => (
-                        <button
-                          key={subItem}
-                          type="button"
-                          className="dashboard-sidebar-subitem"
-                          onClick={(event) => openSidebarBlankView(subItem, event)}
-                        >
-                          {subItem}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
             </nav>
+
+            <div className="dashboard-upgrade-card">
+              <div className="dashboard-upgrade-head">
+                <strong>Upgrade</strong>
+                <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
+              </div>
+              <p className="dashboard-upgrade-plan">Basic</p>
+              <p className="dashboard-upgrade-credits">1200 Credits Left</p>
+              <div className="dashboard-upgrade-meter">
+                <span />
+              </div>
+              <button type="button" className="dashboard-upgrade-button">
+                Upgrade Plan
+              </button>
+            </div>
 
             <button type="button" className="dashboard-logout-link" onClick={logout}>
               <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
@@ -1631,29 +1889,13 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
-          <div className="dashboard-topbar-dropdown" ref={topbarRangeDropdownRef}>
-            <button
-              type="button"
-              className="dashboard-topbar-pill"
-              onClick={() => setShowTopbarRangeDropdown((prev) => !prev)}
-            >
-              {SUMMARY_RANGES.find((range) => range.value === selectedStatsRange)?.label || 'Quick Range'}
-            </button>
-            {showTopbarRangeDropdown ? (
-              <div className="dashboard-topbar-dropdown-menu">
-                {SUMMARY_RANGES.map((range) => (
-                  <button
-                    key={range.value}
-                    type="button"
-                    className={`dashboard-topbar-dropdown-item ${selectedStatsRange === range.value ? 'active' : ''}`}
-                    onClick={() => selectTopbarRange(range.value)}
-                  >
-                    {range.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <button type="button" className="dashboard-topbar-pill">
+            {reportDateLabel}
+          </button>
+          <label className="premium-timeframe-toggle dashboard-topbar-timeframe">
+            <span />
+            TimeFrame
+          </label>
           <div className="dashboard-topbar-dropdown" ref={topbarProjectDropdownRef}>
             <button
               type="button"
@@ -1661,7 +1903,6 @@ const normalizeSelectedListEmails = async () => {
               onClick={() => setShowTopbarProjectDropdown((prev) => !prev)}
               style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
             >
-              <span>Active Project:</span>
               <span>{project ? String(project).toUpperCase() : 'Select Project'}</span>
             </button>
             {showTopbarProjectDropdown ? (
@@ -1693,7 +1934,6 @@ const normalizeSelectedListEmails = async () => {
               onClick={() => setShowTopbarMailDropdown((prev) => !prev)}
               style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
             >
-              <span>Working Mail:</span>
               <span>{selectedAccountLabel}</span>
             </button>
             {showTopbarMailDropdown ? (
@@ -1736,17 +1976,84 @@ const normalizeSelectedListEmails = async () => {
         </div>
       ) : null}
 
-      {error ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
+      {error && error !== 'Request timeout: /api/stats' ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
+
+      <PremiumDashboardShell
+        reportDateLabel={reportDateLabel}
+        reportRangeLabel={reportRangeLabel}
+        reportMetricCards={reportMetricCards}
+        workflowSteps={workflowSteps}
+        completionRate={completionRate}
+        totalTrackedMails={totalTrackedMails}
+        notificationCards={notificationCards}
+        timelineCards={timelineCards}
+        performanceCampaigns={performanceCampaigns}
+        calendarDays={calendarDays}
+        selectedAccountLabel={selectedAccountLabel}
+        project={project}
+        barChartMetrics={barChartMetrics}
+        logs={logs}
+        activeCampaign={activeCampaign}
+        activeCampaignProgressText={progressText}
+        lists={lists}
+        selectedListId={selectedListId}
+        selectedListName={selectedListName}
+        previewRows={preview}
+        previewColumns={previewColumns}
+        onUploadFile={onUpload}
+        onSelectList={setSelectedListId}
+        draftOptions={savedDrafts}
+        activeDraftId={activeSavedDraftId || ''}
+        onSelectSavedDraft={handleSavedDraftSelectById}
+        onSaveDraft={saveCurrentDraftScript}
+        draftSubject={draftSubject}
+        onDraftSubjectChange={setDraftSubject}
+        draftBody={draftBody}
+        onDraftBodyChange={setDraftBody}
+        testEmailTo={testEmailTo}
+        onTestEmailToChange={setTestEmailTo}
+        onSendTestEmail={sendTestEmail}
+        campaignName={campaignName}
+        onCampaignNameChange={setCampaignName}
+        selectedDraftType={selectedDraft}
+        onSelectedDraftTypeChange={setSelectedDraft}
+        batchSize={batchSize}
+        onBatchSizeChange={setBatchSize}
+        delaySeconds={delaySeconds}
+        onDelaySecondsChange={setDelaySeconds}
+        onCreateCampaign={createCampaign}
+        scheduledCountry={
+          String(scheduledCountry || '').toLowerCase() === 'usa'
+            ? 'USA'
+            : String(scheduledCountry || '').toLowerCase() === 'uk'
+              ? 'UK'
+              : String(scheduledCountry || '').toLowerCase() === 'uae'
+                ? 'UAE'
+                : String(scheduledCountry || '').charAt(0).toUpperCase() + String(scheduledCountry || '').slice(1)
+        }
+        onScheduledCountryChange={(value) => {
+          setScheduledCountry(String(value || '').toLowerCase());
+          setScheduledSlot('');
+        }}
+        scheduledSlot={scheduledSlot}
+        onScheduledSlotChange={setScheduledSlot}
+        manualScheduledSlot={manualScheduledSlot}
+        onManualScheduledSlotChange={setManualScheduledSlot}
+        onApplyManualScheduledSlot={applyPremiumShellScheduledTime}
+        onStartCampaign={createAndStartCampaign}
+        onDeleteCampaign={deleteCampaign}
+        onShowMessage={notify}
+      />
 
       {showSidebarBlankView ? (
         <section className="grid" id="summary-panel">
           <div
             style={{
               minHeight: 'calc(100vh - 140px)',
-              border: '1px solid #d7e0ea',
+              border: '1px solid var(--border-color)',
               borderRadius: 24,
-              background: 'linear-gradient(180deg, #ffffff, #f8fbff)',
-              boxShadow: '0 20px 44px rgba(15, 23, 42, 0.06)',
+              background: 'linear-gradient(180deg, var(--panel-strong), color-mix(in srgb, var(--panel-strong) 82%, var(--bg-secondary)))',
+              boxShadow: '0 20px 44px var(--shadow-color)',
               padding: 24,
               display: 'grid',
               gap: 22,
@@ -1782,7 +2089,7 @@ const normalizeSelectedListEmails = async () => {
                 style={{ margin: 0, width: '100%', justifySelf: 'start' }}
               >
                 <h3>Upload Client Files</h3>
-                <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 12 }}>
                   <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
                       ref={fileInputRef}
@@ -1833,11 +2140,11 @@ const normalizeSelectedListEmails = async () => {
                             maxHeight: 200,
                             overflowY: 'auto',
                             margin: 0,
-                            border: '1px solid #cbd5e1',
+                            border: '1px solid var(--button-border)',
                             borderRadius: 10,
-                            background: '#fff',
+                            background: 'var(--panel-strong)',
                             padding: 8,
-                            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
+                            boxShadow: '0 12px 30px var(--shadow-color)'
                           }}
                         >
                           {lists.length ? (
@@ -1851,7 +2158,7 @@ const normalizeSelectedListEmails = async () => {
                                   padding: '6px 4px',
                                   cursor: 'pointer',
                                   borderRadius: 6,
-                                  background: selectedListId === list._id ? '#eff6ff' : 'transparent'
+                                  background: selectedListId === list._id ? 'color-mix(in srgb, var(--accent) 12%, var(--panel-strong))' : 'transparent'
                                 }}
                               >
                                 <input
@@ -1880,7 +2187,7 @@ const normalizeSelectedListEmails = async () => {
                   </div>
                 </div>
                 {preview.length ? (
-                  <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, overflow: 'hidden' }}>
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 12, overflow: 'hidden' }}>
                     <div className="row" style={{ justifyContent: 'space-between' }}>
                       <p>Uploaded file preview</p>
                       <div className="row">
@@ -1926,7 +2233,7 @@ const normalizeSelectedListEmails = async () => {
                       <option value="updated_cost">Updated Cost</option>
                       <option value="final_cost">Final Call</option>
                     </select>
-                    <p style={{ margin: '6px 0 0', fontSize: 12, color: isReplyModeCampaignType ? '#166534' : 'var(--muted)', fontWeight: 600 }}>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: isReplyModeCampaignType ? 'var(--success)' : 'var(--muted)', fontWeight: 600 }}>
                       Reply Mode: {isReplyModeCampaignType ? 'ON (Reply All in thread)' : 'OFF (New Email)'}
                     </p>
                   </div>
@@ -1954,1076 +2261,8 @@ const normalizeSelectedListEmails = async () => {
             </div>
           </div>
         </section>
-      ) : (
-      <>
-      {activeTopNav === 'Revenue' ? (
-        <section className={`card grid ${isSearchMatch('summary') ? 'dashboard-search-match' : ''}`} id="summary-panel">
-          <div className="row" style={{ flexWrap: "wrap", gap: 16, alignItems: 'stretch' }}>
-            <div style={{ flex: '1 1 420px', border: '1px solid #cfe3ff', borderRadius: 14, padding: 14, background: '#f8fbff' }}>
-              <h3 style={{ margin: '0 0 6px' }}>Summary</h3>
-              <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 8, fontWeight: 600 }}>
-                  <input
-                    type="checkbox"
-                    checked={showAllUserActivity}
-                    onChange={(e) => setShowAllUserActivity(e.target.checked)}
-                  />
-                  Show All User Activity (Admin)
-                </label>
-                <div>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Project / Client</p>
-                  <select
-                    className="select"
-                    style={{
-                      maxWidth: 160,
-                      borderColor: project ? '#0ea5e9' : undefined,
-                      background: project ? '#e0f2fe' : undefined,
-                      color: project ? '#0f172a' : undefined,
-                      fontWeight: project ? 700 : undefined
-                    }}
-                    value={project}
-                    onChange={(e) => selectProject(e.target.value)}
-                  >
-                    {projectOptions.map((item) => (
-                      <option key={item} value={item}>
-                        {item.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Mail ID</p>
-                  <select
-                    className="select"
-                    style={{ maxWidth: 420 }}
-                    value={selectedAccount}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "__oauth_add__") {
-                        startGraphOAuth();
-                        return;
-                      }
-                      setSelectedAccount(v);
-                    }}
-                  >
-                    <option value="">Select Mail ID</option>
-                    {projectAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.from}
-                      </option>
-                    ))}
-                    <option value="__oauth_add__">Connect New Account</option>
-                  </select>
-                </div>
-                <button className="button" type="button" onClick={connectSelectedAccount}>Select Sender</button>
-                <button className="button secondary" type="button" onClick={startGraphOAuth}>Add New Mail</button>
-              </div>
-              <p style={{ margin: '8px 0 0', color: '#475569', fontSize: 12 }}>
-                {showAllUserActivity
-                  ? 'Admin view is ON: campaigns and logs from all users are visible.'
-                  : 'Admin view is OFF: campaigns and logs are filtered by selected Project and Mail ID.'}
-              </p>
-            </div>
-            <div style={{ flex: '1 1 420px', border: '1px solid #d8e6dc', borderRadius: 14, padding: 14, background: '#f8fcf8' }}>
-              <h3 style={{ margin: '0 0 6px' }}>Filter</h3>
-              <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: 'end' }}>
-                <div>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Starting Date</p>
-                  <input
-                    className="input"
-                    type="date"
-                    value={selectedStatsDate}
-                    onChange={(e) => {
-                      setSelectedStatsDate(e.target.value);
-                      setSelectedStatsRange('');
-                      setCustomStatsStartDate('');
-                      setCustomStatsEndDate('');
-                      setShowDayCounts(Boolean(e.target.value));
-                    }}
-                  />
-                </div>
-                <div>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Quick Range</p>
-                  <select
-                    className="select"
-                    value={selectedStatsRange}
-                    onChange={(e) => handleStatsRangeSelection(e.target.value)}
-                  >
-                    <option value="">Select Range</option>
-                    {SUMMARY_RANGES.map((range) => (
-                      <option key={range.value} value={range.value}>
-                        {range.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={resetSummaryFilters}
-                  disabled={!selectedStatsDate && !selectedStatsRange && !customStatsStartDate && !customStatsEndDate}
-                >
-                  Clear Filter
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={resetSummaryFilters}
-                  style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : <div id="summary-panel" />}
-      {showCustomRangePopup ? (
-        <div className="dashboard-popup-backdrop" onClick={() => setShowCustomRangePopup(false)}>
-          <div className="dashboard-popup-card" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 10px' }}>Filter</h3>
-            <div className="grid" style={{ gap: 12 }}>
-              <div>
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Start Date</p>
-                <input
-                  className="input"
-                  type="date"
-                  value={customStatsStartDate}
-                  onChange={(e) => {
-                    setCustomStatsStartDate(e.target.value);
-                    setShowDayCounts(Boolean(e.target.value || customStatsEndDate));
-                  }}
-                />
-              </div>
-              <div>
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>End Date</p>
-                <input
-                  className="input"
-                  type="date"
-                  value={customStatsEndDate}
-                  onChange={(e) => {
-                    setCustomStatsEndDate(e.target.value);
-                    setShowDayCounts(Boolean(customStatsStartDate || e.target.value));
-                  }}
-                />
-              </div>
-              <div className="row" style={{ gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => {
-                    resetSummaryFilters();
-                    setShowCustomRangePopup(false);
-                  }}
-                >
-                  Clear Filter
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => {
-                    resetSummaryFilters();
-                    setShowCustomRangePopup(false);
-                  }}
-                >
-                  Reset
-                </button>
-                <button
-                  className="button"
-                  type="button"
-                  onClick={applyCustomRangeSelection}
-                >
-                  Select
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => setShowCustomRangePopup(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       ) : null}
 
-      <DashboardStats
-        isSearchMatch={isSearchMatch}
-        fancyStats={fancyStats}
-        showDayCounts={showDayCounts}
-        selectedStatsRange={selectedStatsRange}
-        selectedStatsDate={selectedStatsDate}
-        summaryRanges={SUMMARY_RANGES}
-        dailyMailCounts={stats.dailyMailCounts}
-        onCloseDayCounts={() => setShowDayCounts(false)}
-      />
-
-      <section className={`card grid ${isSearchMatch('upload') ? 'dashboard-search-match' : ''}`} id="upload-client-files">
-        <h3>Upload Client Files</h3>
-        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-          <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.csv"
-              onChange={onUpload}
-              style={{ display: 'none' }}
-            />
-            <button
-              className="button"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Upload File
-            </button>
-            <span className={`badge ${selectedListName ? 'sent' : 'failed'}`}>
-              {selectedListName || 'No file selected'}
-            </span>
-            <div ref={uploadedFilesDropdownRef}>
-              <LeadList
-                lists={lists}
-                selectedListId={selectedListId}
-                selectedUploadedFileIds={selectedUploadedFileIds}
-                showUploadedFilesDropdown={showUploadedFilesDropdown}
-                setShowUploadedFilesDropdown={setShowUploadedFilesDropdown}
-                setSelectedUploadedFileIds={setSelectedUploadedFileIds}
-                setSelectedListId={setSelectedListId}
-                onDeleteSelected={deleteSelectedUploadedFile}
-                onDeleteAll={deleteAllUploadedFiles}
-              />
-            </div>
-            {loading ? <p>Uploading...</p> : null}
-          </div>
-        </div>
-        {preview.length ? (
-          <>
-            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, overflow: 'hidden' }}>
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <p>Uploaded file preview</p>
-                <div className="row">
-                  {showUploadPreview ? (
-                    <>
-                      <button
-                        className="button"
-                        type="button"
-                        onClick={addPreviewColumn}
-                      >
-                        Add Column
-                      </button>
-                      <button
-                        className="button"
-                        type="button"
-                        onClick={addPreviewRow}
-                      >
-                        Add Row
-                      </button>
-                      <button
-                        className="button"
-                        type="button"
-                        onClick={savePreviewEdits}
-                        disabled={!previewDirty}
-                      >
-                        Save Changes
-                      </button>
-                    </>
-                  ) : null}
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => setShowUploadPreview((prev) => !prev)}
-                  >
-                    {showUploadPreview ? 'Minimize Table' : 'Show Table'}
-                  </button>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={normalizeSelectedListEmails}
-                  >
-                    Normalize Emails List
-                  </button>
-                </div>
-              </div>
-              {showUploadPreview ? (
-                <div style={{ marginTop: 12, maxHeight: 470, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
-                  <div className="row" style={{ gap: 12, alignItems: 'end', marginTop: 12 }}>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font</p>
-                      <select
-                        className="select"
-                        value={previewStyle.fontFamily}
-                        onChange={(e) => updatePreviewStyle('fontFamily', e.target.value)}
-                        style={{ minWidth: 150 }}
-                      >
-                        <option value="Segoe UI">Segoe UI</option>
-                        <option value="Arial">Arial</option>
-                        <option value="Calibri">Calibri</option>
-                        <option value="Verdana">Verdana</option>
-                        <option value="Georgia">Georgia</option>
-                        <option value="Times New Roman">Times New Roman</option>
-                      </select>
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Font Size</p>
-                      <input
-                        className="input"
-                        type="number"
-                        min="10"
-                        max="24"
-                        value={previewStyle.fontSize}
-                        onChange={(e) => updatePreviewStyle('fontSize', Number(e.target.value || 14))}
-                        style={{ width: 90 }}
-                      />
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Color</p>
-                      <input type="color" value={previewStyle.headerBg} onChange={(e) => updatePreviewStyle('headerBg', e.target.value)} />
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Header Text</p>
-                      <input type="color" value={previewStyle.headerColor} onChange={(e) => updatePreviewStyle('headerColor', e.target.value)} />
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Color</p>
-                      <input type="color" value={previewStyle.cellBg} onChange={(e) => updatePreviewStyle('cellBg', e.target.value)} />
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Cell Text</p>
-                      <input type="color" value={previewStyle.cellColor} onChange={(e) => updatePreviewStyle('cellColor', e.target.value)} />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12, height: 320, overflow: 'hidden' }}>
-                    <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-                      <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-                        Showing {previewTotalRows ? previewStartIndex + 1 : 0} - {Math.min(previewStartIndex + PREVIEW_ROWS_PER_PAGE, previewTotalRows)} of {previewTotalRows} rows
-                      </p>
-                      <div className="row" style={{ gap: 8 }}>
-                        <button
-                          className="button secondary"
-                          type="button"
-                          onClick={() => setPreviewPage((prev) => Math.max(1, prev - 1))}
-                          disabled={previewPage <= 1}
-                        >
-                          Prev
-                        </button>
-                        <span style={{ fontSize: 12, alignSelf: 'center' }}>
-                          Page {previewPage}/{previewTotalPages}
-                        </span>
-                        <button
-                          className="button secondary"
-                          type="button"
-                          onClick={() => setPreviewPage((prev) => Math.min(previewTotalPages, prev + 1))}
-                          disabled={previewPage >= previewTotalPages}
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                    <div className="table-wrap excel-preview" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto' }}>
-                      <table
-                        className="excel-table"
-                        style={{
-                          fontFamily: previewStyle.fontFamily,
-                          fontSize: `${previewStyle.fontSize}px`
-                        }}
-                      >
-                        <thead>
-                          <tr>
-                            <th style={{ minWidth: 90 }}>Actions</th>
-                            {getPreviewColumns().map((column) => (
-                              <th
-                                key={column}
-                                style={{
-                                  background: previewStyle.headerBg,
-                                  color: previewStyle.headerColor,
-                                  minWidth: previewStyle.columnWidths?.[column] || 140
-                                }}
-                              >
-                                <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
-                                  <input
-                                    className="input"
-                                    defaultValue={column}
-                                    onBlur={(e) => renamePreviewColumn(column, e.target.value)}
-                                    style={{ minWidth: 140, fontWeight: 700, padding: 6, background: 'transparent' }}
-                                  />
-                                  <input
-                                    className="input"
-                                    type="number"
-                                    min="80"
-                                    value={previewStyle.columnWidths?.[column] || 140}
-                                    onChange={(e) => updateColumnWidth(column, e.target.value)}
-                                    style={{ width: 82, padding: 6 }}
-                                  />
-                                  <button
-                                    className="button danger"
-                                    type="button"
-                                    onClick={() => deletePreviewColumn(column)}
-                                    style={{ padding: '6px 8px' }}
-                                  >
-                                    X
-                                  </button>
-                                </div>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pagedPreviewRows.map((row, idx) => {
-                            const rowIndex = previewStartIndex + idx;
-                            return (
-                            <tr key={rowIndex}>
-                              <td>
-                                <button
-                                  className="button danger"
-                                  type="button"
-                                  onClick={() => deletePreviewRow(rowIndex)}
-                                  style={{ padding: '6px 8px' }}
-                                >
-                                  Delete
-                                </button>
-                              </td>
-                              {getPreviewColumns().map((column) => (
-                                <td
-                                  key={`${rowIndex}-${column}`}
-                                  style={{
-                                    background: previewStyle.cellBg,
-                                    color: previewStyle.cellColor,
-                                    minWidth: previewStyle.columnWidths?.[column] || 140
-                                  }}
-                                >
-                                  <input
-                                    className="input"
-                                    value={row?.[column] ?? ''}
-                                    onChange={(e) => updatePreviewCell(rowIndex, column, e.target.value)}
-                                    style={{
-                                      minWidth: previewStyle.columnWidths?.[column] || 140,
-                                      border: 'none',
-                                      padding: 6,
-                                      background: 'transparent',
-                                      color: previewStyle.cellColor,
-                                      fontFamily: previewStyle.fontFamily,
-                                      fontSize: `${previewStyle.fontSize}px`
-                                    }}
-                                  />
-                                </td>
-                              ))}
-                            </tr>
-                          )})}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </>
-        ) : null}
-      </section>
-
-      <section className={`card grid ${isSearchMatch('campaignManagement') ? 'dashboard-search-match' : ''}`} id="campaign-management">
-        <div className="grid" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'end' }}>
-          <div>
-            <input className="input" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign Name" />
-          </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Campaign Type</p>
-            <select
-              className="select"
-              value={selectedDraft}
-              onChange={(e) => setSelectedDraft(e.target.value)}
-            >
-              <option value="cover_story">Cover Story</option>
-              <option value="reminder">Reminder</option>
-              <option value="follow_up">Follow Up</option>
-              <option value="updated_cost">Updated Cost</option>
-              <option value="final_cost">Final Call</option>
-            </select>
-            <p style={{ margin: '6px 0 0', fontSize: 12, color: isReplyModeCampaignType ? '#166534' : 'var(--muted)', fontWeight: 600 }}>
-              Reply Mode: {isReplyModeCampaignType ? 'ON (Reply All in thread)' : 'OFF (New Email)'}
-            </p>
-          </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Client List</p>
-            <select className="select" value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)}>
-              <option value="">Select List</option>
-              {lists.map((l) => <option key={l._id} value={l._id}>{l.name} ({l.leadCount})</option>)}
-            </select>
-          </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Batch Size</p>
-            <input className="input" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="1-9 or 25-50" />
-          </div>
-          <div>
-            <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Delay (Seconds)</p>
-            <input className="input" type="number" min="60" value={delaySeconds} onChange={(e) => setDelaySeconds(e.target.value)} placeholder="Delay(s)" />
-          </div>
-        </div>
-        <div className="row">
-          <div>
-            <button className="button" onClick={createCampaign}>Create Campaign</button>
-          </div>
-        </div>
-      </section>
-
-      <section className={`card grid ${isSearchMatch('draftEditing') ? 'dashboard-search-match' : ''}`} id="draft-editing-panel">
-        <div style={{ border: '1px solid #0f172a', borderRadius: 12, padding: 12 }}>
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>Draft Editing and Setting</h3>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => setShowDraftEditingSection((prev) => !prev)}
-            >
-              {showDraftEditingSection ? 'Minimize' : 'Show'}
-            </button>
-          </div>
-        </div>
-        {showDraftEditingSection ? (
-        <div style={{ border: '1px solid #0f172a', borderRadius: 12, padding: 12, marginTop: 4, height: 640, overflow: 'hidden' }}>
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: '1fr',
-              gap: 20,
-              alignItems: 'end',
-              height: '100%',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              paddingRight: 6
-            }}
-          >
-            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-              <div className="row" style={{ gap: 28, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
-                <div style={{ flex: '1 1 auto' }}>
-                  <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                    >
-                      Upload File
-                    </button>
-                    <span className={`badge ${selectedListName ? 'sent' : 'failed'}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-                      {selectedListName || 'No file selected'}
-                    </span>
-                    <div style={{ width: 260, minWidth: 260, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Select Draft Type</p>
-                      <select
-                        className="select"
-                        value={newDraftCategory}
-                        onChange={(e) => setNewDraftCategory(e.target.value)}
-                        style={{ width: '100%' }}
-                      >
-                        <option value="">Customize Draft</option>
-                        <option value="cover_story">Cover Story</option>
-                        <option value="reminder">Reminder</option>
-                        <option value="follow_up">Follow Up</option>
-                        <option value="updated_cost">Updated Cost</option>
-                        <option value="final_cost">Final Cost</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ minWidth: 360 }}>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Give Draft Name</p>
-                  <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
-                    <input
-                      className="input"
-                      value={changeInDraftValue}
-                      onChange={(e) => setChangeInDraftValue(e.target.value)}
-                      placeholder=""
-                      style={{ width: 260, minWidth: 260 }}
-                    />
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={openCreateScriptForm}
-                      style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                    >
-                      Create Script
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gap: 16 }}>
-              <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 4, paddingBottom: 4 }}>
-                <div
-                  ref={draftUploadedFilesDropdownRef}
-                  style={{
-                    position: 'relative',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    flexWrap: 'nowrap'
-                  }}
-                >
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => setShowDraftUploadedFilesDropdown((prev) => !prev)}
-                    style={{ minWidth: 140, flexShrink: 0 }}
-                  >
-                    Uploaded Files
-                  </button>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={loadSelectedDraftUploadedFile}
-                    style={{ minWidth: 180, flexShrink: 0 }}
-                    disabled={!selectedDraftUploadedFileIds.length}
-                  >
-                    Choose Uploaded File
-                  </button>
-                  {showDraftUploadedFilesDropdown ? (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 8px)',
-                        left: 0,
-                        zIndex: 20,
-                        minWidth: 320,
-                        maxHeight: 200,
-                        overflowY: 'auto',
-                        margin: 0,
-                        border: '1px solid #cbd5e1',
-                        borderRadius: 10,
-                        background: '#fff',
-                        padding: 8,
-                        boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)'
-                      }}
-                    >
-                      {lists.length ? (
-                        lists.map((list) => (
-                          <label
-                            key={list._id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '6px 4px',
-                              cursor: 'pointer',
-                              borderRadius: 6,
-                              background: selectedListId === list._id ? '#eff6ff' : 'transparent'
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedDraftUploadedFileIds.includes(list._id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedDraftUploadedFileIds((prev) => [...new Set([...prev, list._id])]);
-                                } else {
-                                  setSelectedDraftUploadedFileIds((prev) => prev.filter((id) => id !== list._id));
-                                }
-                              }}
-                            />
-                            <span
-                              onClick={() => setSelectedDraftUploadedFileIds([list._id])}
-                              style={{ flex: 1 }}
-                            >
-                              {list.name}
-                            </span>
-                          </label>
-                        ))
-                      ) : (
-                        <p>No uploaded files</p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-                {showDraftUploadedFilesDropdown ? (
-                  <>
-                    <button
-                      className="button danger"
-                      type="button"
-                      onClick={deleteSelectedUploadedFile}
-                      disabled={!selectedListId && !selectedUploadedFileIds.length}
-                    >
-                      Delete Selected
-                    </button>
-                    <button
-                      className="button danger"
-                      type="button"
-                      onClick={deleteAllUploadedFiles}
-                      disabled={!lists.length}
-                    >
-                      Delete All
-                    </button>
-                  </>
-                ) : null}
-              </div>
-              <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 4 }}>
-                <h4 style={{ margin: '12px 0 6px' }}>Saved Draft Scripts (for quick draft selection)</h4>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 12 }}>
-                  <button
-                    className="button"
-                    type="button"
-                    onClick={openCreateScriptForm}
-                    style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
-                  >
-                    Create Script
-                  </button>
-                  {DRAFT_CATEGORIES.map((item) => {
-                    const isActive = savedDraftFilterCategory === item.value;
-                    return (
-                      <div key={item.value} style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
-                        <button
-                          className="button secondary"
-                          type="button"
-                          onClick={() => setSavedDraftFilterCategory(item.value)}
-                          style={
-                            isActive
-                              ? {
-                                  background: '#eff6ff',
-                                  borderColor: '#2563eb',
-                                  color: '#1d4ed8',
-                                  fontWeight: 700
-                                }
-                              : undefined
-                          }
-                        >
-                          {item.label}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div
-                  style={{
-                    marginTop: 14,
-                    borderRadius: 12,
-                    background: '#f1f5f9',
-                    border: '1px solid #d7e0ea',
-                    padding: 12,
-                    minHeight: 58
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {visibleQuickDraftButtons.length ? (
-                      visibleQuickDraftButtons.map(({ label, draft }) => (
-                        <button
-                          key={label}
-                          className="button secondary"
-                          type="button"
-                          disabled={!draft}
-                          onClick={() => {
-                            if (draft) handleSavedDraftSelect(draft);
-                          }}
-                          style={{
-                            background: '#eff6ff',
-                            borderColor: '#2563eb',
-                            color: '#1d4ed8',
-                            fontWeight: 700
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))
-                    ) : (
-                      <p style={{ margin: 0, color: '#64748b' }}>No scripts for this draft type.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: showBlankWordPad ? 8 : 0 }}>
-                <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                  Edit Word File
-                </p>
-                <div className="row" style={{ gap: 8 }}>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => setBlankWordPad('')}
-                    disabled={!blankWordPad}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => setShowBlankWordPad((prev) => !prev)}
-                  >
-                    {showBlankWordPad ? 'Minimize' : 'Show'}
-                  </button>
-                </div>
-              </div>
-              {showBlankWordPad ? (
-                <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
-                  <RichTextEditor
-                    value={blankWordPad}
-                    onChange={setBlankWordPad}
-                    placeholder="Write here..."
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        ) : null}
-        {showDraftEditingSection && showAddDraft && (
-          <div className="card" style={{ marginTop: 10, border: '1px solid #0f172a', boxShadow: 'inset 0 0 0 1px #0f172a' }}>
-            <div style={{ maxHeight: 620, overflowY: 'auto', paddingRight: 6 }}>
-              <h4>{editingDraftId ? 'Edit Draft Script' : 'Create Draft Script'}</h4>
-              <p style={{ marginTop: 12, marginBottom: 6 }}>Script Title (optional)</p>
-              <input
-                className="input"
-                value={newDraftTitle}
-                onChange={(e) => setNewDraftTitle(e.target.value)}
-                placeholder="Script 1, Script 2, etc."
-              />
-              <p style={{ marginTop: 12, marginBottom: 6 }}>Subject</p>
-              <input
-                className="input"
-                value={newDraftSubject}
-                onChange={(e) => setNewDraftSubject(e.target.value)}
-                placeholder="Enter Subject"
-              />
-              <p style={{ marginTop: 12, marginBottom: 6 }}>Draft Body</p>
-              <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
-                <RichTextEditor
-                  value={newDraftBody}
-                  onChange={setNewDraftBody}
-                />
-              </div>
-              <div className="row" style={{ gap: 8, marginTop: 12 }}>
-                <button className="button" type="button" onClick={addNewDraft}>
-                  {editingDraftId ? 'Update Draft' : 'Submit Draft'}
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => {
-                    setShowAddDraft(false);
-                    setEditingDraftId(null);
-                    setNewDraftTitle('');
-                    setNewDraftSubject('');
-                    setNewDraftBody('');
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 12 }}>
-          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: showDraftEditor ? 8 : 0 }}>
-              <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                Draft / Email Body (HTML)
-              </p>
-              <div className="row" style={{ gap: 8 }}>
-                <button
-                  className="button"
-                  type="button"
-                  onClick={saveCurrentDraftScript}
-                  disabled={!draftSubject && !draftBody}
-                >
-                  Add Draft
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => {
-                    setDraftSubject('');
-                    setDraftBody('');
-                  }}
-                  disabled={!draftSubject && !draftBody}
-                >
-                  Clear
-                </button>
-                <button
-                  className="button secondary"
-                  type="button"
-                  onClick={() => setShowDraftEditor((prev) => !prev)}
-                >
-                  {showDraftEditor ? 'Minimize' : 'Show'}
-                </button>
-              </div>
-            </div>
-            {showDraftEditor ? (
-              <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 6 }}>
-                <p style={{ fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>
-                  Subject Line
-                </p>
-                <input
-                  className="input"
-                  value={draftSubject}
-                  onChange={(e) => setDraftSubject(e.target.value)}
-                  placeholder="Email Subject"
-                />
-                <RichTextEditor
-                  value={draftBody}
-                  onChange={setDraftBody}
-                />
-              </div>
-            ) : null}
-          </div>
-          <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12, marginTop: 12 }}>
-            <div className="row">
-              <input
-                className="input"
-                style={{ maxWidth: 320 }}
-                value={testEmailTo}
-                onChange={(e) => setTestEmailTo(e.target.value)}
-                placeholder="Test recipient email"
-              />
-              <button
-                className="button secondary"
-                onClick={sendTestEmail}
-              >
-                Test Email
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ minHeight: 24, marginBottom: 8, textAlign: 'right' }}>
-          {scheduledStartLabel ? (
-            <span style={{ color: '#166534', fontWeight: 600 }}>
-              Scheduled Start: {scheduledStartLabel}
-            </span>
-          ) : null}
-        </div>
-        <div className="row" style={{ gap: 10, justifyContent: 'center' }}>
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => setShowScheduledTimePicker((prev) => !prev)}
-          >
-            Sheduled Time
-          </button>
-        <button
-          className="button"
-          type="button"
-          onClick={createAndStartCampaign}
-        >
-          Start Campaign
-        </button>
-      </div>
-      </div>
-
-      {showScheduledTimePicker ? (
-        <section className={`card grid ${isSearchMatch('schedule') ? 'dashboard-search-match' : ''}`} style={{ marginTop: -4 }}>
-          <h3>Schedule Time Slot</h3>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
-            <div>
-              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Country</p>
-              <select
-                className="select"
-                value={scheduledCountry}
-                onChange={(e) => {
-                  setScheduledCountry(e.target.value);
-                  setScheduledSlot('');
-                }}
-              >
-                <option value="india">India</option>
-                <option value="usa">USA</option>
-                <option value="uk">UK</option>
-                <option value="uae">UAE</option>
-                <option value="australia">Australia</option>
-              </select>
-            </div>
-            <div>
-              <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Time Slot</p>
-              <select
-                className="select"
-                value={scheduledSlot}
-                onChange={(e) => setScheduledSlot(e.target.value)}
-              >
-                <option value="">Select time</option>
-                {(COUNTRY_TIME_SLOTS[scheduledCountry]?.slots || []).map((slot) => (
-                  <option key={slot} value={slot}>{slot}</option>
-                ))}
-              </select>
-              <input
-                className="input"
-                value={manualScheduledSlot}
-                onChange={(e) => setManualScheduledSlot(e.target.value)}
-                placeholder="Manual time like 09:30 AM"
-                style={{ marginTop: 8 }}
-              />
-              <button
-                className="button secondary"
-                type="button"
-                style={{ marginTop: 8 }}
-                onClick={() => {
-                  const normalized = normalizeScheduledSlotInput(manualScheduledSlot);
-                  if (!normalized) {
-                    notify('Enter time like 09:30 AM.', 'info');
-                    return;
-                  }
-                  setScheduledSlot(normalized);
-                  setManualScheduledSlot(normalized);
-                  setShowScheduledTimePicker(false);
-                }}
-                disabled={!manualScheduledSlot.trim()}
-              >
-                Add Select Time
-              </button>
-            </div>
-          </div>
-          <p style={{ margin: '8px 0 0', color: 'var(--muted)' }}>
-            {scheduledSlot ? `Selected: ${scheduledCountry.toUpperCase()} - ${scheduledSlot}` : 'Choose a country and time slot.'}
-          </p>
-        </section>
-      ) : null}
-
-      <CampaignTable
-        title="Campaigns"
-        campaigns={activeCampaigns}
-        selectedIds={selectedActiveCampaignIds}
-        allSelected={allActiveCampaignsSelected}
-        onToggleSelectAll={toggleSelectAllActiveCampaigns}
-        onToggleSelect={toggleActiveCampaignSelection}
-        onDeleteSelected={deleteSelectedActiveCampaigns}
-        onDeleteAll={deleteAllActiveCampaigns}
-        onToggleHistory={() => setShowCampaignHistory((prev) => !prev)}
-        showHistoryButton
-        showHistory={showCampaignHistory}
-        onStart={startCampaign}
-        onPause={pauseCampaign}
-        onStop={stopCampaign}
-        onResume={resumeCampaign}
-        onDelete={deleteCampaign}
-        emptyText="No active campaigns right now."
-      />
-
-      {showCampaignHistory ? (
-        <CampaignTable
-          title="Campaign History"
-          campaigns={historyCampaigns}
-          selectedIds={selectedCampaignIds}
-          allSelected={allCampaignsSelected}
-          onToggleSelectAll={toggleSelectAllCampaigns}
-          onToggleSelect={toggleCampaignSelection}
-          onDeleteSelected={deleteSelectedCampaigns}
-          onStart={startCampaign}
-          onPause={pauseCampaign}
-          onStop={stopCampaign}
-          onResume={resumeCampaign}
-          onDelete={deleteCampaign}
-          emptyText="No campaign history yet."
-        />
-      ) : null}
-
-      <ActivityPanel
-        activeCampaign={activeCampaign}
-        progressText={progressText}
-        onStop={stopCampaign}
-        onClearLogs={clearCampaignLogs}
-        onDelete={deleteCampaign}
-      />
-      </>
-      )}
       </div>
     </main>
   );

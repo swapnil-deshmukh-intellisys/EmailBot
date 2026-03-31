@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Bot Real-time Monitor</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -259,33 +259,58 @@
             });
             const [currentEmail, setCurrentEmail] = useState(null);
             const [progress, setProgress] = useState(0);
-            const logsEndRef = useRef(null);
+            const lastSnapshotRef = useRef('');
+            const [isTabVisible, setIsTabVisible] = useState(true);
 
-            // Poll for real-time updates
             useEffect(() => {
-                const interval = setInterval(async () => {
+                const onVisibilityChange = () => {
+                    setIsTabVisible(!document.hidden);
+                };
+                document.addEventListener('visibilitychange', onVisibilityChange);
+                return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+            }, []);
+
+            useEffect(() => {
+                let timeoutId = null;
+
+                const poll = async () => {
                     try {
-                        const response = await fetch('/api/campaign-status');
+                        if (!isTabVisible) {
+                            timeoutId = setTimeout(poll, 3500);
+                            return;
+                        }
+
+                        const response = await fetch('/api/campaign-status', { cache: 'no-store' });
                         const data = await response.json();
-                        
-                        // Update all real data from backend
+
                         setIsRunning(data.isRunning);
                         setStats(data.stats);
                         setCurrentEmail(data.currentEmail);
-                        setLogs(data.logs);
-                        
-                        // Calculate progress
+
+                        const snapshotId = `${data.logs.length}-${data.stats.totalSent}-${data.stats.totalFailed}-${data.isRunning ? '1' : '0'}`;
+                        if (snapshotId !== lastSnapshotRef.current) {
+                            setLogs((data.logs || []).slice(-50));
+                            lastSnapshotRef.current = snapshotId;
+                        }
+
                         const total = data.stats.totalSent + data.stats.totalFailed + data.stats.totalRemaining;
                         const completed = data.stats.totalSent + data.stats.totalFailed;
                         setProgress(total > 0 ? (completed / total) * 100 : 0);
-                        
                     } catch (error) {
                         console.error('Error fetching campaign status:', error);
+                    } finally {
+                        timeoutId = setTimeout(poll, 2500);
                     }
-                }, 1000); // Update every second
+                };
 
-                return () => clearInterval(interval);
-            }, []);
+                poll();
+
+                return () => {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                };
+            }, [isTabVisible]);
 
             const startCampaign = async () => {
                 try {
@@ -433,7 +458,6 @@
                                     </span>
                                 </div>
                             ))}
-                            <div ref={logsEndRef} />
                         </div>
                     </div>
                 </div>

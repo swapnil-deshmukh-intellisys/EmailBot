@@ -1,21 +1,22 @@
 export const SIDEBAR_PRIMARY_ITEMS = [
-  { label: 'Dashboard', href: '#dashboard-top', tone: 'primary', icon: 'DB' },
-  { label: 'Task Automation', href: '#campaign-management', tone: 'warm', icon: 'TA' },
-  { label: 'Mail Insights', href: '#campaigns-panel', tone: 'cool', icon: 'MI' }
+  { label: 'Dashboard', href: '/dashboard', tone: 'primary', icon: 'DB' }
 ];
 
 export const SIDEBAR_WORKSPACE_ITEMS = [
-  { label: 'Home', href: '#dashboard-top', icon: 'HM', subItems: ['Reports', 'Insights', 'Orders'] },
-  { label: 'Summary', href: '#summary-panel', icon: 'SM', subItems: ['Revenue', 'CPC (Paid ads)'] },
-  { label: 'Brands', href: '#upload-client-files', icon: 'BR' },
-  { label: 'Analysis', href: '#campaigns-panel', icon: 'AN' },
-  { label: 'Settings', href: '#draft-editing-panel', icon: 'ST' },
-  { label: 'Profile', href: '#dashboard-top', icon: 'PR' }
+  { label: 'Leads', href: '/leads', icon: 'LD' },
+  { label: 'Draft & Templates', href: '/draft-templates', icon: 'DT' },
+  { label: 'Master Inbox', href: '/master-inbox', icon: 'MI' },
+  { label: 'Sender Emails', href: '/sender-emails', icon: 'SE' },
+  { label: 'Email WarmUP', href: '/email-warmup', icon: 'EW' },
+  { label: 'Campaigns', href: '/sidebar-campaigns', icon: 'CP' },
+  { label: 'Report', href: '/report', icon: 'RP' }
 ];
 
 export const TOP_NAV_ITEMS = [
-  { label: 'Home', href: '#dashboard-top' },
-  { label: 'Summary', href: '#summary-panel' },
-  { label: 'Revenue', href: '#summary-panel' },
-  { label: 'CPC (Paid ads)', href: '#summary-panel' }
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Client Data', href: '/client-data' },
+  { label: 'Drafts', href: '/drafts' },
+  { label: 'Campaigns', href: '/campaigns' },
+  { label: 'Warm-Up', href: '/warm-up' },
+  { label: 'Mail Inbox', href: '/mail-inbox' }
 ];

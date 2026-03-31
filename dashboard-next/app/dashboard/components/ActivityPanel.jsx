@@ -1,29 +1,33 @@
 import React from 'react';
+import Button from '../../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 
 function ActivityPanel({ activeCampaign, progressText, onStop, onClearLogs, onDelete }) {
   if (!activeCampaign) return null;
 
   return (
-    <section className="card grid">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h3>Live Logs: {activeCampaign.name}</h3>
-        <div className="row">
-          <button className="button danger" onClick={() => onStop(activeCampaign._id)}>Stop</button>
-          <button className="button danger" onClick={() => onClearLogs(activeCampaign._id)}>Clear Logs</button>
-          <button className="button danger" onClick={() => onDelete(activeCampaign._id)}>Delete</button>
+    <Card className="ui-panel-card">
+      <CardHeader className="ui-panel-card-header">
+        <CardTitle>Live Logs: {activeCampaign.name}</CardTitle>
+        <div className="ui-toolbar ui-toolbar-wrap">
+          <Button variant="danger" onClick={() => onStop(activeCampaign._id)}>Stop</Button>
+          <Button variant="danger" onClick={() => onClearLogs(activeCampaign._id)}>Clear Logs</Button>
+          <Button variant="danger" onClick={() => onDelete(activeCampaign._id)}>Delete</Button>
         </div>
-      </div>
-      <div style={{ border: '1px solid #d7e0ea', borderRadius: 12, padding: 12 }}>
-        <p style={{ marginTop: 0 }}>{progressText}</p>
-        <div style={{ maxHeight: 220, overflow: 'auto', background: '#0f172a', color: '#e2e8f0', borderRadius: 10, padding: 10 }}>
-          {(activeCampaign.logs || []).slice(-40).map((log, idx) => (
-            <div key={idx} style={{ fontSize: 13, marginBottom: 4 }}>
-              [{new Date(log.at).toLocaleTimeString()}] {log.message}
-            </div>
-          ))}
+      </CardHeader>
+      <CardContent className="ui-panel-card-content">
+        <div className="ui-log-shell">
+          <p className="ui-log-summary">{progressText}</p>
+          <div className="ui-log-stream">
+            {(activeCampaign.logs || []).slice(-40).map((log, idx) => (
+              <div key={idx} className="ui-log-line">
+                [{new Date(log.at).toLocaleTimeString()}] {log.message}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
