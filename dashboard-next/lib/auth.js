@@ -3,6 +3,22 @@ import bcrypt from 'bcryptjs';
 
 const COOKIE_NAME = 'auth_token';
 
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
+function getConfiguredAdminEmail() {
+  const value = normalizeUserEmail(process.env.ADMIN_EMAIL || '');
+  if (value) return value;
+  return isProduction() ? '' : 'admin@example.com';
+}
+
+function getConfiguredAdminPassword() {
+  const value = String(process.env.ADMIN_PASSWORD || '');
+  if (value) return value;
+  return isProduction() ? '' : 'admin123';
+}
+
 export function signAuthToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
@@ -29,16 +45,67 @@ export function getAuthCookieName() {
   return COOKIE_NAME;
 }
 
-export async function validateAdminCredentials(email, password) {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+function getAllowedDomains() {
+  return String(process.env.ALLOWED_LOGIN_DOMAINS || 'intellisys.com')
+    .split(',')
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean);
+}
 
-  if (email !== adminEmail) {
+export function normalizeUserEmail(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+export function isAdminUserEmail(email = '') {
+  const normalizedEmail = normalizeUserEmail(email);
+  const adminEmail = getConfiguredAdminEmail();
+  return Boolean(adminEmail) && normalizedEmail === adminEmail;
+}
+
+export function isAllowedUserEmail(email = '') {
+  const normalized = normalizeUserEmail(email);
+  const parts = normalized.split('@');
+  if (parts.length !== 2) return false;
+  const localPart = parts[0];
+  const domain = parts[1];
+  const allowedDomains = getAllowedDomains();
+  const allowIntellisysPattern = String(process.env.ALLOW_INTELLISYS_PATTERN || 'true').toLowerCase() !== 'false';
+
+  if (allowedDomains.includes(domain)) {
+    return true;
+  }
+  if (allowIntellisysPattern && (localPart.includes('intellisys') || domain.includes('intellisys'))) {
+    return true;
+  }
+  return false;
+}
+
+export function getSessionFromRequest(req) {
+  const token = req?.cookies?.get?.(getAuthCookieName())?.value;
+  if (!token) return null;
+  return verifyAuthToken(token);
+}
+
+export async function validateAdminCredentials(email, password) {
+  const normalizedEmail = normalizeUserEmail(email);
+  if (!isAllowedUserEmail(normalizedEmail)) {
+    return false;
+  }
+
+  const normalizedAdmin = getConfiguredAdminEmail();
+  const adminPassword = getConfiguredAdminPassword();
+  const allowAnyIntellisysUser = String(process.env.ALLOW_ANY_INTELLISYS_USER || 'true').toLowerCase() !== 'false';
+
+  if (!normalizedAdmin) {
+    return false;
+  }
+
+  if (!allowAnyIntellisysUser && normalizedEmail !== normalizedAdmin) {
     return false;
   }
 
   // Accept plain env password for setup simplicity.
-  if (password === adminPassword) {
+  if (adminPassword && password === adminPassword) {
     return true;
   }
 

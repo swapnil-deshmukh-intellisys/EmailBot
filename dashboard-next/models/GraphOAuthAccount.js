@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const GraphOAuthAccountSchema = new mongoose.Schema(
   {
+    userEmail: { type: String, default: '', index: true },
     email: { type: String, required: true, index: true },
     displayName: { type: String, default: '' },
     tenantId: { type: String, default: 'organizations' },
@@ -16,6 +17,6 @@ const GraphOAuthAccountSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-GraphOAuthAccountSchema.index({ email: 1, tenantId: 1 }, { unique: true });
+GraphOAuthAccountSchema.index({ userEmail: 1, email: 1, tenantId: 1 }, { unique: true });
 
 export default mongoose.models.GraphOAuthAccount || mongoose.model('GraphOAuthAccount', GraphOAuthAccountSchema);

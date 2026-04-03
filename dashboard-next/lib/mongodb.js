@@ -1,11 +1,5 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error('MONGODB_URI is not set');
-}
-
 let cached = global.mongoose;
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
@@ -28,13 +22,18 @@ async function ensureSchedulerInitialized() {
 }
 
 export default async function connectDB() {
+  const mongoUri = process.env.MONGODB_URI;
+  if (!mongoUri) {
+    throw new Error('MONGODB_URI is not set');
+  }
+
   if (cached.conn) {
     await ensureSchedulerInitialized();
     return cached.conn;
   }
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+    cached.promise = mongoose.connect(mongoUri, {
       bufferCommands: false,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 10000

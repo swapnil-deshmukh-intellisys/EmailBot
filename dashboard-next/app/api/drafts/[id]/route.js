@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
+import { requireUser } from '@/lib/apiAuth';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
 
 export async function PATCH(req, { params }) {
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
     await connectDB();
     const { id } = params;
     const { category, title, subject, body } = await req.json();
@@ -15,8 +18,8 @@ export async function PATCH(req, { params }) {
     if (!ALLOWED_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
-    const draft = await EmailDraft.findByIdAndUpdate(
-      id,
+    const draft = await EmailDraft.findOneAndUpdate(
+      { _id: id, userEmail },
       { category, title, subject, body },
       { new: true, runValidators: true }
     ).lean();
@@ -31,9 +34,11 @@ export async function PATCH(req, { params }) {
 
 export async function DELETE(req, { params }) {
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
     await connectDB();
     const { id } = params;
-    const draft = await EmailDraft.findByIdAndDelete(id);
+    const draft = await EmailDraft.findOneAndDelete({ _id: id, userEmail });
     if (!draft) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }

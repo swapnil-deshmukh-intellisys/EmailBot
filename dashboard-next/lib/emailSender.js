@@ -3,6 +3,9 @@ import connectDB from './mongodb';
 import GraphOAuthAccount from '../models/GraphOAuthAccount';
 import { decryptString, encryptString } from './tokenCrypto';
 
+const MAX_SUBJECT_LENGTH = 200;
+const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function buildDefaultAccount() {
   return {
     provider: 'smtp',
@@ -192,7 +195,19 @@ function normalizeRecipient(raw) {
     value = value.split(';')[0].trim();
   }
 
-  return value;
+  return value.replace(/[\r\n]/g, '').trim();
+}
+
+function isValidEmailAddress(value = '') {
+  return SIMPLE_EMAIL_PATTERN.test(String(value || '').trim());
+}
+
+function sanitizeSubject(value = '') {
+  return String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_SUBJECT_LENGTH);
 }
 
 const tokenCache = global.graphTokenCache || { token: null, expiresAt: 0 };
@@ -227,7 +242,7 @@ async function getGraphAccessToken(account) {
   return tokenCache.token;
 }
 
-async function getDelegatedAccessToken(oauthAccountId) {
+export async function getDelegatedAccessToken(oauthAccountId) {
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
   const clientSecret = process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
   const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
@@ -251,7 +266,7 @@ async function getDelegatedAccessToken(oauthAccountId) {
   const refreshToken = decryptString(doc.refreshTokenEnc);
   const scope = (doc.scopes && doc.scopes.length)
     ? doc.scopes.join(' ')
-    : ['offline_access', 'User.Read', 'Mail.Send'].join(' ');
+    : ['offline_access', 'User.Read', 'Mail.Send', 'Mail.Read', 'Mail.ReadWrite'].join(' ');
 
   const tokenUrl = `https://login.microsoftonline.com/${doc.tenantId || tenant}/oauth2/v2.0/token`;
   const params = new URLSearchParams();
@@ -399,7 +414,7 @@ function splitRecipients(value) {
   return String(value || '')
     .split(/[;,]/)
     .map((entry) => normalizeRecipient(entry))
-    .filter(Boolean);
+    .filter((entry) => entry && isValidEmailAddress(entry));
 }
 
 function dedupeRecipients(values = []) {
@@ -407,9 +422,9 @@ function dedupeRecipients(values = []) {
 }
 
 function normalizeSubjectForReply(subject = '') {
-  const trimmed = String(subject || '').trim();
+  const trimmed = sanitizeSubject(subject);
   if (!trimmed) return 'Re:';
-  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`.slice(0, MAX_SUBJECT_LENGTH);
 }
 
 async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inReplyTo, references = [] }) {
@@ -440,7 +455,7 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   const { subject, body } = renderTemplate(template, lead);
   const to = normalizeRecipient(lead.Email || lead.email);
 
-  if (!to) {
+  if (!to || !isValidEmailAddress(to)) {
     throw new Error('Lead has no email address');
   }
 
@@ -453,7 +468,13 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   const previousCc = splitRecipients(replyContext?.cc);
   const toRecipients = dedupeRecipients([to, ...previousTo]);
   const ccRecipients = dedupeRecipients(previousCc.filter((entry) => !toRecipients.includes(entry)));
-  const finalSubject = isReply ? normalizeSubjectForReply(replyContext?.subject || subject) : subject;
+  const finalSubject = isReply
+    ? normalizeSubjectForReply(replyContext?.subject || subject)
+    : sanitizeSubject(subject);
+
+  if (!finalSubject) {
+    throw new Error('Email subject is required');
+  }
 
   let sentMessageId = '';
 

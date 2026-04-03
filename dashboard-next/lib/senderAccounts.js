@@ -65,15 +65,17 @@ export function getRuntimeSenderAccounts() {
   return accounts;
 }
 
-export async function resolveSenderAccountById(id) {
+export async function resolveSenderAccountById(id, options = {}) {
   const raw = String(id || '').trim();
+  const userEmail = String(options?.userEmail || '').trim().toLowerCase();
   if (!raw) return null;
 
   if (raw.startsWith('oauth:')) {
     const oauthId = raw.slice(6);
     if (!oauthId) return null;
     await connectDB();
-    const doc = await GraphOAuthAccount.findById(oauthId).lean();
+    const query = userEmail ? { _id: oauthId, userEmail } : { _id: oauthId };
+    const doc = await GraphOAuthAccount.findOne(query).lean();
     if (!doc) return null;
 
     return {
@@ -106,7 +108,8 @@ export async function resolveSenderAccountById(id) {
     const dbId = raw.slice(3);
     if (!dbId) return null;
     await connectDB();
-    const doc = await SenderAccount.findById(dbId).lean();
+    const query = userEmail ? { _id: dbId, userEmail } : { _id: dbId };
+    const doc = await SenderAccount.findOne(query).lean();
     if (!doc) return null;
 
     return {

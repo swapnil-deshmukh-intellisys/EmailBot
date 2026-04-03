@@ -26,6 +26,7 @@ const LeadSchema = new mongoose.Schema(
 
 const LeadListSchema = new mongoose.Schema(
   {
+    userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     sourceFile: { type: String, required: true },
     columns: { type: [String], default: [] },

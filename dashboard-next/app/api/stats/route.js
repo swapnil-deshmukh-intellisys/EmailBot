@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import { requireUser } from '@/lib/apiAuth';
 
 const STATS_CACHE_TTL_MS = 10000;
 
@@ -13,8 +14,10 @@ function getStatsCache() {
 
 export async function GET(req) {
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
     const cache = getStatsCache();
-    const cacheKey = req.url;
+    const cacheKey = `${userEmail}::${req.url}`;
     const now = Date.now();
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
@@ -28,7 +31,7 @@ export async function GET(req) {
     const selectedRange = String(url.searchParams.get('range') || '').trim();
     const customStartDate = String(url.searchParams.get('startDate') || '').trim();
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
-    const lists = await LeadList.find().sort({ createdAt: -1 }).lean();
+    const lists = await LeadList.find({ userEmail }).sort({ createdAt: -1 }).lean();
 
     let totalUploaded = 0;
     let sent = 0;

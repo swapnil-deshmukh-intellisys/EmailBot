@@ -9,8 +9,10 @@ import LeadList from '@/models/LeadList';
 import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
+import { requireUser } from '@/lib/apiAuth';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
+const MIN_DELAY_SECONDS = Math.max(60, Number(process.env.MIN_DELAY_SECONDS || 60));
 
 function normalizeCampaignType(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
@@ -24,9 +26,11 @@ function escapeRegex(value = '') {
 export async function GET(req) {
 
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
 
     await connectDB();
-    const query = {};
+    const query = { userEmail };
     const url = new URL(req.url);
     const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
     const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
@@ -60,6 +64,8 @@ export async function GET(req) {
 export async function POST(req) {
 
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
 
     await connectDB();
 
@@ -77,7 +83,7 @@ export async function POST(req) {
 
 
 
-    const list = await LeadList.findById(listId).lean();
+    const list = await LeadList.findOne({ _id: listId, userEmail }).lean();
 
     if (!list) {
 
@@ -91,7 +97,7 @@ export async function POST(req) {
 
     if (!resolvedTemplateId && (!inlineTemplate?.subject || !inlineTemplate?.body)) {
 
-      const fallback = await EmailTemplate.findOne().sort({ createdAt: -1 }).lean();
+      const fallback = await EmailTemplate.findOne({ userEmail }).sort({ createdAt: -1 }).lean();
 
       resolvedTemplateId = fallback?._id || null;
 
@@ -99,7 +105,7 @@ export async function POST(req) {
 
 
 
-    const senderAccount = senderAccountId ? await resolveSenderAccountById(senderAccountId) : null;
+    const senderAccount = senderAccountId ? await resolveSenderAccountById(senderAccountId, { userEmail }) : null;
 
     if (senderAccountId && !senderAccount) {
 
@@ -129,6 +135,7 @@ export async function POST(req) {
 
     const campaign = await Campaign.create({
 
+      userEmail,
       name,
       project: String(project || '').trim().toLowerCase(),
       senderFrom: String(senderFrom || senderAccount?.from || '').trim().toLowerCase(),
@@ -154,7 +161,7 @@ export async function POST(req) {
 
         batchSize,
 
-        delaySeconds: Math.max(60, Number(options?.delaySeconds || 60)),
+        delaySeconds: Math.max(MIN_DELAY_SECONDS, Number(options?.delaySeconds || 60)),
 
         rowRange,
         replyMode

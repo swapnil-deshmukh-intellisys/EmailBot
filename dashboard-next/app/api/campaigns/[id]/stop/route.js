@@ -2,10 +2,13 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { stopCampaignRunner } from '@/lib/campaignRunner';
+import { requireUser } from '@/lib/apiAuth';
 
-export async function POST(_, { params }) {
+export async function POST(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
-  const campaign = await Campaign.findById(params.id);
+  const campaign = await Campaign.findOne({ _id: params.id, userEmail });
   if (!campaign) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
   }

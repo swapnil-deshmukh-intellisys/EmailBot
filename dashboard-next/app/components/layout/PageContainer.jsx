@@ -11,7 +11,7 @@ const sizeMap = {
 
 export function PageContainer({ children, className = '', size = 'xl' }) {
   return (
-    <div className={cn('container grid dashboard-main', sizeMap[size] || sizeMap.xl, className)}>
+    <div className={cn('container grid dashboard-main app-layout-main', sizeMap[size] || sizeMap.xl, className)}>
       {children}
     </div>
   );

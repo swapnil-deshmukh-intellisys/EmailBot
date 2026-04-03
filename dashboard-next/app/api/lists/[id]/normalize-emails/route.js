@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import { requireUser } from '@/lib/apiAuth';
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
@@ -13,9 +14,11 @@ function normalizeEmail(raw) {
   return value;
 }
 
-export async function POST(_, { params }) {
+export async function POST(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
-  const list = await LeadList.findById(params.id);
+  const list = await LeadList.findOne({ _id: params.id, userEmail });
   if (!list) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }

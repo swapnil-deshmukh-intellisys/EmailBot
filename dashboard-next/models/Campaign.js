@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const CampaignSchema = new mongoose.Schema(
   {
+    userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     project: { type: String, default: '' },
     senderFrom: { type: String, default: '' },
@@ -67,7 +68,7 @@ const CampaignSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-CampaignSchema.index({ project: 1, senderFrom: 1, createdAt: -1 });
-CampaignSchema.index({ status: 1, project: 1, senderFrom: 1 });
+CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
 
 export default mongoose.models.Campaign || mongoose.model('Campaign', CampaignSchema);

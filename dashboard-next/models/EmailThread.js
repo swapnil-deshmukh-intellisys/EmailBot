@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const EmailThreadSchema = new mongoose.Schema(
   {
+    userEmail: { type: String, default: '', index: true },
     recipientEmail: { type: String, required: true, index: true },
     senderKey: { type: String, required: true, index: true },
     messageId: { type: String, default: '' },
@@ -16,6 +17,6 @@ const EmailThreadSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-EmailThreadSchema.index({ recipientEmail: 1, senderKey: 1 }, { unique: true });
+EmailThreadSchema.index({ userEmail: 1, recipientEmail: 1, senderKey: 1 }, { unique: true });
 
 export default mongoose.models.EmailThread || mongoose.model('EmailThread', EmailThreadSchema);

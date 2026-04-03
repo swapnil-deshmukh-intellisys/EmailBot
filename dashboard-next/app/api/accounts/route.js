@@ -5,6 +5,7 @@ import PresetSender from '@/models/PresetSender';
 import SenderAccount from '@/models/SenderAccount';
 import { verifyAccountConnection } from '@/lib/emailSender';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
+import { requireUser } from '@/lib/apiAuth';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
 
@@ -40,11 +41,13 @@ function getPresetSenderEmails(project = "") {
 
 
 export async function GET(req) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
 
   const url = new URL(req.url);
   const project = String(url.searchParams.get("project") || "").trim().toLowerCase();
-  const cacheKey = project || '__all__';
+  const cacheKey = `${userEmail}::${project || '__all__'}`;
   const cache = getAccountsCache();
   const now = Date.now();
   const cached = cache.get(cacheKey);
@@ -55,8 +58,8 @@ export async function GET(req) {
   const envAccounts = getRuntimeSenderAccounts().map(toPublicAccount);
 
   const [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
-    GraphOAuthAccount.find().sort({ createdAt: -1 }).lean(),
-    SenderAccount.find().sort({ createdAt: -1 }).lean(),
+    GraphOAuthAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
+    SenderAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
     PresetSender.find().lean()
   ]);
   const oauthPublic = oauthAccounts.map((a) => ({
@@ -123,6 +126,8 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
     await connectDB();
     const body = await req.json();
 
@@ -154,7 +159,7 @@ export async function POST(req) {
     // Verify before storing so the dropdown only shows working accounts.
     await verifyAccountConnection(account);
 
-    const created = await SenderAccount.create(account);
+    const created = await SenderAccount.create({ ...account, userEmail });
     return NextResponse.json({
       ok: true,
       account: {

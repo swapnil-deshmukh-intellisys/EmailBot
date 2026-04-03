@@ -893,26 +893,95 @@ const handleDeleteDraft = async (draft) => {
       color: '#f97316'
     }
   ];
-  const logs = [
-    ...timelineCards.map((item, index) => ({
-      time: item.date,
-      tag: index === 0 ? 'Live' : 'Info',
-      msg: item.title,
-      detail: item.text || 'Timeline update recorded on the dashboard.'
-    })),
-    ...notificationCards.map((item) => ({
-      time: item.time,
-      tag: 'Mail',
-      msg: item.name,
-      detail: item.text
-    })),
-    ...performanceCampaigns.slice(0, 4).map((item) => ({
-      time: item.publishDate,
-      tag: 'Campaign',
-      msg: `${item.name} (${item.tag})`,
-      detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`
-    }))
-  ];
+  const activeCampaignLogs = useMemo(() => {
+    const senderId =
+      String(
+        activeCampaign?.senderFrom ||
+        activeCampaign?.senderAccount?.from ||
+        activeCampaign?.senderAccount?.user ||
+        selectedAccountLabel ||
+        ''
+      ).trim() || 'unknown sender';
+    const campaignName = String(activeCampaign?.name || 'Active campaign');
+
+    if (!Array.isArray(activeCampaign?.logs) || activeCampaign.logs.length === 0) {
+      return [];
+    }
+
+    return activeCampaign.logs.slice(-120).map((log) => {
+      const rawMessage = String(log?.message || '').trim();
+      const sentMatch = rawMessage.match(/^Sent:\s*(.+)$/i);
+      const failedMatch = rawMessage.match(/^Failed:\s*([^\-]+)\s*-\s*(.+)$/i);
+      const fallbackRecipient = rawMessage.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i)?.[1] || '';
+
+      if (sentMatch) {
+        const recipient = String(sentMatch[1] || '').trim();
+        return {
+          time: log?.at || new Date().toISOString(),
+          tag: 'Sent',
+          msg: `Mail sent to ${recipient}`,
+          detail: `Campaign: ${campaignName} | Sender ID: ${senderId}`
+        };
+      }
+
+      if (failedMatch) {
+        const recipient = String(failedMatch[1] || '').trim();
+        const reason = String(failedMatch[2] || '').trim();
+        return {
+          time: log?.at || new Date().toISOString(),
+          tag: 'Failed',
+          msg: `Mail failed for ${recipient}`,
+          detail: `Reason: ${reason} | Sender ID: ${senderId}`
+        };
+      }
+
+      return {
+        time: log?.at || new Date().toISOString(),
+        tag: String(log?.level || 'Info').toUpperCase(),
+        msg: rawMessage || 'Campaign event',
+        detail: fallbackRecipient ? `Recipient: ${fallbackRecipient} | Sender ID: ${senderId}` : `Sender ID: ${senderId}`
+      };
+    }).reverse();
+  }, [activeCampaign, selectedAccountLabel]);
+
+  const logs = activeCampaignLogs.length
+    ? activeCampaignLogs
+    : [
+        ...timelineCards.map((item, index) => ({
+          time: item.date,
+          tag: index === 0 ? 'Live' : 'Info',
+          msg: item.title,
+          detail: item.text || 'Timeline update recorded on the dashboard.'
+        })),
+        ...notificationCards.map((item) => ({
+          time: item.time,
+          tag: 'Mail',
+          msg: item.name,
+          detail: item.text
+        })),
+        ...performanceCampaigns.slice(0, 4).map((item) => ({
+          time: item.publishDate,
+          tag: 'Campaign',
+          msg: `${item.name} (${item.tag})`,
+          detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`
+        }))
+      ];
+  const sidebarLiveBadges = useMemo(() => {
+    const campaignTotal = Number(campaigns?.length || 0);
+    const draftsTotal = Number(savedDrafts?.length || 0);
+    const clientListsTotal = Number(lists?.length || 0);
+    const runningCampaigns = (campaigns || []).filter((item) => String(item?.status || '').toLowerCase() === 'running').length;
+    const inboxActivity = Math.max(0, Number(logs?.length || 0));
+    const warmupPercent = Math.max(0, Math.min(100, Number(completionRate || 0)));
+    return {
+      Dashboard: `${Number(stats?.sent || 0)}/${Math.max(1, Number(totalTrackedMails || 0))}`,
+      'Client Data': String(clientListsTotal),
+      Drafts: String(draftsTotal),
+      Campaigns: `${runningCampaigns}/${campaignTotal}`,
+      'Warm-Up': `${warmupPercent}%`,
+      'Mail Inbox': String(inboxActivity)
+    };
+  }, [campaigns, completionRate, lists, logs, savedDrafts, stats?.sent, totalTrackedMails]);
 
   useEffect(() => {
     if (!projectAccounts.length) {
@@ -1225,9 +1294,11 @@ const handleDeleteDraft = async (draft) => {
 
 
   useEffect(() => {
-    const id = setInterval(() => loadLiveData(), 30000);
+    const refreshMs = String(activeCampaign?.status || '').toLowerCase() === 'running' ? 5000 : 30000;
+    const id = setInterval(() => loadLiveData(), refreshMs);
     return () => clearInterval(id);
   }, [
+    activeCampaign?.status,
     showAllUserActivity,
     project,
     selectedAccount,
@@ -1298,6 +1369,11 @@ const handleDeleteDraft = async (draft) => {
   };
 
   const createCampaign = async ({ skipReload = false } = {}) => {
+    if (!selectedAccount) {
+      notify('Select Mail ID before creating a campaign.', 'info');
+      return null;
+    }
+
     try {
       const data = await safeFetchJson('/api/campaigns', {
         method: 'POST',
@@ -1787,6 +1863,7 @@ const normalizeSelectedListEmails = async () => {
       >
         {depth === 0 ? <span className="dashboard-link-icon soft">{item.icon}</span> : null}
         <span>{item.label}</span>
+        {depth === 0 && sidebarLiveBadges[item.label] ? <em className="dashboard-sidebar-badge">{sidebarLiveBadges[item.label]}</em> : null}
       </a>
       {item.items?.length ? (
         <div className="dashboard-sidebar-submenu">
@@ -1836,7 +1913,6 @@ const normalizeSelectedListEmails = async () => {
             <nav className="dashboard-sidebar-menu">
               {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
             </nav>
-
             <div className="dashboard-upgrade-card">
               <div className="dashboard-upgrade-head">
                 <strong>Upgrade</strong>
@@ -2267,4 +2343,10 @@ const normalizeSelectedListEmails = async () => {
     </main>
   );
 }
+
+
+
+
+
+
 

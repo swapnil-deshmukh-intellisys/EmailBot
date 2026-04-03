@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const SenderAccountSchema = new mongoose.Schema(
   {
+    userEmail: { type: String, default: '', index: true },
     provider: { type: String, enum: ['smtp', 'gmail', 'graph'], required: true },
     label: { type: String, default: '' },
     from: { type: String, required: true },

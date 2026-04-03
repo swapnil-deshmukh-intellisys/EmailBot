@@ -1,5 +1,6 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { requireUser } from '@/lib/apiAuth';
 
 function base64Url(buf) {
   return Buffer.from(buf)
@@ -10,6 +11,9 @@ function base64Url(buf) {
 }
 
 export async function GET(req) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
+
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
   const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
   if (!clientId) {
@@ -18,7 +22,7 @@ export async function GET(req) {
 
   const url = new URL(req.url);
   const returnTo = url.searchParams.get('returnTo') || '/dashboard';
-  const expectedEmail = (url.searchParams.get('expectedEmail') || '').trim().toLowerCase();
+  const expectedEmail = (url.searchParams.get('expectedEmail') || userEmail).trim().toLowerCase();
   const loginHint = (url.searchParams.get('loginHint') || expectedEmail).trim();
 
   const state = base64Url(crypto.randomBytes(24));
@@ -32,7 +36,9 @@ export async function GET(req) {
     'email',
     'offline_access',
     'User.Read',
-    'Mail.Send'
+    'Mail.Send',
+    'Mail.Read',
+    'Mail.ReadWrite'
   ].join(' ');
 
   const authUrl = new URL(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize`);
@@ -50,7 +56,8 @@ export async function GET(req) {
   }
 
   const res = NextResponse.redirect(authUrl);
-  const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: false };
+  const isSecure = process.env.NODE_ENV === 'production';
+  const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: isSecure };
   res.cookies.set('ms_oauth_state', state, opts);
   res.cookies.set('ms_oauth_verifier', verifier, opts);
   res.cookies.set('ms_oauth_return', returnTo, opts);

@@ -1,7 +1,8 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import { encryptString } from '@/lib/tokenCrypto';
+import { requireUser } from '@/lib/apiAuth';
 
 function base64UrlDecodeToJson(part) {
   const pad = '='.repeat((4 - (part.length % 4)) % 4);
@@ -11,6 +12,10 @@ function base64UrlDecodeToJson(part) {
 }
 
 export async function GET(req) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
+
+  const isSecure = process.env.NODE_ENV === 'production';
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
   const clientSecret = process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
   const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
@@ -45,7 +50,9 @@ export async function GET(req) {
     'email',
     'offline_access',
     'User.Read',
-    'Mail.Send'
+    'Mail.Send',
+    'Mail.Read',
+    'Mail.ReadWrite'
   ].join(' ');
 
   const tokenUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
@@ -95,7 +102,7 @@ export async function GET(req) {
 
   if (expectedEmail && email && expectedEmail !== email) {
     const res = NextResponse.redirect(new URL(`/dashboard?oauth=error&message=${encodeURIComponent(`Signed in as ${email} but expected ${expectedEmail}`)}`, url.origin));
-    const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: false, maxAge: 0 };
+    const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: isSecure, maxAge: 0 };
     res.cookies.set('ms_oauth_state', '', opts);
     res.cookies.set('ms_oauth_verifier', '', opts);
     res.cookies.set('ms_oauth_return', '', opts);
@@ -109,9 +116,10 @@ export async function GET(req) {
 
   await connectDB();
   await GraphOAuthAccount.findOneAndUpdate(
-    { email, tenantId: tid },
+    { email, tenantId: tid, userEmail },
     {
       $set: {
+        userEmail,
         displayName,
         scopes: String(tokenData.scope || '').split(' ').filter(Boolean),
         accessTokenEnc: encryptString(accessToken),
@@ -124,7 +132,7 @@ export async function GET(req) {
   );
 
   const res = NextResponse.redirect(new URL(`${returnTo}?oauth=connected`, url.origin));
-  const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: false, maxAge: 0 };
+  const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: isSecure, maxAge: 0 };
   res.cookies.set('ms_oauth_state', '', opts);
   res.cookies.set('ms_oauth_verifier', '', opts);
   res.cookies.set('ms_oauth_return', '', opts);

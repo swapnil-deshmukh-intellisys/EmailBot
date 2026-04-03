@@ -28,7 +28,16 @@ function MetricCard({ item }) {
   );
 }
 
-function WorkflowStep({ step, isLast, onAction }) {
+const draftTypeItems = [
+  { value: 'cover_story', label: 'cover' },
+  { value: 'reminder', label: 'rem' },
+  { value: 'follow_up', label: 'followup' },
+  { value: 'updated_cost', label: 'updated cost' },
+  { value: 'final_cost', label: 'final cost' }
+];
+
+function WorkflowStep({ step, isLast, onAction, selectedDraftType, onSelectedDraftTypeChange }) {
+  const isDraftStep = Number(step?.index) === 4;
   return (
     <article
       className="premium-step-card"
@@ -44,13 +53,36 @@ function WorkflowStep({ step, isLast, onAction }) {
         </span>
         {!isLast ? <i /> : null}
       </div>
-      <button
-        type="button"
-        onClick={() => onAction?.(step)}
-        style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
-      >
-        {step.action}
-      </button>
+      {isDraftStep ? (
+        <div className="premium-step-draft-controls">
+          <button
+            type="button"
+            onClick={() => onAction?.(step)}
+            style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+          >
+            Drafts
+          </button>
+          <select
+            value={selectedDraftType}
+            onChange={(event) => onSelectedDraftTypeChange?.(event.target.value)}
+            aria-label="Select draft type"
+          >
+            {draftTypeItems.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onAction?.(step)}
+          style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+        >
+          {step.action}
+        </button>
+      )}
     </article>
   );
 }
@@ -97,8 +129,10 @@ function TimelineItem({ item }) {
 }
 
 function LogItem({ item, detailed = false }) {
+  const tagText = String(item?.tag || '').toLowerCase();
+  const isSentLog = tagText === 'sent';
   return (
-    <div className={`premium-log-item ${detailed ? 'detailed' : 'compact'}`}>
+    <div className={`premium-log-item ${detailed ? 'detailed' : 'compact'} ${isSentLog ? 'sent' : ''}`}>
       <strong>{detailed ? item.time : item.tag}</strong>
       <div>
         <span>{detailed ? item.tag : 'Activity'}</span>
@@ -135,6 +169,13 @@ function formatLogTime(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleTimeString();
+}
+
+function sanitizeHtmlForPreview(html = '') {
+  return String(html || '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '');
 }
 
 export default function PremiumDashboardShell({
@@ -249,6 +290,7 @@ export default function PremiumDashboardShell({
   const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
   const [selectedRows, setSelectedRows] = useState([]);
   const [openActionMenu, setOpenActionMenu] = useState(null);
+  const [isBroadcastPerformanceMinimized, setIsBroadcastPerformanceMinimized] = useState(false);
   const [currentTablePage, setCurrentTablePage] = useState(1);
   const [noteDraft, setNoteDraft] = useState('');
   const [quickNotes, setQuickNotes] = useState([]);
@@ -283,6 +325,7 @@ export default function PremiumDashboardShell({
   });
   const [campaignAbTesting, setCampaignAbTesting] = useState(true);
   const [selectDraftTab, setSelectDraftTab] = useState('my-drafts');
+  const [showDraftTypeDropdown, setShowDraftTypeDropdown] = useState(false);
   const [selectedDraftId, setSelectedDraftId] = useState('');
   const [testPreviewMode, setTestPreviewMode] = useState('desktop');
   const [testEmailAddress, setTestEmailAddress] = useState('');
@@ -306,39 +349,23 @@ export default function PremiumDashboardShell({
         id: draft._id || draft.id,
         title: draft.title,
         subject: draft.subject,
+        category: draft.category || '',
         updated: 'Saved draft'
       }))
     : savedDrafts;
-  const userGuidance = useMemo(() => {
-    if (!effectiveUploadedLists.length) {
-      return {
-        title: 'Start by uploading a client list',
-        detail: 'Use step 1 to upload a CSV or XLSX file. After upload, review the detected columns before creating a campaign.'
-      };
-    }
-    if (!effectiveCampaignName?.trim()) {
-      return {
-        title: 'Name your campaign next',
-        detail: 'Open the Campaign step, enter a clear campaign name, then create the campaign so it appears in the running campaigns table.'
-      };
-    }
-    if (!effectiveDraftSubject && !effectiveDraftMessage) {
-      return {
-        title: 'Add your email draft',
-        detail: 'Choose a saved draft or write a new subject and message so the campaign has content to send.'
-      };
-    }
-    if (!selectedAccountLabel || selectedAccountLabel === 'Select Mail ID') {
-      return {
-        title: 'Choose the sending mailbox',
-        detail: 'Select a connected mail account before sending test emails or starting the campaign.'
-      };
-    }
-    return {
-      title: 'Launch and monitor your campaign',
-      detail: 'Use Test Email to preview delivery, then start or schedule the campaign. You can track status in the Campaigns table and the live Logs panel below.'
-    };
-  }, [effectiveCampaignName, effectiveDraftMessage, effectiveDraftSubject, effectiveUploadedLists.length, selectedAccountLabel]);
+  const filteredSavedDrafts = useMemo(() => {
+    const target = String(selectedDraftType || '').toLowerCase();
+    const matches = effectiveSavedDrafts.filter((item) => String(item.category || '').toLowerCase() === target);
+    return matches.length ? matches : effectiveSavedDrafts;
+  }, [effectiveSavedDrafts, selectedDraftType]);
+  const htmlPreviewContent = useMemo(
+    () => sanitizeHtmlForPreview(effectiveDraftMessage || ''),
+    [effectiveDraftMessage]
+  );
+  const hasHtmlContent = useMemo(
+    () => /<[a-z][\s\S]*>/i.test(effectiveDraftMessage || ''),
+    [effectiveDraftMessage]
+  );
   const monthLabel = calendarCursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
@@ -599,6 +626,7 @@ export default function PremiumDashboardShell({
     );
   }, [previewColumns, previewRows]);
 
+
   useEffect(() => {
     if (!draftOptions.length) {
       setSelectedDraftId('');
@@ -716,7 +744,6 @@ export default function PremiumDashboardShell({
     const isActive = activeCampaign && String(activeCampaign._id || activeCampaign.id) === String(campaign.id);
     setTableSearch(campaign.name || '');
     setSelectedTagFilter('All Tags');
-    setOpenActionMenu(null);
     if (isActive) {
       setShowLogsPopup(true);
       showTableMessage(`Showing live logs for ${campaign.name}.`, 'success');
@@ -727,8 +754,14 @@ export default function PremiumDashboardShell({
 
   const handleEditTagsClick = (campaign) => {
     setTableSearch(campaign.name || '');
-    setOpenActionMenu(null);
     showTableMessage(`Tags for ${campaign.name} come from real campaign data. Update them from the campaign source, then refresh this dashboard.`, 'info');
+  };
+
+  const handleShowAllBroadcastPerformance = () => {
+    setTableSearch('');
+    setSelectedTagFilter('All Tags');
+    setCurrentTablePage(1);
+    showTableMessage('Showing all broadcast performance rows.', 'success');
   };
 
   const handleDeleteCampaignClick = (campaign) => {
@@ -873,6 +906,20 @@ export default function PremiumDashboardShell({
   const importDraftToEditor = () => {
     setDraftMessage(draftViewerText);
   };
+  const handleDraftTypeSelectFromDropdown = (draftTypeValue) => {
+    onSelectedDraftTypeChange?.(draftTypeValue);
+    setSelectDraftTab('my-drafts');
+    const match = draftOptions.find((item) => String(item?.category || '').toLowerCase() === String(draftTypeValue || '').toLowerCase());
+    if (match) {
+      const id = match._id || match.id;
+      setSelectedDraftId(id);
+      onSelectSavedDraft?.(id);
+      onShowMessage?.(`Selected ${draftTypeValue.replace('_', ' ')} draft for sending.`, 'success');
+    } else {
+      onShowMessage?.(`Draft type set to ${draftTypeValue.replace('_', ' ')} for sending.`, 'info');
+    }
+    setShowDraftTypeDropdown(false);
+  };
 
   return (
     <section className="premium-dashboard-shell">
@@ -909,22 +956,6 @@ export default function PremiumDashboardShell({
         </div>
       </div>
 
-      <section
-        className="card"
-        style={{
-          marginBottom: 18,
-          border: '1px solid var(--border-color)',
-          borderRadius: 18,
-          background: 'linear-gradient(180deg, var(--panel-strong), color-mix(in srgb, var(--panel-strong) 82%, var(--bg-secondary)))',
-          padding: 18
-        }}
-      >
-        <div className="premium-panel-head" style={{ marginBottom: 10 }}>
-          <h3 style={{ color: 'var(--text-primary)', fontSize: '1.05rem', margin: 0 }}>{userGuidance.title}</h3>
-        </div>
-        <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: 1.6 }}>{userGuidance.detail}</p>
-      </section>
-
       <div className="premium-kpi-row">
         {reportMetricCards.map((item) => (
           <MetricCard key={item.title} item={item} />
@@ -933,7 +964,14 @@ export default function PremiumDashboardShell({
 
       <div className="premium-stepper-row" style={{ color: 'var(--text-primary)' }}>
         {workflowSteps.map((step, index) => (
-          <WorkflowStep key={step.index} step={step} isLast={index === workflowSteps.length - 1} onAction={handleWorkflowAction} />
+          <WorkflowStep
+            key={step.index}
+            step={step}
+            isLast={index === workflowSteps.length - 1}
+            onAction={handleWorkflowAction}
+            selectedDraftType={selectedDraftType}
+            onSelectedDraftTypeChange={onSelectedDraftTypeChange}
+          />
         ))}
         <button
           type="button"
@@ -1074,6 +1112,19 @@ export default function PremiumDashboardShell({
         <section className="premium-panel premium-panel-span-3">
           <div className="premium-panel-head">
             <h3>All Broadcast Performance</h3>
+            <div className="premium-panel-head-actions">
+              <button type="button" className="ghost" onClick={handleShowAllBroadcastPerformance}>Show</button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsBroadcastPerformanceMinimized((value) => !value)}
+              >
+                {isBroadcastPerformanceMinimized ? 'Expand' : 'Minimize'}
+              </button>
+            </div>
+          </div>
+          {!isBroadcastPerformanceMinimized ? (
+            <>
             <div className="premium-table-actions">
               <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaigns'}</button>
               <select value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
@@ -1089,7 +1140,6 @@ export default function PremiumDashboardShell({
               />
               <button type="button" className="subtle" onClick={handleActionCenterClick}>{selectedRows.length ? 'Take Action' : 'Action Center'}</button>
             </div>
-          </div>
           <div className="premium-table-wrap">
             <div className="premium-table premium-table-head">
               {['', 'Sr. No.', 'Campaigns', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
@@ -1097,7 +1147,10 @@ export default function PremiumDashboardShell({
               ))}
             </div>
             {paginatedCampaigns.map((campaign, index) => (
-              <div key={campaign.id || campaign._id || index} className="premium-table premium-table-row">
+              <div
+                key={campaign.id || campaign._id || index}
+                className={`premium-table premium-table-row ${openActionMenu === campaign.id ? 'premium-table-row-menu-open' : ''}`}
+              >
                 <span>
                   <input
                     type="checkbox"
@@ -1129,7 +1182,7 @@ export default function PremiumDashboardShell({
                   <button
                     type="button"
                     className="premium-row-action"
-                    onClick={() => setOpenActionMenu((current) => current === campaign.id ? null : campaign.id)}
+                    onClick={() => setOpenActionMenu(campaign.id)}
                     aria-label={`Open actions for ${campaign.name}`}
                   >
                     ...
@@ -1189,6 +1242,8 @@ export default function PremiumDashboardShell({
               </button>
             </div>
           </div>
+          </>
+          ) : null}
         </section>
 
         <section className="premium-panel premium-logs-panel">
@@ -1941,11 +1996,34 @@ export default function PremiumDashboardShell({
               >
                 Create New Draft
               </button>
+              <div className="premium-select-draft-dropdown-wrap">
+                <button
+                  type="button"
+                  className={showDraftTypeDropdown ? 'active' : ''}
+                  onClick={() => setShowDraftTypeDropdown((current) => !current)}
+                >
+                  Draft Types
+                </button>
+                {showDraftTypeDropdown ? (
+                  <div className="premium-select-draft-dropdown">
+                    {draftTypeItems.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={selectedDraftType === item.value ? 'active' : ''}
+                        onClick={() => handleDraftTypeSelectFromDropdown(item.value)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {selectDraftTab === 'my-drafts' ? (
               <div className="premium-select-draft-list">
-                {effectiveSavedDrafts.map((draft) => (
+                {filteredSavedDrafts.map((draft) => (
                   <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
                     <input
                       type="radio"
@@ -1963,6 +2041,7 @@ export default function PremiumDashboardShell({
                     </div>
                   </label>
                 ))}
+
               </div>
             ) : (
               <div className="premium-select-draft-create">
@@ -2015,6 +2094,12 @@ export default function PremiumDashboardShell({
                         onChange={(event) => onDraftBodyChange ? onDraftBodyChange(event.target.value) : setDraftMessage(event.target.value)}
                         placeholder="Write your email draft..."
                       />
+                      {hasHtmlContent ? (
+                        <div className="premium-template-preview">
+                          <strong>Formatted Preview</strong>
+                          <div dangerouslySetInnerHTML={{ __html: htmlPreviewContent }} />
+                        </div>
+                      ) : null}
                     </div>
                   </section>
                 </div>
@@ -2214,6 +2299,12 @@ export default function PremiumDashboardShell({
                 onChange={(event) => onDraftBodyChange ? onDraftBodyChange(event.target.value) : setDraftMessage(event.target.value)}
                 placeholder="Write your template message..."
               />
+              {hasHtmlContent ? (
+                <div className="premium-template-preview">
+                  <strong>Formatted Preview</strong>
+                  <div dangerouslySetInnerHTML={{ __html: htmlPreviewContent }} />
+                </div>
+              ) : null}
             </div>
 
             <div className="premium-template-actions">

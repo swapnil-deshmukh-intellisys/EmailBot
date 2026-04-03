@@ -2,6 +2,54 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import { requireUser } from '@/lib/apiAuth';
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_ROWS = 5000;
+const MAX_COLUMNS = 200;
+const ALLOWED_EXTENSIONS = new Set(['.xlsx', '.csv']);
+const ALLOWED_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  ''
+]);
+const BLOCKED_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_UPLOADS = 10;
+
+const uploadRateState =
+  global.__uploadRateState ||
+  (global.__uploadRateState = new Map());
+
+function getFileExtension(fileName = '') {
+  const normalized = String(fileName || '').trim().toLowerCase();
+  const dotIndex = normalized.lastIndexOf('.');
+  return dotIndex >= 0 ? normalized.slice(dotIndex) : '';
+}
+
+function getClientKey(req, userEmail = '') {
+  const forwardedFor = req.headers.get('x-forwarded-for') || '';
+  const ip = forwardedFor.split(',')[0]?.trim() || 'unknown';
+  return `${String(userEmail || '').toLowerCase()}::${ip}`;
+}
+
+function checkUploadRateLimit(req, userEmail = '') {
+  const now = Date.now();
+  const key = getClientKey(req, userEmail);
+  const bucket = uploadRateState.get(key) || [];
+  const freshEntries = bucket.filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
+
+  if (freshEntries.length >= RATE_LIMIT_MAX_UPLOADS) {
+    return false;
+  }
+
+  freshEntries.push(now);
+  uploadRateState.set(key, freshEntries);
+  return true;
+}
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
@@ -18,6 +66,7 @@ function normalizeRow(row) {
   const obj = {};
   for (const [key, value] of Object.entries(row)) {
     const cleanKey = String(key).trim();
+    if (!cleanKey || BLOCKED_KEYS.has(cleanKey)) continue;
     obj[cleanKey] = value;
   }
 
@@ -49,7 +98,16 @@ function extractColumns(rows) {
 }
 
 export async function POST(req) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
+
+  if (!checkUploadRateLimit(req, userEmail)) {
+    return NextResponse.json(
+      { error: 'Too many uploads. Please wait a minute before trying again.' },
+      { status: 429 }
+    );
+  }
 
   const form = await req.formData();
   const file = form.get('file');
@@ -59,11 +117,61 @@ export async function POST(req) {
   }
 
   const fileName = file.name || 'upload';
+  const extension = getFileExtension(fileName);
+  const mimeType = String(file.type || '').trim().toLowerCase();
+
+  if (!ALLOWED_EXTENSIONS.has(extension)) {
+    return NextResponse.json({ error: 'Only .xlsx and .csv files are allowed' }, { status: 400 });
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
+  }
+
+  if (typeof file.size === 'number' && file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
+      { status: 400 }
+    );
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+
+  if (buffer.length > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
+      { status: 400 }
+    );
+  }
+
+  const workbook = XLSX.read(buffer, {
+    type: 'buffer',
+    dense: false,
+    cellFormula: false,
+    cellHTML: false
+  });
   const firstSheet = workbook.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+  if (!firstSheet || !workbook.Sheets[firstSheet]) {
+    return NextResponse.json({ error: 'Uploaded file does not contain a readable sheet' }, { status: 400 });
+  }
+
+  const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+  if (rawRows.length > MAX_ROWS) {
+    return NextResponse.json(
+      { error: `Too many rows. Maximum allowed rows is ${MAX_ROWS}.` },
+      { status: 400 }
+    );
+  }
+
+  const rows = rawRows.map((row) => normalizeRow(row).data);
   const columns = extractColumns(rows);
+
+  if (columns.length > MAX_COLUMNS) {
+    return NextResponse.json(
+      { error: `Too many columns. Maximum allowed columns is ${MAX_COLUMNS}.` },
+      { status: 400 }
+    );
+  }
 
   const leads = rows
     .map(normalizeRow)
@@ -74,6 +182,7 @@ export async function POST(req) {
   }
 
   const list = await LeadList.create({
+    userEmail,
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,
     columns,

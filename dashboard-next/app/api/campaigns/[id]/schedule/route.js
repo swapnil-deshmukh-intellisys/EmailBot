@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
+import { requireUser } from '@/lib/apiAuth';
 
 export async function POST(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   if (!mongoose.isValidObjectId(params?.id)) {
     return NextResponse.json({ error: 'Invalid campaign id' }, { status: 400 });
   }
 
   await connectDB();
 
-  const existing = await Campaign.findById(params.id).select('_id').lean();
+  const existing = await Campaign.findOne({ _id: params.id, userEmail }).select('_id').lean();
   if (!existing) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
   }
@@ -39,7 +42,7 @@ export async function POST(req, { params }) {
     }
 
     await Campaign.updateOne(
-      { _id: params.id },
+      { _id: params.id, userEmail },
       {
         $set: {
           scheduledStart: {
@@ -62,7 +65,7 @@ export async function POST(req, { params }) {
       }
     );
 
-    const campaign = await Campaign.findById(params.id).lean();
+    const campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
 
     return NextResponse.json({ ok: true, campaign });
   } catch (error) {

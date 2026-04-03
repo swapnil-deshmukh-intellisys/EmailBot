@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import { requireUser } from '@/lib/apiAuth';
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
@@ -13,9 +14,11 @@ function normalizeEmail(raw) {
   return value;
 }
 
-export async function GET(_, { params }) {
+export async function GET(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
-  const list = await LeadList.findById(params.id).lean();
+  const list = await LeadList.findOne({ _id: params.id, userEmail }).lean();
   if (!list) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }
@@ -31,9 +34,11 @@ export async function GET(_, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
 
-  const list = await LeadList.findById(params.id);
+  const list = await LeadList.findOne({ _id: params.id, userEmail });
   if (!list) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }
@@ -82,9 +87,11 @@ export async function PATCH(req, { params }) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_, { params }) {
+export async function DELETE(req, { params }) {
+  const { userEmail, errorResponse } = requireUser(req);
+  if (errorResponse) return errorResponse;
   await connectDB();
-  const deleted = await LeadList.findByIdAndDelete(params.id);
+  const deleted = await LeadList.findOneAndDelete({ _id: params.id, userEmail });
   if (!deleted) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }

@@ -33,6 +33,7 @@ copy .env.example .env
 3. Update `.env` with:
 - `MONGODB_URI` (Atlas connection string)
 - `JWT_SECRET`
+- `ALLOWED_ORIGINS` (comma-separated domains like `localhost:3000,yourdomain.com`)
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 - Either SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`)
 - Or Microsoft Graph settings (`TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `GRAPH_SENDER_EMAIL`)
@@ -46,6 +47,7 @@ Graph API notes:
 - App must have `Mail.Send` application permission in Azure AD.
 - Admin consent is required for that permission.
 - `GRAPH_SENDER_EMAIL` must be a mailbox user allowed to send.
+- For delegated OAuth mailbox access, set `MS_REDIRECT_URI` to your real deployed callback URL, for example `https://yourdomain.com/api/graph-oauth/callback`.
 
 4. Run app:
 ```bash
