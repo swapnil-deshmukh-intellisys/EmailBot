@@ -319,6 +319,7 @@ export default function DashboardPage() {
   const topbarRangeDropdownRef = useRef(null);
   const topbarMailDropdownRef = useRef(null);
   const toastTimeoutRef = useRef(null);
+  const loadAllRef = useRef(null);
   const notify = (message, tone = 'info') => {
     if (!message) return;
     if (toastTimeoutRef.current) {
@@ -812,7 +813,7 @@ const handleDeleteDraft = async (draft) => {
     },
     {
       date: '27/03/2026',
-      title: `Concurrent runner capacity: ${Number(stats?.dailyMailCounts?.length || 20)}`
+      title: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => String(campaign?.status || '').toLowerCase() === 'running').length || 0)} running`
     }
   ];
   const performanceCampaigns = (campaigns || [])
@@ -1283,8 +1284,20 @@ const handleDeleteDraft = async (draft) => {
   }, []);
 
   useEffect(() => {
+    loadAllRef.current = loadAll;
+  });
+
+  useEffect(() => {
     loadAll();
   }, [showAllUserActivity, project, selectedAccount, activeAccount, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadAllRef.current?.();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (historyCampaigns.length > 0) {
@@ -2322,7 +2335,7 @@ const normalizeSelectedListEmails = async () => {
                   <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
                       <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Batch Size</p>
-                      <input className="input" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="1-9 or 25-50" />
+                      <input className="input" value={batchSize} onChange={(e) => setBatchSize(e.target.value)} placeholder="Enter number of emails per cycle" />
                     </div>
                     <div>
                       <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Delay (Seconds)</p>

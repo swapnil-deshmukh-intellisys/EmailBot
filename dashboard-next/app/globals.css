@@ -147,7 +147,7 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   gap: 0;
   max-height: calc(100vh - 36px);
-  overflow: hidden;
+  overflow: visible;
   margin-left: -8px;
 }
 
@@ -161,6 +161,8 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 36px);
+  max-height: calc(100vh - 36px);
+  overflow: hidden;
 }
 
 .dashboard-brand {
@@ -539,7 +541,11 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   gap: 2px;
   flex: 1;
+  min-height: 0;
   align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
 .dashboard-sidebar-section-head {
@@ -658,8 +664,17 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
 }
 
+.dashboard-sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  background: inherit;
+}
+
 .dashboard-upgrade-card {
-  margin-top: 18px;
+  margin-top: 0;
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -6455,6 +6470,17 @@ html[data-theme='dark'] .premium-dashboard-shell .premium-calendar-modal span {
   .dashboard-sidebar-card {
     border-radius: 16px;
     padding: 10px;
+    max-height: none;
+  }
+
+  .dashboard-sidebar-nav {
+    max-height: 320px;
+    padding-right: 2px;
+  }
+
+  .dashboard-sidebar-footer {
+    padding-top: 10px;
+    gap: 8px;
   }
 
   .dashboard-sidebar-link {
@@ -6478,13 +6504,29 @@ html[data-theme='dark'] .premium-dashboard-shell .premium-calendar-modal span {
   }
 
   .dashboard-upgrade-card {
-    margin-top: 14px;
-    padding: 12px;
-    gap: 10px;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .dashboard-upgrade-head strong {
+    font-size: 18px;
+  }
+
+  .dashboard-upgrade-plan {
+    font-size: 14px;
+  }
+
+  .dashboard-upgrade-credits {
+    font-size: 12px;
+  }
+
+  .dashboard-upgrade-button,
+  .dashboard-logout-link {
+    min-height: 36px;
   }
 
   .dashboard-logout-link {
-    margin-top: 10px;
+    margin-top: 0;
   }
 
   .dashboard-topbar {

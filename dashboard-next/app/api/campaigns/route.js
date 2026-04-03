@@ -10,6 +10,7 @@ import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { requireUser } from '@/lib/apiAuth';
+import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
 const MIN_DELAY_SECONDS = Math.max(60, Number(process.env.MIN_DELAY_SECONDS || 60));
@@ -45,6 +46,19 @@ export async function GET(req) {
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
       ];
+    }
+
+    const storedCampaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
+
+    for (const campaign of storedCampaigns) {
+      if (String(campaign?.status || '') !== 'Running') continue;
+      const runner = getRunnerState(String(campaign._id));
+      if (runner?.running) continue;
+      try {
+        await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
+      } catch (error) {
+        // Keep the campaign visible even if recovery fails; the runner logs capture the reason.
+      }
     }
 
     const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
@@ -116,22 +130,19 @@ export async function POST(req) {
 
 
     const rawBatchInput = String(options?.batchSize ?? '').trim();
-    const rangeMatch = rawBatchInput.match(/^(\d+)\s*-\s*(\d+)$/);
-    const rowRange = rangeMatch ? `${rangeMatch[1]}-${rangeMatch[2]}` : '';
-    const rangeStart = rangeMatch ? Number(rangeMatch[1]) : null;
-    const rangeEnd = rangeMatch ? Number(rangeMatch[2]) : null;
+    const parsedBatchSize = Number(rawBatchInput || 1);
 
-    if (rangeMatch && (!rangeStart || !rangeEnd || rangeStart > rangeEnd || rangeStart < 1 || rangeEnd > list.leads.length)) {
+    if (!Number.isFinite(parsedBatchSize) || parsedBatchSize < 1) {
 
-      return NextResponse.json({ error: `Invalid row range. Use values between 1 and ${list.leads.length}.` }, { status: 400 });
+      return NextResponse.json({ error: 'Batch size must be a number greater than or equal to 1.' }, { status: 400 });
 
     }
 
     const campaignType = normalizeCampaignType(type || draftType);
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
-    const total = rowRange ? (rangeEnd - rangeStart + 1) : list.leads.length;
-    const batchSize = rangeMatch ? 1 : Math.max(1, Number(options?.batchSize || 1));
+    const total = list.leads.length;
+    const batchSize = Math.max(1, Math.floor(parsedBatchSize));
 
     const campaign = await Campaign.create({
 
@@ -163,7 +174,7 @@ export async function POST(req) {
 
         delaySeconds: Math.max(MIN_DELAY_SECONDS, Number(options?.delaySeconds || 60)),
 
-        rowRange,
+        rowRange: '',
         replyMode
 
       },

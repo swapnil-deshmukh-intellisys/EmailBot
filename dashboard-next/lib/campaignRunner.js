@@ -209,7 +209,6 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.stats.failed = scopedFailed;
   campaign.stats.pending = Math.max(0, scopedLeads.length - scopedSent - scopedFailed);
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
-  appendLog(campaign, `Concurrent runner capacity: ${MAX_CONCURRENT_CAMPAIGNS}`);
   if (trigger === 'scheduler') {
     appendLog(campaign, 'Campaign auto-started by scheduler');
   }

@@ -54,6 +54,12 @@ Graph API notes:
 npm run dev
 ```
 
+For reliable long-running campaign sending, use production mode instead of dev mode:
+```bash
+npm run build
+npm run start
+```
+
 5. Open:
 - `http://localhost:3000/login`
 

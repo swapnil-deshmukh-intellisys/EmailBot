@@ -68,32 +68,32 @@ export function Sidebar({
               );
             })}
           </nav>
-
-          {footer ? (
-            <div className="dashboard-sidebar-footer">{footer}</div>
-          ) : (
-            <>
-              <div className="dashboard-upgrade-card">
-                <div className="dashboard-upgrade-head">
-                  <strong>Upgrade</strong>
-                  <span className="dashboard-upgrade-badge" aria-hidden="true">+</span>
-                </div>
-                <p className="dashboard-upgrade-plan">Basic</p>
-                <p className="dashboard-upgrade-credits">1200 Credits Left</p>
-                <div className="dashboard-upgrade-meter">
-                  <span />
-                </div>
-                <Button className="dashboard-upgrade-button">Upgrade Plan</Button>
-              </div>
-
-              <Button variant="danger" className="dashboard-logout-link" onClick={() => router.push('/login')}>
-                <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
-                <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
-                <span className="dashboard-logout-text">Log out</span>
-              </Button>
-            </>
-          )}
         </div>
+
+        {footer ? (
+          <div className="dashboard-sidebar-footer">{footer}</div>
+        ) : (
+          <div className="dashboard-sidebar-footer">
+            <div className="dashboard-upgrade-card">
+              <div className="dashboard-upgrade-head">
+                <strong>Upgrade</strong>
+                <span className="dashboard-upgrade-badge" aria-hidden="true">+</span>
+              </div>
+              <p className="dashboard-upgrade-plan">Basic</p>
+              <p className="dashboard-upgrade-credits">1200 Credits Left</p>
+              <div className="dashboard-upgrade-meter">
+                <span />
+              </div>
+              <Button className="dashboard-upgrade-button">Upgrade Plan</Button>
+            </div>
+
+            <Button variant="danger" className="dashboard-logout-link" onClick={() => router.push('/login')}>
+              <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
+              <span className="dashboard-logout-text">Log out</span>
+            </Button>
+          </div>
+        )}
       </div>
     </aside>
   );
