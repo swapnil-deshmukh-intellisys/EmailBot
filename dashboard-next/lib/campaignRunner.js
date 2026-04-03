@@ -8,11 +8,14 @@ import { resolveSenderAccountById } from './senderAccounts';
 
 const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;
+const startingRunners = global.campaignStartingRunners || new Set();
+global.campaignStartingRunners = startingRunners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
 const MIN_DELAY_SECONDS = Math.max(60, Number(process.env.MIN_DELAY_SECONDS || 60));
+const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 
 function senderThreadKey(account = {}) {
   const from = normalizeEmail(account?.from || account?.user || '');
@@ -93,6 +96,7 @@ async function persistLeadProgress(listId, idx, lead) {
         [`leads.${idx}.error`]: lead.error || '',
         [`leads.${idx}.sentAt`]: lead.sentAt || null,
         [`leads.${idx}.failedAt`]: lead.failedAt || null,
+        [`leads.${idx}.sendingStartedAt`]: lead.sendingStartedAt || null,
         [`leads.${idx}.thread.messageId`]: String(thread.messageId || ''),
         [`leads.${idx}.thread.subject`]: String(thread.subject || ''),
         [`leads.${idx}.thread.recipientEmail`]: String(thread.recipientEmail || ''),
@@ -119,7 +123,14 @@ function parseRowRange(rowRange = '', totalLeads = 0) {
 }
 
 export async function startCampaignRunner(campaignId, options = {}) {
-  await connectDB();
+  if (startingRunners.has(campaignId)) {
+    return { started: false, message: 'Campaign start already in progress' };
+  }
+
+  startingRunners.add(campaignId);
+
+  try {
+    await connectDB();
   const trigger = String(options?.trigger || 'manual').toLowerCase();
 
   if (runners.get(campaignId)?.running) {
@@ -228,12 +239,24 @@ export async function startCampaignRunner(campaignId, options = {}) {
   (async () => {
     try {
       const pendingIndexes = [];
+      const now = Date.now();
       list.leads.forEach((lead, idx) => {
-        if ((!allowedIndexes || allowedIndexes.has(idx)) && String(lead.status || '').toLowerCase() !== 'sent') {
-          pendingIndexes.push(idx);
-          if (String(lead.status || '').toLowerCase() !== 'failed') {
-            lead.status = 'Pending';
-          }
+        if (allowedIndexes && !allowedIndexes.has(idx)) {
+          return;
+        }
+
+        const normalizedStatus = String(lead.status || '').toLowerCase();
+        const sendingStartedAtMs = lead?.sendingStartedAt ? new Date(lead.sendingStartedAt).getTime() : 0;
+        const hasFreshSendingLock = normalizedStatus === 'sending' && sendingStartedAtMs && (now - sendingStartedAtMs) < SENDING_LOCK_TTL_MS;
+
+        if (normalizedStatus === 'sent' || hasFreshSendingLock) {
+          return;
+        }
+
+        pendingIndexes.push(idx);
+        if (normalizedStatus !== 'failed') {
+          lead.status = 'Pending';
+          lead.sendingStartedAt = null;
         }
       });
       await list.save();
@@ -259,6 +282,11 @@ export async function startCampaignRunner(campaignId, options = {}) {
         for (const idx of batch) {
           const sendCycleStartedAt = Date.now();
           const lead = list.leads[idx];
+          lead.status = 'Sending';
+          lead.error = '';
+          lead.sendingStartedAt = new Date();
+          await persistLeadProgress(list._id, idx, lead);
+
           const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
           const selectedTemplate = inlineTemplate || templateFromDb;
           const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
@@ -277,6 +305,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
             lead.error = '';
             lead.sentAt = new Date();
             lead.failedAt = null;
+            lead.sendingStartedAt = null;
             if (sendResult?.thread) {
               lead.thread = sendResult.thread;
               await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
@@ -297,6 +326,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
             lead.status = 'Failed';
             lead.error = error.message;
             lead.failedAt = new Date();
+            lead.sendingStartedAt = null;
             campaign.stats.failed += 1;
             appendLog(campaign, `Failed: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
           }
@@ -342,6 +372,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
   })();
 
   return { started: true };
+  } finally {
+    startingRunners.delete(campaignId);
+  }
 }
 
 export async function pauseCampaignRunner(campaignId) {

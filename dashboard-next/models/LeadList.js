@@ -6,10 +6,11 @@ const LeadSchema = new mongoose.Schema(
     Email: String,
     Company: String,
     data: { type: mongoose.Schema.Types.Mixed, default: {} },
-    status: { type: String, enum: ['Pending', 'Sent', 'Failed'], default: 'Pending' },
+    status: { type: String, enum: ['Pending', 'Sending', 'Sent', 'Failed'], default: 'Pending' },
     error: { type: String, default: '' },
     sentAt: { type: Date, default: null },
     failedAt: { type: Date, default: null },
+    sendingStartedAt: { type: Date, default: null },
     thread: {
       messageId: { type: String, default: '' },
       subject: { type: String, default: '' },

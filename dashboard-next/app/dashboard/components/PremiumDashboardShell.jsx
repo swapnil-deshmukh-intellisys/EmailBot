@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function clampPercent(value) {
   const numeric = Number(value || 0);
@@ -230,6 +230,9 @@ export default function PremiumDashboardShell({
   onManualScheduledSlotChange,
   onApplyManualScheduledSlot,
   onStartCampaign,
+  onPauseCampaign,
+  onResumeCampaign,
+  onStopCampaign,
   onDeleteCampaign,
   onShowMessage
 }) {
@@ -290,6 +293,7 @@ export default function PremiumDashboardShell({
   const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
   const [selectedRows, setSelectedRows] = useState([]);
   const [openActionMenu, setOpenActionMenu] = useState(null);
+  const actionMenuRef = useRef(null);
   const [isBroadcastPerformanceMinimized, setIsBroadcastPerformanceMinimized] = useState(false);
   const [currentTablePage, setCurrentTablePage] = useState(1);
   const [noteDraft, setNoteDraft] = useState('');
@@ -773,6 +777,17 @@ export default function PremiumDashboardShell({
     onDeleteCampaign(campaign.id);
   };
 
+  useEffect(() => {
+    const handleOutsideActionMenu = (event) => {
+      if (!actionMenuRef.current?.contains(event.target)) {
+        setOpenActionMenu(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideActionMenu);
+    return () => document.removeEventListener('pointerdown', handleOutsideActionMenu);
+  }, []);
+
   const wrapSelectedText = (prefix, suffix = prefix) => {
     setDraftMessage((current) => `${prefix}${current}${suffix}`);
   };
@@ -1178,19 +1193,24 @@ export default function PremiumDashboardShell({
                     <em key={tag}>{tag}</em>
                   ))}
                 </span>
-                <span className="premium-table-action-cell">
+                <span className="premium-table-action-cell" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
                   <button
                     type="button"
                     className="premium-row-action"
-                    onClick={() => setOpenActionMenu(campaign.id)}
+                    onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
                     aria-label={`Open actions for ${campaign.name}`}
                   >
-                    ...
+                    More
                   </button>
                   {openActionMenu === campaign.id ? (
                     <div className="premium-row-action-menu">
                       <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
                       <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
+                      <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                      <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
+                      {String(campaign.tag || '').toLowerCase() === 'paused' ? (
+                        <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
+                      ) : null}
                       <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
                     </div>
                   ) : null}

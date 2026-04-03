@@ -2130,6 +2130,9 @@ const normalizeSelectedListEmails = async () => {
         onManualScheduledSlotChange={setManualScheduledSlot}
         onApplyManualScheduledSlot={applyPremiumShellScheduledTime}
         onStartCampaign={createAndStartCampaign}
+        onPauseCampaign={pauseCampaign}
+        onResumeCampaign={resumeCampaign}
+        onStopCampaign={stopCampaign}
         onDeleteCampaign={deleteCampaign}
         onShowMessage={notify}
       />

@@ -5279,28 +5279,23 @@ p { margin: 0; color: var(--muted); }
   justify-self: end;
   display: flex;
   justify-content: flex-end;
-  width: 40px;
-  min-width: 40px;
-  flex: 0 0 40px;
+  min-width: 72px;
 }
 
 .premium-row-action {
-  width: 34px;
-  height: 34px;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid #dbe4f0;
   background: #fff;
   color: #64748b;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
 }
 
 .premium-panel.premium-panel-span-3 .premium-row-action {
-  width: 30px;
-  height: 30px;
-  font-size: 12px;
   border-color: #0f172a;
   background: #0f172a;
   color: #ffffff;
@@ -5311,12 +5306,12 @@ p { margin: 0; color: var(--muted); }
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  width: 136px;
-  min-width: 136px;
-  max-width: min(80vw, 220px);
+  width: clamp(160px, 22vw, 220px);
+  min-width: 160px;
+  max-width: min(88vw, 240px);
   display: grid;
-  gap: 4px;
-  padding: 8px;
+  gap: 6px;
+  padding: 10px;
   border-radius: 14px;
   border: 1px solid #e2e8f0;
   background: #fff;
@@ -5328,7 +5323,8 @@ p { margin: 0; color: var(--muted); }
   border: 0;
   background: transparent;
   border-radius: 10px;
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 9px 12px;
   font: inherit;
   font-size: 12px;
   color: #334155;
@@ -5339,10 +5335,37 @@ p { margin: 0; color: var(--muted); }
 }
 
 @media (max-width: 768px) {
+  .premium-table-action-cell {
+    min-width: 84px;
+  }
+
+  .premium-row-action {
+    min-height: 32px;
+    padding: 0 10px;
+  }
+
   .premium-row-action-menu {
     top: auto;
     bottom: calc(100% + 6px);
     right: 0;
+    width: min(220px, calc(100vw - 32px));
+    min-width: 180px;
+    max-width: calc(100vw - 32px);
+    padding: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .premium-row-action-menu {
+    right: -6px;
+    width: min(240px, calc(100vw - 24px));
+    min-width: 170px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .premium-row-action-menu button {
+    min-height: 38px;
+    font-size: 13px;
   }
 }
 
