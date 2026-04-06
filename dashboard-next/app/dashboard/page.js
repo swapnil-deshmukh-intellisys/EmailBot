@@ -63,6 +63,35 @@ function StatusBadgeLegacy({ status }) {
 
 const ACTIVE_CAMPAIGN_STATUSES = new Set(['Running', 'Paused']);
 
+function escapeHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeDraftBody(value = '') {
+  const input = String(value || '');
+  if (!input.trim()) return '';
+  if (/<[a-z][\s\S]*>/i.test(input)) {
+    return input;
+  }
+  const html = escapeHtml(input)
+    .replace(/\r\n/g, '\n')
+    .replace(/\n/g, '<br/>');
+  return `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${html}</div>`;
+}
+
+function normalizeDraft(draft = {}) {
+  return {
+    ...draft,
+    subject: String(draft?.subject || ''),
+    body: normalizeDraftBody(draft?.body || '')
+  };
+}
+
 function RichTextEditorLegacy({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -278,8 +307,9 @@ export default function DashboardPage() {
   const [newDraftBody, setNewDraftBody] = useState("");
 
   const loadScript = (script) => {
-    setDraftSubject(script.subject);
-    setDraftBody(script.body);
+    const normalized = normalizeDraft(script);
+    setDraftSubject(normalized.subject);
+    setDraftBody(normalized.body);
   };
 
   const [savedDrafts, setSavedDrafts] = useState([]);
@@ -443,11 +473,12 @@ export default function DashboardPage() {
 
 
 const startEditingDraft = (draft) => {
-  setEditingDraftId(draft._id || draft.id);
-  setNewDraftTitle(draft.title);
-  setNewDraftCategory(draft.category);
-  setNewDraftSubject(draft.subject);
-  setNewDraftBody(draft.body);
+  const normalized = normalizeDraft(draft);
+  setEditingDraftId(normalized._id || normalized.id);
+  setNewDraftTitle(normalized.title);
+  setNewDraftCategory(normalized.category);
+  setNewDraftSubject(normalized.subject);
+  setNewDraftBody(normalized.body);
   setShowAddDraft(true);
 };
 
@@ -472,7 +503,7 @@ const handleDeleteDraft = async (draft) => {
   const loadSavedDrafts = async () => {
     try {
       const data = await safeFetchJson('/api/drafts');
-      setSavedDrafts(data.drafts || data || []);
+      setSavedDrafts((data.drafts || data || []).map((draft) => normalizeDraft(draft)));
     } catch (err) {
       console.error('Failed to load drafts', err);
     }
@@ -1030,8 +1061,9 @@ const handleDeleteDraft = async (draft) => {
   useEffect(() => {
     const tpl = draftTemplates[selectedDraft];
     if (tpl) {
-      setDraftSubject(tpl.subject || "");
-      setDraftBody(tpl.body || "");
+      const normalized = normalizeDraft(tpl);
+      setDraftSubject(normalized.subject || "");
+      setDraftBody(normalized.body || "");
     }
   }, [selectedDraft]);
 

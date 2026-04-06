@@ -3,6 +3,7 @@ import Campaign from '../models/Campaign';
 import LeadList from '../models/LeadList';
 import EmailTemplate from '../models/EmailTemplate';
 import EmailThread from '../models/EmailThread';
+import CampaignRecipientClaim from '../models/CampaignRecipientClaim';
 import { getAvailableAccounts, sendEmailForLead } from './emailSender';
 import { resolveSenderAccountById } from './senderAccounts';
 
@@ -113,6 +114,95 @@ async function persistLeadProgress(listId, idx, lead) {
     throw new Error(`Lead list not found for campaign update: ${listId}`);
   }
 }
+
+async function claimLeadForSend(listId, idx, claimedAt = new Date()) {
+  const staleBefore = new Date(claimedAt.getTime() - SENDING_LOCK_TTL_MS);
+  const result = await LeadList.updateOne(
+    {
+      _id: listId,
+      $or: [
+        { [`leads.${idx}.status`]: 'Pending' },
+        { [`leads.${idx}.status`]: 'Failed' },
+        {
+          [`leads.${idx}.status`]: 'Sending',
+          [`leads.${idx}.sendingStartedAt`]: { $lt: staleBefore }
+        }
+      ]
+    },
+    {
+      $set: {
+        [`leads.${idx}.status`]: 'Sending',
+        [`leads.${idx}.error`]: '',
+        [`leads.${idx}.sendingStartedAt`]: claimedAt
+      }
+    }
+  );
+
+  return Boolean(result.modifiedCount);
+}
+
+async function claimRecipientForCampaign(campaignId, listId, idx, recipientEmail, claimedAt = new Date()) {
+  if (!recipientEmail) return false;
+
+  const reusedFailedClaim = await CampaignRecipientClaim.updateOne(
+    { campaignId, recipientEmail, status: 'Failed' },
+    {
+      $set: {
+        listId,
+        leadIndex: idx,
+        status: 'Sending',
+        claimedAt,
+        sentAt: null,
+        failedAt: null,
+        error: ''
+      }
+    }
+  );
+
+  if (reusedFailedClaim.modifiedCount) {
+    return true;
+  }
+
+  try {
+    await CampaignRecipientClaim.create({
+      campaignId,
+      recipientEmail,
+      listId,
+      leadIndex: idx,
+      status: 'Sending',
+      claimedAt
+    });
+    return true;
+  } catch (error) {
+    if (error?.code === 11000) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function markRecipientClaimStatus(campaignId, recipientEmail, status, extra = {}) {
+  if (!recipientEmail) return;
+
+  const update = {
+    status,
+    error: String(extra.error || '')
+  };
+
+  if (status === 'Sent') {
+    update.sentAt = extra.sentAt || new Date();
+    update.failedAt = null;
+  } else if (status === 'Failed') {
+    update.failedAt = extra.failedAt || new Date();
+    update.sentAt = null;
+  }
+
+  await CampaignRecipientClaim.updateOne(
+    { campaignId, recipientEmail },
+    { $set: update }
+  );
+}
+
 function parseRowRange(rowRange = '', totalLeads = 0) {
   const match = String(rowRange || '').trim().match(/^(\d+)\s*-\s*(\d+)$/);
   if (!match) return null;
@@ -178,11 +268,18 @@ export async function startCampaignRunner(campaignId, options = {}) {
   }
 
   const startTime = new Date();
+  const claimQuery = trigger === 'recovery'
+    ? {
+        _id: campaign._id,
+        status: 'Running',
+        startedAt: campaign.startedAt || null
+      }
+    : {
+        _id: campaign._id,
+        status: { $in: ['Draft', 'Paused', 'Scheduled'] }
+      };
   const claim = await Campaign.updateOne(
-    {
-      _id: campaign._id,
-      status: { $nin: ['Completed', 'Failed'] }
-    },
+    claimQuery,
     {
       $set: {
         status: 'Running',
@@ -282,10 +379,47 @@ export async function startCampaignRunner(campaignId, options = {}) {
         for (const idx of batch) {
           const sendCycleStartedAt = Date.now();
           const lead = list.leads[idx];
+          const recipientEmail = normalizeEmail(lead?.Email || lead?.email || '');
+          if (!recipientEmail) {
+            lead.status = 'Failed';
+            lead.error = 'Lead has no email address';
+            lead.failedAt = new Date();
+            lead.sendingStartedAt = null;
+            campaign.stats.failed += 1;
+            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
+            appendLog(campaign, `Failed: unknown - Lead has no email address`, 'error');
+            await persistLeadProgress(list._id, idx, lead);
+            if (!(await saveCampaignIfExists(campaign))) {
+              state.running = false;
+              return;
+            }
+            continue;
+          }
+          const claimedAt = new Date();
+          const claimed = await claimLeadForSend(list._id, idx, claimedAt);
+          if (!claimed) {
+            continue;
+          }
+          const claimedRecipient = await claimRecipientForCampaign(campaign._id, list._id, idx, recipientEmail, claimedAt);
+          if (!claimedRecipient) {
+            lead.status = 'Sent';
+            lead.error = 'Skipped duplicate recipient in this campaign';
+            lead.sentAt = new Date();
+            lead.failedAt = null;
+            lead.sendingStartedAt = null;
+            campaign.stats.sent += 1;
+            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
+            appendLog(campaign, `Skipped duplicate recipient: ${recipientEmail}`);
+            await persistLeadProgress(list._id, idx, lead);
+            if (!(await saveCampaignIfExists(campaign))) {
+              state.running = false;
+              return;
+            }
+            continue;
+          }
           lead.status = 'Sending';
           lead.error = '';
-          lead.sendingStartedAt = new Date();
-          await persistLeadProgress(list._id, idx, lead);
+          lead.sendingStartedAt = claimedAt;
 
           const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
           const selectedTemplate = inlineTemplate || templateFromDb;
@@ -311,6 +445,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
               await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
             }
             campaign.stats.sent += 1;
+            await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
             appendLog(
               campaign,
               `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
@@ -328,6 +463,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
             lead.failedAt = new Date();
             lead.sendingStartedAt = null;
             campaign.stats.failed += 1;
+            await markRecipientClaimStatus(campaign._id, recipientEmail, 'Failed', { failedAt: lead.failedAt, error: error.message });
             appendLog(campaign, `Failed: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
           }
 

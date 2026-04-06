@@ -33,12 +33,13 @@ function normalizeFolderLabel(label) {
 }
 
 export default function MailInboxPage() {
-  const [mailboxData, setMailboxData] = useState({ connected: false, account: null, folders: [], messages: [] });
+  const [mailboxData, setMailboxData] = useState({ connected: false, account: null, folders: [], messages: [], warmupAutoReply: null, warmupRun: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedMessageId, setSelectedMessageId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [warmupBusy, setWarmupBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +57,9 @@ export default function MailInboxPage() {
           connected: Boolean(data?.connected),
           account: data?.account || null,
           folders: Array.isArray(data?.folders) ? data.folders : [],
-          messages: Array.isArray(data?.messages) ? data.messages : []
+          messages: Array.isArray(data?.messages) ? data.messages : [],
+          warmupAutoReply: data?.warmupAutoReply || null,
+          warmupRun: data?.warmupRun || null
         });
 
         setError(data?.error || '');
@@ -68,7 +71,7 @@ export default function MailInboxPage() {
         if (!active) return;
         setError(err.message || 'Failed to load mailbox data');
         if (!silent) {
-          setMailboxData({ connected: false, account: null, folders: [], messages: [] });
+          setMailboxData({ connected: false, account: null, folders: [], messages: [], warmupAutoReply: null, warmupRun: null });
         }
       } finally {
         if (active && !silent) setLoading(false);
@@ -164,6 +167,50 @@ export default function MailInboxPage() {
     [mailboxData.messages]
   );
 
+  const toggleWarmupAutoReply = async (enabled) => {
+    try {
+      setWarmupBusy(true);
+      const response = await fetch('/api/warmup-auto-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to update warmup auto reply');
+      }
+      setMailboxData((current) => ({ ...current, warmupAutoReply: data.setting || current.warmupAutoReply }));
+    } catch (err) {
+      setError(err.message || 'Failed to update warmup auto reply');
+    } finally {
+      setWarmupBusy(false);
+    }
+  };
+
+  const runWarmupAutoReplyNow = async () => {
+    try {
+      setWarmupBusy(true);
+      const response = await fetch('/api/warmup-auto-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runNow: true })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to run warmup auto reply');
+      }
+      setMailboxData((current) => ({
+        ...current,
+        warmupAutoReply: data.setting || current.warmupAutoReply,
+        warmupRun: data.run || null
+      }));
+    } catch (err) {
+      setError(err.message || 'Failed to run warmup auto reply');
+    } finally {
+      setWarmupBusy(false);
+    }
+  };
+
   return (
     <AppLayout
       topbarProps={{
@@ -178,6 +225,16 @@ export default function MailInboxPage() {
               }}
             >
               Connect Mailbox
+            </Button>
+            <Button
+              variant={mailboxData.warmupAutoReply?.enabled ? 'secondary' : 'ghost'}
+              loading={warmupBusy}
+              onClick={() => toggleWarmupAutoReply(!mailboxData.warmupAutoReply?.enabled)}
+            >
+              {mailboxData.warmupAutoReply?.enabled ? 'Auto Warmup Reply ON' : 'Auto Warmup Reply OFF'}
+            </Button>
+            <Button variant="ghost" loading={warmupBusy} onClick={runWarmupAutoReplyNow}>
+              Run Warmup Check
             </Button>
             <Button onClick={() => window.location.reload()}>
               Refresh Mail
@@ -207,7 +264,9 @@ export default function MailInboxPage() {
                 { label: 'Sending', value: loading ? '...' : String(folderCountMap.get('Sending') || 0) },
                 { label: 'Draft', value: loading ? '...' : String(folderCountMap.get('Draft') || 0) },
                 { label: 'Junk / Spam', value: loading ? '...' : String(folderCountMap.get('Junk') || folderCountMap.get('Spam') || 0) },
-                { label: 'Deleted', value: loading ? '...' : String(folderCountMap.get('Deleted') || 0) }
+                { label: 'Deleted', value: loading ? '...' : String(folderCountMap.get('Deleted') || 0) },
+                { label: 'Warmup Auto Reply', value: mailboxData.warmupAutoReply?.enabled ? 'ON' : 'OFF' },
+                { label: 'Warmup Replies', value: String(mailboxData.warmupRun?.replied || 0) }
               ].map((card) => (
                 <div key={card.label} className="mail-inbox-stat-tile">
                   <span>{card.label}</span>

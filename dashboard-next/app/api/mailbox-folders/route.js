@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import { requireUser } from '@/lib/apiAuth';
 import { getDelegatedAccessToken } from '@/lib/emailSender';
+import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const FOLDERS = [
   { id: 'inbox', label: 'Received' },
@@ -36,16 +37,19 @@ export async function GET(req) {
 
     await connectDB();
     const account = await GraphOAuthAccount.findOne({ userEmail }).sort({ updatedAt: -1 }).lean();
+    const warmupSetting = await getWarmupAutoReplySetting(userEmail, { lean: true });
 
     if (!account?._id) {
       return NextResponse.json({
         connected: false,
         folders: [],
         messages: [],
+        warmupAutoReply: warmupSetting || null,
         error: 'Connect a Microsoft account with mailbox permission to see received, sent, junk, spam, draft, and deleted mail.'
       });
     }
 
+    const warmupRun = await processWarmupAutoReplies(userEmail).catch(() => null);
     const token = await getDelegatedAccessToken(String(account._id));
 
     const folderResults = await Promise.all(
@@ -81,6 +85,8 @@ export async function GET(req) {
         email: account.email,
         displayName: account.displayName || account.email
       },
+      warmupAutoReply: warmupSetting || null,
+      warmupRun,
       folders: folderResults.map(({ messages: folderMessages, ...folder }) => folder),
       messages
     });

@@ -4,6 +4,7 @@ import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { requireUser } from '@/lib/apiAuth';
 import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
+import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const STATS_CACHE_TTL_MS = 10000;
 
@@ -27,6 +28,7 @@ export async function GET(req) {
     }
 
     await connectDB();
+    void processWarmupAutoReplies(userEmail).catch(() => {});
 
     const runningCampaigns = await Campaign.find({ userEmail, status: 'Running' }).select({ _id: 1 }).lean();
     for (const campaign of runningCampaigns) {

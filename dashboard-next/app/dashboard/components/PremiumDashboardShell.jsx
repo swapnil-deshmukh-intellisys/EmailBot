@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import RichTextEditor from './RichTextEditor';
 
 function clampPercent(value) {
   const numeric = Number(value || 0);
@@ -171,13 +172,6 @@ function formatLogTime(value) {
   return date.toLocaleTimeString();
 }
 
-function sanitizeHtmlForPreview(html = '') {
-  return String(html || '')
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '');
-}
-
 export default function PremiumDashboardShell({
   reportDateLabel,
   reportRangeLabel,
@@ -299,7 +293,6 @@ export default function PremiumDashboardShell({
   const [noteDraft, setNoteDraft] = useState('');
   const [quickNotes, setQuickNotes] = useState([]);
   const [sendMode, setSendMode] = useState('scheduled');
-  const [editorMode, setEditorMode] = useState('text');
   const [clientListTab, setClientListTab] = useState('upload');
   const [clientListName, setClientListName] = useState('');
   const [selectedUploadedList, setSelectedUploadedList] = useState('');
@@ -362,14 +355,6 @@ export default function PremiumDashboardShell({
     const matches = effectiveSavedDrafts.filter((item) => String(item.category || '').toLowerCase() === target);
     return matches.length ? matches : effectiveSavedDrafts;
   }, [effectiveSavedDrafts, selectedDraftType]);
-  const htmlPreviewContent = useMemo(
-    () => sanitizeHtmlForPreview(effectiveDraftMessage || ''),
-    [effectiveDraftMessage]
-  );
-  const hasHtmlContent = useMemo(
-    () => /<[a-z][\s\S]*>/i.test(effectiveDraftMessage || ''),
-    [effectiveDraftMessage]
-  );
   const monthLabel = calendarCursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
@@ -788,10 +773,6 @@ export default function PremiumDashboardShell({
     return () => document.removeEventListener('pointerdown', handleOutsideActionMenu);
   }, []);
 
-  const wrapSelectedText = (prefix, suffix = prefix) => {
-    setDraftMessage((current) => `${prefix}${current}${suffix}`);
-  };
-
   const selectedClientListSummary = useMemo(() => {
     if (clientListTab === 'upload') {
       return {
@@ -919,7 +900,18 @@ export default function PremiumDashboardShell({
     setCampaignTagDraft('');
   };
   const importDraftToEditor = () => {
-    setDraftMessage(draftViewerText);
+    const html = String(draftViewerText || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n/g, '<br/>');
+    const next = html ? `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${html}</div>` : '';
+    if (onDraftBodyChange) {
+      onDraftBodyChange(next);
+      return;
+    }
+    setDraftMessage(next);
   };
   const handleDraftTypeSelectFromDropdown = (draftTypeValue) => {
     onSelectedDraftTypeChange?.(draftTypeValue);
@@ -995,7 +987,7 @@ export default function PremiumDashboardShell({
             onShowMessage?.('Starting the campaign from the workflow stepper.', 'info');
             onStartCampaign?.();
           }}
-          style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+          style={{ color: '#ecfdf5', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
         >
           START
         </button>
@@ -1616,7 +1608,7 @@ export default function PremiumDashboardShell({
                     ))}
                   </div>
                   <div className="premium-review-table-body">
-                    {filteredOverviewRows.slice(0, 8).map((row, index) => {
+                    {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
                         <div key={row.id} className="premium-review-table premium-review-table-row">
@@ -2098,28 +2090,12 @@ export default function PremiumDashboardShell({
                         placeholder="Enter subject"
                       />
                     </label>
-
                     <div className="premium-template-editor compact">
-                      <div className="premium-template-toolbar">
-                        <button type="button" onClick={() => wrapSelectedText('**')}>B</button>
-                        <button type="button" onClick={() => wrapSelectedText('*')}>I</button>
-                        <button type="button" onClick={() => wrapSelectedText('\n• ', '')}>•</button>
-                        <button type="button" onClick={() => wrapSelectedText('\n1. ', '')}>1.</button>
-                        <button type="button" onClick={() => wrapSelectedText('[', '](https://)')}>Link</button>
-                        <button type="button" onClick={() => setDraftMessage((current) => current)}>↺</button>
-                        <button type="button" onClick={() => setDraftMessage((current) => current)}>↻</button>
-                      </div>
-                      <textarea
+                      <RichTextEditor
                         value={effectiveDraftMessage}
-                        onChange={(event) => onDraftBodyChange ? onDraftBodyChange(event.target.value) : setDraftMessage(event.target.value)}
+                        onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}
                         placeholder="Write your email draft..."
                       />
-                      {hasHtmlContent ? (
-                        <div className="premium-template-preview">
-                          <strong>Formatted Preview</strong>
-                          <div dangerouslySetInnerHTML={{ __html: htmlPreviewContent }} />
-                        </div>
-                      ) : null}
                     </div>
                   </section>
                 </div>
@@ -2196,7 +2172,11 @@ export default function PremiumDashboardShell({
                   </div>
                 </div>
                 <div className={`premium-test-email-message ${testPreviewMode}`}>
-                  <p>{effectiveDraftMessage || 'Your test preview will appear here after you add a draft message.'}</p>
+                  {effectiveDraftMessage ? (
+                    <div dangerouslySetInnerHTML={{ __html: effectiveDraftMessage }} />
+                  ) : (
+                    <p>Your test preview will appear here after you add a draft message.</p>
+                  )}
                 </div>
               </section>
 
@@ -2282,49 +2262,13 @@ export default function PremiumDashboardShell({
 
             <div className="premium-template-field premium-template-message-head">
               <span>Message</span>
-              <div className="premium-template-mode-toggle">
-                <button
-                  type="button"
-                  className={editorMode === 'text' ? 'active' : ''}
-                  onClick={() => setEditorMode('text')}
-                >
-                  Plain Text
-                </button>
-                <button
-                  type="button"
-                  className={editorMode === 'html' ? 'active' : ''}
-                  onClick={() => setEditorMode('html')}
-                >
-                  HTML
-                </button>
-              </div>
             </div>
-
             <div className="premium-template-editor">
-              <div className="premium-template-toolbar">
-                <button type="button" onClick={() => wrapSelectedText('**')}>B</button>
-                <button type="button" onClick={() => wrapSelectedText('*')}>I</button>
-                <button type="button" onClick={() => wrapSelectedText('# ', '')}>H1</button>
-                <button type="button" onClick={() => wrapSelectedText('## ', '')}>H2</button>
-                <button type="button" onClick={() => wrapSelectedText('\n• ', '')}>•</button>
-                <button type="button" onClick={() => wrapSelectedText('\n1. ', '')}>1.</button>
-                <button type="button" onClick={() => wrapSelectedText('\n> ', '')}>❞</button>
-                <button type="button" onClick={() => wrapSelectedText('\n```\\n', '\\n```')}>{'</>'}</button>
-                <button type="button" onClick={() => wrapSelectedText('\n    ', '')}>⇥</button>
-                <button type="button" onClick={() => setDraftMessage((current) => current)}>↺</button>
-                <button type="button" onClick={() => setDraftMessage((current) => current)}>↻</button>
-              </div>
-              <textarea
+              <RichTextEditor
                 value={effectiveDraftMessage}
-                onChange={(event) => onDraftBodyChange ? onDraftBodyChange(event.target.value) : setDraftMessage(event.target.value)}
+                onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}
                 placeholder="Write your template message..."
               />
-              {hasHtmlContent ? (
-                <div className="premium-template-preview">
-                  <strong>Formatted Preview</strong>
-                  <div dangerouslySetInnerHTML={{ __html: htmlPreviewContent }} />
-                </div>
-              ) : null}
             </div>
 
             <div className="premium-template-actions">
