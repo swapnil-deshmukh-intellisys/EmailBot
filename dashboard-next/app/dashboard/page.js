@@ -258,6 +258,7 @@ const DEFAULT_SHEET_STYLE = {
   cellColor: 'var(--text-primary)',
   columnWidths: {}
 };
+const DASHBOARD_DRAFT_STATE_KEY = 'dashboard:draft-state:v1';
 
 
 export default function DashboardPage() {
@@ -276,7 +277,7 @@ export default function DashboardPage() {
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const [campaignName, setCampaignName] = useState('Write a Campaign name');
+  const [campaignName, setCampaignName] = useState('');
   const [delaySeconds, setDelaySeconds] = useState(60);
   const [batchSize, setBatchSize] = useState('1');
   const [loading, setLoading] = useState(false);
@@ -296,7 +297,7 @@ export default function DashboardPage() {
   const [showAllUserActivity, setShowAllUserActivity] = useState(true);
   const projectAccounts = useMemo(() => accounts, [accounts]);
   const [testEmailTo, setTestEmailTo] = useState('');
-  const [selectedDraft, setSelectedDraft] = useState('cover_story');
+  const [selectedDraft, setSelectedDraft] = useState('');
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [blankWordPad, setBlankWordPad] = useState('');
@@ -350,6 +351,9 @@ export default function DashboardPage() {
   const topbarMailDropdownRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const loadAllRef = useRef(null);
+  const campaignCreateLockRef = useRef(false);
+  const lastCampaignCreateSignatureRef = useRef('');
+  const lastCreatedCampaignIdRef = useRef('');
   const notify = (message, tone = 'info') => {
     if (!message) return;
     if (toastTimeoutRef.current) {
@@ -470,6 +474,70 @@ export default function DashboardPage() {
       notify(e.message || 'Failed to load uploaded file into Edit Word File', 'error');
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_DRAFT_STATE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object') {
+        setCampaignName(String(saved.campaignName || ''));
+        setDelaySeconds(Number(saved.delaySeconds || 60));
+        setBatchSize(String(saved.batchSize || '1'));
+        setSelectedAccount(String(saved.selectedAccount || ''));
+        setActiveAccount(String(saved.activeAccount || ''));
+        setTestEmailTo(String(saved.testEmailTo || ''));
+        setSelectedDraft(String(saved.selectedDraft || ''));
+        setDraftSubject(String(saved.draftSubject || ''));
+        setDraftBody(String(saved.draftBody || ''));
+        setScheduledCountry(String(saved.scheduledCountry || 'india'));
+        setScheduledSlot(String(saved.scheduledSlot || ''));
+        setManualScheduledSlot(String(saved.manualScheduledSlot || ''));
+        setScheduledStartLabel(String(saved.scheduledStartLabel || ''));
+      }
+    } catch (error) {
+      // Ignore bad saved dashboard state and continue with defaults.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      campaignName,
+      delaySeconds,
+      batchSize,
+      selectedAccount,
+      activeAccount,
+      testEmailTo,
+      selectedDraft,
+      draftSubject,
+      draftBody,
+      scheduledCountry,
+      scheduledSlot,
+      manualScheduledSlot,
+      scheduledStartLabel
+    };
+    try {
+      window.localStorage.setItem(DASHBOARD_DRAFT_STATE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      // Ignore storage failures.
+    }
+  }, [
+    campaignName,
+    delaySeconds,
+    batchSize,
+    selectedAccount,
+    activeAccount,
+    testEmailTo,
+    selectedDraft,
+    draftSubject,
+    draftBody,
+    scheduledCountry,
+    scheduledSlot,
+    manualScheduledSlot,
+    scheduledStartLabel
+  ]);
 
 
 const startEditingDraft = (draft) => {
@@ -827,12 +895,46 @@ const handleDeleteDraft = async (draft) => {
     { index: 7, title: 'Shedule Operation', action: 'Final Setup' }
   ];
   const calendarDays = ['30', '31', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
-  const notificationCards = (campaigns || []).slice(0, 3).map((campaign, index) => ({
-      avatar: String(campaign?.name || 'CP').slice(0, 2).toUpperCase(),
-      name: campaign?.name || `Campaign ${index + 1}`,
-      time: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : '26/03/2026',
-      text: `${Number(campaign?.stats?.sent || 0)} sent / ${Number(campaign?.stats?.total || 0)} total`
-    }));
+  const notificationCards = (campaigns || [])
+    .flatMap((campaign) => {
+      const campaignName = String(campaign?.name || 'Campaign').trim();
+      const senderId =
+        String(
+          campaign?.senderFrom ||
+          campaign?.senderAccount?.from ||
+          campaign?.senderAccount?.user ||
+          campaign?.senderEmail ||
+          ''
+        ).trim();
+      return Array.isArray(campaign?.logs)
+        ? campaign.logs.map((log) => {
+            const message = String(log?.message || '').trim();
+            const text = message.replace(/^Replied:\s*/i, '').replace(/^Reply:\s*/i, '').trim();
+            const normalized = message.toLowerCase();
+            const looksLikeReply =
+              /^replied:\s*/i.test(message) ||
+              /^reply:\s*/i.test(message) ||
+              normalized.includes('received reply') ||
+              normalized.includes('reply notification');
+            const isBlockedNoise =
+              normalized.includes('fallback') ||
+              normalized.includes('new email') ||
+              normalized.includes('no previous messagid') ||
+              normalized.includes('no previous messageid') ||
+              normalized.includes('campaign');
+            return {
+              avatar: senderId ? senderId.slice(0, 2).toUpperCase() : campaignName.slice(0, 2).toUpperCase(),
+              name: campaignName,
+              time: log?.at ? new Date(log.at).toLocaleDateString('en-GB') : (campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : ''),
+              text: text || message,
+              _reply: looksLikeReply && !isBlockedNoise
+            };
+          })
+        : [];
+    })
+    .filter((item) => item._reply)
+    .slice(0, 3)
+    .map(({ _reply, ...item }) => item);
   const timelineCards = [
     {
       date: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleDateString('en-GB') : '27/03/2026',
@@ -1059,6 +1161,7 @@ const handleDeleteDraft = async (draft) => {
   }, [activeCampaignIds]);
 
   useEffect(() => {
+    if (!selectedDraft) return;
     const tpl = draftTemplates[selectedDraft];
     if (tpl) {
       const normalized = normalizeDraft(tpl);
@@ -1225,11 +1328,6 @@ const handleDeleteDraft = async (draft) => {
         setSelectedAccount("");
       }
 
-      const firstListId =
-        statsRes.status === 'fulfilled' ? statsRes.value?.lists?.[0]?._id : '';
-      if (!selectedListId && firstListId) {
-        setSelectedListId(firstListId);
-      }
       const firstTemplateId =
         templatesRes.status === 'fulfilled' ? templatesRes.value?.templates?.[0]?._id : '';
       if (!selectedTemplateId && firstTemplateId) {
@@ -1418,8 +1516,34 @@ const handleDeleteDraft = async (draft) => {
       notify('Select Mail ID before creating a campaign.', 'info');
       return null;
     }
+    if (campaignCreateLockRef.current) {
+      notify('Campaign creation is already in progress.', 'info');
+      return null;
+    }
+
+    const createSignature = JSON.stringify({
+      project,
+      campaignName: String(campaignName || '').trim(),
+      selectedListId,
+      selectedAccount,
+      selectedDraft,
+      draftSubject: String(draftSubject || '').trim(),
+      draftBody: String(draftBody || '').trim(),
+      batchSize: String(batchSize || ''),
+      delaySeconds: String(delaySeconds || '')
+    });
+
+    if (
+      lastCampaignCreateSignatureRef.current &&
+      lastCampaignCreateSignatureRef.current === createSignature &&
+      lastCreatedCampaignIdRef.current
+    ) {
+      setPendingCampaignId(lastCreatedCampaignIdRef.current);
+      return campaigns.find((campaign) => campaign._id === lastCreatedCampaignIdRef.current) || { _id: lastCreatedCampaignIdRef.current };
+    }
 
     try {
+      campaignCreateLockRef.current = true;
       const data = await safeFetchJson('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1439,6 +1563,8 @@ const handleDeleteDraft = async (draft) => {
       const createdCampaign = data.campaign || null;
       if (createdCampaign?._id) {
         setPendingCampaignId(createdCampaign._id);
+        lastCampaignCreateSignatureRef.current = createSignature;
+        lastCreatedCampaignIdRef.current = createdCampaign._id;
         setShowDraftEditor(true);
       }
       notify('Campaign created successfully.', 'success');
@@ -1449,10 +1575,16 @@ const handleDeleteDraft = async (draft) => {
     } catch (e) {
       notify(e.message || 'Failed to create campaign', 'error');
       return null;
+    } finally {
+      campaignCreateLockRef.current = false;
     }
   };
 
   const createAndStartCampaign = async () => {
+    if (campaignCreateLockRef.current) {
+      notify('Campaign creation is already in progress.', 'info');
+      return;
+    }
     let campaignId = pendingCampaignId;
 
     if (!campaignId) {
@@ -2111,6 +2243,13 @@ const normalizeSelectedListEmails = async () => {
         performanceCampaigns={performanceCampaigns}
         calendarDays={calendarDays}
         selectedAccountLabel={selectedAccountLabel}
+        senderAccounts={projectAccounts}
+        selectedSenderAccountId={selectedAccount}
+        onSelectSenderAccount={(accountId) => {
+          setSelectedAccount(accountId);
+          const nextAccount = projectAccounts.find((account) => account.id === accountId);
+          setActiveAccount(nextAccount?.from || '');
+        }}
         project={project}
         barChartMetrics={barChartMetrics}
         logs={logs}
@@ -2121,6 +2260,14 @@ const normalizeSelectedListEmails = async () => {
         selectedListName={selectedListName}
         previewRows={preview}
         previewColumns={previewColumns}
+        onPreviewCellChange={updatePreviewCell}
+        onPreviewAddRow={addPreviewRow}
+        onPreviewAddColumn={addPreviewColumn}
+        onPreviewDeleteRow={deletePreviewRow}
+        onPreviewDeleteColumn={deletePreviewColumn}
+        onPreviewRenameColumn={renamePreviewColumn}
+        onPreviewSave={savePreviewEdits}
+        previewDirty={previewDirty}
         onUploadFile={onUpload}
         onSelectList={setSelectedListId}
         draftOptions={savedDrafts}

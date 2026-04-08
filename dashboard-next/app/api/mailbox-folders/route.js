@@ -14,7 +14,7 @@ const FOLDERS = [
 ];
 
 async function fetchFolderMessages(token, folderId) {
-  const url = `https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}/messages?$top=15&$select=id,subject,from,toRecipients,receivedDateTime,lastModifiedDateTime,isDraft,parentFolderId`;
+  const url = `https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}/messages?$top=15&$select=id,subject,from,toRecipients,receivedDateTime,lastModifiedDateTime,isDraft,parentFolderId,bodyPreview,conversationId,internetMessageId`;
   const resp = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`
@@ -75,7 +75,10 @@ export async function GET(req) {
           : [],
         receivedAt: message.receivedDateTime || null,
         updatedAt: message.lastModifiedDateTime || null,
-        isDraft: Boolean(message.isDraft)
+        isDraft: Boolean(message.isDraft),
+        bodyPreview: message.bodyPreview || '',
+        conversationId: message.conversationId || '',
+        internetMessageId: message.internetMessageId || ''
       }))
     );
 

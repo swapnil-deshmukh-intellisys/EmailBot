@@ -167,6 +167,23 @@ export default function MailInboxPage() {
     [mailboxData.messages]
   );
 
+  const outlookReplyItems = useMemo(
+    () =>
+      mailboxData.messages
+        .filter((item) => ['Received', 'Sending'].includes(normalizeFolderLabel(item.folderLabel)))
+        .slice(0, 8)
+        .map((item) => ({
+          id: item.id,
+          folder: normalizeFolderLabel(item.folderLabel),
+          subject: item.subject || '(No subject)',
+          from: item.from || 'Unknown sender',
+          to: (Array.isArray(item.to) && item.to.length ? item.to.join(', ') : mailboxData.account?.email || '-'),
+          receivedAt: formatDateTime(item.receivedAt || item.updatedAt),
+          bodyPreview: item.bodyPreview || ''
+        })),
+    [mailboxData.account?.email, mailboxData.messages]
+  );
+
   const toggleWarmupAutoReply = async (enabled) => {
     try {
       setWarmupBusy(true);
@@ -455,6 +472,33 @@ export default function MailInboxPage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </PageSection>
+
+        <PageSection
+          title="Outlook Replies"
+          description="Recently received and sent Outlook mail previews from the connected mailbox."
+        >
+          <div className="mail-inbox-reply-list">
+            {outlookReplyItems.length ? outlookReplyItems.map((item) => (
+              <article key={item.id} className="mail-inbox-reply-card">
+                <div className="mail-inbox-reply-head">
+                  <strong>{item.subject}</strong>
+                  <Badge variant={badgeToneMap[item.folder] || 'default'}>{item.folder}</Badge>
+                </div>
+                <div className="mail-inbox-reply-meta">
+                  <span>From: {item.from}</span>
+                  <span>To: {item.to}</span>
+                  <span>{item.receivedAt}</span>
+                </div>
+                <p>{item.bodyPreview || 'No body preview available.'}</p>
+              </article>
+            )) : (
+              <article className="mail-inbox-reply-card">
+                <strong>No Outlook replies yet</strong>
+                <p>Received and sent messages will appear here once the mailbox sync loads them.</p>
+              </article>
+            )}
           </div>
         </PageSection>
       </PageContainer>

@@ -7,7 +7,7 @@ export const SIDEBAR_WORKSPACE_ITEMS = [
   { label: 'Draft & Templates', href: '/draft-templates', icon: 'DT' },
   { label: 'Master Inbox', href: '/master-inbox', icon: 'MI' },
   { label: 'Sender Emails', href: '/sender-emails', icon: 'SE' },
-  { label: 'Email WarmUP', href: '/email-warmup', icon: 'EW' },
+  { label: 'Warm-Up', href: '/warm-up', icon: 'EW' },
   { label: 'Campaigns', href: '/sidebar-campaigns', icon: 'CP' },
   { label: 'Report', href: '/report', icon: 'RP' }
 ];

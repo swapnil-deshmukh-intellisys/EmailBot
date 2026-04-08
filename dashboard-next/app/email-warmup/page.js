@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/app/components/ui/Card';
 import PageSection from '@/app/components/ui/PageSection';
 import draftTemplates from '@/app/dashboard/draftTemplates';
 
+const WARMUP_WORKSPACE_KEY = 'warmup:workspace:v1';
+
 function formatDateTime(value) {
   if (!value) return 'Never';
   const date = new Date(value);
@@ -43,8 +45,25 @@ export default function EmailWarmupPage() {
   const [previewColumns, setPreviewColumns] = useState([]);
   const [previewRows, setPreviewRows] = useState([]);
   const [setupMessage, setSetupMessage] = useState('');
-  const [overviewMinimized, setOverviewMinimized] = useState(false);
-  const [campaignsMinimized, setCampaignsMinimized] = useState(false);
+  const [overviewMinimized, setOverviewMinimized] = useState(true);
+  const [sheetMinimized, setSheetMinimized] = useState(false);
+  const [sheetBusy, setSheetBusy] = useState(false);
+
+  const persistWorkspace = (next = {}) => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      selectedDraftType,
+      selectedSenderAccountId,
+      uploadedFileName,
+      uploadedListId,
+      ...next
+    };
+    try {
+      window.localStorage.setItem(WARMUP_WORKSPACE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      // Ignore storage failures.
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -86,14 +105,52 @@ export default function EmailWarmupPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const restoreWorkspace = async () => {
+      if (typeof window === 'undefined') return;
+      try {
+        const raw = window.localStorage.getItem(WARMUP_WORKSPACE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (!saved || typeof saved !== 'object') return;
+
+        if (!active) return;
+        setSelectedDraftType(String(saved.selectedDraftType || 'follow_up'));
+        setSelectedSenderAccountId(String(saved.selectedSenderAccountId || ''));
+        setUploadedFileName(String(saved.uploadedFileName || ''));
+
+        const savedListId = String(saved.uploadedListId || '');
+        if (!savedListId) return;
+
+        const response = await fetch(`/api/lists/${savedListId}`, { cache: 'no-store' });
+        const next = await response.json();
+        if (!response.ok) {
+          throw new Error(next?.error || 'Failed to restore warmup sheet');
+        }
+        if (!active) return;
+
+        setUploadedListId(savedListId);
+        setPreviewColumns(Array.isArray(next.columns) ? next.columns : []);
+        setPreviewRows(Array.isArray(next.leads) ? next.leads.map((lead) => lead?.data || {}) : []);
+      } catch (error) {
+        // Ignore bad restore state and start clean.
+      }
+    };
+
+    void restoreWorkspace();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const statsCards = useMemo(
     () => [
       { label: 'Warmup Accounts', value: String(data.stats.totalAccounts || 0) },
       { label: 'Connected', value: String(data.stats.connected || 0) },
       { label: 'Needs Setup', value: String(data.stats.needsSetup || 0) },
       { label: 'Providers', value: String(data.stats.providers || 0) },
-      { label: 'Warmup Campaigns', value: String(data.stats.totalWarmupCampaigns || 0) },
-      { label: 'Running Warmups', value: String(data.stats.runningWarmupCampaigns || 0) },
       { label: 'Auto Replies', value: String(data.stats.totalReplies || 0) },
       { label: 'Reply Failures', value: String(data.stats.totalFailedReplies || 0) }
     ],
@@ -119,6 +176,10 @@ export default function EmailWarmupPage() {
       setSelectedSenderAccountId(connectedAccounts[0].id);
     }
   }, [connectedAccounts, selectedSenderAccountId]);
+
+  useEffect(() => {
+    persistWorkspace();
+  }, [selectedDraftType, selectedSenderAccountId, uploadedFileName, uploadedListId]);
 
   const handleToggle = async (enabled) => {
     try {
@@ -194,6 +255,10 @@ export default function EmailWarmupPage() {
       setUploadedListId(next.listId || '');
       setPreviewColumns(Array.isArray(next.previewColumns) ? next.previewColumns : []);
       setPreviewRows(Array.isArray(next.previewRows) ? next.previewRows : []);
+      persistWorkspace({
+        uploadedFileName: file.name,
+        uploadedListId: next.listId || ''
+      });
       setSetupMessage(`Uploaded ${file.name}. Review the sheet data below, then start warmup mails.`);
     } catch (err) {
       setSetupMessage(err.message || 'Failed to upload warmup sheet');
@@ -222,6 +287,16 @@ export default function EmailWarmupPage() {
     try {
       setSetupBusy(true);
       setSetupMessage('');
+      if (uploadedListId && previewRows.length) {
+        await fetch(`/api/lists/${uploadedListId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            columns: previewColumns,
+            rows: previewRows
+          })
+        });
+      }
       const campaignName = `Warmup ${draft.label || selectedDraftType} ${new Date().toLocaleString()}`;
       const createResponse = await fetch('/api/campaigns', {
         method: 'POST',
@@ -259,10 +334,6 @@ export default function EmailWarmupPage() {
 
       setSetupMessage('Warmup mails started successfully.');
       setShowWarmupSetup(false);
-      setUploadedFileName('');
-      setUploadedListId('');
-      setPreviewColumns([]);
-      setPreviewRows([]);
       setError('');
     } catch (err) {
       setSetupMessage(err.message || 'Failed to start warmup mails');
@@ -270,6 +341,53 @@ export default function EmailWarmupPage() {
       setSetupBusy(false);
     }
   };
+
+  const handlePreviewCellChange = (rowIndex, column, value) => {
+    setPreviewRows((current) =>
+      current.map((row, index) => (index === rowIndex ? { ...row, [column]: value } : row))
+    );
+  };
+
+  const handleAddClientRow = () => {
+    const nextColumns = previewColumns.length ? previewColumns : ['Name', 'Email', 'Company'];
+    if (!previewColumns.length) {
+      setPreviewColumns(nextColumns);
+    }
+    setPreviewRows((current) => [
+      ...current,
+      Object.fromEntries(nextColumns.map((column) => [column, '']))
+    ]);
+  };
+
+  const handleSaveWarmupSheet = async () => {
+    if (!uploadedListId) {
+      setSetupMessage('Upload a sheet first.');
+      return;
+    }
+    try {
+      setSheetBusy(true);
+      const response = await fetch(`/api/lists/${uploadedListId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          columns: previewColumns,
+          rows: previewRows
+        })
+      });
+      const next = await response.json();
+      if (!response.ok) {
+        throw new Error(next?.error || 'Failed to save warmup sheet');
+      }
+      persistWorkspace();
+      setSetupMessage('Warmup sheet saved successfully.');
+    } catch (error) {
+      setSetupMessage(error.message || 'Failed to save warmup sheet');
+    } finally {
+      setSheetBusy(false);
+    }
+  };
+
+  const visiblePreviewRows = sheetMinimized ? previewRows.slice(0, 2) : previewRows;
 
   return (
     <AppLayout
@@ -295,50 +413,7 @@ export default function EmailWarmupPage() {
         title="Overview"
         description="All connected sender accounts used for warm-up are shown here with live status."
       >
-        <div className="workspace-page" style={{ '--workspace-accent': '#14b8a6' }}>
-          <Card className="workspace-panel warmup-guide-card">
-            <CardContent>
-              <div className="warmup-guide-head">
-                <div>
-                  <strong>How to Start Warmup</strong>
-                  <p>Use these steps to receive and send automatic warmup replies.</p>
-                </div>
-                <span className={`warmup-guide-status ${data.setting?.enabled ? 'active' : ''}`}>
-                  {data.setting?.enabled ? 'Warmup is ON' : 'Warmup is OFF'}
-                </span>
-              </div>
-              <div className="warmup-guide-steps">
-                <article>
-                  <strong>Step 1</strong>
-                  <p>Make sure your Microsoft mailbox is connected and shows as Connected in Warmup Overview.</p>
-                </article>
-                <article>
-                  <strong>Step 2</strong>
-                  <p>Click `Turn Warmup On` to enable automatic warmup reply checking.</p>
-                </article>
-                <article>
-                  <strong>Step 3</strong>
-                  <p>Send a test email from another mailbox using a subject like `Warmup test` or `Warm up check`.</p>
-                </article>
-                <article>
-                  <strong>Step 4</strong>
-                  <p>Check `Warmup Activity` below or open `Mail Inbox` to see the received mail and sent auto reply.</p>
-                </article>
-              </div>
-              <div className="warmup-guide-actions">
-                <Button variant="secondary" loading={busy} onClick={handleRunNow}>
-                  Check Inbox Now
-                </Button>
-                <Button variant="secondary" loading={setupBusy} onClick={() => setShowWarmupSetup(true)}>
-                  Start Warmup Mails
-                </Button>
-                <Button loading={busy} onClick={() => handleToggle(!data.setting?.enabled)}>
-                  {data.setting?.enabled ? 'Turn Warmup Off' : 'Turn Warmup On'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="workspace-page warmup-workspace-page" style={{ '--workspace-accent': '#14b8a6' }}>
           <div className="workspace-stats">
             {statsCards.map((card) => (
               <article key={card.label} className="workspace-stat-card">
@@ -357,6 +432,164 @@ export default function EmailWarmupPage() {
           ) : null}
 
           <div className="workspace-grid">
+            <section className="workspace-panel workspace-panel-large">
+              <div className="workspace-panel-head">
+                <div>
+                  <h2>Warmup Setup</h2>
+                  <p>Select sender ID, keep an editable saved sheet, and start warmup sending from it.</p>
+                </div>
+              </div>
+              <div className="warmup-start-grid">
+                <section className="workspace-panel">
+                  <div className="warmup-inline-setup-grid">
+                    <div>
+                      <div className="workspace-panel-head">
+                        <div>
+                          <h2>Select Mail ID</h2>
+                          <p>Choose the mailbox that should send warmup emails.</p>
+                        </div>
+                      </div>
+                      <select
+                        className="warmup-select"
+                        value={selectedSenderAccountId}
+                        onChange={(event) => setSelectedSenderAccountId(event.target.value)}
+                      >
+                        <option value="">Select sender ID</option>
+                        {connectedAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.from} ({account.provider})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="workspace-panel-head">
+                        <div>
+                          <h2>Upload Warmup Sheet</h2>
+                          <p>The uploaded sheet stays saved and can be edited anytime.</p>
+                        </div>
+                      </div>
+                      <label className="warmup-upload-box" htmlFor="warmup-inline-upload-input">
+                        <strong>{uploadedFileName || 'Choose CSV or XLSX file'}</strong>
+                        <span>{uploadedFileName ? 'Click to replace the saved warmup sheet' : 'Click to upload a warmup sheet'}</span>
+                      </label>
+                      <input
+                        id="warmup-inline-upload-input"
+                        type="file"
+                        accept=".xlsx,.csv"
+                        style={{ display: 'none' }}
+                        onChange={handleWarmupUpload}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="workspace-panel-head">
+                    <div>
+                      <h2>Select Draft Type</h2>
+                      <p>Choose which draft should be sent for warmup.</p>
+                    </div>
+                  </div>
+                  <select
+                    className="warmup-select"
+                    value={selectedDraftType}
+                    onChange={(event) => setSelectedDraftType(event.target.value)}
+                  >
+                    {Object.entries(draftTemplates).map(([key, draft]) => (
+                      <option key={key} value={key}>
+                        {draft.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {setupMessage ? (
+                    <p className="warmup-setup-message">{setupMessage}</p>
+                  ) : null}
+
+                  <div className="warmup-guide-actions">
+                    <Button variant="secondary" loading={sheetBusy} onClick={handleSaveWarmupSheet}>
+                      Save Sheet
+                    </Button>
+                    <Button variant="secondary" onClick={() => setShowWarmupSetup(true)}>
+                      Open Setup
+                    </Button>
+                    <Button loading={setupBusy} onClick={handleStartWarmupMails}>
+                      Start Warmup
+                    </Button>
+                  </div>
+                </section>
+
+                <section className="workspace-panel workspace-panel-large warmup-sheet-panel">
+                  <div className="workspace-panel-head">
+                    <div>
+                      <h2>Saved Warmup Sheet</h2>
+                      <p>Edit client rows here. Added clients will be included in warmup sending.</p>
+                    </div>
+                    <div className="warmup-panel-actions">
+                      <Button variant="ghost" size="sm">{previewRows.length} rows</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSheetMinimized((current) => !current)}>
+                        {sheetMinimized ? 'Expand Sheet' : 'Minimize Sheet'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleAddClientRow}>
+                        Add Client
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="workspace-table warmup-preview-table">
+                    {previewColumns.length ? (
+                      <>
+                        <div className="workspace-table-head" style={{ gridTemplateColumns: `64px repeat(${previewColumns.length}, minmax(160px, 1fr))` }}>
+                          <span>No.</span>
+                          {previewColumns.map((column) => (
+                            <span key={column}>{column}</span>
+                          ))}
+                        </div>
+                        {visiblePreviewRows.map((row, index) => (
+                          <div key={`editable-${index}-${uploadedListId || 'new'}`} className="workspace-table-row" style={{ gridTemplateColumns: `64px repeat(${previewColumns.length}, minmax(160px, 1fr))` }}>
+                            <span>{index + 1}</span>
+                            {previewColumns.map((column) => (
+                              <input
+                                key={`${index}-${column}`}
+                                className="warmup-sheet-input"
+                                value={String(row?.[column] ?? '')}
+                                onChange={(event) => handlePreviewCellChange(index, column, event.target.value)}
+                                placeholder={column}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                        {sheetMinimized && previewRows.length > 2 ? (
+                          <div className="warmup-minimized-note">
+                            Showing first 2 client rows. Click `Expand Sheet` to view and edit the full saved sheet.
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="warmup-empty-preview">Upload a warmup sheet to keep a saved editable client list here.</div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section className="workspace-panel">
+              <div className="workspace-panel-head">
+                <div>
+                  <h2>Warmup Segments</h2>
+                  <p>Live status summary across warm-up accounts.</p>
+                </div>
+              </div>
+              <div className="workspace-list">
+                {sideItems.map((item) => (
+                  <div key={item.title}>
+                    <strong>{item.title}</strong>
+                    <span>{item.meta}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             <section className="workspace-panel workspace-panel-large">
               <div className="workspace-panel-head">
                 <div>
@@ -395,96 +628,6 @@ export default function EmailWarmupPage() {
               ) : (
                 <div className="warmup-minimized-note">Warmup Overview table is minimized.</div>
               )}
-            </section>
-
-            <section className="workspace-panel workspace-panel-large">
-              <div className="workspace-panel-head">
-                <div>
-                  <h2>Warmup Campaigns</h2>
-                  <p>All warmup campaigns started from this page, with latest status and log activity.</p>
-                </div>
-                <div className="warmup-panel-actions">
-                  <Button variant="ghost" size="sm">{data.campaigns.length} campaigns</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setCampaignsMinimized((current) => !current)}>
-                    {campaignsMinimized ? 'Expand' : 'Minimize'}
-                  </Button>
-                </div>
-              </div>
-
-              {!campaignsMinimized ? (
-                <>
-                  <div className="workspace-table">
-                    <div className="workspace-table-head" style={{ gridTemplateColumns: '1.8fr .9fr .8fr .8fr .8fr .8fr 1.4fr' }}>
-                      <span>Campaign</span>
-                      <span>Status</span>
-                      <span>Total</span>
-                      <span>Sent</span>
-                      <span>Pending</span>
-                      <span>Failed</span>
-                      <span>Latest Log</span>
-                    </div>
-                    {data.campaigns.length ? data.campaigns.map((campaign) => (
-                      <div key={campaign.id} className="workspace-table-row" style={{ gridTemplateColumns: '1.8fr .9fr .8fr .8fr .8fr .8fr 1.4fr' }}>
-                        <span>
-                          <strong style={{ display: 'block' }}>{campaign.name}</strong>
-                          <small style={{ color: '#64748b' }}>{campaign.senderFrom || campaign.draftType || '-'}</small>
-                        </span>
-                        <span>{campaign.status}</span>
-                        <span>{campaign.total}</span>
-                        <span>{campaign.sent}</span>
-                        <span>{campaign.pending}</span>
-                        <span>{campaign.failed}</span>
-                        <span>{campaign.lastLog?.message || 'No logs yet'}</span>
-                      </div>
-                    )) : (
-                      <div className="warmup-empty-preview">No warmup campaigns have been started yet.</div>
-                    )}
-                  </div>
-
-                  {data.campaigns.length ? (
-                    <div className="warmup-campaign-logs">
-                      {data.campaigns.slice(0, 3).map((campaign) => (
-                        <article key={`${campaign.id}-logs`} className="warmup-campaign-log-card">
-                          <strong>{campaign.name}</strong>
-                          <p>{campaign.status} | {campaign.senderFrom || campaign.draftType || '-'}</p>
-                          <div className="warmup-campaign-log-list">
-                            {campaign.logs?.length ? campaign.logs.map((log, index) => (
-                              <div key={`${campaign.id}-log-${index}`} className="warmup-campaign-log-item">
-                                <span>{log?.message || 'Log entry'}</span>
-                                <small>{formatDateTime(log?.at)}</small>
-                              </div>
-                            )) : (
-                              <div className="warmup-campaign-log-item">
-                                <span>No log entries yet</span>
-                                <small>Waiting for campaign updates</small>
-                              </div>
-                            )}
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="warmup-minimized-note">Warmup Campaigns table is minimized.</div>
-              )}
-            </section>
-
-            <section className="workspace-panel">
-              <div className="workspace-panel-head">
-                <div>
-                  <h2>Warmup Segments</h2>
-                  <p>Live status summary across warm-up accounts.</p>
-                </div>
-              </div>
-              <div className="workspace-list">
-                {sideItems.map((item) => (
-                  <div key={item.title}>
-                    <strong>{item.title}</strong>
-                    <span>{item.meta}</span>
-                  </div>
-                ))}
-              </div>
             </section>
 
             <section className="workspace-panel">
@@ -554,7 +697,7 @@ export default function EmailWarmupPage() {
                   onChange={handleWarmupUpload}
                 />
 
-                <div className="workspace-panel-head" style={{ marginTop: 16 }}>
+                <div className="workspace-panel-head">
                   <div>
                     <h2>Step 2: Choose Draft Type</h2>
                     <p>Select which warmup mail draft should be used.</p>
@@ -572,7 +715,7 @@ export default function EmailWarmupPage() {
                   ))}
                 </select>
 
-                <div className="workspace-panel-head" style={{ marginTop: 16 }}>
+                <div className="workspace-panel-head">
                   <div>
                     <h2>Step 3: Choose Sender</h2>
                     <p>Select the connected mailbox that should send the warmup mails.</p>
@@ -594,7 +737,7 @@ export default function EmailWarmupPage() {
                   <p className="warmup-setup-message">{setupMessage}</p>
                 ) : null}
 
-                <div className="warmup-guide-actions" style={{ marginTop: 12 }}>
+                <div className="warmup-guide-actions">
                   <Button variant="secondary" onClick={() => setShowWarmupSetup(false)}>
                     Cancel
                   </Button>

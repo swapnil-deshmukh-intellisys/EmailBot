@@ -59,7 +59,7 @@ function normalizeEmail(raw) {
   value = value.replace(/^[<[\("'`\s]+/, '').replace(/[>\])"'`\s]+$/, '');
   if (value.includes(',')) value = value.split(',')[0].trim();
   if (value.includes(';')) value = value.split(';')[0].trim();
-  return value;
+  return value.toLowerCase();
 }
 
 function normalizeRow(row) {
@@ -95,6 +95,23 @@ function extractColumns(rows) {
   }
 
   return columns;
+}
+
+function dedupeLeadsByEmail(leads = []) {
+  const seen = new Set();
+  const deduped = [];
+
+  for (const lead of leads) {
+    const email = normalizeEmail(lead?.Email || lead?.email || '');
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    deduped.push({
+      ...lead,
+      Email: email
+    });
+  }
+
+  return deduped;
 }
 
 export async function POST(req) {
@@ -173,9 +190,9 @@ export async function POST(req) {
     );
   }
 
-  const leads = rows
+  const leads = dedupeLeadsByEmail(rows
     .map(normalizeRow)
-    .filter((row) => row.Email && String(row.Email).includes('@'));
+    .filter((row) => row.Email && String(row.Email).includes('@')));
 
   if (!leads.length) {
     return NextResponse.json({ error: 'No valid leads with Email found in file' }, { status: 400 });

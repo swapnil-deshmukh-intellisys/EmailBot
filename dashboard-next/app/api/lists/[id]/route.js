@@ -11,7 +11,7 @@ function normalizeEmail(raw) {
   value = value.replace(/^[<[\("'`\s]+/, '').replace(/[>\])"'`\s]+$/, '');
   if (value.includes(',')) value = value.split(',')[0].trim();
   if (value.includes(';')) value = value.split(';')[0].trim();
-  return value;
+  return value.toLowerCase();
 }
 
 export async function GET(req, { params }) {
@@ -63,24 +63,34 @@ export async function PATCH(req, { params }) {
       }
     };
   }
-  list.leads = rows.map((row, index) => {
+  const seenEmails = new Set();
+  list.leads = rows.reduce((acc, row, index) => {
     const data = Object.fromEntries(
       Object.entries(row || {}).map(([key, value]) => [String(key || '').trim(), value ?? ''])
     );
-    const previousLead = list.leads[index] || {};
+    const email = normalizeEmail(data.Email || data.email || '');
+    if (!email || seenEmails.has(email)) {
+      return acc;
+    }
+    seenEmails.add(email);
 
-    return {
+    const previousLead = list.leads[index] || {};
+    acc.push({
       ...previousLead.toObject?.(),
       Name: data.Name || data.name || '',
-      Email: normalizeEmail(data.Email || data.email || ''),
+      Email: email,
       Company: data.Company || data.company || '',
-      data,
+      data: {
+        ...data,
+        Email: email
+      },
       status: previousLead.status || 'Pending',
       error: previousLead.error || '',
       sentAt: previousLead.sentAt || null,
       failedAt: previousLead.failedAt || null
-    };
-  });
+    });
+    return acc;
+  }, []);
 
   await list.save();
 
