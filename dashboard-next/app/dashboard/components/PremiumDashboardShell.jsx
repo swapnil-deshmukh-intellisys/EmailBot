@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import RichTextEditor from './RichTextEditor';
@@ -20,17 +20,18 @@ function MetricCard({ item }) {
       <div
         className="premium-kpi-ring"
         style={{
-          background: `conic-gradient(${item.color || 'var(--accent)'} 0 ${percent}%, color-mix(in srgb, var(--border-color) 82%, var(--panel-strong)) ${percent}% 100%)`
+          '--kpi-ring-color': item.color || 'var(--accent)',
+          '--kpi-ring-percent': `${percent}%`
         }}
       >
-        <div>{percent}%</div>
+        <span>{percent}%</span>
       </div>
     </article>
   );
 }
 
 const draftTypeItems = [
-  { value: 'cover_story', label: 'cover' },
+  { value: '', label: 'Select draft type' },
   { value: 'reminder', label: 'rem' },
   { value: 'follow_up', label: 'followup' },
   { value: 'updated_cost', label: 'updated cost' },
@@ -45,32 +46,19 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
       className={`premium-step-card ${statusClass}`}
       style={{ color: 'var(--text-primary)' }}
     >
-      <strong style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
       <div className="premium-step-track">
         <span className="premium-step-index">{step.index}</span>
         {!isLast ? <i /> : null}
       </div>
+      <strong style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
       {isDraftStep ? (
-        <div className="premium-step-draft-controls">
-          <button
-            type="button"
-            onClick={() => onAction?.(step)}
-            style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
-          >
-            Drafts
-          </button>
-          <select
-            value={selectedDraftType}
-            onChange={(event) => onSelectedDraftTypeChange?.(event.target.value)}
-            aria-label="Select draft type"
-          >
-            {draftTypeItems.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <button
+          type="button"
+          onClick={() => onAction?.(step)}
+          style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+        >
+          Drafts
+        </button>
       ) : (
         <button
           type="button"
@@ -82,6 +70,14 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
       )}
     </article>
   );
+}
+
+function ProgressFilterOptionLabel(value) {
+  if (value === 'today') return 'Day Wise';
+  if (value === '7d') return 'Week Wise';
+  if (value === '30d') return 'Month Wise';
+  if (value === 'customize') return 'Custom Dates';
+  return value ? String(value) : 'Custom Option';
 }
 
 function NotificationItem({ item }) {
@@ -231,6 +227,8 @@ export default function PremiumDashboardShell({
   onManualScheduledSlotChange,
   onApplyManualScheduledSlot,
   onStartCampaign,
+  onOpenReportRangePopup,
+  onApplyReportRange,
   onPauseCampaign,
   onResumeCampaign,
   onStopCampaign,
@@ -259,6 +257,7 @@ export default function PremiumDashboardShell({
       }),
     [notificationCards]
   );
+  const [customCalendarEvents, setCustomCalendarEvents] = useState([]);
   const calendarEvents = useMemo(() => {
     const notificationEvents = notificationCards.map((item, index) => ({
       id: `notification-${index}`,
@@ -283,7 +282,11 @@ export default function PremiumDashboardShell({
     }));
     return [...notificationEvents, ...timelineEvents, ...performanceEvents].filter((item) => item.date);
   }, [notificationCards, timelineCards, performanceCampaigns]);
-  const initialCalendarDate = calendarEvents[0]?.date || new Date(2025, 3, 1);
+  const allCalendarEvents = useMemo(
+    () => [...calendarEvents, ...customCalendarEvents].filter((item) => item.date),
+    [calendarEvents, customCalendarEvents]
+  );
+  const initialCalendarDate = new Date();
   const [calendarCursor, setCalendarCursor] = useState(
     new Date(initialCalendarDate.getFullYear(), initialCalendarDate.getMonth(), 1)
   );
@@ -300,6 +303,11 @@ export default function PremiumDashboardShell({
   const [showCampaignPopup, setShowCampaignPopup] = useState(false);
   const [showSelectDraftPopup, setShowSelectDraftPopup] = useState(false);
   const [showTestEmailPopup, setShowTestEmailPopup] = useState(false);
+  const [showDayPopup, setShowDayPopup] = useState(false);
+  const [dayEventDraft, setDayEventDraft] = useState('');
+  const [dayEventTitleDraft, setDayEventTitleDraft] = useState('');
+  const [dayEventDetailDraft, setDayEventDetailDraft] = useState('');
+  const [dayEventTypeDraft, setDayEventTypeDraft] = useState('Reminder');
   const [tableSearch, setTableSearch] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
   const [selectedRows, setSelectedRows] = useState([]);
@@ -340,6 +348,13 @@ export default function PremiumDashboardShell({
   const [campaignAbTesting, setCampaignAbTesting] = useState(true);
   const [selectDraftTab, setSelectDraftTab] = useState('my-drafts');
   const [showDraftTypeDropdown, setShowDraftTypeDropdown] = useState(false);
+  const [showProgressFilterDropdown, setShowProgressFilterDropdown] = useState(false);
+  const [progressFilterOptions, setProgressFilterOptions] = useState([
+    { label: 'Day Wise', value: 'today' },
+    { label: 'Week Wise', value: '7d' },
+    { label: 'Custom Dates', value: 'customize' },
+    { label: 'Month Wise', value: '30d' }
+  ]);
   const [selectedDraftId, setSelectedDraftId] = useState('');
   const [testPreviewMode, setTestPreviewMode] = useState('desktop');
   const [testEmailAddress, setTestEmailAddress] = useState('');
@@ -436,7 +451,21 @@ export default function PremiumDashboardShell({
       date: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), dayNumber)
     };
   });
-  const selectedEvents = calendarEvents.filter((item) => sameDay(item.date, selectedDate));
+  const today = useMemo(() => new Date(), []);
+  const getCalendarEventTone = (type) => {
+    const normalized = String(type || '').toLowerCase();
+    if (normalized.includes('mail')) return 'mail';
+    if (normalized.includes('timeline')) return 'timeline';
+    if (normalized.includes('campaign')) return 'campaign';
+    return 'default';
+  };
+  const selectedEvents = allCalendarEvents.filter((item) => sameDay(item.date, selectedDate));
+  const selectedDateLabel = selectedDate.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
   const availableTags = useMemo(() => {
     return [
       'All Tags',
@@ -973,107 +1002,125 @@ export default function PremiumDashboardShell({
     setShowDraftTypeDropdown(false);
   };
 
+  const handleProgressFilterSelect = (value) => {
+    setShowProgressFilterDropdown(false);
+    if (value === 'customize') {
+      onOpenReportRangePopup?.();
+      return;
+    }
+    onApplyReportRange?.(value);
+    onShowMessage?.(`Selected ${ProgressFilterOptionLabel(value)} filter.`, 'info');
+  };
+
+  const handleAddProgressFilterOption = () => {
+    const label = String(window.prompt('Enter filter label', '') || '').trim();
+    if (!label) return;
+    const value = String(window.prompt('Enter filter value key', label.toLowerCase().replace(/\s+/g, '-')) || '').trim();
+    if (!value) return;
+    setProgressFilterOptions((prev) => (prev.some((item) => item.value === value) ? prev : [...prev, { label, value }]));
+    onShowMessage?.(`Added ${label} filter option.`, 'success');
+  };
+
   return (
     <section className="premium-dashboard-shell">
-      <div className="premium-toolbar">
-        <div className="premium-toolbar-left">
-          <div className="premium-report-heading premium-report-heading-inline">
-            <h1>Campaign Dashboard</h1>
-            <div>
-              <span>{effectiveUploadedLists.length} lists</span>
-              <span>{performanceCampaigns.length} tracked campaigns</span>
-            </div>
-          </div>
-        </div>
-        <div className="premium-toolbar-actions">
-          <button
-            type="button"
-            onClick={() =>
-              showTableMessage(
-                selectedAccountLabel
-                  ? `Current sender: ${selectedAccountLabel}`
-                  : 'Choose a sender mailbox before testing or starting a campaign.',
-                selectedAccountLabel ? 'success' : 'info'
-              )
-            }
-          >
-            {selectedAccountLabel || 'Select Mail ID'}
-          </button>
-          <button type="button" onClick={() => showTableMessage(`Current project: ${(project || 'Project').toUpperCase()}`, 'info')}>
-            {(project || 'Project').toUpperCase()}
-          </button>
-          <button type="button" className="wide" onClick={() => showTableMessage(`Reporting range: ${reportRangeLabel}`, 'info')}>
-            {reportRangeLabel}
-          </button>
-        </div>
-      </div>
-
       <div className="premium-kpi-row">
         {reportMetricCards.map((item) => (
           <MetricCard key={item.title} item={item} />
         ))}
       </div>
 
-      <div className="premium-stepper-row" style={{ color: 'var(--text-primary)' }}>
-        {workflowSteps.map((step, index) => (
-          (() => {
-            const stepNumber = Number(step?.index || index + 1);
-            const isCompleted = Boolean(completedWorkflowSteps[stepNumber - 1]);
-            const status = isCompleted ? 'completed' : 'pending';
-            return (
-          <WorkflowStep
-            key={step.index}
-            step={step}
-            isLast={index === workflowSteps.length - 1}
-            status={status}
-            onAction={handleWorkflowAction}
-            selectedDraftType={selectedDraftType}
-            onSelectedDraftTypeChange={onSelectedDraftTypeChange}
-          />
-            );
-          })()
-        ))}
-        <button
-          type="button"
-          className="premium-stepper-start"
-          onClick={() => {
-            onShowMessage?.('Starting the campaign from the workflow stepper.', 'info');
-            onStartCampaign?.();
-          }}
-          style={{ color: '#ecfdf5', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
-        >
-          START
-        </button>
-      </div>
+      <section className="premium-stepper-shell">
+        <div className="premium-stepper-row" style={{ color: 'var(--text-primary)' }}>
+          <div className="premium-workflow-title">
+            <h3>Campaign Workflow</h3>
+          </div>
+          {workflowSteps.map((step, index) => (
+            (() => {
+              const stepNumber = Number(step?.index || index + 1);
+              const isCompleted = Boolean(completedWorkflowSteps[stepNumber - 1]);
+              const status = isCompleted ? 'completed' : 'pending';
+              return (
+                <WorkflowStep
+                  key={step.index}
+                  step={step}
+                  isLast={index === workflowSteps.length - 1}
+                  status={status}
+                  onAction={handleWorkflowAction}
+                  selectedDraftType={selectedDraftType}
+                  onSelectedDraftTypeChange={onSelectedDraftTypeChange}
+                />
+              );
+            })()
+          ))}
+          <button
+            type="button"
+            className="premium-stepper-start"
+            onClick={() => {
+              onShowMessage?.('Starting the campaign from the workflow stepper.', 'info');
+              onStartCampaign?.();
+            }}
+            style={{ color: '#ecfdf5', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
+          >
+            START
+          </button>
+        </div>
+      </section>
 
       <div className="premium-content-grid">
         <div className="premium-gauge-card premium-card-with-tabs">
           <div className="premium-panel-head">
             <h3>Campaign Progress</h3>
-            <button type="button" className="ghost">Filter</button>
+            <div className="premium-progress-filter-wrap">
+              <button
+                type="button"
+                className="ghost premium-progress-filter-btn"
+                onClick={() => setShowProgressFilterDropdown((current) => !current)}
+                aria-haspopup="menu"
+                aria-expanded={showProgressFilterDropdown}
+              >
+                Filter
+              </button>
+              {showProgressFilterDropdown ? (
+                <div className="premium-progress-filter-menu">
+                  {progressFilterOptions.map((item) => (
+                    <button key={item.value} type="button" onClick={() => handleProgressFilterSelect(item.value)}>
+                      {item.label}
+                    </button>
+                  ))}
+                  <button type="button" className="add" onClick={handleAddProgressFilterOption}>
+                    Add Option
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
           <span className="badge">{reportRangeLabel}</span>
+          <div className="premium-progress-chip-row" aria-label="Campaign progress summary">
+            <span className="premium-progress-chip done">Done {Math.max(0, Number(reportMetricCards[1]?.value || 0))}</span>
+            <span className="premium-progress-chip pending">Pending {Math.max(0, Number(reportMetricCards[2]?.value || 0))}</span>
+            <span className="premium-progress-chip failed">Failed {Math.max(0, Number(reportMetricCards[3]?.value || 0))}</span>
+          </div>
           <div className="premium-arc-wrap">
             <div className="premium-arc-track">
               <div
                 className="premium-arc-ring"
                 style={{
-                  background: `conic-gradient(from 180deg, var(--accent) 0 ${safeCompletion * 1.8}deg, color-mix(in srgb, var(--border-color) 82%, var(--panel-strong)) ${safeCompletion * 1.8}deg 180deg, transparent 180deg 360deg)`
+                  background: `conic-gradient(from 180deg, #22c55e 0 ${safeCompletion * 1.8}deg, #f59e0b ${safeCompletion * 1.8}deg ${Math.min(360, (safeCompletion + Math.round((Number(reportMetricCards[2]?.value || 0) / Math.max(totalTrackedMails, 1)) * 100)) * 1.8)}deg, #ef4444 ${Math.min(360, (safeCompletion + Math.round((Number(reportMetricCards[2]?.value || 0) / Math.max(totalTrackedMails, 1)) * 100)) * 1.8)}deg 360deg)`
                 }}
               >
-                <div className="premium-arc-ring-inner" />
+                <div className="premium-arc-ring-inner">
+                  <strong>{safeCompletion}%</strong>
+                  <span>{Math.max(0, Number(reportMetricCards[1]?.value || 0))} / {totalTrackedMails}</span>
+                </div>
               </div>
-            </div>
-            <div className="premium-arc-copy">
-              <strong>{safeCompletion}%</strong>
-              <p>{Math.max(0, Number(reportMetricCards[1]?.value || 0))} / {totalTrackedMails}</p>
             </div>
           </div>
           <div className="premium-arc-legend">
             <span><i className="done" />Done</span>
-            <span><i className="pending" />Pending {Math.max(0, 100 - safeCompletion)}%</span>
+            <span><i className="pending" />Pending {Math.max(0, Number(reportMetricCards[2]?.value || 0))}</span>
+            <span><i className="failed" />Failed {Math.max(0, Number(reportMetricCards[3]?.value || 0))}</span>
           </div>
-          <small>{safeCompletion}% of your mail warming target reached.</small>
+          <small className="premium-arc-footer">{safeCompletion}% of your mail warming target reached.</small>
         </div>
 
         <div className="premium-calendar-card premium-card-with-tabs">
@@ -1085,14 +1132,14 @@ export default function PremiumDashboardShell({
                 className="ghost subtle"
                 onClick={() => setCalendarCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
               >
-                â€¹
+                ‹
               </button>
               <button
                 type="button"
                 className="ghost subtle"
                 onClick={() => setCalendarCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
               >
-                â€º
+                ›
               </button>
             </div>
           </div>
@@ -1103,14 +1150,25 @@ export default function PremiumDashboardShell({
               </span>
             ))}
             {calendarCells.map((day) => (
+              (() => {
+                const dayEvents = allCalendarEvents.filter((item) => sameDay(item.date, day.date));
+                const dotTone = dayEvents.length ? getCalendarEventTone(dayEvents[0].type) : '';
+                return (
               <button
                 key={day.key}
                 type="button"
-                className={`premium-calendar-day ${day.inMonth ? 'current' : 'adjacent'} ${sameDay(day.date, selectedDate) ? 'selected' : ''}`}
-                onClick={() => setSelectedDate(day.date)}
+                className={`premium-calendar-day ${day.inMonth ? 'current' : 'adjacent'} ${sameDay(day.date, selectedDate) ? 'selected' : ''} ${sameDay(day.date, today) ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}`}
+                onClick={() => {
+                  setSelectedDate(day.date);
+                  setShowDayPopup(true);
+                }}
+                data-tone={dotTone}
               >
-                {day.label}
+                <span>{day.label}</span>
+                {dayEvents.length ? <i aria-hidden="true" /> : null}
               </button>
+                );
+              })()
             ))}
           </div>
           <div className="premium-calendar-events">
@@ -1211,7 +1269,7 @@ export default function PremiumDashboardShell({
                 key={campaign.id || campaign._id || index}
                 className={`premium-table premium-table-row ${openActionMenu === campaign.id ? 'premium-table-row-menu-open' : ''}`}
               >
-                <span>
+                <span data-label="Select">
                   <input
                     type="checkbox"
                     checked={selectedRows.includes(campaign.id)}
@@ -1219,34 +1277,34 @@ export default function PremiumDashboardShell({
                     aria-label={`Select ${campaign.name}`}
                   />
                 </span>
-                <span>{campaign.srNo}</span>
-                <span className="premium-table-campaign">
+                <span data-label="Sr. No.">{campaign.srNo}</span>
+                <span className="premium-table-campaign" data-label="Campaigns">
                   <strong>{campaign.name}</strong>
                   <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
                   <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
                 </span>
-                <span>{campaign.publishDate || '-'}</span>
-                <span>{campaign.total}</span>
-                <span>{campaign.sent}</span>
-                <span>{campaign.pending}</span>
-                <span>{campaign.failed}</span>
-                <span>{campaign.open}</span>
-                <span>{campaign.bounced}</span>
-                <span>{campaign.spam}</span>
-                <span className="premium-tag-stack">
+                <span data-label="Publish Date">{campaign.publishDate || '-'}</span>
+                <span data-label="Total Mails">{campaign.total}</span>
+                <span data-label="Sent">{campaign.sent}</span>
+                <span data-label="Pending">{campaign.pending}</span>
+                <span data-label="Fail">{campaign.failed}</span>
+                <span data-label="Open">{campaign.open}</span>
+                <span data-label="Bounce">{campaign.bounced}</span>
+                <span data-label="Spam">{campaign.spam}</span>
+                <span className="premium-tag-stack" data-label="Tags">
                   {(campaign.tags || []).slice(0, 2).map((tag) => (
                     <em key={tag}>{tag}</em>
                   ))}
                 </span>
-                <span className="premium-table-action-cell" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
-                  <button
-                    type="button"
-                    className="premium-row-action"
-                    onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
-                    aria-label={`Open actions for ${campaign.name}`}
-                  >
-                    More
-                  </button>
+                <span className="premium-table-action-cell" data-label="Action" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
+                    <button
+                      type="button"
+                      className="premium-row-action"
+                      onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
+                      aria-label={`Open actions for ${campaign.name}`}
+                    >
+                    ⋮
+                    </button>
                   {openActionMenu === campaign.id ? (
                     <div className="premium-row-action-menu">
                       <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
@@ -1277,16 +1335,13 @@ export default function PremiumDashboardShell({
               />
               <span>Select all visible rows</span>
             </label>
-            <div className="premium-table-summary">
-              <span>Running campaigns appear first. Use search and tags to narrow by sender, campaign, country, sector, or status.</span>
-            </div>
             <div className="premium-table-pagination">
               <button
                 type="button"
                 onClick={() => setCurrentTablePage((page) => Math.max(1, page - 1))}
                 disabled={currentTablePage === 1}
               >
-                Back
+                ‹ Back
               </button>
               {Array.from({ length: totalTablePages }, (_, index) => (
                 <button
@@ -1303,7 +1358,7 @@ export default function PremiumDashboardShell({
                 onClick={() => setCurrentTablePage((page) => Math.min(totalTablePages, page + 1))}
                 disabled={currentTablePage === totalTablePages}
               >
-                Next
+                Next ›
               </button>
             </div>
           </div>
@@ -1312,28 +1367,34 @@ export default function PremiumDashboardShell({
         </section>
 
         <section className="premium-panel premium-logs-panel">
-          <div className="premium-panel-head">
-            <h3>Activity Timeline</h3>
-            <button type="button" className="ghost" onClick={() => setShowTimelinePopup(true)}>
-              See All
-            </button>
-          </div>
-          <div className="premium-timeline-stack">
-            {timelineCards.map((item, index) => (
-              <TimelineItem key={`${item.date}-${index}`} item={item} />
-            ))}
-          </div>
+          <div className="premium-logs-split">
+            <div className="premium-logs-split-column">
+              <div className="premium-panel-head">
+                <h3>Activity Timeline</h3>
+                <button type="button" className="ghost" onClick={() => setShowTimelinePopup(true)}>
+                  See All
+                </button>
+              </div>
+              <div className="premium-timeline-stack">
+                {timelineCards.map((item, index) => (
+                  <TimelineItem key={`${item.date}-${index}`} item={item} />
+                ))}
+              </div>
+            </div>
 
-          <div className="premium-panel-head">
-            <h3>Logs</h3>
-            <button type="button" className="ghost" onClick={() => setShowLogsPopup(true)}>
-              See All
-            </button>
-          </div>
-          <div className="premium-logs-stack">
-            {logs.slice(0, 3).map((log, index) => (
-              <LogItem key={`${log.time}-${index}`} item={log} />
-            ))}
+            <div className="premium-logs-split-column">
+              <div className="premium-panel-head">
+                <h3>Logs</h3>
+                <button type="button" className="ghost" onClick={() => setShowLogsPopup(true)}>
+                  See All
+                </button>
+              </div>
+              <div className="premium-logs-stack">
+                {logs.slice(0, 3).map((log, index) => (
+                  <LogItem key={`${log.time}-${index}`} item={log} />
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -1344,7 +1405,7 @@ export default function PremiumDashboardShell({
             <div className="premium-panel-head">
               <h3>Events on {selectedDate.toLocaleDateString('en-GB')}</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowCalendarPopup(false)}>
-                Ã—
+                × Close
               </button>
             </div>
             <div className="premium-calendar-modal-list">
@@ -1355,6 +1416,106 @@ export default function PremiumDashboardShell({
                   <small>{item.detail}</small>
                 </div>
               ))}
+              {!selectedEvents.length ? <div className="premium-empty-state">No events for this date.</div> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showDayPopup ? (
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowDayPopup(false)}>
+          <div className="premium-calendar-modal premium-day-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="premium-panel-head">
+              <div>
+                <h3>{selectedDateLabel}</h3>
+                <p>Daily activity, events, and quick actions for this date.</p>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowDayPopup(false)}>
+                × Close
+              </button>
+            </div>
+            <div className="premium-day-modal-summary">
+              <div>
+                <strong>{selectedEvents.length || 0}</strong>
+                <span>Events today</span>
+              </div>
+              <div>
+                <strong>{allCalendarEvents.filter((item) => sameDay(item.date, today)).length}</strong>
+                <span>Today in calendar</span>
+              </div>
+            </div>
+            <div className="premium-calendar-modal-list">
+              {selectedEvents.length ? (
+                selectedEvents.map((item) => (
+                  <div key={item.id} className="premium-calendar-event">
+                    <span>{item.type}</span>
+                    <p>{item.title}</p>
+                    <small>{item.detail}</small>
+                  </div>
+                ))
+              ) : (
+                <div className="premium-empty-state">No events for this date yet.</div>
+              )}
+            </div>
+            <div className="premium-day-modal-actions">
+              <input
+                type="text"
+                value={dayEventTitleDraft}
+                onChange={(event) => setDayEventTitleDraft(event.target.value)}
+                placeholder="Event title"
+              />
+              <textarea
+                value={dayEventDetailDraft}
+                onChange={(event) => setDayEventDetailDraft(event.target.value)}
+                placeholder="About this event"
+                rows={3}
+              />
+              <div className="premium-day-modal-row">
+                <select value={dayEventTypeDraft} onChange={(event) => setDayEventTypeDraft(event.target.value)}>
+                  <option value="Reminder">Reminder</option>
+                  <option value="Note">Note</option>
+                  <option value="Meeting">Meeting</option>
+                  <option value="Campaign">Campaign</option>
+                </select>
+                <input
+                  type="text"
+                  value={dayEventDraft}
+                  onChange={(event) => setDayEventDraft(event.target.value)}
+                  placeholder="Reminder note"
+                />
+              </div>
+              <div className="premium-day-modal-footer">
+                <small>You can use this for notes, reminders, or a quick plan for the day.</small>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const title = dayEventTitleDraft.trim();
+                    const detail = dayEventDetailDraft.trim();
+                    const note = dayEventDraft.trim();
+                    if (!title && !detail && !note) {
+                      onShowMessage?.('Add an event title or note before saving it.', 'info');
+                      return;
+                    }
+                    setCustomCalendarEvents((current) => [
+                      {
+                        id: `custom-${Date.now()}`,
+                        date: new Date(selectedDate),
+                        title: title || 'Custom event',
+                        detail: detail || note || 'Planned for this day',
+                        type: dayEventTypeDraft || 'Reminder'
+                      },
+                      ...current
+                    ]);
+                    onShowMessage?.(`Saved event for ${selectedDateLabel}.`, 'success');
+                    setDayEventTitleDraft('');
+                    setDayEventDetailDraft('');
+                    setDayEventDraft('');
+                    setShowDayPopup(false);
+                  }}
+                >
+                  Save Event
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1365,9 +1526,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>Reply Notifications</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>
-                Ã—
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>× Close</button>
             </div>
             <div className="premium-calendar-modal-list">
               {replyNotificationCards.length ? (
@@ -1387,9 +1546,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Quick Notes</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>
-                Ãƒâ€”
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>× Close</button>
             </div>
             <div className="premium-calendar-modal-list">
               {quickNotes.map((item) => (
@@ -1405,9 +1562,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Activity Timeline Events</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>
-                Ã—
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>× Close</button>
             </div>
             <div className="premium-calendar-modal-list">
               {timelineCards.map((item, index) => (
@@ -1423,9 +1578,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Dashboard Logs</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>
-                Ã—
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>× Close</button>
             </div>
             <div className="premium-calendar-modal-list">
               {logs.map((log, index) => (
@@ -1444,9 +1597,7 @@ export default function PremiumDashboardShell({
                 <h3>Add Client List</h3>
                 <p>Upload a new list or select from your existing lists</p>
               </div>
-              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>
-                Ã—
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>× Close</button>
             </div>
 
             <div className="premium-clientlist-step">Client List</div>
@@ -1473,7 +1624,7 @@ export default function PremiumDashboardShell({
                   id="premium-shell-upload-input"
                 />
                 <label className="premium-clientlist-uploadbox" htmlFor="premium-shell-upload-input">
-                  <div className="premium-clientlist-uploadicon">â†‘</div>
+                  <div className="premium-clientlist-uploadicon">＋</div>
                   <strong>Drag & drop your file here</strong>
                   <span>or click to browse</span>
                   <small>Supported formats: CSV, XLSX</small>
@@ -1500,7 +1651,7 @@ export default function PremiumDashboardShell({
               <div className="premium-clientlist-body">
                 <div className="premium-clientlist-section-copy">
                   <strong>Select from uploaded files</strong>
-                  <p>Choose a file youâ€™ve already uploaded.</p>
+                  <p>Choose a file youÃ¢â‚¬â„¢ve already uploaded.</p>
                 </div>
                 <div className="premium-clientlist-list">
                   {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
@@ -1553,9 +1704,7 @@ export default function PremiumDashboardShell({
             ) : null}
 
             <div className="premium-clientlist-actions">
-              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>
-                Cancel
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>×</button>
               <button type="button" className="premium-step-skip" onClick={handleClientListNext}>
                 Skip
               </button>
@@ -1576,11 +1725,11 @@ export default function PremiumDashboardShell({
                 <p>Verify your uploaded file, column mapping, and contact data before continuing</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowOverviewPopup(false)}>
-                Ã—
+                Ãƒâ€”
               </button>
             </div>
 
-            <div className="premium-clientlist-step">Step 2 â€” Overview Data</div>
+            <div className="premium-clientlist-step">Step 2 Ã¢â‚¬â€ Overview Data</div>
 
             <div className="premium-review-body">
               <div className="premium-review-summary">
@@ -1609,7 +1758,7 @@ export default function PremiumDashboardShell({
                     <div key={item.sheetColumn} className="premium-review-mapping-row">
                       <strong>{item.sheetColumn}</strong>
                       <div className={`premium-review-status ${item.status}`}>
-                        <span>{item.status === 'success' ? 'âœ“' : item.status === 'warning' ? '!' : 'Ã—'}</span>
+                        <span>{item.status === 'success' ? 'Ã¢Å“â€œ' : item.status === 'warning' ? '!' : 'Ãƒâ€”'}</span>
                         <select
                           value={item.mappedField}
                           onChange={(event) =>
@@ -1726,7 +1875,7 @@ export default function PremiumDashboardShell({
                             );
                           })}
                           <div className="premium-review-row-actions">
-                            <button type="button" className="ghost subtle premium-review-icon-btn" onClick={() => onPreviewAddRow?.(row.id)} aria-label="Insert row after this row">+</button><button type="button" className="ghost subtle premium-review-icon-btn danger" onClick={() => onPreviewDeleteRow?.(row.id - 1)} aria-label="Delete row">×</button>
+                            <button type="button" className="ghost subtle premium-review-icon-btn" onClick={() => onPreviewAddRow?.(row.id)} aria-label="Insert row after this row">＋</button><button type="button" className="ghost subtle premium-review-icon-btn danger" onClick={() => onPreviewDeleteRow?.(row.id - 1)} aria-label="Delete row">×</button>
                           </div>
                         </div>
                       );
@@ -1767,7 +1916,7 @@ export default function PremiumDashboardShell({
                   </div>
                   <div className="error">
                     <div>
-                      <span>Ã—</span>
+                      <span>Ãƒâ€”</span>
                       <p>{overviewRows.filter((row) => rowIssues[row.id]?.includes('invalid')).length} invalid email formats found</p>
                     </div>
                     <button type="button" onClick={() => setOverviewFilter('errors')}>View</button>
@@ -2167,7 +2316,7 @@ export default function PremiumDashboardShell({
               <div className="premium-select-draft-create">
                 <div className="premium-select-draft-upload">
                   <div className="premium-select-draft-uploadbox">
-                    <span className="premium-clientlist-uploadicon">â†‘</span>
+                    <span className="premium-clientlist-uploadicon">＋</span>
                     <strong>Upload Word, PDF, or TXT file</strong>
                     <small>Supported formats: DOCX, PDF, TXT</small>
                   </div>
@@ -2275,14 +2424,14 @@ export default function PremiumDashboardShell({
                       className={testPreviewMode === 'mobile' ? 'active' : ''}
                       onClick={() => setTestPreviewMode('mobile')}
                     >
-                      ðŸ“±
+                      Ã°Å¸â€œÂ±
                     </button>
                     <button
                       type="button"
                       className={testPreviewMode === 'desktop' ? 'active' : ''}
                       onClick={() => setTestPreviewMode('desktop')}
                     >
-                      ðŸ–¥
+                      Ã°Å¸â€“Â¥
                     </button>
                   </div>
                 </div>
@@ -2321,7 +2470,7 @@ export default function PremiumDashboardShell({
 
               {testEmailSent ? (
                 <div className="premium-test-email-success">
-                  <span>âœ”</span>
+                  <span>Ã¢Å“â€</span>
                   <p>Test email sent successfully! Check your inbox.</p>
                 </div>
               ) : null}
@@ -2378,7 +2527,7 @@ export default function PremiumDashboardShell({
                 type="text"
                 value={effectiveDraftSubject}
                 onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
-                placeholder="Effortless Email Sending for Your Lists â€“ No Compromises"
+                placeholder="Effortless Email Sending for Your Lists Ã¢â‚¬â€œ No Compromises"
               />
             </label>
 

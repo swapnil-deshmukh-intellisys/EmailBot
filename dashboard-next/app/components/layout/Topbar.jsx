@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
 import Button from '../ui/Button';
@@ -22,6 +22,7 @@ export function Topbar({
   searchValue = '',
   actions = null,
   rightContent = null,
+  onOpenMobileSidebar = null,
   className = ''
 }) {
   const pathname = usePathname();
@@ -51,9 +52,17 @@ export function Topbar({
       </div>
 
       <div className="dashboard-topbar-actions">
+        <button
+          type="button"
+          className="dashboard-mobile-sidebar-toggle dashboard-mobile-sidebar-toggle-inline"
+          onClick={onOpenMobileSidebar}
+          aria-label="Open navigation menu"
+        >
+          ☰ Menu
+        </button>
         {showSearch ? (
           <div className="dashboard-topbar-search dashboard-topbar-search-panel">
-            <span className="dashboard-topbar-search-icon">⌕</span>
+            <span className="dashboard-topbar-search-icon" aria-hidden="true">⌕</span>
             <Input
               value={searchValue}
               onChange={onSearchChange}
@@ -67,7 +76,7 @@ export function Topbar({
         {rightContent || (
           <>
             <ThemeToggle />
-            <Button variant="ghost" className="dashboard-topbar-notify">Notifications</Button>
+            <Button variant="ghost" className="dashboard-topbar-notify">Alerts</Button>
             <Button variant="ghost" className="dashboard-topbar-profile">
               <span className="dashboard-topbar-avatar">AK</span>
               <span>Akshay</span>

@@ -143,6 +143,22 @@ export async function POST(req) {
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
     const total = list.leads.length;
     const batchSize = Math.max(1, Math.floor(parsedBatchSize));
+    const duplicateCampaign = await Campaign.findOne({
+      userEmail,
+      name: String(name || '').trim(),
+      listId,
+      senderAccountId: senderAccountId || '',
+      type: campaignType,
+      'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
+      'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
+      'options.batchSize': batchSize,
+      'options.delaySeconds': Math.max(MIN_DELAY_SECONDS, Number(options?.delaySeconds || 60)),
+      'options.replyMode': replyMode
+    }).lean();
+
+    if (duplicateCampaign) {
+      return NextResponse.json({ campaign: duplicateCampaign, duplicate: true });
+    }
 
     const campaign = await Campaign.create({
 

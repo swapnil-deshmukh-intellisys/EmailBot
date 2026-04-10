@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -36,7 +36,7 @@ function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2
         <span className={`fancy-stat-badge ${positive ? 'up' : 'down'}`}>
           {positive ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
         </span>
-        <span className="fancy-stat-menu">⋮</span>
+        <span className="fancy-stat-menu">⋯</span>
       </div>
       <div className="fancy-stat-body">
         <div>
@@ -291,6 +291,7 @@ export default function DashboardPage() {
   const [showTopbarProjectDropdown, setShowTopbarProjectDropdown] = useState(false);
   const [showTopbarRangeDropdown, setShowTopbarRangeDropdown] = useState(false);
   const [showTopbarMailDropdown, setShowTopbarMailDropdown] = useState(false);
+  const [userRangeOptions, setUserRangeOptions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
@@ -420,6 +421,13 @@ export default function DashboardPage() {
     notify(`Project ${value.toUpperCase()} added.`, 'success');
   };
 
+  const getRangeLabel = (value) => {
+    const builtIn = SUMMARY_RANGES.find((option) => option.value === value);
+    if (builtIn) return builtIn.label;
+    const custom = userRangeOptions.find((option) => option.value === value);
+    return custom?.label || 'This Week';
+  };
+
   const handleStatsRangeSelection = (value) => {
     setSelectedStatsRange(value);
     setSelectedStatsDate('');
@@ -436,6 +444,35 @@ export default function DashboardPage() {
   const selectTopbarRange = (value) => {
     handleStatsRangeSelection(value);
     setShowTopbarRangeDropdown(false);
+  };
+
+  const addRangeOption = () => {
+    const label = String(window.prompt('Enter new range option label', '') || '').trim();
+    if (!label) return;
+    const baseValue = String(window.prompt('Base range for this option (today, 7d, 15d, 30d, quarter, customize)', '7d') || '').trim() || '7d';
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const value = `saved-${slug || Date.now()}`;
+    setUserRangeOptions((prev) => (prev.some((item) => item.value === value) ? prev : [...prev, { label, value, baseValue }]));
+    applyRangeSelection(baseValue);
+    setShowTopbarRangeDropdown(false);
+    notify(`Added range option ${label}.`, 'success');
+  };
+
+  const applyRangeSelection = (value) => {
+    if (value === 'customize') {
+      setShowCustomRangePopup(true);
+      return;
+    }
+    if (value.startsWith('custom-')) {
+      setSelectedStatsRange(value);
+      setSelectedStatsDate('');
+      setShowDayCounts(true);
+      setShowTopbarRangeDropdown(false);
+      notify(`Selected ${getRangeLabel(value)}.`, 'success');
+      return;
+    }
+    selectTopbarRange(value);
+    notify(`Selected ${getRangeLabel(value)}.`, 'success');
   };
 
   const selectTopbarMail = (value) => {
@@ -824,17 +861,58 @@ const handleDeleteDraft = async (draft) => {
   );
   const safeTrackedMails = Math.max(totalTrackedMails, 1);
   const completionRate = Math.round((Number(stats?.sent || 0) / safeTrackedMails) * 100);
+  const formatDateLabel = (date) => {
+    if (!date) return '';
+    const normalized = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(normalized.getTime())) return '';
+    return normalized.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const buildRangeDateLabel = (value) => {
+    const today = new Date();
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(today);
+    if (value === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else if (value === '7d') {
+      start.setDate(start.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+    } else if (value === '15d') {
+      start.setDate(start.getDate() - 14);
+      start.setHours(0, 0, 0, 0);
+    } else if (value === '30d') {
+      start.setDate(start.getDate() - 29);
+      start.setHours(0, 0, 0, 0);
+    } else if (value === 'quarter') {
+      start.setMonth(start.getMonth() - 3);
+      start.setHours(0, 0, 0, 0);
+    } else if (value === 'customize' && customStatsStartDate && customStatsEndDate) {
+      return `${customStatsStartDate} - ${customStatsEndDate}`;
+    } else if (String(value || '').startsWith('custom-')) {
+      const match = userRangeOptions.find((option) => option.value === value);
+      return match?.label || 'Custom Option';
+    }
+    return `${formatDateLabel(start)} - ${formatDateLabel(end)}`;
+  };
   const selectedRangeLabel =
-    SUMMARY_RANGES.find((option) => option.value === selectedStatsRange)?.label || 'This Week';
-  const reportDateLabel =
-    selectedStatsDate ||
-    (selectedStatsRange === 'custom' && customStatsStartDate && customStatsEndDate
-      ? 'Custom Range'
-      : selectedRangeLabel);
+    getRangeLabel(selectedStatsRange);
+  const reportDateLabel = selectedRangeLabel;
   const reportRangeLabel =
     selectedStatsRange === 'custom' && customStatsStartDate && customStatsEndDate
       ? `${customStatsStartDate} - ${customStatsEndDate}`
-      : 'Sep 01 - Nov 30, 2025';
+      : selectedStatsRange
+        ? buildRangeDateLabel(selectedStatsRange)
+        : 'Sep 01 - Nov 30, 2025';
+  const rangeDayAnalytics = useMemo(() => {
+    const counts = Array.isArray(stats?.dailyMailCounts) ? stats.dailyMailCounts : [];
+    return counts
+      .map((item) => ({
+        date: item?.date || item?.day || item?.label || 'Unknown day',
+        count: Number(item?.count || item?.sent || item?.value || 0)
+      }))
+      .filter((item) => item.date)
+      .slice(0, 14);
+  }, [stats?.dailyMailCounts]);
   const reportMetricCards = [
     {
       title: 'Total',
@@ -1206,6 +1284,9 @@ const handleDeleteDraft = async (draft) => {
     }
 
     if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error('Unauthorized');
+      }
       throw new Error(data.error || `Request failed: ${url}`);
     }
 
@@ -1317,6 +1398,10 @@ const handleDeleteDraft = async (draft) => {
 
       const accountsRes = await accountsPromise;
       if (accountsRes?.__error) {
+        if (String(accountsRes.__error?.message || '') === 'Unauthorized') {
+          router.replace('/login');
+          return;
+        }
         errors.push(accountsRes.__error?.message || 'Failed to load accounts');
       }
 
@@ -1335,6 +1420,10 @@ const handleDeleteDraft = async (draft) => {
       }
       setError(errors[0] || '');
     } catch (e) {
+      if (String(e?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
+      }
       setError(e.message || 'Failed to load dashboard data');
     }
   };
@@ -1358,6 +1447,9 @@ const handleDeleteDraft = async (draft) => {
         const st = statsRes.value || {};
         setStats(st);
         setLists(st.lists || []);
+      } else if (String(statsRes.reason?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
       }
 
       if (campaignsRes.status === 'fulfilled') {
@@ -1369,6 +1461,9 @@ const handleDeleteDraft = async (draft) => {
             .map((c) => c._id)
             .filter((id) => prev.includes(id))
         );
+      } else if (String(campaignsRes.reason?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
       }
 
       const errors = [];
@@ -1380,6 +1475,10 @@ const handleDeleteDraft = async (draft) => {
       }
       setError(errors[0] || '');
     } catch (e) {
+      if (String(e?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
+      }
       setError(e.message || 'Failed to refresh live data');
     }
   };
@@ -2059,7 +2158,7 @@ const normalizeSelectedListEmails = async () => {
           <div className="dashboard-brand">
             <div className="dashboard-brand-mark">CD</div>
             <div>
-              <h2>CODENAME.COM</h2>
+              <h2>Intelli Mail Pilot</h2>
             </div>
           </div>
 
@@ -2142,13 +2241,16 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
-          <button type="button" className="dashboard-topbar-pill">
-            {reportDateLabel}
+          <button
+            type="button"
+            className="dashboard-topbar-pill dashboard-topbar-range-pill"
+            onClick={() => setShowTopbarRangeDropdown((prev) => !prev)}
+            aria-haspopup="dialog"
+            aria-expanded={showTopbarRangeDropdown}
+          >
+            <span className="dashboard-topbar-pill-label">{reportDateLabel}</span>
+            <span className="dashboard-topbar-pill-range">{reportRangeLabel}</span>
           </button>
-          <label className="premium-timeframe-toggle dashboard-topbar-timeframe">
-            <span />
-            TimeFrame
-          </label>
           <div className="dashboard-topbar-dropdown" ref={topbarProjectDropdownRef}>
             <button
               type="button"
@@ -2217,6 +2319,148 @@ const normalizeSelectedListEmails = async () => {
           </button>
         </div>
       </section>
+      {showTopbarRangeDropdown ? (
+        <div className="dashboard-popup-backdrop" onClick={() => setShowTopbarRangeDropdown(false)}>
+          <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-popup-head">
+              <div>
+                <strong>Filter Dashboard</strong>
+                <p>Choose a date view, then the range label will update automatically.</p>
+              </div>
+              <button
+                type="button"
+                className="dashboard-popup-close"
+                onClick={() => setShowTopbarRangeDropdown(false)}
+                aria-label="Close timeframe popup"
+              >
+                × Close
+              </button>
+            </div>
+
+            <div className="dashboard-range-summary">
+              {activeRangeSummary.map((item) => (
+                <article key={item.label} className={`dashboard-range-summary-card ${item.tone}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </article>
+              ))}
+            </div>
+
+            <div className="dashboard-range-actions">
+              {SUMMARY_RANGES.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={`dashboard-range-option ${selectedStatsRange === item.value ? 'active' : ''}`}
+                  onClick={() => {
+                    applyRangeSelection(item.value);
+                  }}
+                >
+                  <span>{item.label}</span>
+                  <small>{item.value === '7d' ? 'Default week view' : item.value === 'today' ? 'Today only' : item.value === 'customize' ? 'Choose your own range' : 'Preset range'}</small>
+                </button>
+              ))}
+              {userRangeOptions.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={`dashboard-range-option ${selectedStatsRange === item.baseValue ? 'active' : ''}`}
+                  onClick={() => applyRangeSelection(item.baseValue || '7d')}
+                >
+                  <span>{item.label}</span>
+                  <small>Custom saved option</small>
+                </button>
+              ))}
+              <button type="button" className="dashboard-range-option dashboard-range-option-add" onClick={addRangeOption}>
+                <span>Add Option</span>
+                <small>Save a new quick range</small>
+              </button>
+            </div>
+
+            <div className="dashboard-range-chart">
+              <div className="dashboard-range-chart-head">
+                <strong>Day Wise Analytics</strong>
+                <span>{reportRangeLabel}</span>
+              </div>
+              <div className="dashboard-range-chart-list">
+                {rangeDayAnalytics.length ? (
+                  rangeDayAnalytics.map((item) => (
+                    <div key={`${item.date}-${item.count}`} className="dashboard-range-chart-row">
+                      <span>{item.date}</span>
+                      <div className="dashboard-range-chart-bar">
+                        <i style={{ width: `${Math.min(100, Math.max(8, item.count * 4))}%` }} />
+                      </div>
+                      <strong>{item.count}</strong>
+                    </div>
+                  ))
+                ) : (
+                  <p className="dashboard-range-empty">No daily analytics available yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {showCustomRangePopup ? (
+        <div className="dashboard-popup-backdrop" onClick={() => setShowCustomRangePopup(false)}>
+          <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-popup-head">
+              <div>
+                <strong>Custom Date Range</strong>
+                <p>Pick a start date and end date for day-wise analytics.</p>
+              </div>
+              <button
+                type="button"
+                className="dashboard-popup-close"
+                onClick={() => setShowCustomRangePopup(false)}
+                aria-label="Close custom range popup"
+              >
+                × Close
+              </button>
+            </div>
+            <div className="dashboard-range-summary">
+              <article className="dashboard-range-summary-card total">
+                <span>Current Mode</span>
+                <strong>{getRangeLabel(selectedStatsRange)}</strong>
+              </article>
+              <article className="dashboard-range-summary-card sent">
+                <span>Start</span>
+                <strong>{customStatsStartDate || 'Pick a date'}</strong>
+              </article>
+              <article className="dashboard-range-summary-card pending">
+                <span>End</span>
+                <strong>{customStatsEndDate || 'Pick a date'}</strong>
+              </article>
+              <article className="dashboard-range-summary-card failed">
+                <span>Preview</span>
+                <strong>{customStatsStartDate && customStatsEndDate ? `${customStatsStartDate} - ${customStatsEndDate}` : 'Select both dates'}</strong>
+              </article>
+            </div>
+            <div className="dashboard-range-actions">
+              <label className="dashboard-range-option dashboard-range-option-input">
+                <span>Start Date</span>
+                <input
+                  type="date"
+                  value={customStatsStartDate}
+                  onChange={(event) => setCustomStatsStartDate(event.target.value)}
+                />
+              </label>
+              <label className="dashboard-range-option dashboard-range-option-input">
+                <span>End Date</span>
+                <input
+                  type="date"
+                  value={customStatsEndDate}
+                  onChange={(event) => setCustomStatsEndDate(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="dashboard-range-popup-actions">
+              <button type="button" className="ghost subtle" onClick={() => setShowCustomRangePopup(false)}>Cancel</button>
+              <button type="button" className="dashboard-popup-save" onClick={applyCustomRangeSelection}>Apply Range</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {toast ? (
         <div className={`dashboard-toast dashboard-toast-${toast.tone}`} role="status" aria-live="polite">
           <div>
@@ -2224,7 +2468,7 @@ const normalizeSelectedListEmails = async () => {
             <p>{toast.message}</p>
           </div>
           <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">
-            ×
+            × Close
           </button>
         </div>
       ) : null}
@@ -2285,6 +2529,8 @@ const normalizeSelectedListEmails = async () => {
         onCampaignNameChange={setCampaignName}
         selectedDraftType={selectedDraft}
         onSelectedDraftTypeChange={setSelectedDraft}
+        onOpenReportRangePopup={() => setShowCustomRangePopup(true)}
+        onApplyReportRange={applyRangeSelection}
         batchSize={batchSize}
         onBatchSizeChange={setBatchSize}
         delaySeconds={delaySeconds}
