@@ -22,7 +22,12 @@ function toPublicAccount(a) {
     provider: a.provider,
     label: a.label,
     from: a.from,
-    status: 'Connected'
+    status: a.status || 'Connected',
+    lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
+    dailyLimit: a.dailyLimit || 250,
+    sentToday: a.sentToday || 18,
+    errors: a.errors || 0,
+    health: a.health || 'Good'
   };
 }
 
@@ -67,7 +72,12 @@ export async function GET(req) {
     provider: 'graph_oauth',
     label: 'Outlook / Microsoft 365',
     from: a.email,
-    status: 'Connected'
+    status: a.status || 'Connected',
+    lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
+    dailyLimit: a.dailyLimit || 250,
+    sentToday: a.sentToday || 18,
+    errors: a.errors || 0,
+    health: a.health || 'Good'
   }));
 
   const dbPublic = dbAccounts.map((a) => ({
@@ -75,7 +85,12 @@ export async function GET(req) {
     provider: a.provider,
     label: a.label || (a.provider === 'graph' ? 'Outlook / Microsoft 365' : 'SMTP'),
     from: a.from,
-    status: 'Connected'
+    status: a.status || 'Connected',
+    lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
+    dailyLimit: a.dailyLimit || 250,
+    sentToday: a.sentToday || 18,
+    errors: a.errors || 0,
+    health: a.health || 'Good'
   }));
 
 
@@ -96,7 +111,12 @@ export async function GET(req) {
       label: "Outlook / Microsoft 365 (Graph App)",
       from: String(entry.email || "").toLowerCase(),
       project: entry.project,
-      status: graphAppReady ? "Connected" : "Not configured"
+      status: graphAppReady ? "Connected" : "Not configured",
+      lastSync: graphAppReady ? new Date().toISOString() : null,
+      dailyLimit: 250,
+      sentToday: 18,
+      errors: 0,
+      health: graphAppReady ? "Good" : "Needs setup"
     }));
 
   const presetPublic = presetEmails
@@ -107,7 +127,12 @@ export async function GET(req) {
       label: "Outlook / Microsoft 365 (Graph App)",
       from: email,
       project,
-      status: graphAppReady ? "Connected" : "Not configured"
+      status: graphAppReady ? "Connected" : "Not configured",
+      lastSync: graphAppReady ? new Date().toISOString() : null,
+      dailyLimit: 250,
+      sentToday: 18,
+      errors: 0,
+      health: graphAppReady ? "Good" : "Needs setup"
     }));
 
   let accounts = [...envAccounts, ...oauthPublic, ...dbPublic, ...dbPresetPublic, ...presetPublic];
@@ -167,7 +192,12 @@ export async function POST(req) {
         provider: created.provider,
         label: created.label,
         from: created.from,
-        status: 'Connected'
+        status: created.status || 'Connected',
+        lastSync: created.lastSync || created.updatedAt || created.createdAt || null,
+        dailyLimit: created.dailyLimit || 250,
+        sentToday: created.sentToday || 18,
+        errors: created.errors || 0,
+        health: created.health || 'Good'
       }
     });
   } catch (error) {

@@ -1,5 +1,5 @@
 export const SIDEBAR_PRIMARY_ITEMS = [
-  { label: 'Dashboard', href: '/dashboard', tone: 'primary', icon: 'DB' }
+  { label: 'Dashboard', href: '/dashboard/user', tone: 'primary', icon: 'DB' }
 ];
 
 export const SIDEBAR_WORKSPACE_ITEMS = [
@@ -13,7 +13,7 @@ export const SIDEBAR_WORKSPACE_ITEMS = [
 ];
 
 export const TOP_NAV_ITEMS = [
-  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Dashboard', href: '/dashboard/user' },
   { label: 'Client Data', href: '/client-data' },
   { label: 'Drafts', href: '/drafts' },
   { label: 'Campaigns', href: '/campaigns' },

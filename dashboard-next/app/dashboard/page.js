@@ -20,6 +20,7 @@ import { buildScheduledDate, normalizeScheduledSlotInput } from './utils/schedul
 import { buildWordPadTableHtml } from './utils/wordPad';
 import draftTemplates from './draftTemplates';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
+import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('./components/DashboardStats'));
@@ -90,6 +91,35 @@ function normalizeDraft(draft = {}) {
     subject: String(draft?.subject || ''),
     body: normalizeDraftBody(draft?.body || '')
   };
+}
+
+function displayNameFromEmail(email = '') {
+  const tempAccount = TEMP_LOGIN_ACCOUNTS.find((item) => item.identifier === String(email || '').trim().toLowerCase());
+  if (tempAccount?.label) return tempAccount.label;
+
+  const localPart = String(email || '')
+    .trim()
+    .toLowerCase()
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .trim();
+
+  if (!localPart) return 'Profile';
+
+  return localPart
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function initialsFromName(value = '') {
+  const parts = String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return 'US';
+  return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
 }
 
 function RichTextEditorLegacy({ value, onChange, placeholder }) {
@@ -291,11 +321,14 @@ export default function DashboardPage() {
   const [showTopbarProjectDropdown, setShowTopbarProjectDropdown] = useState(false);
   const [showTopbarRangeDropdown, setShowTopbarRangeDropdown] = useState(false);
   const [showTopbarMailDropdown, setShowTopbarMailDropdown] = useState(false);
+  const [showTopbarProfileDropdown, setShowTopbarProfileDropdown] = useState(false);
   const [userRangeOptions, setUserRangeOptions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
   const [showAllUserActivity, setShowAllUserActivity] = useState(true);
+  const [profileUser, setProfileUser] = useState({ email: '', role: '', displayName: '' });
+  const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
   const projectAccounts = useMemo(() => accounts, [accounts]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('');
@@ -370,6 +403,9 @@ export default function DashboardPage() {
     activeAccount ||
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
     'Select Mail ID';
+  const profileDisplayName = profileUser.displayName || displayNameFromEmail(profileUser.email);
+  const profileInitials = initialsFromName(profileDisplayName);
+  const profileRoleLabel = profileUser.role ? String(profileUser.role).replace(/_/g, ' ') : 'User';
   const selectedAccountObj = useMemo(
     () => projectAccounts.find((account) => account.id === selectedAccount) || null,
     [projectAccounts, selectedAccount]
@@ -536,6 +572,33 @@ export default function DashboardPage() {
     } catch (error) {
       // Ignore bad saved dashboard state and continue with defaults.
     }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadProfile = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { signal: controller.signal });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        const user = data?.user || {};
+        const profile = data?.profile || {};
+        setProfileUser({
+          email: String(user.email || '').trim(),
+          role: String(user.role || '').trim(),
+          displayName: String(profile.displayName || '').trim()
+        });
+        setProfileAvatarDataUrl(String(profile.avatarDataUrl || '').trim());
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          // Ignore auth lookup failures and keep the fallback display name.
+        }
+      }
+    };
+
+    loadProfile();
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -967,10 +1030,10 @@ const handleDeleteDraft = async (draft) => {
     { index: 1, title: 'Upload File / Select File', action: 'Client List' },
     { index: 2, title: 'View List / Overview', action: 'Overview Data' },
     { index: 3, title: 'Campaign Setup', action: 'Campaign' },
-    { index: 4, title: 'Draft Upload / Select', action: 'Draft / Templete' },
+    { index: 4, title: 'Draft Upload / Select', action: 'Draft Upload / Select' },
     { index: 5, title: 'Draft Overview', action: 'Draft Summary' },
     { index: 6, title: 'Test Mail', action: 'Teast Mail' },
-    { index: 7, title: 'Shedule Operation', action: 'Final Setup' }
+    { index: 7, title: 'Schedule Operation', action: 'Final Setup' }
   ];
   const calendarDays = ['30', '31', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
   const notificationCards = (campaigns || [])
@@ -2313,10 +2376,97 @@ const normalizeSelectedListEmails = async () => {
               </div>
             ) : null}
           </div>
-          <button type="button" className="dashboard-topbar-profile">
-            <span className="dashboard-topbar-avatar">RY</span>
-            <span>Rylic</span>
-          </button>
+          <div className="dashboard-topbar-profile-wrap" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="dashboard-topbar-profile"
+              onClick={() => setShowTopbarProfileDropdown((prev) => !prev)}
+            >
+              {profileAvatarDataUrl ? (
+                <img className="dashboard-topbar-avatar dashboard-topbar-avatar-img" src={profileAvatarDataUrl} alt={profileDisplayName} />
+              ) : (
+                <span className="dashboard-topbar-avatar">{profileInitials}</span>
+              )}
+              <span>{profileDisplayName}</span>
+            </button>
+            {showTopbarProfileDropdown ? (
+              <div className="dashboard-topbar-dropdown-menu" style={{ minWidth: 240, right: 0 }}>
+                <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
+                  <strong style={{ display: 'block' }}>{profileDisplayName}</strong>
+                  <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.56)', marginTop: 2 }}>
+                    {profileUser.email || 'Signed in user'}
+                  </small>
+                </div>
+                <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
+                  <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.56)' }}>
+                    Role: {profileRoleLabel}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile#profile');
+                  }}
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile#settings');
+                  }}
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile#notifications');
+                  }}
+                >
+                  Notifications
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile#billing');
+                  }}
+                >
+                  Billing
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile#security');
+                  }}
+                >
+                  Security
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={async () => {
+                    setShowTopbarProfileDropdown(false);
+                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+                    router.push('/login');
+                    router.refresh();
+                  }}
+                >
+                  Log out
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
       {showTopbarRangeDropdown ? (

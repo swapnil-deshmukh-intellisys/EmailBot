@@ -40,7 +40,32 @@ const draftTypeItems = [
 
 function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraftType, onSelectedDraftTypeChange }) {
   const isDraftStep = Number(step?.index) === 4;
+  const isOverviewStep = Number(step?.index) === 2;
+  const stepLabels = {
+    1: 'Upload',
+    2: 'Review',
+    3: 'Campaign',
+    4: 'Draft',
+    5: 'Summary',
+    6: 'Test',
+    7: 'Schedule'
+  };
+  const stepChipTone = {
+    1: 'upload',
+    2: 'review',
+    3: 'campaign',
+    4: 'draft',
+    5: 'summary',
+    6: 'test',
+    7: 'schedule'
+  };
   const statusClass = `is-${status}`;
+  const actionButtonStyle = {
+    color: 'var(--button-text)',
+    background: 'var(--button-bg)',
+    border: '1px solid var(--button-border)',
+    ...(isOverviewStep ? { fontSize: '10px', fontWeight: 700, lineHeight: 1.1, paddingLeft: '10px', paddingRight: '10px' } : {})
+  };
   return (
     <article
       className={`premium-step-card ${statusClass}`}
@@ -51,19 +76,22 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
         {!isLast ? <i /> : null}
       </div>
       <strong style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
+      <span className={`premium-step-chip premium-step-chip-${stepChipTone[step.index] || 'default'}`}>
+        {stepLabels[step.index] || `Step ${step.index}`}
+      </span>
       {isDraftStep ? (
         <button
           type="button"
-          onClick={() => onAction?.(step)}
-          style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+          onClick={(event) => onAction?.(step, event)}
+          style={actionButtonStyle}
         >
           Drafts
         </button>
       ) : (
         <button
           type="button"
-          onClick={() => onAction?.(step)}
-          style={{ color: 'var(--button-text)', background: 'var(--button-bg)', border: '1px solid var(--button-border)' }}
+          onClick={(event) => onAction?.(step, event)}
+          style={actionButtonStyle}
         >
           {step.action}
         </button>
@@ -304,6 +332,7 @@ export default function PremiumDashboardShell({
   const [showSelectDraftPopup, setShowSelectDraftPopup] = useState(false);
   const [showTestEmailPopup, setShowTestEmailPopup] = useState(false);
   const [showDayPopup, setShowDayPopup] = useState(false);
+  const [popupAnchors, setPopupAnchors] = useState({});
   const [dayEventDraft, setDayEventDraft] = useState('');
   const [dayEventTitleDraft, setDayEventTitleDraft] = useState('');
   const [dayEventDetailDraft, setDayEventDetailDraft] = useState('');
@@ -360,6 +389,7 @@ export default function PremiumDashboardShell({
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [testEmailSent, setTestEmailSent] = useState(false);
   const [includeTracking, setIncludeTracking] = useState(false);
+  const workflowShellRef = useRef(null);
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
@@ -400,6 +430,53 @@ export default function PremiumDashboardShell({
     workflowSteps.length,
     completedWorkflowSteps.findIndex((done) => !done) + 1 || workflowSteps.length
   ));
+
+  const openAnchoredPopup = (key, setter) => (event) => {
+    const workflowPopupKeys = new Set(['clientList', 'overview', 'campaign', 'selectDraft', 'testEmail', 'draftSummary', 'schedule']);
+    const rect = event?.currentTarget?.getBoundingClientRect?.();
+    if (rect) {
+      const viewportWidth = window.innerWidth;
+      const workflowRect = workflowPopupKeys.has(key) ? workflowShellRef.current?.getBoundingClientRect?.() : null;
+      const baseRect = workflowRect || rect;
+      const desiredWidth = workflowRect
+        ? Math.min(viewportWidth - 32, Math.max(400, baseRect.width * 0.72))
+        : Math.min(viewportWidth - 32, Math.max(360, rect.width * 1.25));
+      const centerX = baseRect.left + baseRect.width / 2 - (workflowRect ? 320 : 0);
+      const left = Math.max(16 + desiredWidth / 2, Math.min(centerX, viewportWidth - 16 - desiredWidth / 2));
+      const desiredHeight = workflowRect
+        ? Math.min(window.innerHeight - 32, Math.max(280, baseRect.height + 280))
+        : Math.min(window.innerHeight - 32, Math.max(280, window.innerHeight * 0.7));
+      const top = workflowRect
+        ? Math.max(16, baseRect.top + baseRect.height / 2 - 36)
+        : Math.max(16, rect.top - 12);
+      setPopupAnchors((current) => ({
+        ...current,
+        [key]: {
+          top,
+          left,
+          width: desiredWidth,
+          maxHeight: Math.max(280, desiredHeight),
+          transform: 'translate(-50%, -50%)',
+          anchor: workflowRect ? 'center' : 'above'
+        }
+      }));
+    }
+    setter(true);
+  };
+
+  const popupStyleFor = (key) => {
+    const anchor = popupAnchors[key];
+    if (!anchor) return {};
+    return {
+      position: 'fixed',
+      top: `${anchor.top}px`,
+      left: `${anchor.left}px`,
+      width: `${anchor.width}px`,
+      maxHeight: `${anchor.maxHeight}px`,
+      transform: anchor.transform,
+      zIndex: 140
+    };
+  };
   const effectiveUploadedLists = lists.length
     ? lists.map((item) => ({ id: item._id, title: item.name, meta: `${item.leadCount || 0} contacts` }))
     : uploadedLists;
@@ -740,33 +817,33 @@ export default function PremiumDashboardShell({
     );
   };
 
-  const handleWorkflowAction = (step) => {
+  const handleWorkflowAction = (step, event) => {
     if (step.action === 'Client List') {
-      setShowClientListPopup(true);
+      openAnchoredPopup('clientList', setShowClientListPopup)(event);
       return;
     }
     if (step.action === 'Overview Data') {
-      setShowOverviewPopup(true);
+      openAnchoredPopup('overview', setShowOverviewPopup)(event);
       return;
     }
-    if (step.action === 'Campaign') {
-      setShowCampaignPopup(true);
-      return;
-    }
-    if (step.action === 'Draft / Templete') {
-      setShowSelectDraftPopup(true);
-      return;
-    }
+  if (step.action === 'Campaign') {
+    openAnchoredPopup('campaign', setShowCampaignPopup)(event);
+    return;
+  }
+  if (step.action === 'Draft Upload / Select' || step.action === 'Draft / Templete') {
+    openAnchoredPopup('selectDraft', setShowSelectDraftPopup)(event);
+    return;
+  }
     if (step.index === 6 || step.action === 'Teast Mail' || step.action === 'Test Mail' || step.title === 'Test Mail') {
-      setShowTestEmailPopup(true);
+      openAnchoredPopup('testEmail', setShowTestEmailPopup)(event);
       return;
     }
     if (step.action === 'Draft Summary') {
-      setShowDraftSummaryPopup(true);
+      openAnchoredPopup('draftSummary', setShowDraftSummaryPopup)(event);
       return;
     }
     if (step.action === 'Final Setup') {
-      setShowSchedulePopup(true);
+      openAnchoredPopup('schedule', setShowSchedulePopup)(event);
       onShowMessage?.('Set a schedule or start the campaign from here.', 'info');
     }
   };
@@ -1030,7 +1107,7 @@ export default function PremiumDashboardShell({
       </div>
 
       <section className="premium-stepper-shell">
-        <div className="premium-stepper-row" style={{ color: 'var(--text-primary)' }}>
+        <div className="premium-stepper-row" ref={workflowShellRef} style={{ color: 'var(--text-primary)' }}>
           <div className="premium-workflow-title">
             <h3>Campaign Workflow</h3>
           </div>
@@ -1059,7 +1136,7 @@ export default function PremiumDashboardShell({
               onShowMessage?.('Starting the campaign from the workflow stepper.', 'info');
               onStartCampaign?.();
             }}
-            style={{ color: '#ecfdf5', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
+            style={{ color: '#ffffff', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
           >
             START
           </button>
@@ -1160,7 +1237,7 @@ export default function PremiumDashboardShell({
                 className={`premium-calendar-day ${day.inMonth ? 'current' : 'adjacent'} ${sameDay(day.date, selectedDate) ? 'selected' : ''} ${sameDay(day.date, today) ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}`}
                 onClick={() => {
                   setSelectedDate(day.date);
-                  setShowDayPopup(true);
+                  openAnchoredPopup('day', setShowDayPopup)(event);
                 }}
                 data-tone={dotTone}
               >
@@ -1178,7 +1255,7 @@ export default function PremiumDashboardShell({
                 <button
                   type="button"
                   className="premium-calendar-more"
-                  onClick={() => setShowCalendarPopup(true)}
+                  onClick={(event) => openAnchoredPopup('calendar', setShowCalendarPopup)(event)}
                 >
                   See more ({selectedEvents.length})
                 </button>
@@ -1195,7 +1272,7 @@ export default function PremiumDashboardShell({
         <section className="premium-panel premium-main-notification-panel">
           <div className="premium-panel-head">
             <h3>Mail Notification</h3>
-            <button type="button" className="ghost" onClick={() => setShowNotificationsPopup(true)}>
+            <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('notifications', setShowNotificationsPopup)(event)}>
               See All
             </button>
           </div>
@@ -1209,9 +1286,6 @@ export default function PremiumDashboardShell({
         <section className="premium-panel premium-side-notification-panel">
           <div className="premium-panel-head">
             <h3>Write Note</h3>
-            <button type="button" className="ghost" onClick={() => setShowNotesPopup(true)}>
-              See All
-            </button>
           </div>
           <div className="premium-note-compose">
             <textarea
@@ -1222,7 +1296,12 @@ export default function PremiumDashboardShell({
             />
             <div className="premium-note-compose-footer">
               <small>{noteDraft.trim().length} characters</small>
-              <button type="button" onClick={addQuickNote}>Save Note</button>
+              <div className="premium-note-actions">
+                <button type="button" className="ghost" onClick={() => setShowNotesPopup(true)}>
+                  Show Notes
+                </button>
+                <button type="button" className="ghost" onClick={addQuickNote}>Save Note</button>
+              </div>
             </div>
           </div>
         </section>
@@ -1245,7 +1324,7 @@ export default function PremiumDashboardShell({
             <>
             <div className="premium-table-actions">
               <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaigns'}</button>
-              <select value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
+              <select className="premium-broadcast-tag-filter" value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
                 {availableTags.map((tag) => (
                   <option key={tag} value={tag}>{tag}</option>
                 ))}
@@ -1371,7 +1450,7 @@ export default function PremiumDashboardShell({
             <div className="premium-logs-split-column">
               <div className="premium-panel-head">
                 <h3>Activity Timeline</h3>
-                <button type="button" className="ghost" onClick={() => setShowTimelinePopup(true)}>
+                <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('timeline', setShowTimelinePopup)(event)}>
                   See All
                 </button>
               </div>
@@ -1385,7 +1464,7 @@ export default function PremiumDashboardShell({
             <div className="premium-logs-split-column">
               <div className="premium-panel-head">
                 <h3>Logs</h3>
-                <button type="button" className="ghost" onClick={() => setShowLogsPopup(true)}>
+                <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
                   See All
                 </button>
               </div>
@@ -1401,7 +1480,7 @@ export default function PremiumDashboardShell({
 
       {showCalendarPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowCalendarPopup(false)}>
-          <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal" style={popupStyleFor('calendar')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>Events on {selectedDate.toLocaleDateString('en-GB')}</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowCalendarPopup(false)}>
@@ -1424,7 +1503,7 @@ export default function PremiumDashboardShell({
 
       {showDayPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDayPopup(false)}>
-          <div className="premium-calendar-modal premium-day-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-day-modal" style={popupStyleFor('day')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <div>
                 <h3>{selectedDateLabel}</h3>
@@ -1523,7 +1602,7 @@ export default function PremiumDashboardShell({
 
       {showNotificationsPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotificationsPopup(false)}>
-          <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal" style={popupStyleFor('notifications')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>Reply Notifications</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>× Close</button>
@@ -1543,7 +1622,7 @@ export default function PremiumDashboardShell({
 
       {showNotesPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotesPopup(false)}>
-          <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal" style={popupStyleFor('notes')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Quick Notes</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>× Close</button>
@@ -1559,7 +1638,7 @@ export default function PremiumDashboardShell({
 
       {showTimelinePopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTimelinePopup(false)}>
-          <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Activity Timeline Events</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>× Close</button>
@@ -1575,7 +1654,7 @@ export default function PremiumDashboardShell({
 
       {showLogsPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
-          <div className="premium-calendar-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Dashboard Logs</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>× Close</button>
@@ -1591,11 +1670,12 @@ export default function PremiumDashboardShell({
 
       {showClientListPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
-          <div className="premium-calendar-modal premium-clientlist-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="premium-clientlist-head">
+          <div className="premium-calendar-modal premium-clientlist-modal" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-clientlist-head premium-review-head">
               <div>
+                <span className="premium-popup-step-badge">1</span>
                 <h3>Add Client List</h3>
-                <p>Upload a new list or select from your existing lists</p>
+                <p>Upload a new list or select from your existing lists.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>× Close</button>
             </div>
@@ -1712,17 +1792,24 @@ export default function PremiumDashboardShell({
                 Next
               </button>
             </div>
+            <div className="premium-popup-primary-row">
+              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>Back</button>
+              <button type="button" className="premium-template-next" onClick={handleClientListNext} disabled={!canContinueClientList}>
+                Continue to Overview Data
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showOverviewPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowOverviewPopup(false)}>
-          <div className="premium-calendar-modal premium-review-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-review-modal" style={popupStyleFor('overview')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-clientlist-head">
               <div>
+                <span className="premium-popup-step-badge">2</span>
                 <h3>Review Client List</h3>
-                <p>Verify your uploaded file, column mapping, and contact data before continuing</p>
+                <p>Check mappings, fix issues, and confirm the data before moving on.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowOverviewPopup(false)}>
                 Ãƒâ€”
@@ -1965,12 +2052,14 @@ export default function PremiumDashboardShell({
 
       {showSchedulePopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowSchedulePopup(false)}>
-          <div className="premium-calendar-modal premium-schedule-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-schedule-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-schedule-head">
               <div>
+                <span className="premium-popup-step-badge">7</span>
                 <h3>Schedule Sending</h3>
-                <p>Configure your sending preferences</p>
+                <p>Configure your sending preferences.</p>
               </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>× Close</button>
             </div>
 
             <div className="premium-schedule-mode">
@@ -2068,17 +2157,30 @@ export default function PremiumDashboardShell({
                 Next
               </button>
             </div>
+            <div className="premium-popup-primary-row">
+              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>Back</button>
+              <button type="button" className="premium-template-next" onClick={() => {
+                if (sendMode === 'scheduled') {
+                  onApplyManualScheduledSlot?.(scheduledTimeValue);
+                }
+                onStartCampaign?.();
+                setShowSchedulePopup(false);
+              }}>
+                Start Campaign
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showCampaignPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowCampaignPopup(false)}>
-          <div className="premium-calendar-modal premium-campaign-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-campaign-modal" style={popupStyleFor('campaign')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-campaign-head">
               <div>
+                <span className="premium-popup-step-badge">3</span>
                 <h3>Create Campaign</h3>
-                <p>Give your campaign a name and organize it</p>
+                <p>Name the campaign, choose the sender, and set the tracking options.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowCampaignPopup(false)}>
                 X
@@ -2095,7 +2197,7 @@ export default function PremiumDashboardShell({
                 />
               </label>
 
-              <div className="premium-campaign-field">
+              <div className="premium-campaign-field premium-campaign-tags-field">
                 <span>Tags</span>
                 <div className="premium-campaign-tags">
                   {campaignTags.map((tag) => (
@@ -2131,7 +2233,7 @@ export default function PremiumDashboardShell({
                 />
               </label>
 
-              <div className="premium-campaign-grid">
+              <div className="premium-campaign-grid premium-campaign-grid-main">
                 <label className="premium-campaign-field">
                   <span>Campaign Goal</span>
                   <select value={campaignGoal} onChange={(event) => setCampaignGoal(event.target.value)}>
@@ -2167,8 +2269,8 @@ export default function PremiumDashboardShell({
                 </label>
               </div>
 
-              <div className="premium-campaign-grid premium-campaign-grid-bottom">
-                <div className="premium-campaign-field">
+              <div className="premium-campaign-grid premium-campaign-grid-bottom premium-campaign-settings">
+                <div className="premium-campaign-field premium-campaign-settings-block">
                   <span>Tracking</span>
                   <div className="premium-campaign-checks">
                     {[
@@ -2190,7 +2292,7 @@ export default function PremiumDashboardShell({
                   </div>
                 </div>
 
-                <div className="premium-campaign-field premium-campaign-toggle-field">
+                <div className="premium-campaign-field premium-campaign-toggle-field premium-campaign-settings-block">
                   <span>A/B Testing</span>
                   <button
                     type="button"
@@ -2215,7 +2317,7 @@ export default function PremiumDashboardShell({
               >
                 Back
               </button>
-              <button type="button" className="premium-campaign-draft" onClick={() => onCreateCampaign?.()}>
+              <button type="button" className="premium-campaign-draft ghost subtle" onClick={() => onCreateCampaign?.()}>
                 Save Draft
               </button>
               <button
@@ -2231,7 +2333,7 @@ export default function PremiumDashboardShell({
               </button>
             </div>
             <p className="premium-campaign-hint">
-              Creating the campaign saves your setup. Mail sending begins only when you click <strong>START</strong> on the final step.
+              Saving the campaign keeps your setup ready. Mail sending begins only when you click <strong>START</strong> on the final step.
             </p>
           </div>
         </div>
@@ -2239,9 +2341,10 @@ export default function PremiumDashboardShell({
 
       {showSelectDraftPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowSelectDraftPopup(false)}>
-          <div className="premium-calendar-modal premium-select-draft-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-select-draft-modal" style={popupStyleFor('selectDraft')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-select-draft-head">
               <div>
+                <span className="premium-popup-step-badge">4</span>
                 <h3>Select Email Draft</h3>
                 <p>Choose an existing draft or create a new one</p>
               </div>
@@ -2391,20 +2494,43 @@ export default function PremiumDashboardShell({
                 </button>
               </div>
             </div>
+            <div className="premium-popup-primary-row">
+              <button
+                type="button"
+                className="ghost subtle"
+                onClick={() => {
+                  setShowSelectDraftPopup(false);
+                  setShowCampaignPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="premium-template-next"
+                onClick={() => {
+                  setShowSelectDraftPopup(false);
+                  setShowDraftSummaryPopup(true);
+                }}
+              >
+                Continue to Draft Overview
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showTestEmailPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTestEmailPopup(false)}>
-          <div className="premium-calendar-modal premium-test-email-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-test-email-modal" style={popupStyleFor('testEmail')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-test-email-head">
               <div>
+                <span className="premium-popup-step-badge">6</span>
                 <div className="premium-test-email-title">
                   <h3>Test Your Email</h3>
                   <span>Optional</span>
                 </div>
-                <p>Send a test email to preview how it will look in inbox</p>
+                <p>Send a test email to preview how it will look in inbox.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowTestEmailPopup(false)}>
                 X
@@ -2510,15 +2636,39 @@ export default function PremiumDashboardShell({
                 Continue
               </button>
             </div>
+            <div className="premium-popup-primary-row">
+              <button
+                type="button"
+                className="ghost subtle"
+                onClick={() => {
+                  setShowTestEmailPopup(false);
+                  setShowDraftSummaryPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="premium-template-next"
+                onClick={() => {
+                  setShowTestEmailPopup(false);
+                  setShowSchedulePopup(true);
+                }}
+              >
+                Continue to Schedule
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {showDraftSummaryPopup ? (
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
-          <div className="premium-calendar-modal premium-template-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-template-head">
+              <span className="premium-popup-step-badge">5</span>
               <h3>Setup Email Template</h3>
+              <p>Write your subject and message, then save it as a reusable draft.</p>
             </div>
 
             <label className="premium-template-field">
@@ -2565,6 +2715,15 @@ export default function PremiumDashboardShell({
                 }}
               >
                 Next
+              </button>
+            </div>
+            <div className="premium-popup-primary-row">
+              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>Back</button>
+              <button type="button" className="premium-template-next" onClick={() => {
+                setShowDraftSummaryPopup(false);
+                setShowTestEmailPopup(true);
+              }}>
+                Continue to Test Mail
               </button>
             </div>
           </div>

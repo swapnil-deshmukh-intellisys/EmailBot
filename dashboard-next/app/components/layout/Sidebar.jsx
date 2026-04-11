@@ -12,11 +12,12 @@ const defaultNavItems = SIDEBAR_WORKSPACE_ITEMS.map((item) => ({ href: item.href
 
 function isActive(pathname, href) {
   if (!href) return false;
-  if (href === '/dashboard') return pathname === '/dashboard';
+  if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/dashboard/user';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function Sidebar({
+  primaryItems = SIDEBAR_PRIMARY_ITEMS,
   navItems = defaultNavItems,
   brand = 'Intelli Mail Pilot',
   brandHref = '/dashboard',
@@ -31,6 +32,12 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    router.push('/login');
+    router.refresh();
+  };
+
   return (
     <aside className={cn('dashboard-sidebar', mobileOpen ? 'mobile-open' : '', className)}>
       <div className="dashboard-sidebar-card">
@@ -40,7 +47,7 @@ export function Sidebar({
           onClick={onMobileClose}
           aria-label="Close navigation menu"
         >
-          × Close
+          x Close
         </button>
         <div className="dashboard-brand">
           <Link href={brandHref} className="dashboard-brand-link">
@@ -64,7 +71,7 @@ export function Sidebar({
               />
             </div>
           ) : null}
-          {SIDEBAR_PRIMARY_ITEMS.map((item) => (
+          {primaryItems.map((item) => (
             <Link
               key={item.label}
               href={item.href}
@@ -79,7 +86,9 @@ export function Sidebar({
         <div className="dashboard-sidebar-nav" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #e5e7eb' }}>
           <nav className="dashboard-sidebar-menu">
             {navItems.map((item) => {
-              const matchingWorkspaceItem = SIDEBAR_WORKSPACE_ITEMS.find((workspaceItem) => workspaceItem.href === item.href || workspaceItem.label === item.label);
+              const matchingWorkspaceItem = SIDEBAR_WORKSPACE_ITEMS.find(
+                (workspaceItem) => workspaceItem.href === item.href || workspaceItem.label === item.label
+              );
               return (
                 <div key={item.href || item.label} className="dashboard-sidebar-item">
                   <Link
@@ -98,24 +107,24 @@ export function Sidebar({
             <div className="dashboard-sidebar-footer">{footer}</div>
           ) : (
             <div className="dashboard-sidebar-footer">
-            <div className="dashboard-upgrade-card">
-              <div className="dashboard-upgrade-head">
-                <strong>Upgrade</strong>
-                <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
+              <div className="dashboard-upgrade-card">
+                <div className="dashboard-upgrade-head">
+                  <strong>Upgrade</strong>
+                  <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
+                </div>
+                <p className="dashboard-upgrade-plan">Basic</p>
+                <p className="dashboard-upgrade-credits">1200 Credits Left</p>
+                <div className="dashboard-upgrade-meter">
+                  <span />
+                </div>
+                <Button className="dashboard-upgrade-button">Upgrade Plan</Button>
               </div>
-              <p className="dashboard-upgrade-plan">Basic</p>
-              <p className="dashboard-upgrade-credits">1200 Credits Left</p>
-              <div className="dashboard-upgrade-meter">
-                <span />
-              </div>
-              <Button className="dashboard-upgrade-button">Upgrade Plan</Button>
-            </div>
 
-            <Button variant="danger" className="dashboard-logout-link" onClick={() => router.push('/login')}>
-              <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
-              <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
-              <span className="dashboard-logout-text">Log out</span>
-            </Button>
+              <Button variant="danger" className="dashboard-logout-link" onClick={handleLogout}>
+                <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
+                <span className="dashboard-logout-text">Log out</span>
+              </Button>
             </div>
           )}
         </div>
@@ -125,9 +134,3 @@ export function Sidebar({
 }
 
 export default Sidebar;
-
-
-
-
-
-

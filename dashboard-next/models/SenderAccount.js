@@ -15,7 +15,14 @@ const SenderAccountSchema = new mongoose.Schema(
 
     tenantId: { type: String, default: '' },
     clientId: { type: String, default: '' },
-    clientSecret: { type: String, default: '' }
+    clientSecret: { type: String, default: '' },
+
+    status: { type: String, default: 'Connected' },
+    lastSync: { type: Date, default: Date.now },
+    dailyLimit: { type: Number, default: 250 },
+    sentToday: { type: Number, default: 18 },
+    errors: { type: Number, default: 0 },
+    health: { type: String, default: 'Good' }
   },
   { timestamps: true }
 );

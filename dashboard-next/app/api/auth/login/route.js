@@ -1,35 +1,90 @@
 import { NextResponse } from 'next/server';
-import { getAuthCookieName, getAuthCookieOptions, isAllowedUserEmail, isAdminUserEmail, normalizeUserEmail, signAuthToken, validateAdminCredentials } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
+import connectDB from '@/lib/mongodb';
+import { getAuthCookieName, getAuthCookieOptions, normalizeUserEmail, signAuthToken } from '@/lib/auth';
+import { DASHBOARD_ROLES, getDashboardPathForRole, verifyLoginCredentials } from '@/app/lib/dashboardRoles';
+import UserProfile from '@/models/UserProfile';
+
+function displayNameFromLoginId(identifier = '') {
+  const normalized = String(identifier || '').trim().toLowerCase();
+  const tempLabels = {
+    emp001: 'Employee 001',
+    emp002: 'Employee 002',
+    mgr001: 'Manager 001',
+    mgr002: 'Manager 002',
+    admin001: 'Admin 001'
+  };
+
+  if (tempLabels[normalized]) return tempLabels[normalized];
+
+  const localPart = normalized.split('@')[0].replace(/[._-]+/g, ' ').trim();
+  if (!localPart) return 'Profile';
+  return localPart
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 export async function POST(req) {
   try {
-    const { email, password } = await req.json();
-    const normalizedEmail = normalizeUserEmail(email);
+    const { identifier, email, password } = await req.json();
+    const loginId = normalizeUserEmail(identifier || email || '');
 
     if (!process.env.JWT_SECRET) {
       return NextResponse.json({ error: 'JWT_SECRET is not configured' }, { status: 500 });
     }
-    if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'ADMIN_EMAIL is not configured' }, { status: 500 });
-    }
-    if (
-      process.env.NODE_ENV === 'production' &&
-      !process.env.ADMIN_PASSWORD &&
-      !process.env.ADMIN_PASSWORD_HASH
-    ) {
-      return NextResponse.json({ error: 'ADMIN_PASSWORD or ADMIN_PASSWORD_HASH is not configured' }, { status: 500 });
-    }
-    if (!isAllowedUserEmail(normalizedEmail)) {
-      return NextResponse.json({ error: 'Login blocked: use an Intellisys email pattern (example: user@intellisys.com or name.intellisys@domain.com).' }, { status: 403 });
+    if (!loginId) {
+      return NextResponse.json({ error: 'Login ID is required' }, { status: 400 });
     }
 
-    const ok = await validateAdminCredentials(normalizedEmail, password);
-    if (!ok) {
+    await connectDB();
+    const savedProfile = await UserProfile.findOne({ identifier: loginId }).lean();
+    let resolved = null;
+
+    if (savedProfile?.passwordHash) {
+      const ok = bcrypt.compareSync(String(password || ''), savedProfile.passwordHash);
+      if (ok) {
+        resolved = {
+          role: savedProfile.role || DASHBOARD_ROLES.USER,
+          identifier: loginId,
+          source: 'profile'
+        };
+      }
+    }
+
+    if (!resolved) {
+      resolved = verifyLoginCredentials(loginId, password);
+    }
+
+    if (!resolved) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const token = signAuthToken({ email: normalizedEmail, role: isAdminUserEmail(normalizedEmail) ? 'admin' : 'user' });
-    const res = NextResponse.json({ ok: true, email: normalizedEmail });
+    const role = resolved.role || DASHBOARD_ROLES.USER;
+    const dashboardPath = getDashboardPathForRole(role);
+    await UserProfile.findOneAndUpdate(
+      { identifier: loginId },
+      {
+        $setOnInsert: {
+          identifier: loginId,
+          role,
+          displayName: displayNameFromLoginId(loginId),
+          notificationPrefs: {
+            campaignUpdates: true,
+            replyAlerts: true,
+            weeklyReports: true
+          }
+        }
+      },
+      { upsert: true, new: true }
+    );
+    const token = signAuthToken({
+      email: loginId,
+      role,
+      dashboardPath
+    });
+    const res = NextResponse.json({ ok: true, email: loginId, role, dashboardPath });
     res.cookies.set(getAuthCookieName(), token, getAuthCookieOptions());
     return res;
   } catch (error) {

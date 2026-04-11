@@ -10,13 +10,13 @@ function isProduction() {
 function getConfiguredAdminEmail() {
   const value = normalizeUserEmail(process.env.ADMIN_EMAIL || '');
   if (value) return value;
-  return isProduction() ? '' : 'admin@example.com';
+  return isProduction() ? '' : 'akshaymore.intellisys@gmail.com';
 }
 
 function getConfiguredAdminPassword() {
   const value = String(process.env.ADMIN_PASSWORD || '');
   if (value) return value;
-  return isProduction() ? '' : 'admin123';
+  return isProduction() ? '' : '1234512345@i';
 }
 
 export function signAuthToken(payload) {
