@@ -37,11 +37,39 @@ const CampaignSchema = new mongoose.Schema(
       enum: ['Draft', 'Scheduled', 'Running', 'Paused', 'Completed', 'Failed'],
       default: 'Draft'
     },
+    tracking: {
+      enabled: { type: Boolean, default: false },
+      opens: { type: Boolean, default: false },
+      clicks: { type: Boolean, default: false },
+      replies: { type: Boolean, default: false },
+      updatedAt: { type: Date, default: null }
+    },
+    trackingStats: {
+      openCount: { type: Number, default: 0 },
+      clickCount: { type: Number, default: 0 },
+      replyCount: { type: Number, default: 0 }
+    },
+    trackingEvents: [
+      {
+        type: { type: String, default: '' },
+        email: { type: String, default: '' },
+        target: { type: String, default: '' },
+        at: { type: Date, default: Date.now },
+        meta: {
+          ip: { type: String, default: '' },
+          userAgent: { type: String, default: '' }
+        }
+      }
+    ],
+    workflowStep: { type: Number, default: 1 },
+    workflowStepLabel: { type: String, default: '' },
     scheduledAt: { type: Date, default: null },
     stats: {
       total: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
+      bounced: { type: Number, default: 0 },
+      spam: { type: Number, default: 0 },
       pending: { type: Number, default: 0 }
     },
     options: {

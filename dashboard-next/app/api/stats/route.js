@@ -52,6 +52,8 @@ export async function GET(req) {
     let sent = 0;
     let pending = 0;
     let failed = 0;
+    let bounced = 0;
+    let spam = 0;
     let last10DaysStats = 0;
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
@@ -106,12 +108,17 @@ export async function GET(req) {
           const resolvedBySelectedDay =
             (sentAt && sentAt <= selectedDayEnd) || (failedAt && failedAt <= selectedDayEnd);
 
-          if (sentOnSelectedDay) sent += 1;
-          if (failedOnSelectedDay) failed += 1;
+          if (sentOnSelectedDay || String(lead.status || '').toLowerCase() === 'sent') sent += 1;
+          if (failedOnSelectedDay || String(lead.status || '').toLowerCase() === 'failed') failed += 1;
+          if (String(lead.status || '').toLowerCase() === 'bounced') bounced += 1;
+          if (String(lead.status || '').toLowerCase() === 'spam') spam += 1;
           if (existedBySelectedDay && !resolvedBySelectedDay) pending += 1;
         } else {
-          if (lead.status === 'Sent') sent += 1;
-          else if (lead.status === 'Failed') failed += 1;
+          const status = String(lead.status || '').toLowerCase();
+          if (status === 'sent') sent += 1;
+          else if (status === 'failed') failed += 1;
+          else if (status === 'bounced') bounced += 1;
+          else if (status === 'spam') spam += 1;
           else pending += 1;
         }
 
@@ -130,6 +137,7 @@ export async function GET(req) {
         _id: String(list._id),
         name: list.name,
         sourceFile: list.sourceFile,
+        kind: list.kind || 'uploaded',
         leadCount,
         uploadedAt: list.uploadedAt
       };
@@ -142,6 +150,8 @@ export async function GET(req) {
       sent,
       pending,
       failed,
+      bounced,
+      spam,
       last10DaysStats,
       dailyMailCounts,
       selectedDate,
@@ -163,6 +173,8 @@ export async function GET(req) {
       sent: 0,
       pending: 0,
       failed: 0,
+      bounced: 0,
+      spam: 0,
       last10DaysStats: 0,
       dailyMailCounts: [],
       selectedRange: '',

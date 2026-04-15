@@ -1,6 +1,8 @@
 ﻿'use client';
 
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import RichTextEditor from './RichTextEditor';
 
 function clampPercent(value) {
@@ -13,6 +15,7 @@ function MetricCard({ item }) {
   return (
     <article className={`premium-kpi-card premium-kpi-${item.tone || 'neutral'}`}>
       <div className="premium-kpi-copy">
+        {item.icon ? <span className="premium-kpi-icon">{item.icon}</span> : null}
         <p>{item.title}</p>
         <strong>{item.value}</strong>
         <span>{item.meta}</span>
@@ -30,22 +33,14 @@ function MetricCard({ item }) {
   );
 }
 
-const draftTypeItems = [
-  { value: '', label: 'Select draft type' },
-  { value: 'reminder', label: 'rem' },
-  { value: 'follow_up', label: 'followup' },
-  { value: 'updated_cost', label: 'updated cost' },
-  { value: 'final_cost', label: 'final cost' }
-];
-
 function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraftType, onSelectedDraftTypeChange }) {
   const isDraftStep = Number(step?.index) === 4;
   const isOverviewStep = Number(step?.index) === 2;
   const stepLabels = {
-    1: 'Upload',
-    2: 'Review',
+    1: 'Upload List',
+    2: 'Review List',
     3: 'Campaign',
-    4: 'Draft',
+    4: 'Select Draft',
     5: 'Summary',
     6: 'Test',
     7: 'Schedule'
@@ -59,6 +54,15 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
     6: 'test',
     7: 'schedule'
   };
+  const stepIcons = {
+    1: '⬆',
+    2: '◫',
+    3: '✦',
+    4: '◫',
+    5: '▣',
+    6: '✉',
+    7: '⏱'
+  };
   const statusClass = `is-${status}`;
   const actionButtonStyle = {
     color: 'var(--button-text)',
@@ -68,20 +72,24 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
   };
   return (
     <article
-      className={`premium-step-card ${statusClass}`}
+      className={`premium-step-card premium-step-tone-${step.index} ${statusClass}`}
       style={{ color: 'var(--text-primary)' }}
     >
       <div className="premium-step-track">
         <span className="premium-step-index">{step.index}</span>
         {!isLast ? <i /> : null}
       </div>
-      <strong style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
+      <strong style={{ color: 'var(--text-primary)' }}>
+        {stepIcons[step.index] ? <span className="premium-step-title-icon">{stepIcons[step.index]}</span> : null}
+        <span>{step.title}</span>
+      </strong>
       <span className={`premium-step-chip premium-step-chip-${stepChipTone[step.index] || 'default'}`}>
         {stepLabels[step.index] || `Step ${step.index}`}
       </span>
       {isDraftStep ? (
         <button
           type="button"
+          className={`premium-step-action premium-step-action-${step.index}`}
           onClick={(event) => onAction?.(step, event)}
           style={actionButtonStyle}
         >
@@ -90,6 +98,7 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
       ) : (
         <button
           type="button"
+          className={`premium-step-action premium-step-action-${step.index}`}
           onClick={(event) => onAction?.(step, event)}
           style={actionButtonStyle}
         >
@@ -108,17 +117,29 @@ function ProgressFilterOptionLabel(value) {
   return value ? String(value) : 'Custom Option';
 }
 
-function NotificationItem({ item }) {
-  return (
-    <div className="premium-list-item">
+function NotificationItem({ item, onClick }) {
+  const content = (
+    <>
       <div className="premium-avatar">{item.avatar || 'SS'}</div>
       <div>
-        <strong>{item.name}</strong>
+        <strong>{item.title || item.name}</strong>
         <small>{item.time}</small>
-        <p>{item.text}</p>
+        {item.subject ? <span className="premium-list-item-subject">Subject: {item.subject}</span> : null}
+        <p>{item.preview || item.text}</p>
+        {onClick ? <span className="premium-list-item-cue">Click to open</span> : null}
       </div>
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" className="premium-list-item premium-list-item-button" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className="premium-list-item">{content}</div>;
 }
 
 function QuickNoteItem({ item }) {
@@ -131,37 +152,94 @@ function QuickNoteItem({ item }) {
           <small>{item.time}</small>
         </div>
       </div>
+      <div className="premium-note-item-meta">
+        {item.topic ? <span>Topic: {item.topic}</span> : null}
+        {item.tag ? <span>Tag: {item.tag}</span> : null}
+      </div>
       <p>{item.text}</p>
     </div>
   );
 }
 
-function TimelineItem({ item }) {
+function TimelineItem({ item, checked = false, onToggle, onOpen }) {
   return (
-    <div className="premium-timeline-item">
+    <button type="button" className={`premium-timeline-item ${checked ? 'completed' : ''}`} onClick={onOpen}>
       <span />
       <div>
-        <strong>{item.date}</strong>
-        <p>{item.title}</p>
-        {item.text ? <small>{item.text}</small> : null}
+        <div className="premium-timeline-headline">
+          <label className="premium-timeline-check">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(event) => {
+                event.stopPropagation();
+                onToggle?.(event.target.checked);
+              }}
+              onClick={(event) => event.stopPropagation()}
+            />
+            <span />
+          </label>
+          <div className="premium-timeline-copy">
+            <strong>{item.title}</strong>
+            <small>{item.date}{item.time ? ` • ${item.time}` : ''}</small>
+          </div>
+          {item.type ? <span className={`premium-timeline-type type-${String(item.type).toLowerCase()}`}>{item.type}</span> : null}
+          <span className={`premium-timeline-status ${checked ? 'done' : 'pending'}`}>
+            {checked ? 'Done' : item.status || 'Pending'}
+          </span>
+        </div>
+        {item.text ? <p>{item.text}</p> : null}
       </div>
-    </div>
+    </button>
   );
 }
 
 function LogItem({ item, detailed = false }) {
   const tagText = String(item?.tag || '').toLowerCase();
   const isSentLog = tagText === 'sent';
+  const sourceLabel = String(item?.source || 'System').trim();
+  const actionLabel = String(item?.action || item?.tag || 'Update').trim();
+  const statusText = String(item?.status || tagText || 'info').trim();
+  const nextText = String(item?.next || '').trim();
+  const sourceTone = String(sourceLabel || '').toLowerCase().includes('inbox')
+    ? 'inbox'
+    : String(sourceLabel || '').toLowerCase().includes('timeline')
+      ? 'timeline'
+      : String(sourceLabel || '').toLowerCase().includes('campaign')
+        ? 'campaign'
+        : 'system';
+  const sourceIcon = sourceTone === 'timeline' ? '⏱' : sourceTone === 'inbox' ? '✉' : sourceTone === 'campaign' ? '◉' : '•';
   return (
     <div className={`premium-log-item ${detailed ? 'detailed' : 'compact'} ${isSentLog ? 'sent' : ''}`}>
       <strong>{detailed ? item.time : item.tag}</strong>
       <div>
-        <span>{detailed ? item.tag : 'Activity'}</span>
+        <span className={`premium-log-source tone-${sourceTone}`}>
+          <span className="premium-log-source-icon">{sourceIcon}</span>
+          {detailed ? `${sourceLabel} • ${actionLabel}` : sourceLabel}
+        </span>
         <p>{item.msg}</p>
-        {detailed && item.detail ? <small>{item.detail}</small> : null}
+        {item.detail ? <small>{item.detail}</small> : null}
+        {detailed && nextText ? <small>Next: {nextText}</small> : null}
+        {detailed ? <small className={`premium-log-status status-${statusText}`}>Status: {statusText}</small> : null}
       </div>
     </div>
   );
+}
+
+function groupLogsBySource(logItems = []) {
+  return logItems.reduce((groups, item) => {
+    const source = String(item?.source || 'System').trim();
+    const normalized = source.toLowerCase().includes('inbox')
+      ? 'Inbox'
+      : source.toLowerCase().includes('timeline')
+        ? 'Task'
+        : source.toLowerCase().includes('campaign')
+          ? 'Campaign'
+          : 'System';
+    if (!groups[normalized]) groups[normalized] = [];
+    groups[normalized].push(item);
+    return groups;
+  }, {});
 }
 
 function parseEventDate(value) {
@@ -175,6 +253,48 @@ function parseEventDate(value) {
   }
   const parsed = new Date(text);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function inferTimelineTaskType(hour) {
+  if (hour < 12) return 'Reminder';
+  if (hour < 17) return 'Meeting';
+  return 'Appointment';
+}
+
+function inferTimelineTaskNote(type, time) {
+  const normalizedType = String(type || '').toLowerCase();
+  if (normalizedType === 'meeting') return `Prepare agenda for ${time || 'the meeting time'}.`;
+  if (normalizedType === 'appointment') return `Confirm the appointment for ${time || 'this time'}.`;
+  return `Set a reminder for ${time || 'this time'}.`;
+}
+
+function inferTimelineTaskTitle(type) {
+  const normalizedType = String(type || '').toLowerCase();
+  if (normalizedType === 'meeting') return 'Team meeting';
+  if (normalizedType === 'appointment') return 'Client appointment';
+  return 'Reminder task';
+}
+
+function buildTimelineDraftDefaults(type, time) {
+  const nextType = String(type || 'Reminder').trim() || 'Reminder';
+  return {
+    title: inferTimelineTaskTitle(nextType),
+    text: inferTimelineTaskNote(nextType, time)
+  };
+}
+
+function timelineDateLabel(value) {
+  const date = parseEventDate(value);
+  if (!date) return 'Later';
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((startOfTarget - startOfToday) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays < 0) return 'Earlier';
+  if (diffDays <= 7) return 'Later This Week';
+  return 'Later';
 }
 
 function sameDay(a, b) {
@@ -196,11 +316,15 @@ export default function PremiumDashboardShell({
   reportDateLabel,
   reportRangeLabel,
   reportMetricCards,
+  dailyMailCounts = [],
   workflowSteps,
-  completionRate,
   totalTrackedMails,
   notificationCards,
   timelineCards,
+  timelineTaskStates = {},
+  onTimelineTaskStatesChange,
+  timelineCustomTasks = [],
+  onTimelineCustomTaskAdd,
   performanceCampaigns,
   calendarDays,
   selectedAccountLabel,
@@ -261,8 +385,15 @@ export default function PremiumDashboardShell({
   onResumeCampaign,
   onStopCampaign,
   onDeleteCampaign,
-  onShowMessage
+  onShowMessage,
+  creditSummary = {},
+  targetApprovalStatus = 'approved',
+  targetApprovalRequestedAt = null,
+  targetApprovalReviewedAt = null,
+  targetApprovalReviewer = '',
+  targetApprovalRequestNote = ''
 }) {
+  const router = useRouter();
   const scheduleCountries = {
     USA: ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'],
     UK: ['Europe/London'],
@@ -271,10 +402,101 @@ export default function PremiumDashboardShell({
     Germany: ['Europe/Berlin'],
     UAE: ['Asia/Dubai']
   };
-  const scheduleCountryKey =
+    const scheduleCountryKey =
     Object.keys(scheduleCountries).find((country) => country.toLowerCase() === String(scheduledCountry || '').toLowerCase()) ||
     'India';
-  const safeCompletion = clampPercent(completionRate);
+  useEffect(() => {
+    if (!selectedSenderAccountId && senderAccounts.length > 0) {
+      onSelectSenderAccount?.(senderAccounts[0].id);
+    }
+  }, [onSelectSenderAccount, selectedSenderAccountId, senderAccounts]);
+    const [targetMode, setTargetMode] = useState('daily');
+    const [customTargetStart, setCustomTargetStart] = useState('');
+    const [customTargetEnd, setCustomTargetEnd] = useState('');
+    const targetDailyCount = 300;
+    const targetWindow = useMemo(() => {
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+      const startOfWeek = new Date(startOfToday);
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+      const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
+      const startOfQuarter = new Date(today.getFullYear(), quarterStartMonth, 1);
+      const endOfQuarter = new Date(today.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+      if (targetMode === 'weekly') return { label: 'This week', start: startOfWeek, end: endOfWeek, days: 7 };
+      if (targetMode === 'monthly') return { label: 'This month', start: startOfMonth, end: endOfMonth, days: 30 };
+      if (targetMode === 'quarterly') return { label: 'This quarter', start: startOfQuarter, end: endOfQuarter, days: 90 };
+      if (targetMode === 'custom') {
+        const start = customTargetStart ? new Date(`${customTargetStart}T00:00:00`) : startOfToday;
+        const end = customTargetEnd ? new Date(`${customTargetEnd}T23:59:59.999`) : endOfToday;
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+          return { label: 'Custom range', start: startOfToday, end: endOfToday, days: 1 };
+        }
+        const dayDiff = Math.max(1, Math.round((end - start) / 86400000) + 1);
+        return { label: 'Custom range', start, end, days: dayDiff };
+      }
+      return { label: 'Today', start: startOfToday, end: endOfToday, days: 1 };
+    }, [customTargetEnd, customTargetStart, targetMode]);
+    const targetLimit = targetDailyCount * targetWindow.days;
+    const targetWindowLabel = targetWindow.label;
+    const targetSentCount = useMemo(() => {
+      return (dailyMailCounts || []).reduce((total, item) => {
+        const itemDate = parseEventDate(item?.date);
+        const count = Math.max(0, Number(item?.count || item?.sent || item?.value || 0));
+        if (!itemDate) return total;
+        if (itemDate >= targetWindow.start && itemDate <= targetWindow.end) return total + count;
+        return total;
+      }, 0);
+    }, [dailyMailCounts, targetWindow.end, targetWindow.start]);
+    const targetPercent = targetLimit ? Math.min(100, Math.round((targetSentCount / targetLimit) * 100)) : 0;
+    const targetAchieved = targetLimit > 0 && targetSentCount >= targetLimit;
+    const targetRemaining = Math.max(0, targetLimit - targetSentCount);
+      const targetResetText = 'Resets daily';
+    const [targetApprovalStatusState, setTargetApprovalStatusState] = useState(String(targetApprovalStatus || 'approved'));
+    useEffect(() => {
+      setTargetApprovalStatusState(String(targetApprovalStatus || 'approved'));
+    }, [targetApprovalStatus]);
+    const targetApprovalLabel =
+      targetApprovalStatusState === 'approved'
+        ? 'Approved by team lead'
+        : targetApprovalStatusState === 'pending'
+          ? 'Pending team lead approval'
+          : targetApprovalStatusState === 'rejected'
+            ? 'Rejected by team lead'
+            : 'Approval required';
+    const targetStatusTone =
+      targetApprovalStatusState === 'approved'
+        ? 'done'
+        : targetApprovalStatusState === 'pending'
+          ? 'pending'
+          : targetApprovalStatusState === 'rejected'
+            ? 'failed'
+            : 'pending';
+    const targetPeriodValue = String(targetMode || 'daily');
+  const formatInboxName = (value, fallback = 'Mail') => {
+    const text = String(value || '').trim();
+    if (!text) return fallback;
+    const localPart = text.includes('@') ? text.split('@')[0] : text;
+    return localPart
+      .split(/[._\-]+/g)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+  const buildInboxRoute = (item) => {
+    const params = new URLSearchParams();
+    if (item?.sender) params.set('sender', item.sender);
+    if (item?.subject) params.set('subject', item.subject);
+    if (item?.preview) params.set('preview', item.preview);
+    if (item?.time) params.set('time', item.time);
+    const query = params.toString();
+    return `/master-inbox${query ? `?${query}` : ''}`;
+  };
   const replyNotificationCards = useMemo(
     () =>
       (notificationCards || []).filter((item) => {
@@ -314,6 +536,108 @@ export default function PremiumDashboardShell({
     () => [...calendarEvents, ...customCalendarEvents].filter((item) => item.date),
     [calendarEvents, customCalendarEvents]
   );
+  const [timelineCompletionMap, setTimelineCompletionMap] = useState(() =>
+    Object.fromEntries((timelineCards || []).map((item, index) => {
+      const key = item.id || `${item.date}-${index}`;
+      return [key, typeof timelineTaskStates[key] === 'boolean' ? timelineTaskStates[key] : Boolean(item.done)];
+    }))
+  );
+  const [selectedTimelineTask, setSelectedTimelineTask] = useState(null);
+  const [showCompletedTimelineGroup, setShowCompletedTimelineGroup] = useState(false);
+  const [showTimelineAddPopup, setShowTimelineAddPopup] = useState(false);
+  const [timelineTaskDraft, setTimelineTaskDraft] = useState({
+    title: '',
+    date: '',
+    time: '',
+    type: 'Reminder',
+    text: ''
+  });
+  const timelineTaskTitleRef = useRef(null);
+  useEffect(() => {
+    if (!showTimelineAddPopup) return;
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const roundedMinutes = Math.ceil(now.getMinutes() / 30) * 30;
+    const nextSlot = new Date(now);
+    nextSlot.setHours(now.getHours(), roundedMinutes, 0, 0);
+    if (roundedMinutes >= 60) {
+      nextSlot.setHours(now.getHours() + 1, 0, 0, 0);
+    }
+    const time = nextSlot.toTimeString().slice(0, 5);
+    const inferredType = inferTimelineTaskType(now.getHours());
+    const defaults = buildTimelineDraftDefaults(inferredType, time);
+    setTimelineTaskDraft((current) => ({
+      ...current,
+      title: defaults.title,
+      date,
+      time,
+      type: inferredType,
+      text: defaults.text
+    }));
+  }, [showTimelineAddPopup]);
+  useEffect(() => {
+    if (!showTimelineAddPopup) return;
+    const timer = setTimeout(() => {
+      timelineTaskTitleRef.current?.focus?.();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [showTimelineAddPopup]);
+  const timelineSortedCards = useMemo(() => {
+    const combinedCards = [...(timelineCards || []), ...(timelineCustomTasks || [])];
+    return combinedCards.sort((a, b) => {
+      const aTime = parseEventDate(`${a.date} ${a.time || ''}`)?.getTime?.() || parseEventDate(a.date)?.getTime?.() || 0;
+      const bTime = parseEventDate(`${b.date} ${b.time || ''}`)?.getTime?.() || parseEventDate(b.date)?.getTime?.() || 0;
+      return aTime - bTime;
+    });
+  }, [timelineCards, timelineCustomTasks]);
+  const groupedTimelineCards = useMemo(() => {
+    return timelineSortedCards.reduce((groups, item) => {
+      const label = timelineDateLabel(item.date);
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(item);
+      return groups;
+    }, {});
+  }, [timelineSortedCards]);
+  const inlineTimelineCards = useMemo(() => {
+    const pendingCards = timelineSortedCards.filter((item, index) => {
+      const key = item.id || `${item.date}-${index}`;
+      return !Boolean(timelineCompletionMap[key]);
+    });
+    return pendingCards.slice(0, 7);
+  }, [timelineCompletionMap, timelineSortedCards]);
+  const timelinePopupGroups = useMemo(() => {
+    const groups = {};
+    timelineSortedCards.forEach((item, index) => {
+      const key = item.id || `${item.date}-${index}`;
+      const completed = Boolean(timelineCompletionMap[key]);
+      const label = completed ? 'Completed' : timelineDateLabel(item.date);
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(item);
+    });
+    return groups;
+  }, [timelineCompletionMap, timelineSortedCards]);
+  const logPopupGroups = useMemo(() => groupLogsBySource(logs), [logs]);
+  useEffect(() => {
+    setTimelineCompletionMap((current) => {
+      const next = { ...current };
+      (timelineSortedCards || []).forEach((item, index) => {
+        const key = item.id || `${item.date}-${index}`;
+        if (typeof next[key] === 'undefined') {
+          next[key] = typeof timelineTaskStates[key] === 'boolean' ? timelineTaskStates[key] : Boolean(item.done);
+        }
+      });
+      return next;
+    });
+  }, [timelineSortedCards, timelineTaskStates]);
+  useEffect(() => {
+    if (!selectedTimelineTask && timelineSortedCards?.length) {
+      setSelectedTimelineTask(timelineSortedCards[0]);
+    }
+  }, [selectedTimelineTask, timelineSortedCards]);
+  const openInboxMail = (item) => {
+    if (!item) return;
+    router.push(buildInboxRoute(item));
+  };
   const initialCalendarDate = new Date();
   const [calendarCursor, setCalendarCursor] = useState(
     new Date(initialCalendarDate.getFullYear(), initialCalendarDate.getMonth(), 1)
@@ -328,10 +652,12 @@ export default function PremiumDashboardShell({
   const [showDraftSummaryPopup, setShowDraftSummaryPopup] = useState(false);
   const [showClientListPopup, setShowClientListPopup] = useState(false);
   const [showOverviewPopup, setShowOverviewPopup] = useState(false);
+  const [showOverviewNotice, setShowOverviewNotice] = useState(false);
   const [showCampaignPopup, setShowCampaignPopup] = useState(false);
   const [showSelectDraftPopup, setShowSelectDraftPopup] = useState(false);
   const [showTestEmailPopup, setShowTestEmailPopup] = useState(false);
   const [showDayPopup, setShowDayPopup] = useState(false);
+  const [showDraftContinueWarning, setShowDraftContinueWarning] = useState(false);
   const [popupAnchors, setPopupAnchors] = useState({});
   const [dayEventDraft, setDayEventDraft] = useState('');
   const [dayEventTitleDraft, setDayEventTitleDraft] = useState('');
@@ -345,6 +671,8 @@ export default function PremiumDashboardShell({
   const [isBroadcastPerformanceMinimized, setIsBroadcastPerformanceMinimized] = useState(false);
   const [currentTablePage, setCurrentTablePage] = useState(1);
   const [noteDraft, setNoteDraft] = useState('');
+  const [noteTopic, setNoteTopic] = useState('');
+  const [noteTag, setNoteTag] = useState('');
   const [quickNotes, setQuickNotes] = useState([]);
   const [sendMode, setSendMode] = useState('scheduled');
   const [clientListTab, setClientListTab] = useState('upload');
@@ -356,6 +684,12 @@ export default function PremiumDashboardShell({
   const [editingCell, setEditingCell] = useState(null);
   const [columnMappings, setColumnMappings] = useState([]);
   const [overviewRows, setOverviewRows] = useState([]);
+  const [showClientListSelectionNote, setShowClientListSelectionNote] = useState(false);
+  const [showCampaignNotice, setShowCampaignNotice] = useState(false);
+  const [showProceedWithoutListNote, setShowProceedWithoutListNote] = useState(false);
+  const hasShownProceedWithoutListNoteRef = useRef(false);
+  const hasShownCampaignMissingWarningRef = useRef(false);
+  const hasShownOverviewWarningRef = useRef(false);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [durationUnit, setDurationUnit] = useState('Minutes');
@@ -390,6 +724,14 @@ export default function PremiumDashboardShell({
   const [testEmailSent, setTestEmailSent] = useState(false);
   const [includeTracking, setIncludeTracking] = useState(false);
   const workflowShellRef = useRef(null);
+  const draftTypeItems = [
+    { value: '', label: 'All Draft Types' },
+    { value: 'cover_story', label: 'Cover Story' },
+    { value: 'reminder', label: 'Reminder' },
+    { value: 'follow_up', label: 'Follow Up' },
+    { value: 'updated_cost', label: 'Updated Cost' },
+    { value: 'final_cost', label: 'Final Cost' }
+  ];
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
@@ -430,12 +772,30 @@ export default function PremiumDashboardShell({
     workflowSteps.length,
     completedWorkflowSteps.findIndex((done) => !done) + 1 || workflowSteps.length
   ));
+  const completedWorkflowCount = completedWorkflowSteps.filter(Boolean).length;
 
   const openAnchoredPopup = (key, setter) => (event) => {
     const workflowPopupKeys = new Set(['clientList', 'overview', 'campaign', 'selectDraft', 'testEmail', 'draftSummary', 'schedule']);
     const rect = event?.currentTarget?.getBoundingClientRect?.();
     if (rect) {
       const viewportWidth = window.innerWidth;
+      if (key === 'notifications') {
+        const width = Math.min(viewportWidth - 32, 560);
+        const height = Math.min(window.innerHeight - 32, 480);
+        setPopupAnchors((current) => ({
+          ...current,
+          [key]: {
+            top: window.innerHeight / 2,
+            left: viewportWidth / 2,
+            width,
+            maxHeight: height,
+            transform: 'translate(-50%, -50%)',
+            anchor: 'center'
+          }
+        }));
+        setter(true);
+        return;
+      }
       const workflowRect = workflowPopupKeys.has(key) ? workflowShellRef.current?.getBoundingClientRect?.() : null;
       const baseRect = workflowRect || rect;
       const desiredWidth = workflowRect
@@ -465,6 +825,42 @@ export default function PremiumDashboardShell({
   };
 
   const popupStyleFor = (key) => {
+    const centeredKeys = new Set([
+      'notifications',
+      'clientList',
+      'overview',
+      'campaign',
+      'selectDraft',
+      'testEmail',
+      'draftSummary',
+      'schedule',
+      'timeline',
+      'logs'
+    ]);
+    if (centeredKeys.has(key)) {
+      const sizeMap = {
+        notifications: { width: 'min(92vw, 560px)', maxHeight: 'min(78vh, 480px)' },
+        clientList: { width: 'min(92vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+        overview: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+        campaign: { width: 'min(90vw, 900px)', maxHeight: 'min(84vh, 820px)' },
+        selectDraft: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+        testEmail: { width: 'min(90vw, 920px)', maxHeight: 'min(84vh, 820px)' },
+        draftSummary: { width: 'min(92vw, 940px)', maxHeight: 'min(84vh, 820px)' },
+        schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+        timeline: { width: 'min(90vw, 740px)', maxHeight: 'min(78vh, 680px)' },
+        logs: { width: 'min(90vw, 760px)', maxHeight: 'min(78vh, 680px)' }
+      };
+      const size = sizeMap[key] || { width: 'min(92vw, 820px)', maxHeight: 'min(82vh, 760px)' };
+      return {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: size.width,
+        maxHeight: size.maxHeight,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 140
+      };
+    }
     const anchor = popupAnchors[key];
     if (!anchor) return {};
     return {
@@ -477,11 +873,38 @@ export default function PremiumDashboardShell({
       zIndex: 140
     };
   };
-  const effectiveUploadedLists = lists.length
-    ? lists.map((item) => ({ id: item._id, title: item.name, meta: `${item.leadCount || 0} contacts` }))
+
+  const renderPortalPopup = (isOpen, node) => {
+    if (!isOpen || typeof window === 'undefined') return null;
+    return createPortal(node, document.body);
+  };
+  const formatListMeta = (item) => {
+    const contacts = `${Number(item?.leadCount || 0)} contacts`;
+    const uploadedAt = item?.uploadedAt || item?.createdAt || item?.updatedAt || null;
+    const when = uploadedAt ? new Date(uploadedAt).toLocaleString() : '';
+    const sourceFile = String(item?.sourceFile || item?.fileName || item?.name || '').trim();
+    const kind = String(item?.kind || 'uploaded').trim();
+    const kindLabel = kind === 'custom' ? 'Custom' : 'Uploaded';
+    return [kindLabel, contacts, when, sourceFile ? `File: ${sourceFile}` : '']
+      .filter(Boolean)
+      .join(' • ');
+  };
+  const normalizedClientLists = lists.length
+    ? lists.map((item) => ({
+        id: item._id,
+        title: item.name || 'Saved list',
+        meta: formatListMeta(item),
+        uploadedAt: item?.uploadedAt || item?.createdAt || item?.updatedAt || null,
+        sourceFile: item?.sourceFile || item?.fileName || item?.name || '',
+        leadCount: Number(item?.leadCount || 0),
+        kind: String(item?.kind || 'uploaded').trim()
+      }))
+    : [];
+  const effectiveUploadedLists = normalizedClientLists.length
+    ? normalizedClientLists.filter((item) => item.kind !== 'custom')
     : uploadedLists;
-  const effectiveCustomLists = lists.length
-    ? lists.map((item) => ({ id: item._id, title: item.name, meta: `${item.leadCount || 0} contacts` }))
+  const effectiveCustomLists = normalizedClientLists.length
+    ? normalizedClientLists.filter((item) => item.kind === 'custom')
     : customLists;
   const effectiveSavedDrafts = draftOptions.length
     ? draftOptions.map((draft) => ({
@@ -785,9 +1208,11 @@ export default function PremiumDashboardShell({
   }, [selectedListId]);
 
   const addQuickNote = () => {
-    const value = noteDraft.trim();
-    if (!value) {
-      onShowMessage?.('Write a note before saving it.', 'info');
+    const reminder = noteDraft.trim();
+    const topic = noteTopic.trim();
+    const tag = noteTag.trim();
+    if (!reminder && !topic && !tag) {
+      onShowMessage?.('Add a topic, tag, or reminder before saving it.', 'info');
       return;
     }
     const today = new Date().toLocaleDateString('en-GB');
@@ -795,13 +1220,17 @@ export default function PremiumDashboardShell({
       {
         id: `note-local-${Date.now()}`,
         avatar: 'QN',
-        name: 'Quick Note',
+        name: topic || 'Quick Note',
         time: today,
-        text: value
+        text: reminder || 'No reminder text added.',
+        topic: topic || 'General',
+        tag: tag || 'Note'
       },
       ...current
     ]);
     setNoteDraft('');
+    setNoteTopic('');
+    setNoteTag('');
     onShowMessage?.('Note saved to your dashboard.', 'success');
   };
 
@@ -818,31 +1247,31 @@ export default function PremiumDashboardShell({
   };
 
   const handleWorkflowAction = (step, event) => {
-    if (step.action === 'Client List') {
+    if (step.action === 'Upload List' || step.title === 'Upload List') {
       openAnchoredPopup('clientList', setShowClientListPopup)(event);
       return;
     }
-    if (step.action === 'Overview Data') {
+    if (step.action === 'Review List' || step.title === 'Review List') {
       openAnchoredPopup('overview', setShowOverviewPopup)(event);
       return;
     }
-  if (step.action === 'Campaign') {
-    openAnchoredPopup('campaign', setShowCampaignPopup)(event);
-    return;
-  }
-  if (step.action === 'Draft Upload / Select' || step.action === 'Draft / Templete') {
-    openAnchoredPopup('selectDraft', setShowSelectDraftPopup)(event);
-    return;
-  }
-    if (step.index === 6 || step.action === 'Teast Mail' || step.action === 'Test Mail' || step.title === 'Test Mail') {
+    if (step.action === 'Campaign' || step.title === 'Campaign') {
+      openAnchoredPopup('campaign', setShowCampaignPopup)(event);
+      return;
+    }
+    if (step.action === 'Select Draft' || step.title === 'Select Draft') {
+      openAnchoredPopup('selectDraft', setShowSelectDraftPopup)(event);
+      return;
+    }
+    if (step.index === 6 || step.action === 'Test Email' || step.title === 'Test Email') {
       openAnchoredPopup('testEmail', setShowTestEmailPopup)(event);
       return;
     }
-    if (step.action === 'Draft Summary') {
+    if (step.action === 'Draft Summary' || step.title === 'Draft Summary' || step.title === 'Summary') {
       openAnchoredPopup('draftSummary', setShowDraftSummaryPopup)(event);
       return;
     }
-    if (step.action === 'Final Setup') {
+    if (step.action === 'Schedule' || step.title === 'Schedule') {
       openAnchoredPopup('schedule', setShowSchedulePopup)(event);
       onShowMessage?.('Set a schedule or start the campaign from here.', 'info');
     }
@@ -862,7 +1291,7 @@ export default function PremiumDashboardShell({
       return;
     }
     showTableMessage(
-      `${selectedRows.length} campaign${selectedRows.length > 1 ? 's are' : ' is'} selected. Use the Campaigns panel below for start, pause, stop, resume, and delete actions.`,
+      `${selectedRows.length} campaign${selectedRows.length > 1 ? 's are' : ' is'} selected. Use the Campaign panel below for start, pause, stop, resume, and delete actions.`,
       'success'
     );
   };
@@ -889,7 +1318,7 @@ export default function PremiumDashboardShell({
       showTableMessage(`Showing live logs for ${campaign.name}.`, 'success');
       return;
     }
-    showTableMessage(`Filtered the table to ${campaign.name}. Use the Campaigns and History panels below for full controls.`, 'info');
+    showTableMessage(`Filtered the table to ${campaign.name}. Use the Campaign and History panels below for full controls.`, 'info');
   };
 
   const handleEditTagsClick = (campaign) => {
@@ -928,8 +1357,8 @@ export default function PremiumDashboardShell({
     if (clientListTab === 'upload') {
       return {
         title: clientListName || 'New uploaded list',
-        subtitle: 'Uploaded from Upload File tab',
-        detail: 'This file will continue to step 2: Overview Data.'
+        subtitle: 'Uploaded from Upload List step',
+        detail: 'This file will continue to step 2: Review List.'
       };
     }
     if (clientListTab === 'uploaded') {
@@ -937,14 +1366,14 @@ export default function PremiumDashboardShell({
       return {
         title: selected?.title || 'Uploaded list',
         subtitle: selected?.meta || 'Previously uploaded file selected',
-        detail: 'This uploaded file will continue to step 2: Overview Data.'
+        detail: 'This uploaded file will continue to step 2: Review List.'
       };
     }
     const selected = effectiveCustomLists.find((item) => item.id === selectedCustomList);
     return {
       title: selected?.title || 'Custom list',
-      subtitle: selected?.meta || 'Saved client list selected',
-      detail: 'This custom list will continue to step 2: Overview Data.'
+      subtitle: selected?.meta || 'Saved list selected',
+      detail: 'This custom list will continue to step 2: Review List.'
     };
   }, [clientListName, clientListTab, effectiveCustomLists, selectedCustomList, selectedUploadedList, effectiveUploadedLists]);
   const mappedFieldOptions = ['Name', 'Email', 'Company', 'Phone', 'City', 'Industry', 'Notes', 'Ignore'];
@@ -1010,22 +1439,210 @@ export default function PremiumDashboardShell({
 
   const canContinueClientList =
     clientListTab === 'upload'
-      ? true
+      ? Boolean(selectedListId)
       : clientListTab === 'uploaded'
         ? Boolean(selectedUploadedList)
         : Boolean(selectedCustomList);
 
-  const handleClientListNext = () => {
-    if (!canContinueClientList) return;
-    if (clientListTab === 'uploaded' && selectedUploadedList) {
-      onSelectList?.(selectedUploadedList);
+  const handleClientListNext = async () => {
+    const selectedList =
+      clientListTab === 'upload'
+        ? selectedListId
+        : clientListTab === 'uploaded'
+          ? selectedUploadedList
+        : clientListTab === 'custom'
+          ? selectedCustomList
+          : '';
+
+    if (!selectedList) {
+      setShowClientListSelectionNote(true);
+      onShowMessage?.('No client list selected yet. Please select or upload a file first.', 'warning');
+      return;
     }
-    if (clientListTab === 'custom' && selectedCustomList) {
-      onSelectList?.(selectedCustomList);
-    }
+    setShowClientListSelectionNote(false);
+    onSelectList?.(selectedList);
     setShowClientListPopup(false);
     setShowOverviewPopup(true);
   };
+
+  const handleClientListSkip = () => {
+    setSelectedUploadedList('');
+    setSelectedCustomList('');
+    if (!hasShownProceedWithoutListNoteRef.current) {
+      hasShownProceedWithoutListNoteRef.current = true;
+      setShowProceedWithoutListNote(true);
+    }
+    setShowClientListPopup(false);
+    setShowOverviewPopup(true);
+    onShowMessage?.('Proceeding without a client list. You can continue exploring the workflow and choose a list later.', 'info');
+  };
+  const handleOverviewConfirm = () => {
+    if (!overviewRows.length) {
+      if (!hasShownOverviewWarningRef.current) {
+        hasShownOverviewWarningRef.current = true;
+        setShowOverviewNotice(true);
+      } else {
+        setShowOverviewNotice(false);
+      }
+      onShowMessage?.('No data found yet. Please select or upload a client list before continuing.', 'warning');
+      return;
+    }
+    setShowOverviewNotice(false);
+    setShowOverviewPopup(false);
+    setShowCampaignPopup(true);
+  };
+  const handleOverviewBack = () => {
+    setShowOverviewPopup(false);
+    setShowClientListPopup(true);
+  };
+  const handleOverviewReupload = () => {
+    setSelectedUploadedList('');
+    setSelectedCustomList('');
+    setShowClientListSelectionNote(false);
+    setClientListTab('upload');
+    setShowOverviewPopup(false);
+    setShowClientListPopup(true);
+  };
+  const handleOverviewNext = () => {
+    setShowOverviewNotice(false);
+    setShowOverviewPopup(false);
+    setShowCampaignPopup(true);
+  };
+  const hasOverviewData = overviewRows.length > 0;
+    const campaignMissingFields = [
+      !String(effectiveCampaignName || '').trim() ? 'Campaign Name is empty' : null,
+      !String(effectiveCampaignSender || '').trim() ? 'Sender is empty' : null
+    ].filter(Boolean);
+    const hasCampaignRequiredFields = campaignMissingFields.length === 0;
+    const draftMissingFields = [
+      !String(effectiveDraftSubject || '').trim() ? 'Subject is empty' : null,
+      !String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim() ? 'Message is empty' : null,
+      !String(selectedDraftType || '').trim() ? 'Draft type is not selected' : null
+    ].filter(Boolean);
+    const hasSavedDraftSelected = Boolean(activeDraftId || selectedDraftId);
+    const hasCreateDraftReady = draftMissingFields.length === 0;
+    const hasDraftRequiredFields = hasSavedDraftSelected || hasCreateDraftReady;
+    const draftContinueHint = hasSavedDraftSelected
+      ? ''
+      : 'Select required draft first.';
+  useEffect(() => {
+    if (showDraftContinueWarning && hasDraftRequiredFields) {
+      setShowDraftContinueWarning(false);
+    }
+  }, [hasDraftRequiredFields, showDraftContinueWarning]);
+  const scheduleMissingFields = [
+    sendMode === 'scheduled' && !String(scheduledDateValue || '').trim() ? 'Scheduled date is empty' : null,
+    sendMode === 'scheduled' && !String(scheduledTimeValue || '').trim() ? 'Scheduled time is empty' : null,
+    !String(batchSize || '').trim() ? 'Batch size is empty' : null,
+    !String(delaySeconds || '').trim() ? 'Delay interval is empty' : null,
+    !String(durationUnit || '').trim() ? 'Duration unit is empty' : null,
+    !String(scheduledCountry || '').trim() ? 'Country is empty' : null,
+    !String(scheduleTimezone || '').trim() ? 'Time zone is empty' : null
+  ].filter(Boolean);
+  const hasScheduleRequiredFields = scheduleMissingFields.length === 0;
+  const scheduleContinueHint = `Please fill: ${scheduleMissingFields.join(', ')} before continuing.`;
+  const [showScheduleContinueWarning, setShowScheduleContinueWarning] = useState(false);
+  useEffect(() => {
+    if (showScheduleContinueWarning && hasScheduleRequiredFields) {
+      setShowScheduleContinueWarning(false);
+    }
+  }, [hasScheduleRequiredFields, showScheduleContinueWarning]);
+  const handleCampaignContinue = () => {
+    if (!hasCampaignRequiredFields) {
+      if (!hasShownCampaignMissingWarningRef.current) {
+        hasShownCampaignMissingWarningRef.current = true;
+        setShowCampaignNotice(true);
+      } else {
+        setShowCampaignNotice(false);
+      }
+      onShowMessage?.(`Please fill: ${campaignMissingFields.join(', ')} before continuing.`, 'warning');
+      return;
+    }
+      setShowCampaignNotice(false);
+    setShowCampaignPopup(false);
+    setShowSelectDraftPopup(true);
+  };
+
+  const closeWorkflowPopups = () => {
+    setShowCampaignNotice(false);
+    setShowClientListPopup(false);
+    setShowOverviewPopup(false);
+    setShowCampaignPopup(false);
+    setShowSelectDraftPopup(false);
+    setShowDraftSummaryPopup(false);
+    setShowTestEmailPopup(false);
+    setShowSchedulePopup(false);
+  };
+
+  const openWorkflowStep = (stepValue) => {
+    closeWorkflowPopups();
+    const step = Number(stepValue || 0);
+    if (step <= 1) return;
+    if (step === 2) {
+      setShowOverviewPopup(true);
+      return;
+    }
+    if (step === 3) {
+      setShowCampaignPopup(true);
+      return;
+    }
+    if (step === 4) {
+      setShowDraftContinueWarning(false);
+      setShowSelectDraftPopup(true);
+      return;
+    }
+    if (step === 5) {
+      setShowDraftSummaryPopup(true);
+      return;
+    }
+    if (step === 6) {
+      setShowTestEmailPopup(true);
+      return;
+    }
+    setShowSchedulePopup(true);
+  };
+
+  const resumeCampaignDraft = (campaign) => {
+    if (!campaign) return;
+    onCampaignNameChange?.(String(campaign.name || ''));
+    onSelectList?.(String(campaign.listId || ''));
+    onSelectedDraftTypeChange?.(String(campaign.draftType || campaign.type || ''));
+    onDraftSubjectChange?.(String(campaign.inlineTemplate?.subject || ''));
+    onDraftBodyChange?.(String(campaign.inlineTemplate?.body || ''));
+    onBatchSizeChange?.(String(campaign.options?.batchSize || '1'));
+    onDelaySecondsChange?.(String(campaign.options?.delaySeconds || '60'));
+    setCampaignTracking({
+      opens: Boolean(campaign?.tracking?.opens),
+      clicks: Boolean(campaign?.tracking?.clicks),
+      replies: Boolean(campaign?.tracking?.replies)
+    });
+    setShowCampaignNotice(false);
+    openWorkflowStep(campaign.workflowStep || 3);
+    onShowMessage?.(
+      `Resuming draft from ${campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}.`,
+      'info'
+    );
+  };
+
+  useEffect(() => {
+    const handleResumeDraft = (event) => {
+      const campaign = event?.detail?.campaign || event?.detail || null;
+      if (!campaign) return;
+      resumeCampaignDraft(campaign);
+    };
+
+    window.addEventListener('dashboard:resume-campaign-draft', handleResumeDraft);
+    return () => window.removeEventListener('dashboard:resume-campaign-draft', handleResumeDraft);
+  }, [
+    onBatchSizeChange,
+    onCampaignNameChange,
+    onDelaySecondsChange,
+    onDraftBodyChange,
+    onDraftSubjectChange,
+    onSelectList,
+    onSelectedDraftTypeChange,
+    onShowMessage
+  ]);
   const handlePremiumShellUpload = (event) => {
     const file = event.target?.files?.[0];
     if (file) {
@@ -1064,21 +1681,6 @@ export default function PremiumDashboardShell({
     }
     setDraftMessage(next);
   };
-  const handleDraftTypeSelectFromDropdown = (draftTypeValue) => {
-    onSelectedDraftTypeChange?.(draftTypeValue);
-    setSelectDraftTab('my-drafts');
-    const match = draftOptions.find((item) => String(item?.category || '').toLowerCase() === String(draftTypeValue || '').toLowerCase());
-    if (match) {
-      const id = match._id || match.id;
-      setSelectedDraftId(id);
-      onSelectSavedDraft?.(id);
-      onShowMessage?.(`Selected ${draftTypeValue.replace('_', ' ')} draft for sending.`, 'success');
-    } else {
-      onShowMessage?.(`Draft type set to ${draftTypeValue.replace('_', ' ')} for sending.`, 'info');
-    }
-    setShowDraftTypeDropdown(false);
-  };
-
   const handleProgressFilterSelect = (value) => {
     setShowProgressFilterDropdown(false);
     if (value === 'customize') {
@@ -1107,7 +1709,11 @@ export default function PremiumDashboardShell({
       </div>
 
       <section className="premium-stepper-shell">
-        <div className="premium-stepper-row" ref={workflowShellRef} style={{ color: 'var(--text-primary)' }}>
+        <div
+          className="premium-stepper-row"
+          ref={workflowShellRef}
+          style={{ color: 'var(--text-primary)', '--workflow-progress': completedWorkflowCount }}
+        >
           <div className="premium-workflow-title">
             <h3>Campaign Workflow</h3>
           </div>
@@ -1143,66 +1749,152 @@ export default function PremiumDashboardShell({
         </div>
       </section>
 
-      <div className="premium-content-grid">
-        <div className="premium-gauge-card premium-card-with-tabs">
-          <div className="premium-panel-head">
-            <h3>Campaign Progress</h3>
-            <div className="premium-progress-filter-wrap">
-              <button
-                type="button"
-                className="ghost premium-progress-filter-btn"
-                onClick={() => setShowProgressFilterDropdown((current) => !current)}
-                aria-haspopup="menu"
-                aria-expanded={showProgressFilterDropdown}
-              >
-                Filter
-              </button>
-              {showProgressFilterDropdown ? (
-                <div className="premium-progress-filter-menu">
-                  {progressFilterOptions.map((item) => (
-                    <button key={item.value} type="button" onClick={() => handleProgressFilterSelect(item.value)}>
-                      {item.label}
-                    </button>
-                  ))}
-                  <button type="button" className="add" onClick={handleAddProgressFilterOption}>
-                    Add Option
-                  </button>
+        <div className="premium-content-grid">
+            <div className="premium-gauge-card premium-card-with-tabs premium-campaign-health-panel">
+                <div className="premium-panel-head">
+                  <div>
+                    <span className="premium-section-kicker">Campaign health</span>
+                    <h3>Target</h3>
+                  </div>
+                  <div className="premium-target-filter-row">
+                    <select
+                      className="premium-target-filter"
+                      value={targetMode}
+                      onChange={(event) => setTargetMode(event.target.value)}
+                      aria-label="Target review period"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    {targetMode === 'custom' ? (
+                      <div className="premium-target-custom-row">
+                        <input
+                          type="date"
+                          value={customTargetStart}
+                          onChange={(event) => setCustomTargetStart(event.target.value)}
+                          aria-label="Custom target start date"
+                        />
+                        <input
+                          type="date"
+                          value={customTargetEnd}
+                          onChange={(event) => setCustomTargetEnd(event.target.value)}
+                          aria-label="Custom target end date"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          </div>
-          <span className="badge">{reportRangeLabel}</span>
-          <div className="premium-progress-chip-row" aria-label="Campaign progress summary">
-            <span className="premium-progress-chip done">Done {Math.max(0, Number(reportMetricCards[1]?.value || 0))}</span>
-            <span className="premium-progress-chip pending">Pending {Math.max(0, Number(reportMetricCards[2]?.value || 0))}</span>
-            <span className="premium-progress-chip failed">Failed {Math.max(0, Number(reportMetricCards[3]?.value || 0))}</span>
-          </div>
-          <div className="premium-arc-wrap">
-            <div className="premium-arc-track">
-              <div
-                className="premium-arc-ring"
-                style={{
-                  background: `conic-gradient(from 180deg, #22c55e 0 ${safeCompletion * 1.8}deg, #f59e0b ${safeCompletion * 1.8}deg ${Math.min(360, (safeCompletion + Math.round((Number(reportMetricCards[2]?.value || 0) / Math.max(totalTrackedMails, 1)) * 100)) * 1.8)}deg, #ef4444 ${Math.min(360, (safeCompletion + Math.round((Number(reportMetricCards[2]?.value || 0) / Math.max(totalTrackedMails, 1)) * 100)) * 1.8)}deg 360deg)`
-                }}
-              >
-                <div className="premium-arc-ring-inner">
-                  <strong>{safeCompletion}%</strong>
-                  <span>{Math.max(0, Number(reportMetricCards[1]?.value || 0))} / {totalTrackedMails}</span>
+
+              <div className="premium-health-summary-row" aria-label="Campaign progress summary">
+                <div className="premium-health-metric done">
+                  <span>Target</span>
+                  <strong>{targetLimit}</strong>
+                </div>
+                <div className="premium-health-metric pending">
+                  <span>Sent</span>
+                  <strong>{targetSentCount}</strong>
+                </div>
+                <div className="premium-health-metric failed">
+                  <span>Remaining</span>
+                  <strong>{targetRemaining}</strong>
                 </div>
               </div>
-            </div>
+
+              <div className="premium-credit-summary-row" aria-label="Target summary">
+                <div className="premium-credit-metric">
+                  <span>Progress</span>
+                  <strong>{targetPercent}%</strong>
+                </div>
+                <div className="premium-credit-metric">
+                  <span>Mailed</span>
+                  <strong>{targetSentCount}</strong>
+                </div>
+                <div className="premium-credit-metric">
+                  <span>Left</span>
+                  <strong>{targetRemaining}</strong>
+                </div>
+                <div className="premium-credit-metric usage">
+                  <span>Period</span>
+                  <strong>{targetWindowLabel}</strong>
+                </div>
+              </div>
+
+              <div className="premium-arc-wrap">
+                  <div className="premium-arc-track">
+                      <div
+                        className="premium-arc-ring"
+                        style={{
+                          background: `conic-gradient(from 180deg, #22c55e 0 ${targetPercent * 3.6}deg, #f59e0b ${targetPercent * 3.6}deg ${Math.min(360, (targetPercent * 3.6) + 24)}deg, #ef4444 ${Math.min(360, (targetPercent * 3.6) + 24)}deg 360deg)`,
+                          boxShadow: targetAchieved ? '0 0 0 1px rgba(245, 158, 11, 0.12), 0 0 14px rgba(245, 158, 11, 0.1)' : undefined
+                        }}
+                      >
+                      <div className="premium-arc-ring-inner" aria-hidden="true" />
+                    </div>
+                </div>
+                  <div className="premium-arc-copy">
+                      <strong className={targetAchieved ? 'premium-target-goal-reached' : ''}>{targetAchieved ? 'Goal reached' : 'Goal pending'}</strong>
+                      <span className="premium-arc-copy-sub">
+                        {targetWindowLabel} target: {targetSentCount} / {targetLimit} mails
+                      </span>
+                      <span className="premium-arc-copy-sub">
+                        {targetAchieved ? 'Daily target completed • soft warning only' : `${targetRemaining} mails left`} • {targetResetText}
+                      </span>
+                      {targetAchieved ? (
+                        <span className="premium-arc-copy-sub premium-target-soft-warning">
+                          You can keep sending, but the daily goal is already reached.
+                        </span>
+                      ) : null}
+                      <span className={`premium-arc-copy-sub premium-target-approval-pill ${targetStatusTone}`}>
+                        {targetApprovalLabel}
+                      </span>
+                      {targetApprovalReviewedAt ? (
+                        <span className="premium-arc-copy-sub">
+                          Last reviewed: {targetApprovalReviewedAt}
+                        </span>
+                      ) : null}
+                      {targetApprovalRequestNote ? (
+                        <span className="premium-arc-copy-sub">
+                          Note: {targetApprovalRequestNote}
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="ghost subtle premium-target-approval-btn"
+                        onClick={async () => {
+                          setTargetApprovalStatusState('pending');
+                          try {
+                            await fetch('/api/target-approval', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                              period: targetPeriodValue,
+                              dailyTarget: targetDailyCount,
+                              status: 'pending',
+                              note: 'Daily mail target approval requested from dashboard.'
+                            })
+                          });
+                          } catch (error) {
+                            // Keep the UI responsive even if persistence fails.
+                          }
+                          onShowMessage?.('Target approval request sent to your team lead.', 'info');
+                        }}
+                      >
+                        Request approval
+                      </button>
+                  </div>
+                </div>
+
           </div>
-          <div className="premium-arc-legend">
-            <span><i className="done" />Done</span>
-            <span><i className="pending" />Pending {Math.max(0, Number(reportMetricCards[2]?.value || 0))}</span>
-            <span><i className="failed" />Failed {Math.max(0, Number(reportMetricCards[3]?.value || 0))}</span>
-          </div>
-          <small className="premium-arc-footer">{safeCompletion}% of your mail warming target reached.</small>
-        </div>
 
         <div className="premium-calendar-card premium-card-with-tabs">
           <div className="premium-panel-head">
-            <h3>{monthLabel}</h3>
+            <div>
+              <span className="premium-section-kicker">Calendar</span>
+              <h3>{monthLabel}</h3>
+            </div>
             <div className="premium-calendar-nav">
               <button
                 type="button"
@@ -1271,23 +1963,43 @@ export default function PremiumDashboardShell({
 
         <section className="premium-panel premium-main-notification-panel">
           <div className="premium-panel-head">
-            <h3>Mail Notification</h3>
+            <div>
+              <span className="premium-section-kicker">Inbox</span>
+              <h3>Inbox</h3>
+            </div>
             <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('notifications', setShowNotificationsPopup)(event)}>
               See All
             </button>
           </div>
           <div className="premium-list-stack">
             {notificationCards.map((item, index) => (
-              <NotificationItem key={`${item.name}-${index}`} item={item} />
+              <NotificationItem key={`${item.name}-${index}`} item={item} onClick={() => openInboxMail(item)} />
             ))}
           </div>
         </section>
 
         <section className="premium-panel premium-side-notification-panel">
           <div className="premium-panel-head">
-            <h3>Write Note</h3>
+            <div>
+              <span className="premium-section-kicker">Notes</span>
+              <h3>Write Note</h3>
+            </div>
           </div>
           <div className="premium-note-compose">
+            <div className="premium-note-tile-grid">
+              <input
+                type="text"
+                value={noteTopic}
+                onChange={(event) => setNoteTopic(event.target.value)}
+                placeholder="Topic"
+              />
+              <input
+                type="text"
+                value={noteTag}
+                onChange={(event) => setNoteTag(event.target.value)}
+                placeholder="Tag"
+              />
+            </div>
             <textarea
               value={noteDraft}
               onChange={(event) => setNoteDraft(event.target.value)}
@@ -1295,7 +2007,7 @@ export default function PremiumDashboardShell({
               rows={8}
             />
             <div className="premium-note-compose-footer">
-              <small>{noteDraft.trim().length} characters</small>
+              <small>{[noteTopic, noteTag, noteDraft].map((value) => value.trim()).filter(Boolean).length} fields filled</small>
               <div className="premium-note-actions">
                 <button type="button" className="ghost" onClick={() => setShowNotesPopup(true)}>
                   Show Notes
@@ -1308,7 +2020,10 @@ export default function PremiumDashboardShell({
 
         <section className="premium-panel premium-panel-span-3">
           <div className="premium-panel-head">
-            <h3>All Broadcast Performance</h3>
+            <div>
+              <span className="premium-section-kicker">Broadcast table</span>
+              <h3>All Broadcast Performance</h3>
+            </div>
             <div className="premium-panel-head-actions">
               <button type="button" className="ghost" onClick={handleShowAllBroadcastPerformance}>Show</button>
               <button
@@ -1322,125 +2037,166 @@ export default function PremiumDashboardShell({
           </div>
           {!isBroadcastPerformanceMinimized ? (
             <>
-            <div className="premium-table-actions">
-              <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaigns'}</button>
-              <select className="premium-broadcast-tag-filter" value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
-                {availableTags.map((tag) => (
-                  <option key={tag} value={tag}>{tag}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={tableSearch}
-                onChange={(event) => setTableSearch(event.target.value)}
-                placeholder="Search campaigns, person, country, sector, tags..."
-              />
-              <button type="button" className="subtle" onClick={handleActionCenterClick}>{selectedRows.length ? 'Take Action' : 'Action Center'}</button>
-            </div>
-          <div className="premium-table-wrap">
-            <div className="premium-table premium-table-head">
-              {['', 'Sr. No.', 'Campaigns', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
-                <span key={label}>{label}</span>
-              ))}
-            </div>
-            {paginatedCampaigns.map((campaign, index) => (
-              <div
-                key={campaign.id || campaign._id || index}
-                className={`premium-table premium-table-row ${openActionMenu === campaign.id ? 'premium-table-row-menu-open' : ''}`}
-              >
-                <span data-label="Select">
+              <div className="premium-table-actions">
+                <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaign'}</button>
+                <select className="premium-broadcast-tag-filter" value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
+                  {availableTags.map((tag) => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={tableSearch}
+                  onChange={(event) => setTableSearch(event.target.value)}
+                  placeholder="Search campaigns, person, country, sector, tags..."
+                />
+                <button type="button" className="subtle" onClick={handleActionCenterClick}>{selectedRows.length ? 'Take Action' : 'Action Center'}</button>
+              </div>
+              <div className="premium-table-wrap">
+                <div className="premium-table premium-table-head">
+                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
+                </div>
+                {paginatedCampaigns.length ? paginatedCampaigns.map((campaign, index) => (
+                  <div
+                    key={campaign.id || campaign._id || index}
+                    className={`premium-table premium-table-row ${openActionMenu === campaign.id ? 'premium-table-row-menu-open' : ''}`}
+                  >
+                    <span data-label="Select">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.includes(campaign.id)}
+                        onChange={() => toggleRowSelection(campaign.id)}
+                        aria-label={`Select ${campaign.name}`}
+                      />
+                    </span>
+                    <span data-label="Sr. No.">{campaign.srNo}</span>
+                    <span className="premium-table-campaign" data-label="Campaign">
+                      <strong>{campaign.name}</strong>
+                      {String(campaign.status || '').toLowerCase() === 'draft' ? (
+                        <button
+                          type="button"
+                          className="campaign-resume-badge"
+                          onClick={() => resumeCampaignDraft(campaign)}
+                        >
+                          Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
+                        </button>
+                      ) : null}
+                      <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
+                      <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
+                    </span>
+                    <span data-label="Publish Date">{campaign.publishDate || '-'}</span>
+                    <span data-label="Total Mails">{campaign.total}</span>
+                    <span data-label="Sent">{campaign.sent}</span>
+                    <span data-label="Pending">{campaign.pending}</span>
+                    <span data-label="Fail">{campaign.failed}</span>
+                    <span data-label="Open">{campaign.open}</span>
+                    <span data-label="Bounce">{campaign.bounced}</span>
+                    <span data-label="Spam">{campaign.spam}</span>
+                    <span className="premium-tag-stack" data-label="Tags">
+                      {(campaign.tags || []).slice(0, 2).map((tag) => (
+                        <em key={tag}>{tag}</em>
+                      ))}
+                    </span>
+                    <span className="premium-table-action-cell" data-label="Action" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
+                      <button
+                        type="button"
+                        className="premium-row-action"
+                        onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
+                        aria-label={`Open actions for ${campaign.name}`}
+                      >
+                        ⋮
+                      </button>
+                      {openActionMenu === campaign.id ? (
+                        <div className="premium-row-action-menu">
+                          <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
+                          <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
+                          {String(campaign.status || '').toLowerCase() === 'draft' ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
+                              Resume Draft
+                            </button>
+                          ) : null}
+                          <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                          <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
+                          {String(campaign.tag || '').toLowerCase() === 'paused' ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
+                          ) : null}
+                          <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
+                        </div>
+                      ) : null}
+                    </span>
+                  </div>
+                )) : (
+                  <>
+                    {Array.from({ length: 7 }, (_, index) => (
+                      <div key={`empty-row-${index}`} className="premium-table premium-table-row premium-table-row-empty">
+                        <span data-label="Select">
+                          <input
+                            type="checkbox"
+                            disabled
+                            aria-label="No row available"
+                          />
+                        </span>
+                        <span>{index + 1}</span>
+                        <span data-label="Campaign">—</span>
+                        <span data-label="Publish Date">—</span>
+                        <span data-label="Total Mails">—</span>
+                        <span data-label="Sent">—</span>
+                        <span data-label="Pending">—</span>
+                        <span data-label="Fail">—</span>
+                        <span data-label="Open">—</span>
+                        <span data-label="Bounce">—</span>
+                        <span data-label="Spam">—</span>
+                        <span className="premium-tag-stack" data-label="Tags">
+                          <em className="premium-table-empty-tag">No data</em>
+                        </span>
+                        <span className="premium-table-action-cell" data-label="Action">
+                          <button type="button" className="premium-row-action" disabled aria-label="No actions available">
+                            ⋮
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+              <div className="premium-table-footer">
+                <label className="premium-table-bulk">
                   <input
                     type="checkbox"
-                    checked={selectedRows.includes(campaign.id)}
-                    onChange={() => toggleRowSelection(campaign.id)}
-                    aria-label={`Select ${campaign.name}`}
+                    checked={paginatedCampaigns.length > 0 && selectedRows.length === paginatedCampaigns.length}
+                    onChange={toggleAllRows}
                   />
-                </span>
-                <span data-label="Sr. No.">{campaign.srNo}</span>
-                <span className="premium-table-campaign" data-label="Campaigns">
-                  <strong>{campaign.name}</strong>
-                  <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
-                  <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
-                </span>
-                <span data-label="Publish Date">{campaign.publishDate || '-'}</span>
-                <span data-label="Total Mails">{campaign.total}</span>
-                <span data-label="Sent">{campaign.sent}</span>
-                <span data-label="Pending">{campaign.pending}</span>
-                <span data-label="Fail">{campaign.failed}</span>
-                <span data-label="Open">{campaign.open}</span>
-                <span data-label="Bounce">{campaign.bounced}</span>
-                <span data-label="Spam">{campaign.spam}</span>
-                <span className="premium-tag-stack" data-label="Tags">
-                  {(campaign.tags || []).slice(0, 2).map((tag) => (
-                    <em key={tag}>{tag}</em>
-                  ))}
-                </span>
-                <span className="premium-table-action-cell" data-label="Action" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
+                  <span>Select all visible rows</span>
+                </label>
+                <div className="premium-table-pagination">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTablePage((page) => Math.max(1, page - 1))}
+                    disabled={currentTablePage === 1}
+                  >
+                    ‹ Back
+                  </button>
+                  {Array.from({ length: totalTablePages }, (_, index) => (
                     <button
+                      key={index + 1}
                       type="button"
-                      className="premium-row-action"
-                      onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
-                      aria-label={`Open actions for ${campaign.name}`}
+                      className={currentTablePage === index + 1 ? 'active' : ''}
+                      onClick={() => setCurrentTablePage(index + 1)}
                     >
-                    ⋮
+                      {index + 1}
                     </button>
-                  {openActionMenu === campaign.id ? (
-                    <div className="premium-row-action-menu">
-                      <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
-                      <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
-                      <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
-                      <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
-                      {String(campaign.tag || '').toLowerCase() === 'paused' ? (
-                        <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
-                      ) : null}
-                      <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
-                    </div>
-                  ) : null}
-                </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTablePage((page) => Math.min(totalTablePages, page + 1))}
+                    disabled={currentTablePage === totalTablePages}
+                  >
+                    Next ›
+                  </button>
+                </div>
               </div>
-            ))}
-            {filteredCampaigns.length === 0 ? (
-              <div className="premium-table-empty">
-                <p>No running or matching campaigns were found for the current filter.</p>
-              </div>
-            ) : null}
-          </div>
-          <div className="premium-table-footer">
-            <label className="premium-table-bulk">
-              <input
-                type="checkbox"
-                checked={paginatedCampaigns.length > 0 && selectedRows.length === paginatedCampaigns.length}
-                onChange={toggleAllRows}
-              />
-              <span>Select all visible rows</span>
-            </label>
-            <div className="premium-table-pagination">
-              <button
-                type="button"
-                onClick={() => setCurrentTablePage((page) => Math.max(1, page - 1))}
-                disabled={currentTablePage === 1}
-              >
-                ‹ Back
-              </button>
-              {Array.from({ length: totalTablePages }, (_, index) => (
-                <button
-                  key={index + 1}
-                  type="button"
-                  className={currentTablePage === index + 1 ? 'active' : ''}
-                  onClick={() => setCurrentTablePage(index + 1)}
-                >
-                  {index + 1}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setCurrentTablePage((page) => Math.min(totalTablePages, page + 1))}
-                disabled={currentTablePage === totalTablePages}
-              >
-                Next ›
-              </button>
-            </div>
-          </div>
           </>
           ) : null}
         </section>
@@ -1450,41 +2206,86 @@ export default function PremiumDashboardShell({
             <div className="premium-logs-split-column">
               <div className="premium-panel-head">
                 <h3>Activity Timeline</h3>
-                <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('timeline', setShowTimelinePopup)(event)}>
-                  See All
-                </button>
+                <div className="premium-panel-head-actions">
+                  <button type="button" className="ghost" onClick={() => setShowTimelineAddPopup(true)}>
+                    Add Task
+                  </button>
+                  <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('timeline', setShowTimelinePopup)(event)}>
+                    See All
+                  </button>
+                </div>
+              </div>
+              <div className="premium-timeline-summary">
+                <strong>{inlineTimelineCards.length} tasks remaining</strong>
+                <span>Showing the next pending items only.</span>
               </div>
               <div className="premium-timeline-stack">
-                {timelineCards.map((item, index) => (
-                  <TimelineItem key={`${item.date}-${index}`} item={item} />
+                {Object.entries(
+                  inlineTimelineCards.reduce((groups, item, index) => {
+                    const label = timelineDateLabel(item.date);
+                    if (!groups[label]) groups[label] = [];
+                    groups[label].push({ item, index });
+                    return groups;
+                  }, {})
+                ).map(([label, entries]) => (
+                  <div key={label} className="premium-timeline-group">
+                    <div className="premium-timeline-divider">{label}</div>
+                    {entries.map(({ item, index }) => (
+                      <TimelineItem
+                        key={item.id || `${item.date}-${index}`}
+                        item={item}
+                        checked={Boolean(timelineCompletionMap[item.id || `${item.date}-${index}`])}
+                        onToggle={(checked) => {
+                          const key = item.id || `${item.date}-${index}`;
+                          setTimelineCompletionMap((current) => {
+                            const next = { ...current, [key]: checked };
+                            onTimelineTaskStatesChange?.(next);
+                            return next;
+                          });
+                        }}
+                        onOpen={() => {
+                          setSelectedTimelineTask(item);
+                          setShowTimelinePopup(true);
+                        }}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
 
             <div className="premium-logs-split-column">
-              <div className="premium-panel-head">
-                <h3>Logs</h3>
-                <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                  See All
-                </button>
-              </div>
-              <div className="premium-logs-stack">
-                {logs.slice(0, 3).map((log, index) => (
-                  <LogItem key={`${log.time}-${index}`} item={log} />
-                ))}
+                <div className="premium-panel-head">
+                  <h3>Activity Feed</h3>
+                  <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
+                    See All
+                  </button>
+                </div>
+                <div className="premium-logs-stack">
+                  {Object.entries(logPopupGroups).map(([label, items]) => {
+                    const firstItem = items[items.length - 1];
+                    if (!firstItem) return null;
+                    return (
+                      <div key={label} className="premium-logs-preview-group">
+                        <div className="premium-log-preview-label">{label}</div>
+                        <LogItem item={firstItem} />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
 
-      {showCalendarPopup ? (
+      {renderPortalPopup(
+        showCalendarPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowCalendarPopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('calendar')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>Events on {selectedDate.toLocaleDateString('en-GB')}</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowCalendarPopup(false)}>
-                × Close
+                ×
               </button>
             </div>
             <div className="premium-calendar-modal-list">
@@ -1499,9 +2300,10 @@ export default function PremiumDashboardShell({
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showDayPopup ? (
+      {renderPortalPopup(
+        showDayPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDayPopup(false)}>
           <div className="premium-calendar-modal premium-day-modal" style={popupStyleFor('day')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
@@ -1510,7 +2312,7 @@ export default function PremiumDashboardShell({
                 <p>Daily activity, events, and quick actions for this date.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowDayPopup(false)}>
-                × Close
+                ×
               </button>
             </div>
             <div className="premium-day-modal-summary">
@@ -1598,19 +2400,20 @@ export default function PremiumDashboardShell({
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showNotificationsPopup ? (
+      {renderPortalPopup(
+        showNotificationsPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotificationsPopup(false)}>
-          <div className="premium-calendar-modal" style={popupStyleFor('notifications')} onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-notifications-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
-              <h3>Reply Notifications</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>× Close</button>
+              <h3>Inbox Preview</h3>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>×</button>
             </div>
             <div className="premium-calendar-modal-list">
               {replyNotificationCards.length ? (
                 replyNotificationCards.map((item, index) => (
-                  <NotificationItem key={`${item.name}-popup-${index}`} item={item} />
+                  <NotificationItem key={`${item.name}-popup-${index}`} item={item} onClick={() => openInboxMail(item)} />
                 ))
               ) : (
                 <div className="premium-empty-state">No reply notifications yet.</div>
@@ -1618,69 +2421,240 @@ export default function PremiumDashboardShell({
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showNotesPopup ? (
+      {renderPortalPopup(
+        showNotesPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotesPopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('notes')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
-              <h3>All Quick Notes</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>× Close</button>
+              <div>
+                <span className="premium-section-kicker">Notes</span>
+                <h3>All Quick Notes</h3>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>×</button>
             </div>
             <div className="premium-calendar-modal-list">
-              {quickNotes.map((item) => (
-                <QuickNoteItem key={`${item.id}-popup`} item={item} />
-              ))}
+              {quickNotes.length ? (
+                quickNotes.map((item) => (
+                  <QuickNoteItem key={`${item.id}-popup`} item={item} />
+                ))
+              ) : (
+                <div className="premium-empty-state premium-note-empty-state">
+                  <strong>No notes yet.</strong>
+                  <p>Write a short reminder in the note box to pin it here.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showTimelinePopup ? (
+      {renderPortalPopup(
+        showTimelinePopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTimelinePopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <h3>All Activity Timeline Events</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>× Close</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>×</button>
             </div>
             <div className="premium-calendar-modal-list">
-              {timelineCards.map((item, index) => (
-                <TimelineItem key={`${item.date}-popup-${index}`} item={item} />
+              {selectedTimelineTask ? (
+                <div className="premium-timeline-detail-card">
+                  <span className="premium-timeline-detail-kicker">Selected Task</span>
+                  <strong>{selectedTimelineTask.title}</strong>
+                  <p>{selectedTimelineTask.text}</p>
+                  <small>
+                    {selectedTimelineTask.date}
+                    {selectedTimelineTask.time ? ` • ${selectedTimelineTask.time}` : ''}
+                  </small>
+                </div>
+              ) : null}
+              {Object.entries(timelinePopupGroups).map(([label, items]) => (
+                <div key={label} className="premium-timeline-group">
+                  <div className="premium-timeline-divider">
+                    <span>{label}</span>
+                    {label === 'Completed' ? (
+                      <button
+                        type="button"
+                        className="premium-timeline-group-toggle"
+                        onClick={() => setShowCompletedTimelineGroup((value) => !value)}
+                      >
+                        {showCompletedTimelineGroup ? 'Hide' : `Show (${items.length})`}
+                      </button>
+                    ) : null}
+                  </div>
+                  {label === 'Completed' && !showCompletedTimelineGroup ? null : items.map((item, index) => (
+                    <TimelineItem
+                      key={item.id || `${item.date}-popup-${index}`}
+                      item={item}
+                      checked={Boolean(timelineCompletionMap[item.id || `${item.date}-${index}`])}
+                      onToggle={(checked) => {
+                        const key = item.id || `${item.date}-${index}`;
+                        setTimelineCompletionMap((current) => {
+                          const next = { ...current, [key]: checked };
+                          onTimelineTaskStatesChange?.(next);
+                          return next;
+                        });
+                      }}
+                      onOpen={() => setSelectedTimelineTask(item)}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showLogsPopup ? (
-        <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
-          <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
+      {renderPortalPopup(
+        showTimelineAddPopup,
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowTimelineAddPopup(false)}>
+          <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
-              <h3>All Dashboard Logs</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>× Close</button>
+              <h3>Add Timeline Task</h3>
+              <button type="button" className="ghost subtle" onClick={() => setShowTimelineAddPopup(false)}>×</button>
             </div>
-            <div className="premium-calendar-modal-list">
-              {logs.map((log, index) => (
-                <LogItem key={`${log.time}-popup-${index}`} item={log} detailed />
-              ))}
+            <div className="premium-timeline-add-form">
+                <input
+                  type="text"
+                  ref={timelineTaskTitleRef}
+                  value={timelineTaskDraft.title}
+                  onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Task title"
+                />
+              <div className="premium-timeline-add-grid">
+                <input
+                  type="date"
+                  value={timelineTaskDraft.date}
+                  onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, date: event.target.value }))}
+                />
+                <input
+                  type="time"
+                  value={timelineTaskDraft.time}
+                  onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, time: event.target.value }))}
+                />
+              </div>
+              <div className="premium-timeline-add-grid">
+                  <select
+                    value={timelineTaskDraft.type}
+                    onChange={(event) => {
+                      const nextType = event.target.value;
+                      const defaults = buildTimelineDraftDefaults(nextType, timelineTaskDraft.time);
+                      setTimelineTaskDraft((current) => ({
+                        ...current,
+                        type: nextType,
+                        title: defaults.title,
+                        text: defaults.text
+                      }));
+                    }}
+                  >
+                    <option value="Reminder">Reminder</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Appointment">Appointment</option>
+                  </select>
+                <input
+                  type="text"
+                  value={timelineTaskDraft.text}
+                  onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, text: event.target.value }))}
+                  placeholder="Task note"
+                />
+              </div>
+              <div className="premium-timeline-add-actions">
+                <button
+                  type="button"
+                  className="ghost subtle"
+                  onClick={() => setShowTimelineAddPopup(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    const title = String(timelineTaskDraft.title || '').trim();
+                    const date = String(timelineTaskDraft.date || '').trim();
+                    if (!title || !date) return;
+                    const nextTask = {
+                      id: `custom-${Date.now()}`,
+                      date,
+                      time: String(timelineTaskDraft.time || '').trim(),
+                      title,
+                      text: String(timelineTaskDraft.text || '').trim() || 'Planned for your timeline.',
+                      type: String(timelineTaskDraft.type || 'Reminder').trim() || 'Reminder',
+                      status: 'pending',
+                      done: false
+                    };
+                    onTimelineCustomTaskAdd?.(nextTask);
+                    setTimelineTaskDraft({ title: '', date: '', time: '', type: 'Reminder', text: '' });
+                    setSelectedTimelineTask(nextTask);
+                    setShowTimelineAddPopup(false);
+                    setShowTimelinePopup(true);
+                  }}
+                >
+                  Add Task
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showClientListPopup ? (
+      {renderPortalPopup(
+        showLogsPopup,
+          <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
+            <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
+              <div className="premium-panel-head">
+                <h3>System Monitor</h3>
+                <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>×</button>
+              </div>
+              <div className="premium-calendar-modal-list">
+                {Object.entries(logPopupGroups).map(([label, items]) => (
+                  <div key={label} className="premium-timeline-group">
+                    <div className="premium-timeline-divider">
+                      <span>{label}</span>
+                      <small>{items.length} item{items.length === 1 ? '' : 's'}</small>
+                    </div>
+                    <div className="premium-calendar-modal-section">
+                      {items.map((log, index) => (
+                        <LogItem key={`${label}-${log.time}-${index}`} item={log} detailed />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+      {renderPortalPopup(
+        showClientListPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
-          <div className="premium-calendar-modal premium-clientlist-modal" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-clientlist-modal premium-clientlist-modal-fit" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-clientlist-head premium-review-head">
               <div>
                 <span className="premium-popup-step-badge">1</span>
-                <h3>Add Client List</h3>
+                <h3>Upload List</h3>
                 <p>Upload a new list or select from your existing lists.</p>
+                <small className="premium-clientlist-stepcopy">Step 1 of 7</small>
               </div>
-              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>× Close</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>×</button>
             </div>
 
-            <div className="premium-clientlist-step">Client List</div>
+            <div className="premium-clientlist-summary">
+              <div>
+                <span>Current file</span>
+                <strong>{selectedListName || clientListName || 'No file selected yet'}</strong>
+              </div>
+              <div>
+                <span>Next step</span>
+                <strong>Review List</strong>
+              </div>
+              <div>
+                <span>Target use</span>
+                <strong>Upload once, review once</strong>
+              </div>
+            </div>
 
             <div className="premium-clientlist-tabs">
               <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
@@ -1696,6 +2670,10 @@ export default function PremiumDashboardShell({
 
             {clientListTab === 'upload' ? (
               <div className="premium-clientlist-body">
+                <div className="premium-clientlist-section-copy">
+                  <strong>Upload a client list</strong>
+                  <p>Choose one file, name it, then continue to the review step.</p>
+                </div>
                 <input
                   type="file"
                   accept=".xlsx,.csv"
@@ -1731,7 +2709,7 @@ export default function PremiumDashboardShell({
               <div className="premium-clientlist-body">
                 <div className="premium-clientlist-section-copy">
                   <strong>Select from uploaded files</strong>
-                  <p>Choose a file youÃ¢â‚¬â„¢ve already uploaded.</p>
+                  <p>Choose a file you&apos;ve already uploaded.</p>
                 </div>
                 <div className="premium-clientlist-list">
                   {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
@@ -1750,7 +2728,12 @@ export default function PremiumDashboardShell({
                         <p>{item.meta}</p>
                       </div>
                     </label>
-                  )) : <p style={{ margin: 0, color: 'var(--muted)' }}>No uploaded lists yet. Upload a file first.</p>}
+                  )) : (
+                    <div className="premium-clientlist-empty">
+                      <strong>No uploaded lists yet.</strong>
+                      <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1774,51 +2757,66 @@ export default function PremiumDashboardShell({
                         }}
                       />
                       <div>
-                        <strong>{item.title}</strong>
+                        <div className="premium-clientlist-item-title">
+                          <strong>{item.title}</strong>
+                          <span className="premium-clientlist-kind-badge">Custom</span>
+                        </div>
                         <p>{item.meta}</p>
+                        <small className="premium-clientlist-item-detail">
+                          {item.uploadedAt ? `Saved ${item.uploadedAt}` : 'Saved custom list'}
+                          {item.sourceFile ? ` • File: ${item.sourceFile}` : ''}
+                        </small>
                       </div>
                     </label>
-                  )) : <p style={{ margin: 0, color: 'var(--muted)' }}>No saved client lists are available yet.</p>}
+                  )) : (
+                    <div className="premium-clientlist-empty">
+                      <strong>No saved client lists yet.</strong>
+                      <p>Your stored files will show up here with their details and contact count.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
 
             <div className="premium-clientlist-actions">
-              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>×</button>
-              <button type="button" className="premium-step-skip" onClick={handleClientListNext}>
-                Skip
-              </button>
-              <button type="button" className="premium-clientlist-next" onClick={handleClientListNext} disabled={!canContinueClientList}>
-                Next
-              </button>
-            </div>
-            <div className="premium-popup-primary-row">
-              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>Back</button>
-              <button type="button" className="premium-template-next" onClick={handleClientListNext} disabled={!canContinueClientList}>
-                Continue to Overview Data
+              <button
+                type="button"
+                className={`premium-template-next${selectedListId || selectedUploadedList || selectedCustomList ? '' : ' is-disabled'}`}
+                onClick={handleClientListNext}
+              >
+                {selectedListId || selectedUploadedList || selectedCustomList ? 'Continue' : 'Select required list first'}
               </button>
             </div>
+            {showClientListSelectionNote ? (
+              <p className="premium-review-inline-note premium-review-inline-note-warning">
+                No file selected or uploaded yet. Please select a list first, then continue.
+              </p>
+            ) : null}
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showOverviewPopup ? (
+      {renderPortalPopup(
+        showOverviewPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowOverviewPopup(false)}>
           <div className="premium-calendar-modal premium-review-modal" style={popupStyleFor('overview')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-clientlist-head">
               <div>
                 <span className="premium-popup-step-badge">2</span>
-                <h3>Review Client List</h3>
+                <h3>Review List</h3>
                 <p>Check mappings, fix issues, and confirm the data before moving on.</p>
+                <small className="premium-review-stepcopy">Step 2 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowOverviewPopup(false)}>
-                Ãƒâ€”
+                ×
               </button>
             </div>
-
-            <div className="premium-clientlist-step">Step 2 Ã¢â‚¬â€ Overview Data</div>
-
             <div className="premium-review-body">
+              {showProceedWithoutListNote ? (
+                <p className="premium-review-inline-note premium-review-inline-note-warning">
+                  Proceeding without a client list. You can continue exploring the workflow and choose a list later.
+                </p>
+              ) : null}
               <div className="premium-review-summary">
                 {summaryStats.map((item) => (
                   <article key={item.label} className={`premium-review-stat ${item.label === 'Missing Values' ? 'alert' : ''}`}>
@@ -1845,7 +2843,7 @@ export default function PremiumDashboardShell({
                     <div key={item.sheetColumn} className="premium-review-mapping-row">
                       <strong>{item.sheetColumn}</strong>
                       <div className={`premium-review-status ${item.status}`}>
-                        <span>{item.status === 'success' ? 'Ã¢Å“â€œ' : item.status === 'warning' ? '!' : 'Ãƒâ€”'}</span>
+                        <span>{item.status === 'success' ? '✓' : item.status === 'warning' ? '!' : '✕'}</span>
                         <select
                           value={item.mappedField}
                           onChange={(event) =>
@@ -2003,7 +3001,7 @@ export default function PremiumDashboardShell({
                   </div>
                   <div className="error">
                     <div>
-                      <span>Ãƒâ€”</span>
+                      <span>✕</span>
                       <p>{overviewRows.filter((row) => rowIssues[row.id]?.includes('invalid')).length} invalid email formats found</p>
                     </div>
                     <button type="button" onClick={() => setOverviewFilter('errors')}>View</button>
@@ -2017,119 +3015,127 @@ export default function PremiumDashboardShell({
                 <button
                   type="button"
                   className="ghost subtle"
-                  onClick={() => {
-                    setShowOverviewPopup(false);
-                    setShowClientListPopup(true);
-                  }}
+                  onClick={handleOverviewBack}
                 >
                   Back
                 </button>
                 <button
                   type="button"
                   className="ghost subtle"
-                  onClick={() => {
-                    setShowOverviewPopup(false);
-                    setShowClientListPopup(true);
-                  }}
+                  onClick={handleOverviewReupload}
                 >
                   Re-upload
                 </button>
               </div>
+              {showOverviewNotice && !hasOverviewData ? (
+                <div className="premium-review-inline-note">
+                  No data yet. Please select or upload a client list before continuing.
+                </div>
+              ) : null}
               <button
                 type="button"
-                className="premium-clientlist-next"
-                onClick={() => {
-                  setShowOverviewPopup(false);
-                  setShowCampaignPopup(true);
-                }}
+                className={`ghost subtle${hasOverviewData ? '' : ' is-disabled'}`}
+                onClick={handleOverviewConfirm}
               >
-                Confirm & Continue
+                {hasOverviewData ? 'Continue' : 'Select required file first'}
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showSchedulePopup ? (
+      {renderPortalPopup(
+        showSchedulePopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowSchedulePopup(false)}>
           <div className="premium-calendar-modal premium-schedule-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-schedule-head">
               <div>
                 <span className="premium-popup-step-badge">7</span>
-                <h3>Schedule Sending</h3>
+                <h3>Schedule</h3>
                 <p>Configure your sending preferences.</p>
+                <small className="premium-schedule-stepcopy">Step 7 of 7</small>
               </div>
-              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>× Close</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>×</button>
             </div>
 
-            <div className="premium-schedule-mode">
-              <label>
-                <input
-                  type="radio"
-                  name="sendMode"
-                  checked={sendMode === 'now'}
-                  onChange={() => setSendMode('now')}
-                />
-                <span>Send now</span>
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="sendMode"
-                  checked={sendMode === 'scheduled'}
-                  onChange={() => setSendMode('scheduled')}
-                />
-                <span>Send at scheduled time</span>
-              </label>
-            </div>
+            <div className="premium-schedule-body">
+              <div className="premium-schedule-mode">
+                <label>
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === 'now'}
+                    onChange={() => setSendMode('now')}
+                  />
+                  <span>Send now</span>
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === 'scheduled'}
+                    onChange={() => setSendMode('scheduled')}
+                  />
+                  <span>Send at scheduled time</span>
+                </label>
+              </div>
 
-            <div className="premium-schedule-grid premium-schedule-grid-3">
-              <label className="premium-schedule-field">
-                <span>Batch size</span>
-                <input type="number" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
-              </label>
-              <label className="premium-schedule-field">
-                <span>Delay interval</span>
-                <input type="number" value={delaySeconds} onChange={(event) => onDelaySecondsChange?.(event.target.value)} />
-              </label>
-              <label className="premium-schedule-field">
-                <span>Duration unit</span>
-                <select value={durationUnit} onChange={(event) => setDurationUnit(event.target.value)}>
-                  <option>Minutes</option>
-                  <option>Hours</option>
-                  <option>Days</option>
-                </select>
-              </label>
-            </div>
+              <div className="premium-schedule-grid premium-schedule-grid-3">
+                <label className="premium-schedule-field">
+                  <span>Batch size</span>
+                  <input type="number" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
+                </label>
+                <label className="premium-schedule-field">
+                  <span>Delay interval</span>
+                  <input type="number" value={delaySeconds} onChange={(event) => onDelaySecondsChange?.(event.target.value)} />
+                </label>
+                <label className="premium-schedule-field">
+                  <span>Duration unit</span>
+                  <select value={durationUnit} onChange={(event) => setDurationUnit(event.target.value)}>
+                    <option>Minutes</option>
+                    <option>Hours</option>
+                    <option>Days</option>
+                  </select>
+                </label>
+              </div>
 
-            <div className="premium-schedule-grid premium-schedule-grid-2">
-              <label className="premium-schedule-field">
-                <span>Scheduled date</span>
-                <input type="date" value={scheduledDateValue} onChange={(event) => setScheduledDateValue(event.target.value)} />
-              </label>
-              <label className="premium-schedule-field">
-                <span>Scheduled time</span>
-                <input type="time" value={scheduledTimeValue} onChange={(event) => setScheduledTimeValue(event.target.value)} />
-              </label>
-            </div>
+              {sendMode === 'scheduled' ? (
+                <div className="premium-schedule-grid premium-schedule-grid-2">
+                  <label className="premium-schedule-field">
+                    <span>Scheduled date</span>
+                    <input type="date" value={scheduledDateValue} onChange={(event) => setScheduledDateValue(event.target.value)} />
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>Scheduled time</span>
+                    <input type="time" value={scheduledTimeValue} onChange={(event) => setScheduledTimeValue(event.target.value)} />
+                  </label>
+                </div>
+              ) : null}
 
-            <div className="premium-schedule-grid premium-schedule-grid-2">
-              <label className="premium-schedule-field">
-                <span>Country</span>
-                <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
-                  {Object.keys(scheduleCountries).map((country) => (
-                    <option key={country} value={country}>{country}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="premium-schedule-field">
-                <span>Time zone</span>
-                <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
-                  {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
-                    <option key={timezone} value={timezone}>{timezone}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="premium-schedule-grid premium-schedule-grid-2">
+                <label className="premium-schedule-field">
+                  <span>Country</span>
+                  <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
+                    {Object.keys(scheduleCountries).map((country) => (
+                      <option key={country} value={country}>{country}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="premium-schedule-field">
+                  <span>Time zone</span>
+                  <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
+                    {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
+                      <option key={timezone} value={timezone}>{timezone}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {showScheduleContinueWarning && !hasScheduleRequiredFields ? (
+                <p className="premium-select-draft-warning">
+                  {scheduleContinueHint}
+                </p>
+              ) : null}
             </div>
 
             <div className="premium-schedule-actions">
@@ -2145,35 +3151,49 @@ export default function PremiumDashboardShell({
               </button>
               <button
                 type="button"
-                className="premium-schedule-next"
-                onClick={() => {
+                className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
+                onClick={async () => {
+                  if (!hasScheduleRequiredFields) {
+                    setShowScheduleContinueWarning(true);
+                    onShowMessage?.(scheduleContinueHint, 'warning');
+                    return;
+                  }
                   if (sendMode === 'scheduled') {
                     onApplyManualScheduledSlot?.(scheduledTimeValue);
                   }
-                  onShowMessage?.('Final setup saved. Click START to begin sending the campaign.', 'success');
+                  onShowMessage?.('Schedule saved. You can start the campaign when ready.', 'success');
                   setShowSchedulePopup(false);
                 }}
+                disabled={!hasScheduleRequiredFields}
               >
-                Next
+                {hasScheduleRequiredFields ? 'Save Schedule' : 'Complete required details first'}
               </button>
-            </div>
-            <div className="premium-popup-primary-row">
-              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>Back</button>
-              <button type="button" className="premium-template-next" onClick={() => {
-                if (sendMode === 'scheduled') {
-                  onApplyManualScheduledSlot?.(scheduledTimeValue);
-                }
-                onStartCampaign?.();
-                setShowSchedulePopup(false);
-              }}>
-                Start Campaign
+              <button
+                type="button"
+                className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
+                onClick={async () => {
+                  if (!hasScheduleRequiredFields) {
+                    setShowScheduleContinueWarning(true);
+                    onShowMessage?.(scheduleContinueHint, 'warning');
+                    return;
+                  }
+                  if (sendMode === 'scheduled') {
+                    onApplyManualScheduledSlot?.(scheduledTimeValue);
+                  }
+                  onStartCampaign?.({ schedule: sendMode === 'scheduled', startAfterSchedule: true });
+                  setShowSchedulePopup(false);
+                }}
+                disabled={!hasScheduleRequiredFields}
+              >
+                {hasScheduleRequiredFields ? 'START' : 'Complete required details first'}
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showCampaignPopup ? (
+      {renderPortalPopup(
+        showCampaignPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowCampaignPopup(false)}>
           <div className="premium-calendar-modal premium-campaign-modal" style={popupStyleFor('campaign')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-campaign-head">
@@ -2181,14 +3201,15 @@ export default function PremiumDashboardShell({
                 <span className="premium-popup-step-badge">3</span>
                 <h3>Create Campaign</h3>
                 <p>Name the campaign, choose the sender, and set the tracking options.</p>
+                <small className="premium-campaign-stepcopy">Step 3 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowCampaignPopup(false)}>
-                X
+                ×
               </button>
             </div>
 
             <div className="premium-campaign-body">
-              <label className="premium-campaign-field">
+              <label className="premium-campaign-field premium-campaign-name-field">
                 <span>Campaign Name *</span>
                 <input
                   type="text"
@@ -2207,7 +3228,7 @@ export default function PremiumDashboardShell({
                       className="premium-campaign-tag"
                       onClick={() => removeCampaignTag(tag)}
                     >
-                      {tag} <i>X</i>
+                      {tag} <i>×</i>
                     </button>
                   ))}
                   <input
@@ -2225,7 +3246,7 @@ export default function PremiumDashboardShell({
                 </div>
               </div>
 
-              <label className="premium-campaign-field">
+              <label className="premium-campaign-field premium-campaign-description-field">
                 <span>Description (optional)</span>
                 <textarea
                   value={campaignDescription}
@@ -2264,7 +3285,7 @@ export default function PremiumDashboardShell({
                 <label className="premium-campaign-field">
                   <span>Folder</span>
                   <select value={campaignFolder} onChange={(event) => setCampaignFolder(event.target.value)}>
-                    <option value="">Active Campaigns</option>
+                    <option value="">Active</option>
                   </select>
                 </label>
               </div>
@@ -2304,6 +3325,25 @@ export default function PremiumDashboardShell({
                   </button>
                 </div>
               </div>
+
+              <div className="premium-campaign-tracking-summary">
+                <span
+                  className={`master ${campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies ? 'active' : ''}`}
+                >
+                  Tracking {campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies ? 'On' : 'Off'}
+                </span>
+                {[
+                  ['Opens', campaignTracking.opens],
+                  ['Clicks', campaignTracking.clicks],
+                  ['Replies', campaignTracking.replies],
+                  ['A/B Testing', campaignAbTesting]
+                ].map(([label, enabled]) => (
+                  <span key={label} className={enabled ? 'active' : ''}>
+                    {label} {enabled ? 'On' : 'Off'}
+                  </span>
+                ))}
+              </div>
+
             </div>
 
             <div className="premium-campaign-actions">
@@ -2317,43 +3357,56 @@ export default function PremiumDashboardShell({
               >
                 Back
               </button>
-              <button type="button" className="premium-campaign-draft ghost subtle" onClick={() => onCreateCampaign?.()}>
-                Save Draft
-              </button>
               <button
                 type="button"
-                className="premium-campaign-next"
-                onClick={() => {
-                  onCreateCampaign?.();
-                  setShowCampaignPopup(false);
-                  setShowSelectDraftPopup(true);
-                }}
+                className={`premium-campaign-next${hasCampaignRequiredFields ? '' : ' is-disabled'}`}
+                onClick={handleCampaignContinue}
               >
-                Save & Continue
+                {hasCampaignRequiredFields ? 'Continue' : 'Complete required details first'}
               </button>
             </div>
-            <p className="premium-campaign-hint">
-              Saving the campaign keeps your setup ready. Mail sending begins only when you click <strong>START</strong> on the final step.
-            </p>
+            {showCampaignNotice && !hasCampaignRequiredFields ? (
+              <p className="premium-campaign-hint premium-campaign-hint-warning">
+                {campaignMissingFields.map((field) => (
+                  <span key={field} className="premium-campaign-warning-item">
+                    • {field}
+                  </span>
+                ))}
+              </p>
+            ) : (
+              <p className="premium-campaign-hint">
+                Saving the campaign keeps your setup ready. Mail sending begins only when you click <strong>START</strong> on the final step.
+              </p>
+            )}
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showSelectDraftPopup ? (
+      {renderPortalPopup(
+        showSelectDraftPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowSelectDraftPopup(false)}>
-          <div className="premium-calendar-modal premium-select-draft-modal" style={popupStyleFor('selectDraft')} onClick={(event) => event.stopPropagation()}>
+          <div
+            className="premium-calendar-modal premium-select-draft-modal"
+            style={{
+              ...popupStyleFor('selectDraft'),
+              minHeight: 'min(86vh, 860px)',
+              background: 'transparent'
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="premium-select-draft-head">
               <div>
                 <span className="premium-popup-step-badge">4</span>
-                <h3>Select Email Draft</h3>
+                <h3>Select Draft</h3>
                 <p>Choose an existing draft or create a new one</p>
+                <small className="premium-select-draft-stepcopy">Step 4 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowSelectDraftPopup(false)}>
-                X
+                ×
               </button>
             </div>
 
-            <div className="premium-select-draft-tabs">
+            <div className="premium-select-draft-tabs" style={{ background: 'transparent' }}>
               <button
                 type="button"
                 className={selectDraftTab === 'my-drafts' ? 'active' : ''}
@@ -2380,10 +3433,13 @@ export default function PremiumDashboardShell({
                   <div className="premium-select-draft-dropdown">
                     {draftTypeItems.map((item) => (
                       <button
-                        key={item.value}
+                        key={item.value || 'all'}
                         type="button"
                         className={selectedDraftType === item.value ? 'active' : ''}
-                        onClick={() => handleDraftTypeSelectFromDropdown(item.value)}
+                        onClick={() => {
+                          onSelectedDraftTypeChange?.(item.value);
+                          setShowDraftTypeDropdown(false);
+                        }}
                       >
                         {item.label}
                       </button>
@@ -2395,24 +3451,31 @@ export default function PremiumDashboardShell({
 
             {selectDraftTab === 'my-drafts' ? (
               <div className="premium-select-draft-list">
-                {filteredSavedDrafts.map((draft) => (
-                  <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="savedDraft"
-                      checked={activeDraftId === draft.id || selectedDraftId === draft.id}
-                      onChange={() => {
-                        setSelectedDraftId(draft.id);
-                        onSelectSavedDraft?.(draft.id);
-                      }}
-                    />
-                    <div>
-                      <strong>{draft.title}</strong>
-                      <p>Subject: {draft.subject}</p>
-                      <small>{draft.updated}</small>
-                    </div>
-                  </label>
-                ))}
+                {filteredSavedDrafts.length ? (
+                  filteredSavedDrafts.map((draft) => (
+                    <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="savedDraft"
+                        checked={activeDraftId === draft.id || selectedDraftId === draft.id}
+                        onChange={() => {
+                          setSelectedDraftId(draft.id);
+                          onSelectSavedDraft?.(draft.id);
+                        }}
+                      />
+                      <div>
+                        <strong>{draft.title}</strong>
+                        <p>Subject: {draft.subject}</p>
+                        <small>{draft.updated}</small>
+                      </div>
+                    </label>
+                  ))
+                ) : (
+                  <div className="premium-select-draft-empty">
+                    <strong>No saved drafts yet</strong>
+                    <p>Create a new draft or save one from the workflow to see it here.</p>
+                  </div>
+                )}
 
               </div>
             ) : (
@@ -2462,38 +3525,6 @@ export default function PremiumDashboardShell({
               </div>
             )}
 
-            <div className="premium-select-draft-actions">
-              <div className="premium-select-draft-actions-left">
-                <button
-                  type="button"
-                  className="ghost subtle"
-                  onClick={() => {
-                    setShowSelectDraftPopup(false);
-                    setShowCampaignPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-                <button type="button" className="ghost subtle" onClick={() => setShowSelectDraftPopup(false)}>
-                  Cancel
-                </button>
-              </div>
-              <div className="premium-select-draft-actions-right">
-                <button type="button" className="premium-select-draft-save" onClick={() => onSaveDraft?.()}>
-                  Save Draft
-                </button>
-                <button
-                  type="button"
-                  className="premium-select-draft-next"
-                  onClick={() => {
-                    setShowSelectDraftPopup(false);
-                    setShowDraftSummaryPopup(true);
-                  }}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
             <div className="premium-popup-primary-row">
               <button
                 type="button"
@@ -2507,33 +3538,47 @@ export default function PremiumDashboardShell({
               </button>
               <button
                 type="button"
-                className="premium-template-next"
-                onClick={() => {
+                className={`premium-template-next${hasDraftRequiredFields ? '' : ' is-disabled'}`}
+                onClick={async () => {
+                  if (!hasDraftRequiredFields) {
+                    setShowDraftContinueWarning(true);
+                    onShowMessage?.(draftContinueHint, 'warning');
+                    return;
+                  }
+                  setShowDraftContinueWarning(false);
                   setShowSelectDraftPopup(false);
                   setShowDraftSummaryPopup(true);
                 }}
+                disabled={!hasDraftRequiredFields}
               >
-                Continue to Draft Overview
+                {hasDraftRequiredFields ? 'Continue' : 'Select required draft first'}
               </button>
             </div>
+            {showDraftContinueWarning && !hasDraftRequiredFields ? (
+              <p className="premium-select-draft-warning">
+                {draftContinueHint}
+              </p>
+            ) : null}
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showTestEmailPopup ? (
+      {renderPortalPopup(
+        showTestEmailPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTestEmailPopup(false)}>
           <div className="premium-calendar-modal premium-test-email-modal" style={popupStyleFor('testEmail')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-test-email-head">
               <div>
                 <span className="premium-popup-step-badge">6</span>
                 <div className="premium-test-email-title">
-                  <h3>Test Your Email</h3>
+                  <h3>Test Email</h3>
                   <span>Optional</span>
                 </div>
                 <p>Send a test email to preview how it will look in inbox.</p>
+                <small className="premium-test-email-stepcopy">Step 6 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowTestEmailPopup(false)}>
-                X
+                ×
               </button>
             </div>
 
@@ -2550,14 +3595,14 @@ export default function PremiumDashboardShell({
                       className={testPreviewMode === 'mobile' ? 'active' : ''}
                       onClick={() => setTestPreviewMode('mobile')}
                     >
-                      Ã°Å¸â€œÂ±
+                      📱
                     </button>
                     <button
                       type="button"
                       className={testPreviewMode === 'desktop' ? 'active' : ''}
                       onClick={() => setTestPreviewMode('desktop')}
                     >
-                      Ã°Å¸â€“Â¥
+                      🖥
                     </button>
                   </div>
                 </div>
@@ -2596,7 +3641,7 @@ export default function PremiumDashboardShell({
 
               {testEmailSent ? (
                 <div className="premium-test-email-success">
-                  <span>Ã¢Å“â€</span>
+                  <span>✔</span>
                   <p>Test email sent successfully! Check your inbox.</p>
                 </div>
               ) : null}
@@ -2611,31 +3656,6 @@ export default function PremiumDashboardShell({
               </label>
             </div>
 
-            <div className="premium-test-email-actions">
-              <button
-                type="button"
-                className="ghost subtle"
-                onClick={() => {
-                  setShowTestEmailPopup(false);
-                  setShowDraftSummaryPopup(true);
-                }}
-              >
-                Back
-              </button>
-              <button type="button" className="premium-test-email-skip" onClick={() => setShowTestEmailPopup(false)}>
-                Skip this step
-              </button>
-              <button
-                type="button"
-                className="premium-test-email-next"
-                onClick={() => {
-                  setShowTestEmailPopup(false);
-                  setShowSchedulePopup(true);
-                }}
-              >
-                Continue
-              </button>
-            </div>
             <div className="premium-popup-primary-row">
               <button
                 type="button"
@@ -2650,52 +3670,54 @@ export default function PremiumDashboardShell({
               <button
                 type="button"
                 className="premium-template-next"
-                onClick={() => {
+                onClick={async () => {
                   setShowTestEmailPopup(false);
                   setShowSchedulePopup(true);
                 }}
               >
-                Continue to Schedule
+                Continue
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {showDraftSummaryPopup ? (
+      {renderPortalPopup(
+        showDraftSummaryPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
           <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-template-head">
               <span className="premium-popup-step-badge">5</span>
-              <h3>Setup Email Template</h3>
+              <h3>Summary</h3>
               <p>Write your subject and message, then save it as a reusable draft.</p>
+              <small className="premium-template-stepcopy">Step 5 of 7</small>
             </div>
 
-            <label className="premium-template-field">
-              <span>Subject</span>
-              <input
-                type="text"
-                value={effectiveDraftSubject}
-                onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
-                placeholder="Effortless Email Sending for Your Lists Ã¢â‚¬â€œ No Compromises"
-              />
-            </label>
+            <div className="premium-template-body">
+              <label className="premium-template-field">
+                <span>Subject</span>
+                <input
+                  type="text"
+                  value={effectiveDraftSubject}
+                  onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
+                  placeholder="Effortless Email Sending for Your Lists - No Compromises"
+                />
+              </label>
 
-            <div className="premium-template-field premium-template-message-head">
-              <span>Message</span>
-            </div>
-            <div className="premium-template-editor">
-              <RichTextEditor
-                value={effectiveDraftMessage}
-                onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}
-                placeholder="Write your template message..."
-              />
-            </div>
+              <div className="premium-template-field premium-template-message-head">
+                <span>Message</span>
+              </div>
+              <div className="premium-template-editor">
+                <RichTextEditor
+                  value={effectiveDraftMessage}
+                  onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}
+                  placeholder="Write your template message..."
+                />
+              </div>
 
+            </div>
             <div className="premium-template-actions">
-              <button type="button" className="premium-template-save" onClick={() => onSaveDraft?.()}>
-                Save Template
-              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>×</button>
               <button
                 type="button"
                 className="ghost subtle"
@@ -2709,26 +3731,28 @@ export default function PremiumDashboardShell({
               <button
                 type="button"
                 className="premium-template-next"
-                onClick={() => {
+                onClick={async () => {
+                  const hasSummaryRequiredFields =
+                    Boolean(String(effectiveDraftSubject || '').trim()) &&
+                    Boolean(String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim());
+                  if (!hasSummaryRequiredFields) {
+                    onShowMessage?.('Complete required details first.', 'warning');
+                    return;
+                  }
                   setShowDraftSummaryPopup(false);
                   setShowTestEmailPopup(true);
                 }}
               >
-                Next
-              </button>
-            </div>
-            <div className="premium-popup-primary-row">
-              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>Back</button>
-              <button type="button" className="premium-template-next" onClick={() => {
-                setShowDraftSummaryPopup(false);
-                setShowTestEmailPopup(true);
-              }}>
-                Continue to Test Mail
+                {String(effectiveDraftSubject || '').trim() && String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim()
+                  ? 'Continue'
+                  : 'Complete required details first'}
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
+
+

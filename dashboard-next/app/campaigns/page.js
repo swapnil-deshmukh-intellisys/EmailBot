@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
@@ -16,6 +16,16 @@ const badgeToneMap = {
   Completed: 'success',
   Failed: 'danger'
 };
+
+const CAMPAIGNS_PAGE_WORKFLOW_STEPS = [
+  { index: 1, icon: '^', title: 'Upload List', label: 'Upload List', action: 'Next', chip: 'upload' },
+  { index: 2, icon: '[]', title: 'Review List', label: 'Review List', action: 'Review', chip: 'review' },
+  { index: 3, icon: '*', title: 'Campaign', label: 'Campaign', action: 'Next', chip: 'campaign' },
+  { index: 4, icon: '[]', title: 'Select Draft', label: 'Select Draft', action: 'Drafts', chip: 'draft' },
+  { index: 5, icon: '#', title: 'Draft Summary', label: 'Summary', action: 'Next', chip: 'summary' },
+  { index: 6, icon: '@', title: 'Test Email', label: 'Test', action: 'Next', chip: 'test' },
+  { index: 7, icon: 'T', title: 'Schedule Sending', label: 'Schedule', action: 'Schedule', chip: 'schedule' }
+];
 
 function formatDateTime(value) {
   if (!value) return '-';
@@ -36,10 +46,25 @@ function getCampaignAudience(campaign) {
   return `${Number(campaign?.stats?.total || 0)} contacts`;
 }
 
+function getWorkflowStepLabel(campaign) {
+  const step = Number(campaign?.workflowStep || 1);
+  const savedLabel = String(campaign?.workflowStepLabel || '').trim();
+  if (savedLabel) return savedLabel;
+  if (step === 2) return 'Overview';
+  if (step === 3) return 'Campaign';
+  if (step === 4) return 'Draft';
+  if (step === 5) return 'Summary';
+  if (step === 6) return 'Test';
+  if (step >= 7) return 'Schedule';
+  return `Step ${step}`;
+}
+
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [campaignsWorkflowCurrentStep, setCampaignsWorkflowCurrentStep] = useState(1);
+  const [libraryFilter, setLibraryFilter] = useState('all');
 
   useEffect(() => {
     let active = true;
@@ -90,36 +115,83 @@ export default function CampaignsPage() {
     };
   }, []);
 
-  const activeCount = useMemo(
-    () => campaigns.filter((item) => ['Running', 'Scheduled'].includes(String(item?.status || ''))).length,
+  const liveCampaigns = useMemo(
+    () => campaigns.filter((item) => ['running', 'scheduled'].includes(String(item?.status || '').toLowerCase())),
     [campaigns]
   );
-  const pausedCount = useMemo(
-    () => campaigns.filter((item) => String(item?.status || '') === 'Paused').length,
+  const completedCampaigns = useMemo(
+    () => campaigns.filter((item) => String(item?.status || '').toLowerCase() === 'completed'),
     [campaigns]
   );
-  const sentToday = useMemo(
-    () => campaigns.reduce((sum, item) => sum + Number(item?.stats?.sent || 0), 0),
+  const pausedCampaigns = useMemo(
+    () => campaigns.filter((item) => String(item?.status || '').toLowerCase() === 'paused'),
     [campaigns]
   );
+  const draftIncompleteCampaigns = useMemo(
+    () => campaigns.filter((item) => ['draft', 'failed'].includes(String(item?.status || '').toLowerCase())),
+    [campaigns]
+  );
+  const totalCampaigns = useMemo(() => campaigns, [campaigns]);
 
-  const healthItems = useMemo(
+  const campaignBuckets = useMemo(
     () => [
-      { title: 'On Track', meta: `${campaigns.filter((item) => String(item?.status || '') === 'Running').length} campaigns are running now` },
-      { title: 'Needs Review', meta: `${campaigns.filter((item) => ['Paused', 'Failed'].includes(String(item?.status || ''))).length} campaigns need attention` },
-      { title: 'Queued Next', meta: `${campaigns.filter((item) => String(item?.status || '') === 'Scheduled').length} campaigns are waiting for launch` }
+      {
+        key: 'live',
+        label: 'Live',
+        description: 'Running and scheduled campaigns.',
+        tone: 'live',
+        items: liveCampaigns
+      },
+      {
+        key: 'complete',
+        label: 'Complete',
+        description: 'Campaigns that finished successfully.',
+        tone: 'complete',
+        items: completedCampaigns
+      },
+      {
+        key: 'draft-incomplete',
+        label: 'Draft/Incomplete',
+        description: 'Draft and failed campaigns that still need action.',
+        tone: 'draft',
+        items: draftIncompleteCampaigns
+      },
+      {
+        key: 'paused',
+        label: 'Paused',
+        description: 'Campaigns paused by user or system.',
+        tone: 'paused',
+        items: pausedCampaigns
+      },
+      {
+        key: 'total',
+        label: 'Total',
+        description: 'All campaigns from workflow and database.',
+        tone: 'total',
+        items: totalCampaigns
+      }
     ],
-    [campaigns]
+    [liveCampaigns, completedCampaigns, draftIncompleteCampaigns, pausedCampaigns, totalCampaigns]
   );
 
-  const activityItems = useMemo(
-    () =>
-      campaigns.slice(0, 3).map((item) => ({
-        title: item?.name || 'Campaign',
-        meta: `${item?.status || 'Draft'} | ${formatDateTime(item?.updatedAt || item?.createdAt)}`
-      })),
-    [campaigns]
+  const libraryFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All' },
+      { value: 'live', label: 'Live' },
+      { value: 'complete', label: 'Complete' },
+      { value: 'draft-incomplete', label: 'Draft/Incomplete' },
+      { value: 'paused', label: 'Paused' }
+    ],
+    []
   );
+
+  const filteredLibraryCampaigns = useMemo(() => {
+    if (libraryFilter === 'live') return liveCampaigns;
+    if (libraryFilter === 'complete') return completedCampaigns;
+    if (libraryFilter === 'draft-incomplete') return draftIncompleteCampaigns;
+    if (libraryFilter === 'paused') return pausedCampaigns;
+    return campaigns;
+  }, [libraryFilter, liveCampaigns, completedCampaigns, draftIncompleteCampaigns, pausedCampaigns, campaigns]);
 
   return (
     <AppLayout
@@ -135,149 +207,152 @@ export default function CampaignsPage() {
       }}
     >
       <PageContainer>
-        <PageSection
-          title="Overview"
-          description="See all campaigns from the database with live status and delivery counts."
-        >
-          <div className="client-data-stats">
-            {[
-              { label: 'All Campaigns', value: loading ? '...' : String(campaigns.length) },
-              { label: 'Active Campaigns', value: loading ? '...' : String(activeCount) },
-              { label: 'Paused', value: loading ? '...' : String(pausedCount) },
-              { label: 'Sent Total', value: loading ? '...' : String(sentToday) }
-            ].map((card) => (
-              <Card key={card.label} className="client-data-stat-card">
-                <CardContent>
-                  <span>{card.label}</span>
-                  <strong>{card.value}</strong>
-                </CardContent>
-              </Card>
-            ))}
+        <div className="campaigns-page-shell">
+          <div className="campaigns-page-hero">
+            <span className="campaigns-page-kicker">Live database view</span>
+            <h2>Campaign Overview</h2>
+            <p>Track launch timing, delivery status, draft resumes, and campaign health from one place.</p>
           </div>
-        </PageSection>
+          <PageSection
+            title="Overview"
+            description="See all campaigns from the database with live status and delivery counts."
+          >
+            <div className="client-data-stats">
+              {campaignBuckets.map((bucket) => (
+                <Card key={bucket.key} className="client-data-stat-card">
+                  <CardContent>
+                    <div className={`campaigns-bucket-jump campaigns-bucket-jump-${bucket.tone}`}>
+                      <span>{bucket.label}</span>
+                      <strong>{loading ? '...' : String(bucket.items.length)}</strong>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </PageSection>
 
-        <PageSection
-          title="Campaign Workspace"
-          description="All campaigns saved in the database are shown here and refresh automatically."
-        >
-          <div className="client-data-grid">
+          <section className="premium-stepper-shell">
+            <div
+              className="premium-stepper-row"
+              style={{
+                color: 'var(--text-primary)',
+                '--workflow-progress': Math.max(campaignsWorkflowCurrentStep - 1, 0)
+              }}
+            >
+              <div className="premium-workflow-title">
+                <h3>Campaign Workflow</h3>
+              </div>
+              {CAMPAIGNS_PAGE_WORKFLOW_STEPS.map((step) => {
+                const isCurrent = campaignsWorkflowCurrentStep === step.index;
+                const isCompleted = campaignsWorkflowCurrentStep > step.index;
+                return (
+                  <article
+                    key={`campaigns-workflow-step-${step.index}`}
+                    className={[
+                      'premium-step-card',
+                      `premium-step-tone-${step.index}`,
+                      `premium-step-action-${step.index}`,
+                      isCurrent ? 'is-current' : '',
+                      isCompleted ? 'is-completed' : ''
+                    ].join(' ').trim()}
+                  >
+                    <div className="premium-step-track">
+                      <span className="premium-step-index">{step.index}</span>
+                    </div>
+                    <strong>
+                      <span className="premium-step-title-icon">{step.icon}</span>
+                      <span>{step.title}</span>
+                    </strong>
+                    <span className={`premium-step-chip premium-step-chip-${step.chip}`}>{step.label}</span>
+                    <button type="button" onClick={() => setCampaignsWorkflowCurrentStep(step.index)}>
+                      {step.action}
+                    </button>
+                  </article>
+                );
+              })}
+              <button
+                type="button"
+                className="premium-stepper-start"
+                onClick={() => setCampaignsWorkflowCurrentStep(1)}
+                style={{
+                  color: '#ffffff',
+                  background: 'linear-gradient(180deg, #22c55e, #15803d)',
+                  border: '1px solid #166534'
+                }}
+              >
+                START
+              </button>
+            </div>
+          </section>
+
+          <PageSection
+            title="Campaign Library"
+            description="All campaigns in one clean place with filters and basic details."
+          >
             <Card className="client-data-panel client-data-panel-large">
               <CardHeader className="client-data-panel-head">
                 <div>
-                  <CardTitle>Campaign Queue</CardTitle>
-                  <CardDescription>All live campaign records from your database.</CardDescription>
+                  <span className="campaigns-page-section-kicker campaigns-page-section-kicker-total">Campaign Files</span>
+                  <CardTitle>Combined Campaign List</CardTitle>
+                  <CardDescription>Includes workflow-created campaigns with status, owner, audience, and step info.</CardDescription>
                 </div>
-                <Button variant="ghost" size="sm">
-                  {loading ? '...' : `${campaigns.length} campaigns`}
-                </Button>
-              </CardHeader>
-
-              <CardContent>
-                <div className="client-data-table client-data-table-scroll">
-                  <div className="client-data-table-head" style={{ gridTemplateColumns: '1.2fr 1fr .8fr 1fr 1fr' }}>
-                    <span>Campaign</span>
-                    <span>Audience</span>
-                    <span>Status</span>
-                    <span>Window</span>
-                    <span>Owner</span>
-                  </div>
-
-                  {loading ? (
-                    <div className="client-data-table-row" style={{ gridTemplateColumns: '1.2fr 1fr .8fr 1fr 1fr' }}>
-                      <span>Loading campaigns...</span>
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  ) : null}
-
-                  {!loading && error ? (
-                    <div className="client-data-table-row" style={{ gridTemplateColumns: '1.2fr 1fr .8fr 1fr 1fr' }}>
-                      <span>{error}</span>
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  ) : null}
-
-                  {!loading && !error && !campaigns.length ? (
-                    <div className="client-data-table-row" style={{ gridTemplateColumns: '1.2fr 1fr .8fr 1fr 1fr' }}>
-                      <span>No campaigns found.</span>
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  ) : null}
-
-                  {!loading && !error ? campaigns.map((campaign) => (
-                    <div
-                      key={campaign._id || campaign.id}
-                      className="client-data-table-row"
-                      style={{ gridTemplateColumns: '1.2fr 1fr .8fr 1fr 1fr' }}
+                <div className="campaign-library-filters">
+                  {libraryFilterOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`campaign-library-filter ${libraryFilter === option.value ? 'active' : ''}`}
+                      onClick={() => setLibraryFilter(option.value)}
                     >
-                      <span>{campaign?.name || '-'}</span>
-                      <span>{getCampaignAudience(campaign)}</span>
-                      <span>
-                        <Badge variant={badgeToneMap[campaign?.status] || 'default'}>
-                          {campaign?.status || 'Draft'}
-                        </Badge>
-                      </span>
-                      <span>{getCampaignWindow(campaign)}</span>
-                      <span>{campaign?.senderFrom || campaign?.senderAccount?.from || '-'}</span>
-                    </div>
-                  )) : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="client-data-panel">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Campaign Health</CardTitle>
-                  <CardDescription>Live status summary from the current campaign list.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="client-data-health-list">
-                  {healthItems.map((item) => (
-                    <div key={item.title}>
-                      <strong>{item.title}</strong>
-                      <span>{item.meta}</span>
-                    </div>
+                      {option.label}
+                    </button>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="client-data-panel">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest campaign updates from the database.</CardDescription>
-                </div>
               </CardHeader>
               <CardContent>
-                <div className="client-data-activity-list">
-                  {activityItems.length ? activityItems.map((item) => (
-                    <article key={`${item.title}-${item.meta}`}>
-                      <strong>{item.title}</strong>
-                      <p>{item.meta}</p>
+                <div className="campaign-library-list">
+                  {!loading && !error && !filteredLibraryCampaigns.length ? (
+                    <article className="campaign-library-item campaign-library-empty">
+                      <div className="campaign-library-file-icon">F</div>
+                      <div className="campaign-library-main">
+                        <strong>No campaigns found for this filter.</strong>
+                        <p>Try switching filter to see more campaign records.</p>
+                      </div>
                     </article>
-                  )) : (
-                    <article>
-                      <strong>No recent activity</strong>
-                      <p>Campaign updates will appear here automatically.</p>
-                    </article>
-                  )}
+                  ) : null}
+
+                  {!loading && !error
+                    ? filteredLibraryCampaigns.map((campaign) => (
+                        <article key={`library-${campaign._id || campaign.id}`} className="campaign-library-item">
+                          <div className="campaign-library-file-icon">F</div>
+                          <div className="campaign-library-main">
+                            <div className="campaign-library-title-row">
+                              <strong>{campaign?.name || '-'}</strong>
+                              <div className="campaign-library-tags">
+                                <Badge variant={badgeToneMap[campaign?.status] || 'default'}>
+                                  {campaign?.status || 'Draft'}
+                                </Badge>
+                                <Badge variant="warning">{getWorkflowStepLabel(campaign)}</Badge>
+                              </div>
+                            </div>
+                            <p>
+                              Audience: {getCampaignAudience(campaign)} | Owner: {campaign?.senderFrom || campaign?.senderAccount?.from || '-'}
+                            </p>
+                            <small>
+                              Window: {getCampaignWindow(campaign)} | Updated: {formatDateTime(campaign?.updatedAt || campaign?.createdAt)}
+                            </small>
+                          </div>
+                        </article>
+                      ))
+                    : null}
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </PageSection>
+          </PageSection>
+
+        </div>
       </PageContainer>
     </AppLayout>
   );
 }
+

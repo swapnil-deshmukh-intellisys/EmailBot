@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Button from '@/app/components/ui/Button';
@@ -664,9 +665,10 @@ export default function EmailWarmupPage() {
         </div>
       </PageSection>
 
-      {showWarmupSetup ? (
-        <div className="premium-calendar-modal-backdrop" onClick={() => setShowWarmupSetup(false)}>
-          <div className="premium-calendar-modal warmup-start-modal" onClick={(event) => event.stopPropagation()}>
+      {showWarmupSetup && typeof window !== 'undefined'
+        ? createPortal(
+            <div className="premium-calendar-modal-backdrop" onClick={() => setShowWarmupSetup(false)}>
+              <div className="premium-calendar-modal warmup-start-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head">
               <div>
                 <h3>Start Warmup Mails</h3>
@@ -782,9 +784,11 @@ export default function EmailWarmupPage() {
                 </div>
               </section>
             </div>
-          </div>
-        </div>
-      ) : null}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </AppLayout>
   );
 }

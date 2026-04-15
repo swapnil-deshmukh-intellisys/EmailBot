@@ -6,7 +6,7 @@ const LeadSchema = new mongoose.Schema(
     Email: String,
     Company: String,
     data: { type: mongoose.Schema.Types.Mixed, default: {} },
-    status: { type: String, enum: ['Pending', 'Sending', 'Sent', 'Failed'], default: 'Pending' },
+    status: { type: String, enum: ['Pending', 'Sending', 'Sent', 'Failed', 'Bounced', 'Spam'], default: 'Pending' },
     error: { type: String, default: '' },
     sentAt: { type: Date, default: null },
     failedAt: { type: Date, default: null },
@@ -30,6 +30,8 @@ const LeadListSchema = new mongoose.Schema(
     userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     sourceFile: { type: String, required: true },
+    kind: { type: String, default: 'uploaded', index: true },
+    clonedFrom: { type: String, default: '' },
     columns: { type: [String], default: [] },
     sheetStyle: {
       fontFamily: { type: String, default: 'Segoe UI' },

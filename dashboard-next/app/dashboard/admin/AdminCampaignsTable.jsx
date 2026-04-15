@@ -20,7 +20,7 @@ export default function AdminCampaignsTable({ campaigns = [] }) {
     <Card id="campaigns" className="dashboard-panel admin-campaigns-panel">
       <CardHeader className="dashboard-chart-card-header admin-campaigns-head">
         <div>
-          <CardTitle>All Campaigns</CardTitle>
+          <CardTitle>Campaigns</CardTitle>
           <CardDescription>Every campaign across the organization from the live database.</CardDescription>
         </div>
         <div className="admin-campaigns-actions">

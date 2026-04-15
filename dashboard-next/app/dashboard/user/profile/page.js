@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 
@@ -43,7 +44,9 @@ function formatDateTime(value) {
 }
 
 export default function UserProfilePage() {
-  const [profile, setProfile] = useState({ email: '', role: '', displayName: '', avatarName: '', avatarDataUrl: '', notificationPrefs: {} });
+  const [profile, setProfile] = useState({ email: '', role: '', displayName: '', avatarName: '', avatarDataUrl: '', planName: 'Basic', notificationPrefs: {} });
+  const [creditSummary, setCreditSummary] = useState({ totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
+  const [creditTransactions, setCreditTransactions] = useState([]);
   const [counts, setCounts] = useState({ campaigns: 0, lists: 0, mails: 0 });
   const [accounts, setAccounts] = useState([]);
   const [profilePhotoName, setProfilePhotoName] = useState('');
@@ -61,10 +64,14 @@ export default function UserProfilePage() {
   const [message, setMessage] = useState('');
   const [activeSection, setActiveSection] = useState('profile');
   const [selectedConnectedAccount, setSelectedConnectedAccount] = useState(null);
+  const [showCreditHistory, setShowCreditHistory] = useState(false);
 
   const profileDisplayName = profile.displayName || displayNameFromEmail(profile.email);
   const profileInitials = initialsFromName(profileDisplayName);
   const profileRoleLabel = profile.role ? String(profile.role).replace(/_/g, ' ') : 'User';
+  const lowCreditWarning = Number(creditSummary.remainingCredits || 0) > 0 && Number(creditSummary.creditUsagePercent || 0) >= 80;
+  const billingUpgradeTarget = String(creditSummary.upgradeTargetPlan || '').trim();
+  const hasUpgrade = billingUpgradeTarget && billingUpgradeTarget !== String(profile.planName || 'Basic').trim();
   const connectedAccounts = useMemo(() => accounts.slice(0, 3), [accounts]);
   const accountSummary = (account) => ({
     provider: String(account?.provider || '').trim() || 'Connected inbox',
@@ -82,11 +89,12 @@ export default function UserProfilePage() {
     const load = async () => {
       try {
         let accountsData = null;
-        const [meRes, accountsRes, campaignsRes, listsRes] = await Promise.all([
+        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes] = await Promise.all([
           fetch('/api/auth/me', { signal: controller.signal }),
           fetch('/api/accounts', { signal: controller.signal }),
           fetch('/api/campaigns', { signal: controller.signal }).catch(() => null),
-          fetch('/api/lists', { signal: controller.signal }).catch(() => null)
+          fetch('/api/lists', { signal: controller.signal }).catch(() => null),
+          fetch('/api/credits', { signal: controller.signal }).catch(() => null)
         ]);
 
         if (meRes.ok) {
@@ -99,6 +107,7 @@ export default function UserProfilePage() {
             displayName: String(saved.displayName || '').trim(),
             avatarName: String(saved.avatarName || '').trim(),
             avatarDataUrl: String(saved.avatarDataUrl || '').trim(),
+            planName: String(saved.planName || 'Basic').trim() || 'Basic',
             notificationPrefs: saved.notificationPrefs || {}
           });
           setProfilePhotoName(String(saved.avatarName || '').trim());
@@ -117,11 +126,22 @@ export default function UserProfilePage() {
 
         const campaignsData = campaignsRes?.ok ? await campaignsRes.json().catch(() => null) : null;
         const listsData = listsRes?.ok ? await listsRes.json().catch(() => null) : null;
+        const creditsData = creditsRes?.ok ? await creditsRes.json().catch(() => null) : null;
         setCounts({
           campaigns: Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns.length : 0,
           lists: Array.isArray(listsData?.lists) ? listsData.lists.length : 0,
           mails: Array.isArray(accountsData?.accounts) ? accountsData.accounts.length : 0
         });
+        if (creditsData?.ok) {
+          setCreditSummary(creditsData.summary || { totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
+          setCreditTransactions(Array.isArray(creditsData.transactions) ? creditsData.transactions : []);
+          if (creditsData.summary?.planName) {
+            setProfile((current) => ({
+              ...current,
+              planName: String(creditsData.summary.planName || current.planName || 'Basic')
+            }));
+          }
+        }
       } catch (error) {
         if (error?.name !== 'AbortError') {
           setMessage('Profile data could not be loaded.');
@@ -199,6 +219,76 @@ export default function UserProfilePage() {
     }
     setProfilePasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setMessage('Password updated successfully.');
+  };
+
+  const handleUpgradePlan = async () => {
+    if (!hasUpgrade) {
+      setMessage('Your plan is already at the highest tier.');
+      return;
+    }
+    try {
+      const nextPlanName = billingUpgradeTarget;
+      const nextPlanCredits = Number(creditSummary.upgradeTargetCredits || (profile.planName === 'Basic' ? 12000 : 30000));
+      const res = await fetch('/api/billing/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planName: nextPlanName,
+          totalCredits: nextPlanCredits
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMessage(data?.error || 'Plan upgrade failed.');
+        return;
+      }
+      if (data?.profile) {
+        setProfile((current) => ({
+          ...current,
+          planName: String(data.profile.planName || current.planName || 'Basic'),
+          notificationPrefs: data.profile.notificationPrefs || current.notificationPrefs
+        }));
+        setCreditSummary({
+          planName: String(data.profile.planName || creditSummary.planName || 'Basic'),
+          upgradeTargetPlan: String(data.profile.planName === 'Basic' ? 'Pro' : data.profile.planName === 'Pro' ? 'Enterprise' : ''),
+          upgradeTargetCredits: Number(data.profile.planName === 'Basic' ? 12000 : data.profile.planName === 'Pro' ? 30000 : data.profile.totalCredits || 0),
+          totalCredits: Number(data.profile.totalCredits || creditSummary.totalCredits || 6000),
+          usedCredits: Number(data.profile.usedCredits || creditSummary.usedCredits || 0),
+          remainingCredits: Number(data.profile.remainingCredits || creditSummary.remainingCredits || 0),
+          creditUsagePercent: Number(data.profile.creditUsagePercent || creditSummary.creditUsagePercent || 0)
+        });
+      }
+      setMessage(data?.message || 'Plan upgraded successfully.');
+    } catch (error) {
+      setMessage('Plan upgrade failed.');
+    }
+  };
+
+  const handleOpenBilling = () => {
+    window.location.hash = '#billing';
+    setMessage('Billing section opened.');
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      const res = await fetch('/api/billing/invoice', { method: 'GET' });
+      if (!res.ok) {
+        setMessage('Invoice download failed.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mailbot-invoice-${(profile.email || 'profile').split('@')[0] || 'profile'}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setMessage('Invoice downloaded.');
+    } catch (error) {
+      setMessage('Invoice download failed.');
+    }
   };
 
   const handleDisconnect = async (account) => {
@@ -372,29 +462,66 @@ export default function UserProfilePage() {
             <strong>Billing</strong>
             <p>Plan details, usage credits, invoices, and upgrade options.</p>
             <div className="dashboard-profile-stats compact">
-              <span><strong>Basic</strong><small>Plan</small></span>
-              <span><strong>1200</strong><small>Credits</small></span>
+              <span><strong>{profile.planName || 'Basic'}</strong><small>Current Plan</small></span>
+              <span><strong>{creditSummary.remainingCredits}</strong><small>Credits Left</small></span>
               <span><strong>7d</strong><small>Renewal</small></span>
             </div>
             <p className="dashboard-profile-note">Track plan usage, credits, and renewal timing before you upgrade.</p>
+            <div className="dashboard-profile-upgrade-mini">
+              <div>
+                <span>Current</span>
+                <strong>{profile.planName || 'Basic'}</strong>
+              </div>
+              <div>
+                <span>Next Plan</span>
+                <strong>{creditSummary.upgradeTargetPlan || (profile.planName === 'Basic' ? 'Pro' : 'Enterprise')}</strong>
+              </div>
+              <div>
+                <span>Credits Left</span>
+                <strong>{creditSummary.remainingCredits}</strong>
+              </div>
+            </div>
             <div className="dashboard-profile-meter">
               <div className="dashboard-profile-meter-track">
-                <i style={{ width: '58%' }} />
+                <i style={{ width: `${Math.max(0, Math.min(100, creditSummary.creditUsagePercent))}%` }} />
               </div>
-              <small>58% of credits used this cycle</small>
+              <small>{Math.round(creditSummary.creditUsagePercent)}% of credits used this cycle</small>
             </div>
+            {lowCreditWarning ? <p className="dashboard-profile-note dashboard-profile-warning"><span>Low balance</span> Upgrade before sends stop.</p> : null}
             <div className="dashboard-profile-chip-row dashboard-profile-billing-row">
               <span className="dashboard-profile-chip">Invoice ready</span>
               <span className="dashboard-profile-chip">Last payment: 07 Apr 2026</span>
             </div>
             <div className="dashboard-profile-action-row">
-              <button type="button" className="ghost">Open Billing</button>
-              <button type="button" className="ghost" onClick={() => setMessage('Invoice download is ready to wire up here.')}>
+              <button type="button" className="ghost" onClick={handleOpenBilling}>Open Billing</button>
+              <button type="button" className="ghost" onClick={handleDownloadInvoice}>
                 Download Invoice
               </button>
             </div>
             <div className="dashboard-profile-action-row dashboard-profile-action-row-stack">
-              <button type="button" className="ghost subtle dashboard-profile-upgrade-secondary">Upgrade Plan</button>
+              <button type="button" className="ghost subtle dashboard-profile-upgrade-secondary" onClick={handleUpgradePlan}>
+                {hasUpgrade ? `Upgrade to ${billingUpgradeTarget}` : 'Manage Plan'}
+              </button>
+            </div>
+            <div className="dashboard-profile-note" style={{ marginTop: 18 }}>Credit history</div>
+            <div className="dashboard-profile-transaction-list">
+              {creditTransactions.length ? creditTransactions.map((item) => (
+                <article key={item._id} className="dashboard-profile-transaction-item">
+                  <div>
+                    <strong>{item.reason || item.type}</strong>
+                    <p>{item.campaignName || item.recipientEmail || 'Credit change'}</p>
+                  </div>
+                  <div>
+                    <strong>{item.type === 'credit' ? '+' : '-'}{Math.abs(Number(item.credits || 0))}</strong>
+                    <p>{formatDateTime(item.createdAt)}</p>
+                  </div>
+                </article>
+              )) : <p className="dashboard-profile-note">No credit transactions yet.</p>}
+            </div>
+            <div className="dashboard-profile-action-row dashboard-profile-action-row-stack">
+              <button type="button" className="ghost subtle" onClick={() => setShowCreditHistory(true)}>
+                View all transactions
+              </button>
             </div>
           </article>
 
@@ -438,9 +565,10 @@ export default function UserProfilePage() {
 
           {message ? <p className="dashboard-profile-message">{message}</p> : null}
         </main>
-        {selectedConnectedAccount ? (
-          <div className="dashboard-profile-modal-backdrop" onClick={() => setSelectedConnectedAccount(null)}>
-            <div className="dashboard-profile-modal" onClick={(event) => event.stopPropagation()}>
+        {selectedConnectedAccount && typeof window !== 'undefined'
+          ? createPortal(
+              <div className="dashboard-profile-modal-backdrop" onClick={() => setSelectedConnectedAccount(null)}>
+                <div className="dashboard-profile-modal" onClick={(event) => event.stopPropagation()}>
               <div className="dashboard-profile-modal-head">
                 <div>
                   <strong>{selectedConnectedAccount.from}</strong>
@@ -502,9 +630,47 @@ export default function UserProfilePage() {
                   Disconnect
                 </button>
               </div>
-            </div>
-          </div>
-        ) : null}
+                </div>
+              </div>,
+              document.body
+            )
+          : null}
+        {showCreditHistory && typeof window !== 'undefined'
+          ? createPortal(
+              <div className="dashboard-profile-modal-backdrop" onClick={() => setShowCreditHistory(false)}>
+                <div className="dashboard-profile-modal dashboard-profile-credit-history-modal" onClick={(event) => event.stopPropagation()}>
+                  <div className="dashboard-profile-modal-head">
+                    <div>
+                      <strong>Credit transactions</strong>
+                      <p>Review credit debits, refunds, and balance changes.</p>
+                    </div>
+                    <button type="button" className="dashboard-profile-modal-close" onClick={() => setShowCreditHistory(false)}>
+                      × Close
+                    </button>
+                  </div>
+                  <div className="dashboard-profile-credit-history-head">
+                    <span>Reason</span>
+                    <span>Amount</span>
+                    <span>Balance after</span>
+                    <span>Date</span>
+                  </div>
+                  <div className="dashboard-profile-credit-history-list">
+                    {creditTransactions.length ? creditTransactions.map((item) => (
+                      <article key={item._id} className="dashboard-profile-credit-history-row">
+                        <strong>{item.reason || item.type}</strong>
+                        <span className={item.type === 'credit' ? 'credit-positive' : 'credit-negative'}>
+                          {item.type === 'credit' ? '+' : '-'}{Math.abs(Number(item.credits || 0))}
+                        </span>
+                        <span>{Math.max(0, Number(item.balanceAfter || 0))}</span>
+                        <small>{formatDateTime(item.createdAt)}</small>
+                      </article>
+                    )) : <p className="dashboard-profile-note">No credit transactions yet.</p>}
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )
+          : null}
       </section>
     </AppLayout>
   );

@@ -87,7 +87,21 @@ export async function POST(req) {
 
 
 
-    const { name, listId, templateId, options, draftType, inlineTemplate, senderAccountId, type, project, senderFrom } = body;
+    const {
+      name,
+      listId,
+      templateId,
+      options,
+      draftType,
+      inlineTemplate,
+      senderAccountId,
+      type,
+      project,
+      senderFrom,
+      workflowStep,
+      workflowStepLabel,
+      tracking
+    } = body;
 
     if (!name || !listId) {
 
@@ -183,6 +197,15 @@ export async function POST(req) {
       },
       senderAccountId: senderAccountId || '',
       senderAccount: senderAccount ? { provider: senderAccount.provider, label: senderAccount.label, from: senderAccount.from } : undefined,
+      workflowStep: Number.isFinite(Number(workflowStep)) ? Number(workflowStep) : 1,
+      workflowStepLabel: String(workflowStepLabel || '').trim(),
+      tracking: {
+        enabled: Boolean(tracking?.enabled),
+        opens: Boolean(tracking?.opens),
+        clicks: Boolean(tracking?.clicks),
+        replies: Boolean(tracking?.replies),
+        updatedAt: new Date()
+      },
 
       options: {
 
@@ -202,6 +225,10 @@ export async function POST(req) {
         sent: 0,
 
         failed: 0,
+
+        bounced: 0,
+
+        spam: 0,
 
         pending: total
 

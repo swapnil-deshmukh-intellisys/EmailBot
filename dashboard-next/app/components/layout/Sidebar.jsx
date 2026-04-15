@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -29,12 +29,47 @@ export function Sidebar({
   className = ''
 }) {
   const [searchValue, setSearchValue] = useState('');
+  const [billingSummary, setBillingSummary] = useState({
+    planName: 'Basic',
+    upgradeTargetPlan: 'Pro',
+    remainingCredits: 1200,
+    totalCredits: 6000,
+    creditUsagePercent: 0
+  });
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/credits', { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.ok || !data?.summary) return;
+        setBillingSummary({
+          planName: String(data.summary.planName || 'Basic').trim() || 'Basic',
+          upgradeTargetPlan: String(data.summary.upgradeTargetPlan || '').trim() || 'Pro',
+          remainingCredits: Number(data.summary.remainingCredits || 0),
+          totalCredits: Number(data.summary.totalCredits || 0),
+          creditUsagePercent: Number(data.summary.creditUsagePercent || 0)
+        });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  const billingHasUpgrade = useMemo(
+    () => billingSummary.upgradeTargetPlan && billingSummary.upgradeTargetPlan !== billingSummary.planName,
+    [billingSummary.planName, billingSummary.upgradeTargetPlan]
+  );
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     router.push('/login');
+    router.refresh();
+  };
+
+  const handleOpenBilling = () => {
+    router.push('/dashboard/user#billing');
     router.refresh();
   };
 
@@ -112,19 +147,32 @@ export function Sidebar({
                   <strong>Upgrade</strong>
                   <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
                 </div>
-                <p className="dashboard-upgrade-plan">Basic</p>
-                <p className="dashboard-upgrade-credits">1200 Credits Left</p>
-                <div className="dashboard-upgrade-meter">
-                  <span />
+                <p className="dashboard-upgrade-summary">
+                  <span className="dashboard-upgrade-plan">{billingSummary.planName}</span>
+                  <span className="dashboard-upgrade-credits">{billingSummary.remainingCredits} Credits Left</span>
+                </p>
+                <div className="dashboard-upgrade-meta">
+                  <span>
+                    <small>Current</small>
+                    <strong>{billingSummary.planName}</strong>
+                  </span>
+                  <span>
+                    <small>Next Plan</small>
+                    <strong>{billingSummary.upgradeTargetPlan}</strong>
+                  </span>
                 </div>
-                <Button className="dashboard-upgrade-button">Upgrade Plan</Button>
+                <div className="dashboard-upgrade-meter">
+                  <span style={{ width: `${Math.max(0, Math.min(100, billingSummary.creditUsagePercent))}%` }} />
+                </div>
+                <Button className="dashboard-upgrade-button" onClick={handleOpenBilling}>
+                  {billingHasUpgrade ? `Upgrade to ${billingSummary.upgradeTargetPlan}` : 'Manage Plan'}
+                </Button>
               </div>
 
               <Button variant="danger" className="dashboard-logout-link" onClick={handleLogout}>
-                <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
-                <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
-                <span className="dashboard-logout-text">Log out</span>
-              </Button>
+                  <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                  <span className="dashboard-logout-text">Log out</span>
+                </Button>
             </div>
           )}
         </div>

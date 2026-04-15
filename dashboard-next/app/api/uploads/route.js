@@ -202,6 +202,7 @@ export async function POST(req) {
     userEmail,
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,
+    kind: 'uploaded',
     columns,
     sheetStyle: {
       fontFamily: 'Segoe UI',

@@ -1,6 +1,7 @@
 ﻿'use client';
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from './components/RichTextEditor';
@@ -289,6 +290,7 @@ const DEFAULT_SHEET_STYLE = {
   columnWidths: {}
 };
 const DASHBOARD_DRAFT_STATE_KEY = 'dashboard:draft-state:v1';
+const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 
 
 export default function DashboardPage() {
@@ -329,6 +331,22 @@ export default function DashboardPage() {
   const [showAllUserActivity, setShowAllUserActivity] = useState(true);
   const [profileUser, setProfileUser] = useState({ email: '', role: '', displayName: '' });
   const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
+  const [profileCredits, setProfileCredits] = useState({
+      planName: 'Basic',
+      upgradeTargetPlan: 'Pro',
+      upgradeTargetCredits: 12000,
+      totalCredits: 6000,
+      usedCredits: 0,
+      remainingCredits: 6000,
+      creditUsagePercent: 0,
+      targetApprovalStatus: 'approved',
+      targetApprovalRequestedAt: null,
+      targetApprovalReviewedAt: null,
+      targetApprovalReviewer: '',
+      targetApprovalRequestNote: ''
+    });
+  const [profileTimelineTasks, setProfileTimelineTasks] = useState({});
+  const [profileTimelineCustomTasks, setProfileTimelineCustomTasks] = useState([]);
   const projectAccounts = useMemo(() => accounts, [accounts]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('');
@@ -575,6 +593,24 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
+      if (!raw) return;
+      window.localStorage.removeItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') return;
+      window.dispatchEvent(
+        new CustomEvent('dashboard:resume-campaign-draft', {
+          detail: { campaign: saved }
+        })
+      );
+    } catch (error) {
+      // Ignore bad resume payloads and continue with the default dashboard flow.
+    }
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     const loadProfile = async () => {
@@ -590,6 +626,28 @@ export default function DashboardPage() {
           displayName: String(profile.displayName || '').trim()
         });
         setProfileAvatarDataUrl(String(profile.avatarDataUrl || '').trim());
+        const totalCredits = Math.max(0, Number(profile.totalCredits || 6000));
+        const usedCredits = Math.max(0, Number(profile.usedCredits || 0));
+        const remainingCredits = Math.max(0, Number(profile.remainingCredits || Math.max(totalCredits - usedCredits, 0)));
+        const creditUsagePercent = Math.max(0, Math.min(100, Number(profile.creditUsagePercent || (totalCredits ? (usedCredits / totalCredits) * 100 : 0))));
+          setProfileCredits({
+            planName: String(profile.planName || 'Basic').trim() || 'Basic',
+            upgradeTargetPlan: String(creditsData?.summary?.upgradeTargetPlan || (profile.planName === 'Basic' ? 'Pro' : 'Enterprise')).trim() || 'Pro',
+            upgradeTargetCredits: Number(creditsData?.summary?.upgradeTargetCredits || (profile.planName === 'Basic' ? 12000 : 30000)),
+            totalCredits,
+            usedCredits,
+            remainingCredits,
+            creditUsagePercent,
+            targetApprovalStatus: String(profile.targetApprovalStatus || 'approved').trim() || 'approved',
+            targetApprovalRequestedAt: profile.targetApprovalRequestedAt || null,
+            targetApprovalReviewedAt: profile.targetApprovalReviewedAt || null,
+            targetApprovalReviewer: String(profile.targetApprovalReviewer || '').trim(),
+            targetApprovalRequestNote: String(profile.targetApprovalRequestNote || '').trim()
+          });
+        setProfileTimelineTasks(
+          Object.fromEntries(Object.entries(profile.timelineTasks || {}).map(([key, value]) => [key, Boolean(value)]))
+        );
+        setProfileTimelineCustomTasks(Array.isArray(profile.timelineCustomTasks) ? profile.timelineCustomTasks : []);
       } catch (error) {
         if (error?.name !== 'AbortError') {
           // Ignore auth lookup failures and keep the fallback display name.
@@ -600,6 +658,44 @@ export default function DashboardPage() {
     loadProfile();
     return () => controller.abort();
   }, []);
+
+  const handleTimelineTaskStateChange = useCallback(async (nextTimelineTasks) => {
+    const normalized = Object.fromEntries(Object.entries(nextTimelineTasks || {}).map(([key, value]) => [key, Boolean(value)]));
+    setProfileTimelineTasks(normalized);
+    try {
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timelineTasks: normalized })
+      });
+    } catch (error) {
+      // Keep the UI responsive even if persistence fails.
+    }
+  }, []);
+
+  const handleTimelineCustomTaskAdd = useCallback(async (task) => {
+    const nextTask = {
+      id: task.id || `task-${Date.now()}`,
+      date: String(task.date || '').trim(),
+      time: String(task.time || '').trim(),
+      title: String(task.title || '').trim(),
+      text: String(task.text || '').trim(),
+      type: String(task.type || 'Reminder').trim() || 'Reminder',
+      status: String(task.status || 'pending').trim() || 'pending',
+      done: Boolean(task.done)
+    };
+    const nextTasks = [nextTask, ...(profileTimelineCustomTasks || [])];
+    setProfileTimelineCustomTasks(nextTasks);
+    try {
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timelineCustomTasks: nextTasks })
+      });
+    } catch (error) {
+      // Keep the UI responsive even if persistence fails.
+    }
+  }, [profileTimelineCustomTasks]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -748,7 +844,7 @@ const handleDeleteDraft = async (draft) => {
 
   const deleteAllActiveCampaigns = async () => {
     if (!activeCampaignIds.length) return;
-    if (!window.confirm('Delete all campaigns in the Campaigns section? This cannot be undone.')) return;
+    if (!window.confirm('Delete all campaigns in the campaign section? This cannot be undone.')) return;
     try {
       await Promise.all(
         activeCampaignIds.map((id) =>
@@ -981,59 +1077,65 @@ const handleDeleteDraft = async (draft) => {
       title: 'Total',
       value: Number(stats?.totalUploaded || 0),
       percent: 100,
-      meta: '',
+      meta: 'Backend count',
       tone: 'total',
-      color: '#f59e0b'
+      color: '#f59e0b',
+      icon: '◉'
     },
     {
       title: 'Sent',
       value: Number(stats?.sent || 0),
       percent: completionRate,
-      meta: '',
+      meta: 'Live status',
       tone: 'sent',
-      color: '#4f46e5'
+      color: '#4f46e5',
+      icon: '✓'
     },
     {
       title: 'Pending',
       value: Number(stats?.pending || 0),
       percent: Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100),
-      meta: '',
+      meta: 'Waiting to send',
       tone: 'pending',
-      color: '#3b82f6'
+      color: '#3b82f6',
+      icon: '◔'
     },
     {
       title: 'Failed',
       value: Number(stats?.failed || 0),
       percent: Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100),
-      meta: '',
+      meta: 'Delivery error',
       tone: 'failed',
-      color: '#ef4444'
+      color: '#ef4444',
+      icon: '✖'
     },
     {
       title: 'Bounced',
       value: Number(stats?.bounced || 0),
       percent: Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100),
-      meta: '',
+      meta: 'Delivery bounce',
       tone: 'bounced',
-      color: '#14b8a6'
+      color: '#14b8a6',
+      icon: '↺'
     },
     {
       title: 'Spam',
       value: Number(stats?.spam || 0),
       percent: Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100),
-      meta: '',
+      meta: 'Blocked / policy',
       tone: 'spam',
-      color: '#fb7185'
+      color: '#fb7185',
+      icon: '!'
     }
   ];
   const workflowSteps = [
-    { index: 1, title: 'Upload File / Select File', action: 'Client List' },
-    { index: 2, title: 'View List / Overview', action: 'Overview Data' },
-    { index: 3, title: 'Campaign Setup', action: 'Campaign' },
-    { index: 4, title: 'Draft Upload / Select', action: 'Draft Upload / Select' },
-    { index: 5, title: 'Draft Overview', action: 'Draft Summary' },
-    { index: 6, title: 'Test Mail', action: 'Teast Mail' },
-    { index: 7, title: 'Schedule Operation', action: 'Final Setup' }
+    { index: 1, title: 'Upload List', action: 'Upload List' },
+    { index: 2, title: 'Review List', action: 'Review' },
+    { index: 3, title: 'Campaign', action: 'Campaign' },
+    { index: 4, title: 'Select Draft', action: 'Drafts' },
+    { index: 5, title: 'Draft Summary', action: 'Draft Summary' },
+    { index: 6, title: 'Test Email', action: 'Test Email' },
+    { index: 7, title: 'Schedule Sending', action: 'Schedule' }
   ];
   const calendarDays = ['30', '31', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'];
   const notificationCards = (campaigns || [])
@@ -1047,10 +1149,19 @@ const handleDeleteDraft = async (draft) => {
           campaign?.senderEmail ||
           ''
         ).trim();
+      const senderName = senderId
+        ? senderId
+            .split('@')[0]
+            .split(/[._\-]+/g)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+        : campaignName;
       return Array.isArray(campaign?.logs)
         ? campaign.logs.map((log) => {
             const message = String(log?.message || '').trim();
-            const text = message.replace(/^Replied:\s*/i, '').replace(/^Reply:\s*/i, '').trim();
+            const preview = message.replace(/^Replied:\s*/i, '').replace(/^Reply:\s*/i, '').trim();
+            const clippedPreview = preview.length > 90 ? `${preview.slice(0, 87)}...` : preview;
             const normalized = message.toLowerCase();
             const looksLikeReply =
               /^replied:\s*/i.test(message) ||
@@ -1064,10 +1175,14 @@ const handleDeleteDraft = async (draft) => {
               normalized.includes('no previous messageid') ||
               normalized.includes('campaign');
             return {
-              avatar: senderId ? senderId.slice(0, 2).toUpperCase() : campaignName.slice(0, 2).toUpperCase(),
+              avatar: senderName.slice(0, 2).toUpperCase(),
+              sender: senderName,
               name: campaignName,
+              title: `${senderName} sent you a mail`,
               time: log?.at ? new Date(log.at).toLocaleDateString('en-GB') : (campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : ''),
-              text: text || message,
+              text: clippedPreview || message,
+              preview: clippedPreview || message,
+              subject: campaignName,
               _reply: looksLikeReply && !isBlockedNoise
             };
           })
@@ -1078,16 +1193,34 @@ const handleDeleteDraft = async (draft) => {
     .map(({ _reply, ...item }) => item);
   const timelineCards = [
     {
+      id: 'timeline-resumed',
       date: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleDateString('en-GB') : '27/03/2026',
-      title: activeCampaign?.status ? `Campaign ${String(activeCampaign.status).toLowerCase()}` : 'Campaign resumed'
+      time: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:00 AM',
+      title: activeCampaign?.status ? `Campaign ${String(activeCampaign.status).toLowerCase()}` : 'Campaign resumed',
+      type: 'Reminder',
+      text: 'Review the running campaign and confirm next steps.',
+      status: 'done',
+      done: true
     },
     {
+      id: 'timeline-started',
       date: activeCampaign?.createdAt ? new Date(activeCampaign.createdAt).toLocaleDateString('en-GB') : '27/03/2026',
-      title: activeCampaign?.name || 'Campaign started'
+      time: activeCampaign?.createdAt ? new Date(activeCampaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:30 AM',
+      title: activeCampaign?.name || 'Campaign started',
+      type: 'Appointment',
+      text: 'Campaign setup has been completed and is ready for tracking.',
+      status: 'done',
+      done: true
     },
     {
+      id: 'timeline-pipeline',
       date: '27/03/2026',
-      title: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => String(campaign?.status || '').toLowerCase() === 'running').length || 0)} running`
+      time: '12:00 PM',
+      title: 'Pipeline check',
+      type: 'Meeting',
+      text: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => String(campaign?.status || '').toLowerCase() === 'running').length || 0)} running`,
+      status: 'pending',
+      done: false
     }
   ];
   const performanceCampaigns = (campaigns || [])
@@ -1183,64 +1316,101 @@ const handleDeleteDraft = async (draft) => {
       return [];
     }
 
-    return activeCampaign.logs.slice(-120).map((log) => {
-      const rawMessage = String(log?.message || '').trim();
-      const sentMatch = rawMessage.match(/^Sent:\s*(.+)$/i);
-      const failedMatch = rawMessage.match(/^Failed:\s*([^\-]+)\s*-\s*(.+)$/i);
-      const fallbackRecipient = rawMessage.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i)?.[1] || '';
+      return activeCampaign.logs.slice(-120).map((log) => {
+        const rawMessage = String(log?.message || '').trim();
+        const sentMatch = rawMessage.match(/^Sent:\s*(.+)$/i);
+        const failedMatch = rawMessage.match(/^Failed:\s*([^\-]+)\s*-\s*(.+)$/i);
+        const fallbackRecipient = rawMessage.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i)?.[1] || '';
+        const timestamp = log?.at || new Date().toISOString();
 
-      if (sentMatch) {
-        const recipient = String(sentMatch[1] || '').trim();
+        if (sentMatch) {
+          const recipient = String(sentMatch[1] || '').trim();
+          return {
+            time: timestamp,
+            tag: 'Sent',
+            source: 'Campaign Engine',
+            action: 'Delivery complete',
+            msg: `Mail sent to ${recipient}`,
+            detail: `Campaign: ${campaignName} | Sender ID: ${senderId}`,
+            next: 'Continue the send queue or review recent delivery stats.',
+            status: 'success'
+          };
+        }
+
+        if (failedMatch) {
+          const recipient = String(failedMatch[1] || '').trim();
+          const reason = String(failedMatch[2] || '').trim();
+          return {
+            time: timestamp,
+            tag: 'Failed',
+            source: 'Campaign Engine',
+            action: 'Delivery failed',
+            msg: `Mail failed for ${recipient}`,
+            detail: `Reason: ${reason} | Sender ID: ${senderId}`,
+            next: 'Check sender health or retry after reviewing the failure reason.',
+            status: 'danger'
+          };
+        }
+
         return {
-          time: log?.at || new Date().toISOString(),
-          tag: 'Sent',
-          msg: `Mail sent to ${recipient}`,
-          detail: `Campaign: ${campaignName} | Sender ID: ${senderId}`
+          time: timestamp,
+          tag: String(log?.level || 'Info').toUpperCase(),
+          source: 'Campaign Engine',
+          action: 'System event',
+          msg: rawMessage || 'Campaign event',
+          detail: fallbackRecipient ? `Recipient: ${fallbackRecipient} | Sender ID: ${senderId}` : `Sender ID: ${senderId}`,
+          next: 'Review the campaign log stream for the next step.',
+          status: String(log?.level || 'info').toLowerCase()
         };
-      }
-
-      if (failedMatch) {
-        const recipient = String(failedMatch[1] || '').trim();
-        const reason = String(failedMatch[2] || '').trim();
-        return {
-          time: log?.at || new Date().toISOString(),
-          tag: 'Failed',
-          msg: `Mail failed for ${recipient}`,
-          detail: `Reason: ${reason} | Sender ID: ${senderId}`
-        };
-      }
-
-      return {
-        time: log?.at || new Date().toISOString(),
-        tag: String(log?.level || 'Info').toUpperCase(),
-        msg: rawMessage || 'Campaign event',
-        detail: fallbackRecipient ? `Recipient: ${fallbackRecipient} | Sender ID: ${senderId}` : `Sender ID: ${senderId}`
-      };
-    }).reverse();
+      }).reverse();
   }, [activeCampaign, selectedAccountLabel]);
 
   const logs = activeCampaignLogs.length
     ? activeCampaignLogs
-    : [
-        ...timelineCards.map((item, index) => ({
-          time: item.date,
-          tag: index === 0 ? 'Live' : 'Info',
-          msg: item.title,
-          detail: item.text || 'Timeline update recorded on the dashboard.'
-        })),
-        ...notificationCards.map((item) => ({
-          time: item.time,
-          tag: 'Mail',
-          msg: item.name,
-          detail: item.text
-        })),
-        ...performanceCampaigns.slice(0, 4).map((item) => ({
-          time: item.publishDate,
-          tag: 'Campaign',
-          msg: `${item.name} (${item.tag})`,
-          detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`
-        }))
-      ];
+      : [
+          ...timelineCards.map((item, index) => ({
+            time: item.date,
+            tag: item.done ? 'Task' : 'Live',
+            source: 'Timeline',
+            action: String(item.type || 'Task'),
+            msg: item.title,
+            detail: item.text || 'Timeline update recorded on the dashboard.',
+            next: item.done ? 'Completed task' : 'Keep it in the next work queue.',
+            status: item.done ? 'success' : 'pending'
+          })),
+          ...notificationCards.map((item) => ({
+            time: item.time,
+            tag: 'Inbox',
+            source: 'Inbox',
+            action: 'Incoming mail',
+            msg: item.name,
+            detail: item.text,
+            next: 'Open the inbox preview to read the full message.',
+            status: 'info'
+          })),
+          ...performanceCampaigns.slice(0, 4).map((item) => ({
+            time: item.publishDate,
+            tag: String(item.status || 'Campaign').toLowerCase() === 'running' ? 'Live' : 'Campaign',
+            source: 'Campaign Overview',
+            action: 'Performance update',
+            msg: `${item.name} (${item.tag})`,
+            detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`,
+            next: 'Use the campaign panel to check the next batch and blockers.',
+            status: 'info'
+          })),
+          ...campaigns.slice(0, 3).map((item) => ({
+            time: item.updatedAt || item.createdAt || new Date().toISOString(),
+            tag: String(item.status || 'System').toLowerCase() === 'running' ? 'Live' : 'System',
+            source: 'Campaign Manager',
+            action: String(item.status || 'Campaign update'),
+            msg: item.name || 'Campaign activity',
+            detail: `${item.totalRecipients || 0} recipients | ${item.status || 'unknown status'}`,
+            next: String(item.status || '').toLowerCase() === 'draft'
+              ? 'Open the campaign workflow to continue setup.'
+              : 'Review the campaign controls for the next step.',
+            status: String(item.status || 'info').toLowerCase()
+          }))
+        ];
   const sidebarLiveBadges = useMemo(() => {
     const campaignTotal = Number(campaigns?.length || 0);
     const draftsTotal = Number(savedDrafts?.length || 0);
@@ -1252,7 +1422,7 @@ const handleDeleteDraft = async (draft) => {
       Dashboard: `${Number(stats?.sent || 0)}/${Math.max(1, Number(totalTrackedMails || 0))}`,
       'Client Data': String(clientListsTotal),
       Drafts: String(draftsTotal),
-      Campaigns: `${runningCampaigns}/${campaignTotal}`,
+      Campaign: `${runningCampaigns}/${campaignTotal}`,
       'Warm-Up': `${warmupPercent}%`,
       'Mail Inbox': String(inboxActivity)
     };
@@ -1673,7 +1843,13 @@ const handleDeleteDraft = async (draft) => {
     }
   };
 
-  const createCampaign = async ({ skipReload = false } = {}) => {
+  const createCampaign = async ({
+    skipReload = false,
+    autoStart = false,
+    workflowStep = 3,
+    workflowStepLabel = 'Campaign',
+    tracking = { enabled: false, opens: false, clicks: false, replies: false }
+  } = {}) => {
     if (!selectedAccount) {
       notify('Select Mail ID before creating a campaign.', 'info');
       return null;
@@ -1688,12 +1864,20 @@ const handleDeleteDraft = async (draft) => {
       campaignName: String(campaignName || '').trim(),
       selectedListId,
       selectedAccount,
-      selectedDraft,
-      draftSubject: String(draftSubject || '').trim(),
-      draftBody: String(draftBody || '').trim(),
-      batchSize: String(batchSize || ''),
-      delaySeconds: String(delaySeconds || '')
-    });
+        selectedDraft,
+        draftSubject: String(draftSubject || '').trim(),
+        draftBody: String(draftBody || '').trim(),
+        batchSize: String(batchSize || ''),
+        delaySeconds: String(delaySeconds || ''),
+        workflowStep: String(workflowStep || ''),
+        workflowStepLabel: String(workflowStepLabel || ''),
+        tracking: JSON.stringify({
+          enabled: Boolean(tracking?.enabled),
+          opens: Boolean(tracking?.opens),
+          clicks: Boolean(tracking?.clicks),
+          replies: Boolean(tracking?.replies)
+        })
+      });
 
     if (
       lastCampaignCreateSignatureRef.current &&
@@ -1719,7 +1903,15 @@ const handleDeleteDraft = async (draft) => {
           draftType: selectedDraft,
           inlineTemplate: { subject: draftSubject, body: draftBody },
           senderAccountId: selectedAccount || null,
-          options: { batchSize, delaySeconds: Number(delaySeconds), replyMode: isReplyModeCampaignType }
+          options: { batchSize, delaySeconds: Number(delaySeconds), replyMode: isReplyModeCampaignType },
+          tracking: {
+            enabled: Boolean(tracking?.enabled),
+            opens: Boolean(tracking?.opens),
+            clicks: Boolean(tracking?.clicks),
+            replies: Boolean(tracking?.replies)
+          },
+          workflowStep,
+          workflowStepLabel
         })
       });
       const createdCampaign = data.campaign || null;
@@ -1728,6 +1920,9 @@ const handleDeleteDraft = async (draft) => {
         lastCampaignCreateSignatureRef.current = createSignature;
         lastCreatedCampaignIdRef.current = createdCampaign._id;
         setShowDraftEditor(true);
+        if (autoStart) {
+          await startCampaign(createdCampaign._id, { schedule: Boolean(scheduledSlot), startAfterSchedule: true });
+        }
       }
       notify('Campaign created successfully.', 'success');
       if (!skipReload) {
@@ -1756,7 +1951,7 @@ const handleDeleteDraft = async (draft) => {
 
     if (!campaignId) return;
 
-    await startCampaign(campaignId, { schedule: Boolean(scheduledSlot) });
+    await startCampaign(campaignId, { schedule: Boolean(scheduledSlot), startAfterSchedule: true });
   };
 
   useEffect(() => {
@@ -1865,10 +2060,13 @@ const normalizeSelectedListEmails = async () => {
           })
         });
         setScheduledStartLabel(label);
-        setPendingCampaignId('');
         notify(`Campaign scheduled for ${scheduledCountry.toUpperCase()} at ${effectiveSlot}`, 'success');
+        if (!options.startAfterSchedule) {
+          setPendingCampaignId('');
+          await loadAll();
+          return;
+        }
         await loadAll();
-        return;
       }
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
       setPendingCampaignId('');
@@ -2257,13 +2455,27 @@ const normalizeSelectedListEmails = async () => {
                 <strong>Upgrade</strong>
                 <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
               </div>
-              <p className="dashboard-upgrade-plan">Basic</p>
-              <p className="dashboard-upgrade-credits">1200 Credits Left</p>
+              <p className="dashboard-upgrade-summary">
+                <span className="dashboard-upgrade-plan">{profileCredits.planName || 'Basic'}</span>
+                <span className="dashboard-upgrade-credits">{profileCredits.remainingCredits} Credits Left</span>
+              </p>
+              <div className="dashboard-upgrade-meta">
+                <span>
+                  <small>Current</small>
+                  <strong>{profileCredits.planName || 'Basic'}</strong>
+                </span>
+                <span>
+                  <small>Next Plan</small>
+                  <strong>{profileCredits.upgradeTargetPlan || 'Pro'}</strong>
+                </span>
+              </div>
               <div className="dashboard-upgrade-meter">
-                <span />
+                <span style={{ width: `${Math.max(0, Math.min(100, profileCredits.creditUsagePercent || 0))}%` }} />
               </div>
               <button type="button" className="dashboard-upgrade-button">
-                Upgrade Plan
+                {profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
+                  ? `Upgrade to ${profileCredits.upgradeTargetPlan}`
+                  : 'Manage Plan'}
               </button>
             </div>
 
@@ -2469,9 +2681,10 @@ const normalizeSelectedListEmails = async () => {
           </div>
         </div>
       </section>
-      {showTopbarRangeDropdown ? (
-        <div className="dashboard-popup-backdrop" onClick={() => setShowTopbarRangeDropdown(false)}>
-          <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
+      {showTopbarRangeDropdown && typeof window !== 'undefined'
+        ? createPortal(
+            <div className="dashboard-popup-backdrop" onClick={() => setShowTopbarRangeDropdown(false)}>
+              <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
             <div className="dashboard-popup-head">
               <div>
                 <strong>Filter Dashboard</strong>
@@ -2548,12 +2761,15 @@ const normalizeSelectedListEmails = async () => {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
-      {showCustomRangePopup ? (
-        <div className="dashboard-popup-backdrop" onClick={() => setShowCustomRangePopup(false)}>
-          <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+      {showCustomRangePopup && typeof window !== 'undefined'
+        ? createPortal(
+            <div className="dashboard-popup-backdrop" onClick={() => setShowCustomRangePopup(false)}>
+              <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
             <div className="dashboard-popup-head">
               <div>
                 <strong>Custom Date Range</strong>
@@ -2608,9 +2824,11 @@ const normalizeSelectedListEmails = async () => {
               <button type="button" className="ghost subtle" onClick={() => setShowCustomRangePopup(false)}>Cancel</button>
               <button type="button" className="dashboard-popup-save" onClick={applyCustomRangeSelection}>Apply Range</button>
             </div>
-          </div>
-        </div>
-      ) : null}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
       {toast ? (
         <div className={`dashboard-toast dashboard-toast-${toast.tone}`} role="status" aria-live="polite">
           <div>
@@ -2628,12 +2846,17 @@ const normalizeSelectedListEmails = async () => {
       <PremiumDashboardShell
         reportDateLabel={reportDateLabel}
         reportRangeLabel={reportRangeLabel}
-        reportMetricCards={reportMetricCards}
-        workflowSteps={workflowSteps}
-        completionRate={completionRate}
+          reportMetricCards={reportMetricCards}
+          dailyMailCounts={stats.dailyMailCounts}
+          workflowSteps={workflowSteps}
+          completionRate={completionRate}
         totalTrackedMails={totalTrackedMails}
         notificationCards={notificationCards}
         timelineCards={timelineCards}
+        timelineTaskStates={profileTimelineTasks}
+        onTimelineTaskStatesChange={handleTimelineTaskStateChange}
+        timelineCustomTasks={profileTimelineCustomTasks}
+        onTimelineCustomTaskAdd={handleTimelineCustomTaskAdd}
         performanceCampaigns={performanceCampaigns}
         calendarDays={calendarDays}
         selectedAccountLabel={selectedAccountLabel}
@@ -2709,8 +2932,14 @@ const normalizeSelectedListEmails = async () => {
         onResumeCampaign={resumeCampaign}
         onStopCampaign={stopCampaign}
         onDeleteCampaign={deleteCampaign}
-        onShowMessage={notify}
-      />
+          onShowMessage={notify}
+          creditSummary={profileCredits}
+          targetApprovalStatus={profileCredits.targetApprovalStatus}
+          targetApprovalRequestedAt={profileCredits.targetApprovalRequestedAt}
+          targetApprovalReviewedAt={profileCredits.targetApprovalReviewedAt}
+          targetApprovalReviewer={profileCredits.targetApprovalReviewer}
+          targetApprovalRequestNote={profileCredits.targetApprovalRequestNote}
+        />
 
       {showSidebarBlankView ? (
         <section className="grid" id="summary-panel">
@@ -2905,7 +3134,7 @@ const normalizeSelectedListEmails = async () => {
                     </p>
                   </div>
                   <div>
-                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Client List</p>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>List</p>
                     <span className={`badge ${selectedListId ? 'sent' : 'failed'}`} style={{ maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {selectedListLabel}
                     </span>
@@ -2921,7 +3150,7 @@ const normalizeSelectedListEmails = async () => {
                     </div>
                   </div>
                   <div className="row" style={{ marginTop: 2 }}>
-                    <button className="button" onClick={createCampaign}>Create Campaign</button>
+                    <button className="button" onClick={createAndStartCampaign}>Create Campaign</button>
                   </div>
                 </div>
               </section>

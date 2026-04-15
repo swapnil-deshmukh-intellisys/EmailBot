@@ -8,7 +8,7 @@ const CampaignRecipientClaimSchema = new mongoose.Schema(
     leadIndex: { type: Number, default: -1 },
     status: {
       type: String,
-      enum: ['Sending', 'Sent', 'Failed'],
+      enum: ['Sending', 'Sent', 'Failed', 'Bounced', 'Spam'],
       default: 'Sending'
     },
     claimedAt: { type: Date, default: Date.now },

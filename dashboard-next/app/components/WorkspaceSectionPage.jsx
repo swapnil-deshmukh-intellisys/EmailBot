@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import DashboardPlaceholderShell from './DashboardPlaceholderShell';
 import Button from './ui/Button';
 
@@ -38,6 +39,11 @@ export default function WorkspaceSectionPage({
   description,
   primaryAction,
   secondaryAction,
+  highlightTitle,
+  highlightSender,
+  highlightPreview,
+  highlightMeta,
+  highlightAction,
   stats,
   tableTitle,
   tableDescription,
@@ -51,6 +57,14 @@ export default function WorkspaceSectionPage({
   activityItems,
   accent = '#f97316'
 }) {
+  const highlightRef = useRef(null);
+
+  useEffect(() => {
+    if (highlightTitle && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [highlightTitle]);
+
   return (
     <DashboardPlaceholderShell>
       <section className="workspace-page" style={{ '--workspace-accent': accent }}>
@@ -59,12 +73,33 @@ export default function WorkspaceSectionPage({
             <span className="workspace-kicker">{section}</span>
             <h1>{title}</h1>
             <p>{description}</p>
+            {highlightTitle ? <span className="workspace-hero-cue">Opened from Dashboard</span> : null}
           </div>
           <div className="workspace-hero-actions">
             <Button variant="secondary" className="workspace-secondary">{secondaryAction}</Button>
             <Button className="workspace-primary">{primaryAction}</Button>
           </div>
         </div>
+
+        {highlightTitle ? (
+          <section ref={highlightRef} className="workspace-highlight-card" data-highlight="true">
+            <div>
+              <span className="workspace-highlight-kicker">Viewed Mail</span>
+              <strong>{highlightTitle}</strong>
+              <span className="workspace-highlight-source">Opened from Inbox Preview</span>
+              {highlightSender ? <p>{highlightSender}</p> : null}
+              {highlightPreview ? <small>{highlightPreview}</small> : null}
+            </div>
+            <div className="workspace-highlight-side">
+              {highlightMeta ? <span>{highlightMeta}</span> : null}
+              {highlightAction ? (
+                <Button as="a" href="/master-inbox" variant="secondary" className="workspace-secondary">
+                  {highlightAction}
+                </Button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         <div className="workspace-stats">
           {stats.map((card) => (

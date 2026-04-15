@@ -21,6 +21,7 @@ function CampaignTable({
   onPause,
   onStop,
   onResume,
+  onResumeDraft,
   onDelete,
   emptyText
 }) {
@@ -76,6 +77,25 @@ function CampaignTable({
                     <TableCell>
                       <div className="ui-stack-tight">
                         <span>{campaign.name}</span>
+                        {String(campaign.status || '').toLowerCase() === 'draft' ? (
+                          <button
+                            type="button"
+                            className="campaign-resume-badge"
+                            onClick={() => {
+                              if (onResumeDraft) {
+                                onResumeDraft(campaign);
+                                return;
+                              }
+                              window.dispatchEvent(
+                                new CustomEvent('dashboard:resume-campaign-draft', {
+                                  detail: { campaign }
+                                })
+                              );
+                            }}
+                          >
+                            Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
+                          </button>
+                        ) : null}
                         {timeLabel ? (
                           <small style={{ color: timeLabel.color, fontWeight: timeLabel.strong ? 700 : 500 }}>
                             {timeLabel.text}
@@ -95,6 +115,25 @@ function CampaignTable({
                         <Button size="sm" className="button warn" onClick={() => onPause(campaign._id)}>Pause</Button>
                         <Button size="sm" variant="danger" onClick={() => onStop(campaign._id)}>Stop</Button>
                         <Button size="sm" variant="secondary" onClick={() => onResume(campaign._id)}>Resume</Button>
+                        {String(campaign.status || '').toLowerCase() === 'draft' && onResumeDraft ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              if (onResumeDraft) {
+                                onResumeDraft(campaign);
+                                return;
+                              }
+                              window.dispatchEvent(
+                                new CustomEvent('dashboard:resume-campaign-draft', {
+                                  detail: { campaign }
+                                })
+                              );
+                            }}
+                          >
+                            Resume Draft
+                          </Button>
+                        ) : null}
                         <Button size="sm" variant="danger" onClick={() => onDelete(campaign._id)}>Delete</Button>
                       </div>
                     </TableCell>

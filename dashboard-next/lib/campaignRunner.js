@@ -4,6 +4,8 @@ import LeadList from '../models/LeadList';
 import EmailTemplate from '../models/EmailTemplate';
 import EmailThread from '../models/EmailThread';
 import CampaignRecipientClaim from '../models/CampaignRecipientClaim';
+import UserProfile from '../models/UserProfile';
+import CreditTransaction from '../models/CreditTransaction';
 import { getAvailableAccounts, sendEmailForLead } from './emailSender';
 import { resolveSenderAccountById } from './senderAccounts';
 
@@ -15,7 +17,8 @@ global.campaignStartingRunners = startingRunners;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
-const MIN_DELAY_SECONDS = Math.max(60, Number(process.env.MIN_DELAY_SECONDS || 60));
+const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 3 : 60;
+const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 
 function senderThreadKey(account = {}) {
@@ -85,6 +88,101 @@ function appendLog(campaign, message, level = 'info') {
   if (campaign.logs.length > 200) {
     campaign.logs = campaign.logs.slice(-200);
   }
+}
+
+function classifyDeliveryFailure(errorMessage = '') {
+  const text = String(errorMessage || '').toLowerCase();
+  if (
+    text.includes('spam') ||
+    text.includes('blocked') ||
+    text.includes('policy') ||
+    text.includes('junk')
+  ) {
+    return 'Spam';
+  }
+
+  if (
+    text.includes('bounce') ||
+    text.includes('mailbox unavailable') ||
+    text.includes('recipient rejected') ||
+    text.includes('invalid recipient') ||
+    text.includes('user unknown') ||
+    text.includes('address not found') ||
+    text.includes('not found') ||
+    text.includes('undeliverable') ||
+    text.includes('5.1.1') ||
+    text.includes('5.1.0') ||
+    text.includes('5.2.1') ||
+    text.includes('5.4.4') ||
+    text.includes('5.7.1')
+  ) {
+    return 'Bounced';
+  }
+
+  return 'Failed';
+}
+
+async function reserveCampaignCredit(userEmail = '') {
+  const normalizedUserEmail = normalizeEmail(userEmail);
+  if (!normalizedUserEmail) return { ok: true, skipped: true };
+
+  if (process.env.NODE_ENV === 'development') {
+    return { ok: true, skipped: true, message: 'Credit check bypassed in development' };
+  }
+
+  const updated = await UserProfile.findOneAndUpdate(
+    { identifier: normalizedUserEmail, remainingCredits: { $gt: 0 } },
+    {
+      $inc: {
+        usedCredits: 1,
+        remainingCredits: -1
+      }
+    },
+    { new: true }
+  ).lean();
+
+  if (!updated) {
+    return { ok: false, message: 'Credit limit reached' };
+  }
+
+  await CreditTransaction.create({
+    userEmail: normalizedUserEmail,
+    type: 'debit',
+    reason: 'credit_reserved_for_send',
+    credits: 1,
+    balanceAfter: Math.max(0, Number(updated.remainingCredits || 0)),
+    meta: { source: 'campaignRunner' }
+  });
+
+  return { ok: true };
+}
+
+async function refundCampaignCredit(userEmail = '', campaignMeta = {}) {
+  const normalizedUserEmail = normalizeEmail(userEmail);
+  if (!normalizedUserEmail) return;
+
+  const updated = await UserProfile.findOneAndUpdate(
+    { identifier: normalizedUserEmail },
+    {
+      $inc: {
+        usedCredits: -1,
+        remainingCredits: 1
+      }
+    },
+    { new: true }
+  ).lean();
+
+  await CreditTransaction.create({
+    userEmail: normalizedUserEmail,
+    campaignId: campaignMeta.campaignId || null,
+    campaignName: campaignMeta.campaignName || '',
+    recipientEmail: campaignMeta.recipientEmail || '',
+    type: 'credit',
+    reason: campaignMeta.reason || 'send_failed_refund',
+    credits: 1,
+    balanceAfter: Math.max(0, Number(updated?.remainingCredits || 0)),
+    meta: { source: 'campaignRunner', status: campaignMeta.status || 'Failed' }
+  });
 }
 
 async function persistLeadProgress(listId, idx, lead) {
@@ -192,7 +290,7 @@ async function markRecipientClaimStatus(campaignId, recipientEmail, status, extr
   if (status === 'Sent') {
     update.sentAt = extra.sentAt || new Date();
     update.failedAt = null;
-  } else if (status === 'Failed') {
+  } else if (status === 'Failed' || status === 'Bounced' || status === 'Spam') {
     update.failedAt = extra.failedAt || new Date();
     update.sentAt = null;
   }
@@ -239,6 +337,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
   if (!campaign) {
     throw new Error('Campaign not found');
   }
+  appendLog(campaign, `Runner start requested (${trigger})`);
 
   const list = await LeadList.findById(campaign.listId);
   const templateFromDb = campaign.templateId ? await EmailTemplate.findById(campaign.templateId) : null;
@@ -247,23 +346,30 @@ export async function startCampaignRunner(campaignId, options = {}) {
     : null;
 
   if (!list || (!inlineTemplate && !templateFromDb)) {
+    appendLog(campaign, 'Runner blocked: list or template missing', 'error');
     throw new Error('List or template missing');
   }
 
   let accounts = [];
   if (campaign.senderAccountId) {
+    appendLog(campaign, `Resolving sender account ${campaign.senderAccountId}`);
     const resolved = await resolveSenderAccountById(campaign.senderAccountId, { userEmail: campaign.userEmail || '' });
     if (!resolved) {
+      appendLog(campaign, `Sender account not found: ${campaign.senderAccountId}`, 'error');
       throw new Error('Sender account not found');
     }
+    appendLog(campaign, `Sender resolved: ${resolved.provider || 'smtp'} | ${resolved.from || resolved.user || 'unknown'}`);
     accounts = [resolved];
   } else if (campaign.senderAccount?.provider) {
+    appendLog(campaign, `Using sender snapshot: ${campaign.senderAccount.provider} | ${campaign.senderAccount.from || 'unknown'}`);
     accounts = [campaign.senderAccount];
   } else {
+    appendLog(campaign, 'Using runtime sender accounts');
     accounts = getAvailableAccounts();
   }
 
   if (!accounts.length) {
+    appendLog(campaign, 'Runner blocked: no email provider account configured', 'error');
     throw new Error('No email provider account configured. Set Graph (TENANT_ID/CLIENT_ID/CLIENT_SECRET/GRAPH_SENDER_EMAIL) or SMTP env values.');
   }
 
@@ -312,10 +418,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.scheduledAt = null;
   const scopedSent = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'sent').length;
   const scopedFailed = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'failed').length;
+  const scopedBounced = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'bounced').length;
+  const scopedSpam = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'spam').length;
   campaign.stats.total = scopedLeads.length;
   campaign.stats.sent = scopedSent;
   campaign.stats.failed = scopedFailed;
-  campaign.stats.pending = Math.max(0, scopedLeads.length - scopedSent - scopedFailed);
+  campaign.stats.bounced = scopedBounced;
+  campaign.stats.spam = scopedSpam;
+  campaign.stats.pending = Math.max(0, scopedLeads.length - scopedSent - scopedFailed - scopedBounced - scopedSpam);
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
   if (trigger === 'scheduler') {
     appendLog(campaign, 'Campaign auto-started by scheduler');
@@ -421,12 +531,35 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.error = '';
           lead.sendingStartedAt = claimedAt;
 
+          const creditReservation = await reserveCampaignCredit(campaign.userEmail || '');
+          if (!creditReservation.ok) {
+            lead.status = 'Failed';
+            lead.error = creditReservation.message || 'Credit limit reached';
+            lead.failedAt = new Date();
+            lead.sendingStartedAt = null;
+            campaign.stats.failed += 1;
+            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+            appendLog(campaign, `Campaign stopped: ${creditReservation.message || 'Credit limit reached'}`, 'error');
+            await persistLeadProgress(list._id, idx, lead);
+            if (!(await saveCampaignIfExists(campaign))) {
+              state.running = false;
+              return;
+            }
+            if (process.env.NODE_ENV !== 'development') {
+              state.stop = true;
+              break;
+            }
+            appendLog(campaign, 'Credit limit reached, but continuing in development mode.', 'info');
+            continue;
+          }
+
           const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
           const selectedTemplate = inlineTemplate || templateFromDb;
           const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
           const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
 
           try {
+            appendLog(campaign, `Sending to ${recipientEmail} with ${account.provider || 'smtp'} via ${account.from || account.user || 'unknown'}`);
             const sendResult = await sendEmailForLead({
               template: selectedTemplate,
               lead,
@@ -458,16 +591,31 @@ export async function startCampaignRunner(campaignId, options = {}) {
               );
             }
           } catch (error) {
-            lead.status = 'Failed';
+            appendLog(campaign, `Send failed for ${recipientEmail}: ${error.message}`, 'error');
+            await refundCampaignCredit(campaign.userEmail || '', {
+              campaignId: campaign._id,
+              campaignName: campaign.name || '',
+              recipientEmail,
+              reason: 'send_failed_refund',
+              status: 'Failed'
+            });
+            const failureStatus = classifyDeliveryFailure(error.message);
+            lead.status = failureStatus;
             lead.error = error.message;
             lead.failedAt = new Date();
             lead.sendingStartedAt = null;
-            campaign.stats.failed += 1;
-            await markRecipientClaimStatus(campaign._id, recipientEmail, 'Failed', { failedAt: lead.failedAt, error: error.message });
-            appendLog(campaign, `Failed: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
+            if (failureStatus === 'Bounced') {
+              campaign.stats.bounced += 1;
+            } else if (failureStatus === 'Spam') {
+              campaign.stats.spam += 1;
+            } else {
+              campaign.stats.failed += 1;
+            }
+            await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
+            appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
           }
 
-          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
+          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
