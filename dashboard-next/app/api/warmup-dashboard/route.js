@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import SenderAccount from '@/models/SenderAccount';
 import Campaign from '@/models/Campaign';
 import WarmupAutoReplyLog from '@/models/WarmupAutoReplyLog';
 import { requireUser } from '@/lib/apiAuth';
+import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
@@ -24,13 +25,26 @@ export async function GET(req) {
     if (errorResponse) return errorResponse;
     await connectDB();
 
-    const [setting, oauthAccounts, senderAccounts, logs, campaigns] = await Promise.all([
+    const [setting, oauthAccounts, senderAccounts, logs, storedCampaigns] = await Promise.all([
       getWarmupAutoReplySetting(userEmail, { lean: true }),
       GraphOAuthAccount.find({ userEmail }).sort({ updatedAt: -1 }).lean(),
       SenderAccount.find({ userEmail }).sort({ updatedAt: -1 }).lean(),
       WarmupAutoReplyLog.find({ userEmail }).sort({ repliedAt: -1, createdAt: -1 }).limit(50).lean(),
       Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean()
     ]);
+
+    for (const campaign of storedCampaigns) {
+      if (String(campaign?.status || '') !== 'Running') continue;
+      const runner = getRunnerState(String(campaign._id));
+      if (runner?.running) continue;
+      try {
+        await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
+      } catch (error) {
+        // Keep the warmup dashboard responsive even if recovery fails.
+      }
+    }
+
+    const campaigns = await Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean();
 
     const envAccounts = getRuntimeSenderAccounts().map(toPublicAccount);
     const oauthPublic = oauthAccounts.map((a) => ({
@@ -146,3 +160,5 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message || 'Failed to update warmup dashboard' }, { status: 500 });
   }
 }
+
+

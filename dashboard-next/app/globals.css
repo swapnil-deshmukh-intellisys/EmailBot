@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg-primary: #f3f5f9;
   --bg-secondary: #e2e8f0;
   --panel: #ffffff;
@@ -16178,3 +16178,127 @@ b {
     font-size: 1.12rem;
   }
 }
+
+
+
+.premium-select-draft-library {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(280px, 1.05fr);
+  gap: 14px;
+  min-height: 0;
+  padding: 6px 16px 0;
+}
+
+.premium-select-draft-library .premium-select-draft-list {
+  padding: 0;
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
+}
+
+.premium-select-draft-preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  max-height: min(58vh, 560px);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  border: 1px solid rgba(226, 232, 240, 0.82);
+  overflow: hidden;
+}
+
+.premium-select-draft-preview-head {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.82);
+}
+
+.premium-select-draft-preview-head strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.premium-select-draft-preview-head small {
+  color: #64748b;
+}
+
+.premium-select-draft-preview-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.premium-select-draft-preview-subject {
+  display: grid;
+  gap: 6px;
+}
+
+.premium-select-draft-preview-subject span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.premium-select-draft-preview-subject strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.premium-select-draft-preview-message {
+  display: grid;
+  gap: 10px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.premium-select-draft-empty-preview {
+  min-height: 220px;
+}
+
+.premium-template-modal .premium-template-body {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.premium-template-modal .premium-template-editor {
+  display: grid;
+  min-height: min(46vh, 500px);
+}
+
+.premium-template-modal .premium-template-editor,
+.premium-template-modal .wysiwyg-wrap {
+  min-height: 0;
+  max-height: min(52vh, 560px);
+}
+
+.premium-template-modal .wysiwyg-wrap {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.premium-template-modal .wysiwyg-editor {
+  min-height: 220px;
+  max-height: min(42vh, 460px);
+  overflow-y: auto;
+}
+
+.premium-test-email-modal .premium-test-email-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .premium-select-draft-library {
+    grid-template-columns: 1fr;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+

@@ -911,15 +911,27 @@ export default function PremiumDashboardShell({
         id: draft._id || draft.id,
         title: draft.title,
         subject: draft.subject,
+        body: draft.body || draft.message || draft.html || draft.content || '',
         category: draft.category || '',
         updated: 'Saved draft'
       }))
     : savedDrafts;
   const filteredSavedDrafts = useMemo(() => {
     const target = String(selectedDraftType || '').toLowerCase();
-    const matches = effectiveSavedDrafts.filter((item) => String(item.category || '').toLowerCase() === target);
-    return matches.length ? matches : effectiveSavedDrafts;
+    if (!target) return effectiveSavedDrafts;
+    return effectiveSavedDrafts.filter((item) => String(item.category || '').toLowerCase() === target);
   }, [effectiveSavedDrafts, selectedDraftType]);
+  const selectedSavedDraft = useMemo(() => {
+    const currentDraftId = activeDraftId || selectedDraftId;
+    if (!currentDraftId) return null;
+    return effectiveSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
+  }, [activeDraftId, effectiveSavedDrafts, selectedDraftId]);
+  const selectedDraftPreviewSubject = String(
+    selectedSavedDraft?.subject || effectiveDraftSubject || ''
+  ).trim();
+  const selectedDraftPreviewBody = String(
+    selectedSavedDraft?.body || effectiveDraftMessage || ''
+  ).trim();
   const monthLabel = calendarCursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
@@ -1200,6 +1212,19 @@ export default function PremiumDashboardShell({
       setSelectedDraftId('');
     }
   }, [draftOptions, selectedDraftId]);
+
+  useEffect(() => {
+    if (selectDraftTab !== 'my-drafts') return;
+    if (!filteredSavedDrafts.length) {
+      setSelectedDraftId('');
+      return;
+    }
+    const currentDraftId = activeDraftId || selectedDraftId;
+    const hasVisibleSelection = filteredSavedDrafts.some((draft) => draft.id === currentDraftId);
+    if (!hasVisibleSelection) {
+      setSelectedDraftId(filteredSavedDrafts[0].id);
+    }
+  }, [activeDraftId, filteredSavedDrafts, selectDraftTab, selectedDraftId]);
 
   useEffect(() => {
     if (!selectedListId) return;
@@ -3437,6 +3462,7 @@ export default function PremiumDashboardShell({
                         type="button"
                         className={selectedDraftType === item.value ? 'active' : ''}
                         onClick={() => {
+                          setSelectDraftTab('my-drafts');
                           onSelectedDraftTypeChange?.(item.value);
                           setShowDraftTypeDropdown(false);
                         }}
@@ -3450,33 +3476,61 @@ export default function PremiumDashboardShell({
             </div>
 
             {selectDraftTab === 'my-drafts' ? (
-              <div className="premium-select-draft-list">
-                {filteredSavedDrafts.length ? (
-                  filteredSavedDrafts.map((draft) => (
-                    <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="savedDraft"
-                        checked={activeDraftId === draft.id || selectedDraftId === draft.id}
-                        onChange={() => {
-                          setSelectedDraftId(draft.id);
-                          onSelectSavedDraft?.(draft.id);
-                        }}
-                      />
-                      <div>
-                        <strong>{draft.title}</strong>
-                        <p>Subject: {draft.subject}</p>
-                        <small>{draft.updated}</small>
-                      </div>
-                    </label>
-                  ))
-                ) : (
-                  <div className="premium-select-draft-empty">
-                    <strong>No saved drafts yet</strong>
-                    <p>Create a new draft or save one from the workflow to see it here.</p>
+              <div className="premium-select-draft-library">
+                <div className="premium-select-draft-list">
+                  {filteredSavedDrafts.length ? (
+                    filteredSavedDrafts.map((draft) => (
+                      <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="savedDraft"
+                          checked={activeDraftId === draft.id || selectedDraftId === draft.id}
+                          onChange={() => {
+                            setSelectedDraftId(draft.id);
+                            onSelectSavedDraft?.(draft.id);
+                          }}
+                        />
+                        <div>
+                          <strong>{draft.title}</strong>
+                          <p>Subject: {draft.subject}</p>
+                          <small>{draft.updated}</small>
+                        </div>
+                      </label>
+                    ))
+                  ) : (
+                    <div className="premium-select-draft-empty">
+                      <strong>No matching drafts</strong>
+                      <p>Choose another draft type or create a new draft for this category.</p>
+                    </div>
+                  )}
+                </div>
+                <aside className="premium-select-draft-preview">
+                  <div className="premium-select-draft-preview-head">
+                    <strong>Selected Draft Preview</strong>
+                    <small>{selectedSavedDraft?.title || 'Choose a draft to preview it here'}</small>
                   </div>
-                )}
-
+                  <div className="premium-select-draft-preview-body">
+                    {selectedDraftPreviewSubject || selectedDraftPreviewBody ? (
+                      <>
+                        <div className="premium-select-draft-preview-subject">
+                          <span>Subject</span>
+                          <strong>{selectedDraftPreviewSubject || 'No subject available'}</strong>
+                        </div>
+                        <div
+                          className="premium-select-draft-preview-message"
+                          dangerouslySetInnerHTML={{
+                            __html: selectedDraftPreviewBody || '<p>No message available.</p>'
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div className="premium-select-draft-empty premium-select-draft-empty-preview">
+                        <strong>No draft selected</strong>
+                        <p>Select any saved draft and its full content will appear here.</p>
+                      </div>
+                    )}
+                  </div>
+                </aside>
               </div>
             ) : (
               <div className="premium-select-draft-create">
@@ -3754,5 +3808,4 @@ export default function PremiumDashboardShell({
     </section>
   );
 }
-
 

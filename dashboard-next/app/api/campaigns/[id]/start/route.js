@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
@@ -17,10 +17,19 @@ export async function POST(req, { params }) {
     if (runner?.running) {
       return NextResponse.json({ ok: true, started: false, message: 'Campaign is already running' });
     }
-    // Recover after server restart: DB says Running but in-memory runner is gone.
-    campaign.status = 'Paused';
-    campaign.logs.push({ level: 'info', message: 'Recovered stale running state. Restarting campaign runner.', at: new Date() });
-    await campaign.save();
+
+    try {
+      const recovered = await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
+      return NextResponse.json({ ok: true, recovered: true, ...recovered });
+    } catch (error) {
+      campaign.logs.push({
+        level: 'error',
+        message: `Stale running campaign could not recover automatically: ${error.message}`,
+        at: new Date()
+      });
+      await campaign.save();
+      return NextResponse.json({ error: error.message || 'Failed to recover campaign runner' }, { status: 400 });
+    }
   }
 
   try {
