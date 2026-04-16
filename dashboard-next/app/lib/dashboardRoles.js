@@ -23,7 +23,7 @@ export const TEMP_LOGIN_ACCOUNTS = [
   { identifier: 'emp002', password: 'emp002', role: DASHBOARD_ROLES.USER, label: 'Employee 002' },
   { identifier: 'mgr001', password: 'mgr001', role: DASHBOARD_ROLES.MANAGER, label: 'Manager 001' },
   { identifier: 'mgr002', password: 'mgr002', role: DASHBOARD_ROLES.MANAGER, label: 'Manager 002' },
-  { identifier: 'admin001', password: 'admin001', role: DASHBOARD_ROLES.ADMIN, label: 'Admin 001' }
+  { identifier: 'akshaymore.intellisys@gmail.com', password: '1234512345@i', role: DASHBOARD_ROLES.ADMIN, label: 'Akshay More' }
 ];
 
 export const ROLE_NAVIGATION = {
@@ -81,6 +81,20 @@ function normalize(value = '') {
 
 function isEmailLike(value = '') {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalize(value));
+}
+
+export function isValidLoginIdentifier(identifier = '') {
+  const normalized = normalize(identifier);
+  if (!normalized) return false;
+  return (
+    isEmailLike(normalized) ||
+    TEMP_LOGIN_ACCOUNTS.some((item) => item.identifier === normalized)
+  );
+}
+
+export function isStrongEnoughPassword(password = '') {
+  const value = String(password || '');
+  return value.trim().length >= 4;
 }
 
 export function normalizeRole(role = '') {

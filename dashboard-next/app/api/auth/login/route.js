@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
 import { getAuthCookieName, getAuthCookieOptions, normalizeUserEmail, signAuthToken } from '@/lib/auth';
-import { DASHBOARD_ROLES, getDashboardPathForRole, verifyLoginCredentials } from '@/app/lib/dashboardRoles';
+import {
+  DASHBOARD_ROLES,
+  getDashboardPathForRole,
+  isStrongEnoughPassword,
+  isValidLoginIdentifier,
+  verifyLoginCredentials
+} from '@/app/lib/dashboardRoles';
 import UserProfile from '@/models/UserProfile';
 
 function displayNameFromLoginId(identifier = '') {
@@ -36,6 +42,12 @@ export async function POST(req) {
     }
     if (!loginId) {
       return NextResponse.json({ error: 'Login ID is required' }, { status: 400 });
+    }
+    if (!isValidLoginIdentifier(loginId)) {
+      return NextResponse.json({ error: 'Unknown login ID' }, { status: 400 });
+    }
+    if (!isStrongEnoughPassword(password)) {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
     }
 
     await connectDB();
