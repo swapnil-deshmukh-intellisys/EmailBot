@@ -5,7 +5,7 @@ import PresetSender from '@/models/PresetSender';
 import SenderAccount from '@/models/SenderAccount';
 import { verifyAccountConnection } from '@/lib/emailSender';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth, requireUser } from '@/lib/apiAuth';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
 
@@ -151,8 +151,9 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
     await connectDB();
     const body = await req.json();
 
@@ -184,7 +185,7 @@ export async function POST(req) {
     // Verify before storing so the dropdown only shows working accounts.
     await verifyAccountConnection(account);
 
-    const created = await SenderAccount.create({ ...account, userEmail });
+    const created = await SenderAccount.create({ ...account, userId: auth.currentUser._id, userEmail });
     return NextResponse.json({
       ok: true,
       account: {

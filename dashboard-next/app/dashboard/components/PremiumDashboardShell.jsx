@@ -201,6 +201,9 @@ function LogItem({ item, detailed = false }) {
   const actionLabel = String(item?.action || item?.tag || 'Update').trim();
   const statusText = String(item?.status || tagText || 'info').trim();
   const nextText = String(item?.next || '').trim();
+  const metaLines = Array.isArray(item?.meta)
+    ? item.meta.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
   const sourceTone = String(sourceLabel || '').toLowerCase().includes('inbox')
     ? 'inbox'
     : String(sourceLabel || '').toLowerCase().includes('timeline')
@@ -218,7 +221,9 @@ function LogItem({ item, detailed = false }) {
           {detailed ? `${sourceLabel} • ${actionLabel}` : sourceLabel}
         </span>
         <p>{item.msg}</p>
+        {!detailed && item.time ? <small>{item.time}</small> : null}
         {item.detail ? <small>{item.detail}</small> : null}
+        {metaLines.length ? metaLines.map((line, index) => <small key={`${line}-${index}`}>{line}</small>) : null}
         {detailed && nextText ? <small>Next: {nextText}</small> : null}
         {detailed ? <small className={`premium-log-status status-${statusText}`}>Status: {statusText}</small> : null}
       </div>
@@ -405,11 +410,6 @@ export default function PremiumDashboardShell({
     const scheduleCountryKey =
     Object.keys(scheduleCountries).find((country) => country.toLowerCase() === String(scheduledCountry || '').toLowerCase()) ||
     'India';
-  useEffect(() => {
-    if (!selectedSenderAccountId && senderAccounts.length > 0) {
-      onSelectSenderAccount?.(senderAccounts[0].id);
-    }
-  }, [onSelectSenderAccount, selectedSenderAccountId, senderAccounts]);
     const [targetMode, setTargetMode] = useState('daily');
     const [customTargetStart, setCustomTargetStart] = useState('');
     const [customTargetEnd, setCustomTargetEnd] = useState('');
@@ -739,7 +739,7 @@ export default function PremiumDashboardShell({
   const effectiveDraftSubject = controlledDraftSubject ?? draftSubject;
   const effectiveDraftMessage = controlledDraftBody ?? draftMessage;
   const effectiveCampaignName = controlledCampaignName ?? campaignName;
-  const effectiveCampaignSender = selectedSenderAccountId || campaignSender;
+  const effectiveCampaignSender = onSelectSenderAccount ? (selectedSenderAccountId || '') : campaignSender;
   const completedWorkflowSteps = useMemo(() => {
     const hasList = Boolean(selectedListId);
     const hasOverview = Array.isArray(previewRows) && previewRows.length > 0;

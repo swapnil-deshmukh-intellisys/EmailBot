@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth } from '@/lib/apiAuth';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -115,8 +115,9 @@ function dedupeLeadsByEmail(leads = []) {
 }
 
 export async function POST(req) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
+  const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
   await connectDB();
 
   if (!checkUploadRateLimit(req, userEmail)) {
@@ -199,6 +200,7 @@ export async function POST(req) {
   }
 
   const list = await LeadList.create({
+    userId: auth.currentUser._id,
     userEmail,
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,

@@ -19,14 +19,28 @@ function decodeJwtPayload(token = '') {
 export function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  const publicPaths = ['/login', '/unauthorized', '/api/auth/login', '/api/graph-oauth/start', '/api/graph-oauth/callback'];
+  const publicPaths = [
+    '/login',
+    '/request-access',
+    '/change-password',
+    '/forgot-password',
+    '/reset-password',
+    '/unauthorized',
+    '/account/pending',
+    '/account/disabled',
+    '/api/auth/login',
+    '/api/auth/request-access',
+    '/api/graph-oauth/start',
+    '/api/graph-oauth/callback'
+  ];
   const isPublic = publicPaths.includes(pathname) || pathname.startsWith('/_next') || pathname.includes('.');
   if (isPublic) {
     if (pathname === '/login') {
       const token = req.cookies.get(COOKIE_NAME)?.value;
       const session = token ? decodeJwtPayload(token) : null;
       if (session?.role) {
-        return NextResponse.redirect(new URL(getDashboardPathForRole(session.role), req.url));
+        const nextPath = session?.mustChangePassword ? '/change-password' : getDashboardPathForRole(session.role);
+        return NextResponse.redirect(new URL(nextPath, req.url));
       }
     }
     return NextResponse.next();
@@ -44,6 +58,13 @@ export function middleware(req) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (session?.mustChangePassword && !pathname.startsWith('/api/auth/change-password') && pathname !== '/change-password') {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'You must change your password before continuing.' }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL('/change-password', req.url));
+  }
+
   const requiredRole = getRoleFromPath(pathname);
   const sessionRole = String(session.role || '').toLowerCase();
   const sessionPath = String(session.dashboardPath || '');
@@ -58,5 +79,5 @@ export function middleware(req) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/unauthorized', '/api/:path*']
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/user/:path*', '/login', '/unauthorized', '/api/:path*']
 };

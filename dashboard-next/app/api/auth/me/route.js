@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
-import { getAuthCookieName, verifyAuthToken } from '@/lib/auth';
+import { getAuthCookieName, getBlockedStatusMessage, verifyAuthToken } from '@/lib/auth';
 import { getDashboardPathForRole } from '@/app/lib/roleRouting';
 import UserProfile from '@/models/UserProfile';
 
@@ -40,12 +41,32 @@ export async function GET(req) {
   }
 
   await connectDB();
-  const profile = await UserProfile.findOne({ identifier: String(session.email || '').toLowerCase() }).lean();
+  const sessionId = String(session.id || '').trim();
+  const sessionIdentifier = String(session.identifier || session.email || '').toLowerCase();
+  const sessionIntellisysUserId = String(session.intellisysUserId || '').toLowerCase();
+  const profile = (
+    (mongoose.Types.ObjectId.isValid(sessionId) ? await UserProfile.findById(sessionId).lean() : null) ||
+    await UserProfile.findOne({
+      $or: [
+        { identifier: sessionIdentifier },
+        { email: sessionIdentifier },
+        { username: sessionIdentifier },
+        { employeeId: sessionIntellisysUserId || sessionIdentifier },
+        { intellisysUserId: sessionIntellisysUserId || sessionIdentifier }
+      ]
+    }).lean()
+  );
+  const status = String(session?.status || profile?.status || 'active').toLowerCase();
 
   return NextResponse.json({
     authenticated: true,
     user: session,
     dashboardPath: getDashboardPathForRole(session.role),
+    requiresPasswordChange: Boolean(session?.mustChangePassword),
+    accountState: {
+      status,
+      message: getBlockedStatusMessage(status)
+    },
     profile: profile || getDefaultProfile(String(session.email || '').toLowerCase(), session.role)
   });
 }

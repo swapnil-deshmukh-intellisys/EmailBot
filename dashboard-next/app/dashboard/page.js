@@ -418,7 +418,6 @@ export default function DashboardPage() {
     }, 3200);
   };
   const selectedAccountLabel =
-    activeAccount ||
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
     'Select Mail ID';
   const profileDisplayName = profileUser.displayName || displayNameFromEmail(profileUser.email);
@@ -428,7 +427,7 @@ export default function DashboardPage() {
     () => projectAccounts.find((account) => account.id === selectedAccount) || null,
     [projectAccounts, selectedAccount]
   );
-  const selectedSenderEmail = String(selectedAccountObj?.from || activeAccount || '').trim().toLowerCase();
+  const selectedSenderEmail = String(selectedAccountObj?.from || '').trim().toLowerCase();
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
   const previewTotalRows = preview.length;
   const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_ROWS_PER_PAGE));
@@ -577,7 +576,7 @@ export default function DashboardPage() {
         setDelaySeconds(Number(saved.delaySeconds || 60));
         setBatchSize(String(saved.batchSize || '1'));
         setSelectedAccount(String(saved.selectedAccount || ''));
-        setActiveAccount(String(saved.activeAccount || ''));
+        setActiveAccount('');
         setTestEmailTo(String(saved.testEmailTo || ''));
         setSelectedDraft(String(saved.selectedDraft || ''));
         setDraftSubject(String(saved.draftSubject || ''));
@@ -591,6 +590,12 @@ export default function DashboardPage() {
       // Ignore bad saved dashboard state and continue with defaults.
     }
   }, []);
+
+  useEffect(() => {
+    if (!selectedAccount) {
+      setActiveAccount('');
+    }
+  }, [selectedAccount]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1311,6 +1316,36 @@ const handleDeleteDraft = async (draft) => {
         ''
       ).trim() || 'unknown sender';
     const campaignName = String(activeCampaign?.name || 'Active campaign');
+    const campaignStatus = String(activeCampaign?.status || 'Unknown').trim() || 'Unknown';
+    const formatEventTime = (value) => {
+      const parsed = value ? new Date(value) : null;
+      return parsed && !Number.isNaN(parsed.getTime())
+        ? parsed.toLocaleString([], {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        : 'Unknown time';
+    };
+    const buildMetaLines = ({ sender = '', recipient = '', status = campaignStatus, reason = '', eventTime = '', lagMs = null }) => {
+      const items = [
+        `Sender ID: ${sender || senderId}`,
+        `Receiver ID: ${recipient || 'N/A'}`,
+        `Mail Time: ${eventTime || 'Unknown time'}`,
+        `Campaign Status: ${status || 'Unknown'}`
+      ];
+      if (reason) items.push(`Reason: ${reason}`);
+      if (Number.isFinite(lagMs) && lagMs >= 0) {
+        items.push(`Start Delay: ${Math.max(0, Math.round(lagMs / 1000))} sec`);
+      }
+      return items;
+    };
+    let lastStartRequestAt = null;
+    let lastLiveRecipient = '';
+    let lastLiveSender = senderId;
 
     if (!Array.isArray(activeCampaign?.logs) || activeCampaign.logs.length === 0) {
       return [];
@@ -1318,20 +1353,72 @@ const handleDeleteDraft = async (draft) => {
 
       return activeCampaign.logs.slice(-120).map((log) => {
         const rawMessage = String(log?.message || '').trim();
+        const sendingMatch = rawMessage.match(/^Sending to\s+(.+?)\s+with\s+.+?\s+via\s+(.+)$/i);
         const sentMatch = rawMessage.match(/^Sent:\s*(.+)$/i);
         const failedMatch = rawMessage.match(/^Failed:\s*([^\-]+)\s*-\s*(.+)$/i);
+        const sendFailedMatch = rawMessage.match(/^Send failed for\s+([^:]+):\s*(.+)$/i);
+        const skippedDuplicateMatch = rawMessage.match(/^Skipped duplicate recipient:\s*(.+)$/i);
         const fallbackRecipient = rawMessage.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i)?.[1] || '';
         const timestamp = log?.at || new Date().toISOString();
+        const eventTime = formatEventTime(timestamp);
+        const normalizedMessage = rawMessage.toLowerCase();
+        const normalizedFallbackRecipient = String(fallbackRecipient || '').trim();
+
+        if (sendingMatch) {
+          lastLiveRecipient = String(sendingMatch[1] || '').trim();
+          lastLiveSender = String(sendingMatch[2] || '').trim() || lastLiveSender || senderId;
+          return {
+            time: timestamp,
+            tag: 'Sending',
+            source: 'Campaign Engine',
+            action: 'Delivery in progress',
+            msg: `Sending mail to ${lastLiveRecipient}`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender,
+              recipient: lastLiveRecipient,
+              eventTime,
+              status: 'Running'
+            }),
+            next: 'The delivery request is in progress. Watch for sent or failed confirmation.',
+            status: 'pending'
+          };
+        }
+
+        if (normalizedMessage.startsWith('runner start requested')) {
+          lastStartRequestAt = timestamp ? new Date(timestamp) : null;
+          return {
+            time: timestamp,
+            tag: 'Starting',
+            source: 'Campaign Engine',
+            action: 'Startup queued',
+            msg: `${campaignName} is preparing to start`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Starting'
+            }),
+            next: 'Waiting for sender, template, and recipient queue checks to complete.',
+            status: 'pending'
+          };
+        }
 
         if (sentMatch) {
-          const recipient = String(sentMatch[1] || '').trim();
+          const recipient = String(sentMatch[1] || '').replace(/\s+\(reply\)\s*$/i, '').trim() || lastLiveRecipient || normalizedFallbackRecipient;
           return {
             time: timestamp,
             tag: 'Sent',
             source: 'Campaign Engine',
             action: 'Delivery complete',
             msg: `Mail sent to ${recipient}`,
-            detail: `Campaign: ${campaignName} | Sender ID: ${senderId}`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              recipient,
+              eventTime,
+              status: 'Running'
+            }),
             next: 'Continue the send queue or review recent delivery stats.',
             status: 'success'
           };
@@ -1346,9 +1433,171 @@ const handleDeleteDraft = async (draft) => {
             source: 'Campaign Engine',
             action: 'Delivery failed',
             msg: `Mail failed for ${recipient}`,
-            detail: `Reason: ${reason} | Sender ID: ${senderId}`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              recipient,
+              reason,
+              eventTime,
+              status: 'Failed'
+            }),
             next: 'Check sender health or retry after reviewing the failure reason.',
             status: 'danger'
+          };
+        }
+
+        if (sendFailedMatch) {
+          const recipient = String(sendFailedMatch[1] || '').trim() || lastLiveRecipient || normalizedFallbackRecipient;
+          const reason = String(sendFailedMatch[2] || '').trim();
+          return {
+            time: timestamp,
+            tag: 'Failed',
+            source: 'Campaign Engine',
+            action: 'Delivery failed',
+            msg: `Mail failed for ${recipient}`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              recipient,
+              reason,
+              eventTime,
+              status: 'Failed'
+            }),
+            next: 'Review the sender account and failure reason before retrying this recipient.',
+            status: 'danger'
+          };
+        }
+
+        if (skippedDuplicateMatch) {
+          const recipient = String(skippedDuplicateMatch[1] || '').trim() || lastLiveRecipient || normalizedFallbackRecipient;
+          return {
+            time: timestamp,
+            tag: 'Skipped',
+            source: 'Campaign Engine',
+            action: 'Duplicate recipient',
+            msg: `Skipped duplicate recipient: ${recipient}`,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              recipient,
+              eventTime,
+              status: 'Running'
+            }),
+            next: 'Recipient already exists in this campaign queue, so the engine moved to the next lead.',
+            status: 'warning'
+          };
+        }
+
+        if (normalizedMessage === 'campaign started') {
+          const startDelayMs = lastStartRequestAt ? (new Date(timestamp).getTime() - lastStartRequestAt.getTime()) : null;
+          return {
+            time: timestamp,
+            tag: 'Running',
+            source: 'Campaign Engine',
+            action: 'Campaign running',
+            msg: `${campaignName} is now running`,
+            detail: 'Campaign engine is active and sending has started.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Running',
+              lagMs: startDelayMs
+            }),
+            next: 'Watch the queue for sent, failed, and pending delivery updates.',
+            status: 'success'
+          };
+        }
+
+        if (normalizedMessage === 'campaign resumed') {
+          return {
+            time: timestamp,
+            tag: 'Running',
+            source: 'Campaign Engine',
+            action: 'Campaign resumed',
+            msg: `${campaignName} resumed sending`,
+            detail: 'Campaign queue resumed from the last saved step.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Running'
+            }),
+            next: 'The queue is active again and will continue from the last saved position.',
+            status: 'success'
+          };
+        }
+
+        if (normalizedMessage === 'campaign paused') {
+          return {
+            time: timestamp,
+            tag: 'Paused',
+            source: 'Campaign Engine',
+            action: 'Campaign paused',
+            msg: `${campaignName} is paused`,
+            detail: 'Campaign queue is paused and waiting for manual resume.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Paused'
+            }),
+            next: 'Resume the campaign when you are ready to continue the send queue.',
+            status: 'warning'
+          };
+        }
+
+        if (normalizedMessage === 'campaign stopped') {
+          return {
+            time: timestamp,
+            tag: 'Stopped',
+            source: 'Campaign Engine',
+            action: 'Campaign stopped',
+            msg: `${campaignName} stopped`,
+            detail: 'Campaign engine stopped processing the current queue.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Stopped'
+            }),
+            next: 'Review the previous event to see whether this was manual or triggered by an error.',
+            status: 'info'
+          };
+        }
+
+        if (normalizedMessage.startsWith('campaign stopped:')) {
+          const reason = rawMessage.split(':').slice(1).join(':').trim() || 'Campaign stopped';
+          const derivedStatus = reason.toLowerCase().includes('credit') ? 'Failed' : 'Stopped';
+          return {
+            time: timestamp,
+            tag: derivedStatus,
+            source: 'Campaign Engine',
+            action: 'Campaign stop detected',
+            msg: rawMessage,
+            detail: `Campaign: ${campaignName}`,
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: derivedStatus,
+              reason
+            }),
+            next: 'Resolve the blocker first, then restart or resume the campaign.',
+            status: derivedStatus === 'Failed' ? 'danger' : 'warning'
+          };
+        }
+
+        if (normalizedMessage === 'campaign completed') {
+          return {
+            time: timestamp,
+            tag: 'Completed',
+            source: 'Campaign Engine',
+            action: 'Campaign completed',
+            msg: `${campaignName} completed`,
+            detail: 'All queued recipients for this campaign have been processed.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Completed'
+            }),
+            next: 'Review delivery totals and prepare the next campaign batch.',
+            status: 'success'
           };
         }
 
@@ -1358,7 +1607,13 @@ const handleDeleteDraft = async (draft) => {
           source: 'Campaign Engine',
           action: 'System event',
           msg: rawMessage || 'Campaign event',
-          detail: fallbackRecipient ? `Recipient: ${fallbackRecipient} | Sender ID: ${senderId}` : `Sender ID: ${senderId}`,
+          detail: `Campaign: ${campaignName}`,
+          meta: buildMetaLines({
+            sender: lastLiveSender || senderId,
+            recipient: normalizedFallbackRecipient || lastLiveRecipient,
+            eventTime,
+            status: campaignStatus
+          }),
           next: 'Review the campaign log stream for the next step.',
           status: String(log?.level || 'info').toLowerCase()
         };
@@ -1644,6 +1899,7 @@ const handleDeleteDraft = async (draft) => {
           : [];
       if (selectedAccount && !accList.find((a) => a.id === selectedAccount)) {
         setSelectedAccount("");
+        setActiveAccount("");
       }
 
       const firstTemplateId =

@@ -5,9 +5,9 @@ export const DASHBOARD_ROLES = {
 };
 
 export const ROLE_DASHBOARD_PATHS = {
-  [DASHBOARD_ROLES.USER]: '/dashboard/user',
+  [DASHBOARD_ROLES.USER]: '/user/dashboard',
   [DASHBOARD_ROLES.MANAGER]: '/dashboard/manager',
-  [DASHBOARD_ROLES.ADMIN]: '/dashboard/admin'
+  [DASHBOARD_ROLES.ADMIN]: '/admin/dashboard'
 };
 
 export function normalizeRole(role = '') {
@@ -21,8 +21,12 @@ export function getDashboardPathForRole(role = '') {
 }
 
 export function getRoleFromPath(pathname = '') {
-  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/user')) return DASHBOARD_ROLES.USER;
+  if (
+    pathname === '/dashboard' ||
+    pathname.startsWith('/dashboard/user') ||
+    pathname.startsWith('/user/dashboard')
+  ) return DASHBOARD_ROLES.USER;
   if (pathname.startsWith('/dashboard/manager')) return DASHBOARD_ROLES.MANAGER;
-  if (pathname.startsWith('/dashboard/admin')) return DASHBOARD_ROLES.ADMIN;
+  if (pathname.startsWith('/dashboard/admin') || pathname.startsWith('/admin/dashboard')) return DASHBOARD_ROLES.ADMIN;
   return '';
 }

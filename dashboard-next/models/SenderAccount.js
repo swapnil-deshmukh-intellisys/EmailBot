@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const SenderAccountSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', default: null, index: true },
     userEmail: { type: String, default: '', index: true },
     provider: { type: String, enum: ['smtp', 'gmail', 'graph'], required: true },
     label: { type: String, default: '' },
@@ -26,5 +27,7 @@ const SenderAccountSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+SenderAccountSchema.index({ userId: 1, createdAt: -1 });
 
 export default mongoose.models.SenderAccount || mongoose.model('SenderAccount', SenderAccountSchema);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { isAdminUserEmail } from '@/lib/auth';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
@@ -22,9 +22,9 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
-    await connectDB();
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
     const { category, title, subject, body } = await req.json();
     if (!category || !title || !subject || !body) {
       return NextResponse.json({ error: 'category, title, subject, and body are required' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(req) {
     if (!ALLOWED_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
-    const draft = await EmailDraft.create({ userEmail, category, title, subject, body });
+    const draft = await EmailDraft.create({ userId: auth.currentUser._id, userEmail, category, title, subject, body });
     return NextResponse.json({ draft });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to create draft' }, { status: 500 });

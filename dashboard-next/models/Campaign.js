@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const CampaignSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', default: null, index: true },
     userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     project: { type: String, default: '' },
@@ -96,6 +97,7 @@ const CampaignSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+CampaignSchema.index({ userId: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
 

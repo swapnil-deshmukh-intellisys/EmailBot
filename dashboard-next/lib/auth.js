@@ -1,22 +1,31 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import {
+  DEFAULT_ADMIN_LOGIN_ID,
+  DEFAULT_ADMIN_PASSWORD,
+  DEFAULT_USER_PASSWORD
+} from '@/app/lib/authDefaults';
 
 const COOKIE_NAME = 'auth_token';
+export const USER_ACCOUNT_STATUSES = {
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  BLOCKED: 'blocked',
+  REJECTED: 'rejected',
+  INACTIVE: 'inactive'
+};
 
-function isProduction() {
-  return process.env.NODE_ENV === 'production';
-}
-
-function getConfiguredAdminEmail() {
+export function getConfiguredAdminEmail() {
   const value = normalizeUserEmail(process.env.ADMIN_EMAIL || '');
   if (value) return value;
-  return isProduction() ? '' : 'akshaymore.intellisys@gmail.com';
+  return DEFAULT_ADMIN_LOGIN_ID;
 }
 
-function getConfiguredAdminPassword() {
+export function getConfiguredAdminPassword() {
   const value = String(process.env.ADMIN_PASSWORD || '');
   if (value) return value;
-  return isProduction() ? '' : '1234512345@i';
+  return DEFAULT_ADMIN_PASSWORD;
 }
 
 export function signAuthToken(payload) {
@@ -56,6 +65,38 @@ export function normalizeUserEmail(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
+export function normalizeLoginIdentifier(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+export function normalizeUserRole(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'admin') return 'admin';
+  if (normalized === 'manager') return 'manager';
+  return 'user';
+}
+
+export function isActiveAccountStatus(status = '') {
+  return String(status || '').trim().toLowerCase() === USER_ACCOUNT_STATUSES.ACTIVE;
+}
+
+export function getBlockedStatusMessage(status = '') {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === USER_ACCOUNT_STATUSES.ACTIVE) {
+    return 'Your account is active.';
+  }
+  if (normalized === USER_ACCOUNT_STATUSES.PENDING) {
+    return 'Your account is pending admin approval.';
+  }
+  if (normalized === USER_ACCOUNT_STATUSES.BLOCKED || normalized === USER_ACCOUNT_STATUSES.INACTIVE) {
+    return 'Your account has been disabled. Contact admin.';
+  }
+  if (normalized === USER_ACCOUNT_STATUSES.REJECTED) {
+    return 'Your access request was rejected. Contact admin.';
+  }
+  return 'Your account cannot access the dashboard.';
+}
+
 export function isAdminUserEmail(email = '') {
   const normalizedEmail = normalizeUserEmail(email);
   const adminEmail = getConfiguredAdminEmail();
@@ -84,6 +125,53 @@ export function getSessionFromRequest(req) {
   const token = req?.cookies?.get?.(getAuthCookieName())?.value;
   if (!token) return null;
   return verifyAuthToken(token);
+}
+
+export function buildSessionPayload(profile = {}, dashboardPath = '') {
+  return {
+    id: String(profile?._id || profile?.id || ''),
+    email: normalizeUserEmail(profile?.email || profile?.identifier || ''),
+    identifier: normalizeLoginIdentifier(profile?.identifier || profile?.email || ''),
+    intellisysUserId: normalizeLoginIdentifier(profile?.intellisysUserId || profile?.employeeId || profile?.identifier || ''),
+    role: normalizeUserRole(profile?.role || 'user'),
+    status: String(profile?.status || USER_ACCOUNT_STATUSES.ACTIVE).toLowerCase(),
+    isAuthenticated: true,
+    mustChangePassword: Boolean(profile?.mustChangePassword),
+    dashboardPath
+  };
+}
+
+export function getDefaultUserPassword() {
+  return String(process.env.DEFAULT_USER_PASSWORD || DEFAULT_USER_PASSWORD);
+}
+
+export function validatePasswordStrength(password = '') {
+  const value = String(password || '');
+  if (value.length < 8) return 'Password must be at least 8 characters long.';
+  if (!/[a-z]/.test(value)) return 'Password must include at least one lowercase letter.';
+  if (!/[A-Z]/.test(value)) return 'Password must include at least one uppercase letter.';
+  if (!/\d/.test(value)) return 'Password must include at least one number.';
+  if (!/[^\w\s]/.test(value)) return 'Password must include at least one special character.';
+  return '';
+}
+
+export async function hashPassword(password = '') {
+  return bcrypt.hash(String(password || ''), 10);
+}
+
+export async function comparePassword(password = '', hash = '') {
+  if (!String(hash || '')) return false;
+  return bcrypt.compare(String(password || ''), String(hash || ''));
+}
+
+export function createResetToken() {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  return { rawToken, tokenHash };
+}
+
+export function hashResetToken(rawToken = '') {
+  return crypto.createHash('sha256').update(String(rawToken || '')).digest('hex');
 }
 
 export async function validateAdminCredentials(email, password) {

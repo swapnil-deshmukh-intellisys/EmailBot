@@ -9,7 +9,7 @@ import LeadList from '@/models/LeadList';
 import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
@@ -78,8 +78,9 @@ export async function GET(req) {
 export async function POST(req) {
 
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
 
     await connectDB();
 
@@ -176,6 +177,7 @@ export async function POST(req) {
 
     const campaign = await Campaign.create({
 
+      userId: auth.currentUser._id,
       userEmail,
       name,
       project: String(project || '').trim().toLowerCase(),

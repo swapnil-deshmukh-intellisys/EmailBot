@@ -3,7 +3,18 @@ import mongoose from 'mongoose';
 const UserProfileSchema = new mongoose.Schema(
   {
     identifier: { type: String, required: true, unique: true, index: true },
+    intellisysUserId: { type: String, default: '', unique: true, sparse: true, index: true },
+    name: { type: String, default: '' },
+    email: { type: String, default: '', index: true },
+    username: { type: String, default: '', index: true },
+    employeeId: { type: String, default: '', index: true },
     role: { type: String, default: 'user' },
+    status: {
+      type: String,
+      enum: ['pending', 'active', 'blocked', 'rejected', 'inactive'],
+      default: 'pending',
+      index: true
+    },
     displayName: { type: String, default: '' },
     avatarName: { type: String, default: '' },
     avatarDataUrl: { type: String, default: '' },
@@ -42,9 +53,22 @@ const UserProfileSchema = new mongoose.Schema(
       ],
       default: []
     },
-    passwordHash: { type: String, default: '' }
+    passwordHash: { type: String, default: '' },
+    mustChangePassword: { type: Boolean, default: false },
+    isFirstLogin: { type: Boolean, default: true },
+    passwordChangedAt: { type: Date, default: null },
+    resetPasswordTokenHash: { type: String, default: '' },
+    resetPasswordTokenExpiresAt: { type: Date, default: null },
+    createdByAdmin: { type: Boolean, default: false },
+    approvedBy: { type: String, default: '' },
+    approvedAt: { type: Date, default: null },
+    lastLoginAt: { type: Date, default: null }
   },
   { timestamps: true }
 );
+
+UserProfileSchema.index({ role: 1, status: 1, updatedAt: -1 });
+UserProfileSchema.index({ email: 1, username: 1, employeeId: 1 });
+UserProfileSchema.index({ intellisysUserId: 1, status: 1 });
 
 export default mongoose.models.UserProfile || mongoose.model('UserProfile', UserProfileSchema);

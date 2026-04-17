@@ -27,6 +27,7 @@ const LeadSchema = new mongoose.Schema(
 
 const LeadListSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', default: null, index: true },
     userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     sourceFile: { type: String, required: true },
@@ -47,5 +48,7 @@ const LeadListSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+LeadListSchema.index({ userId: 1, createdAt: -1 });
 
 export default mongoose.models.LeadList || mongoose.model('LeadList', LeadListSchema);
