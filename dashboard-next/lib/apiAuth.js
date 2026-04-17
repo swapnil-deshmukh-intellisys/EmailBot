@@ -62,9 +62,9 @@ export async function requireAuth(req, options = {}) {
   }
 
   await connectDB();
+  const seededCurrentUser = buildSeededCurrentUser(session);
   const currentUser = await UserProfile.findOne({ identifier });
-  const seededCurrentUser = currentUser ? null : buildSeededCurrentUser(session);
-  const resolvedCurrentUser = currentUser || seededCurrentUser;
+  const resolvedCurrentUser = seededCurrentUser || currentUser;
   if (!resolvedCurrentUser) {
     return {
       session,
@@ -74,7 +74,7 @@ export async function requireAuth(req, options = {}) {
     };
   }
 
-  const status = String(resolvedCurrentUser.status || '').toLowerCase();
+  const status = String((seededCurrentUser ? 'active' : resolvedCurrentUser.status) || '').toLowerCase();
   if (!allowPending && !isActiveAccountStatus(status)) {
     return {
       session,

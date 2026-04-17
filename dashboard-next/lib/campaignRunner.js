@@ -8,6 +8,7 @@ import UserProfile from '../models/UserProfile';
 import CreditTransaction from '../models/CreditTransaction';
 import { getAvailableAccounts, sendEmailForLead } from './emailSender';
 import { resolveSenderAccountById } from './senderAccounts';
+import { USER_ACCOUNT_STATUSES } from './auth';
 
 const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;
@@ -17,7 +18,7 @@ global.campaignStartingRunners = startingRunners;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
-const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 3 : 60;
+const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 1 : 1;
 const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
@@ -156,6 +157,10 @@ async function reserveCampaignCredit(userEmail = '') {
       {
         $setOnInsert: {
           identifier: normalizedUserEmail,
+          email: normalizedUserEmail,
+          username: normalizedUserEmail,
+          status: USER_ACCOUNT_STATUSES.ACTIVE,
+          role: 'user',
           totalCredits: DEFAULT_PROFILE_CREDITS,
           usedCredits: 1,
           remainingCredits: DEFAULT_PROFILE_CREDITS - 1,
@@ -443,7 +448,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
-  const normalizedDelaySeconds = Math.max(MIN_DELAY_SECONDS, Number(campaign.options?.delaySeconds || 60));
+  const normalizedDelaySeconds = Math.max(MIN_DELAY_SECONDS, Number(campaign.options?.delaySeconds || MIN_DELAY_SECONDS));
   campaign.status = 'Running';
   campaign.options.delaySeconds = normalizedDelaySeconds;
   campaign.startedAt = startTime;
