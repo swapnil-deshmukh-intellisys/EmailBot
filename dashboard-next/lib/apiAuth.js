@@ -3,10 +3,27 @@ import {
   getBlockedStatusMessage,
   getSessionFromRequest,
   isActiveAccountStatus,
-  normalizeUserEmail
+  normalizeUserEmail,
+  normalizeUserRole
 } from '@/lib/auth';
 import connectDB from '@/lib/mongodb';
 import UserProfile from '@/models/UserProfile';
+
+function buildSeededCurrentUser(session = null) {
+  const sessionId = String(session?.id || '').trim();
+  const identifier = normalizeUserEmail(session?.identifier || session?.email || '');
+  const email = normalizeUserEmail(session?.email || session?.identifier || '');
+  if (!session || !sessionId.startsWith('seed-') || !identifier) return null;
+
+  return {
+    _id: null,
+    id: sessionId,
+    identifier,
+    email,
+    role: normalizeUserRole(session?.role || 'user'),
+    status: 'active'
+  };
+}
 
 export function requireUser(req) {
   const session = getSessionFromRequest(req);
@@ -46,7 +63,9 @@ export async function requireAuth(req, options = {}) {
 
   await connectDB();
   const currentUser = await UserProfile.findOne({ identifier });
-  if (!currentUser) {
+  const seededCurrentUser = currentUser ? null : buildSeededCurrentUser(session);
+  const resolvedCurrentUser = currentUser || seededCurrentUser;
+  if (!resolvedCurrentUser) {
     return {
       session,
       currentUser: null,
@@ -55,11 +74,11 @@ export async function requireAuth(req, options = {}) {
     };
   }
 
-  const status = String(currentUser.status || '').toLowerCase();
+  const status = String(resolvedCurrentUser.status || '').toLowerCase();
   if (!allowPending && !isActiveAccountStatus(status)) {
     return {
       session,
-      currentUser,
+      currentUser: resolvedCurrentUser,
       ownerFilter: null,
       errorResponse: NextResponse.json(
         { error: getBlockedStatusMessage(status), status },
@@ -70,8 +89,8 @@ export async function requireAuth(req, options = {}) {
 
   return {
     session,
-    currentUser,
-    ownerFilter: buildOwnerFilter(currentUser),
+    currentUser: resolvedCurrentUser,
+    ownerFilter: buildOwnerFilter(resolvedCurrentUser),
     errorResponse: null
   };
 }
