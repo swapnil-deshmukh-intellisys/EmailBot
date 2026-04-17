@@ -1,9 +1,21 @@
 import mongoose from 'mongoose';
 
+function normalizeOptionalIdentifier(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || undefined;
+}
+
 const UserProfileSchema = new mongoose.Schema(
   {
     identifier: { type: String, required: true, unique: true, index: true },
-    intellisysUserId: { type: String, default: '', unique: true, sparse: true, index: true },
+    intellisysUserId: {
+      type: String,
+      default: undefined,
+      unique: true,
+      sparse: true,
+      index: true,
+      set: normalizeOptionalIdentifier
+    },
     name: { type: String, default: '' },
     email: { type: String, default: '', index: true },
     username: { type: String, default: '', index: true },

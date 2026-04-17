@@ -157,6 +157,7 @@ async function reserveCampaignCredit(userEmail = '') {
       {
         $setOnInsert: {
           identifier: normalizedUserEmail,
+          intellisysUserId: normalizedUserEmail,
           email: normalizedUserEmail,
           username: normalizedUserEmail,
           status: USER_ACCOUNT_STATUSES.ACTIVE,
