@@ -20,6 +20,7 @@ const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_C
 const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 3 : 60;
 const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
+const DEFAULT_PROFILE_CREDITS = 6000;
 
 function senderThreadKey(account = {}) {
   const from = normalizeEmail(account?.from || account?.user || '');
@@ -142,7 +143,38 @@ async function reserveCampaignCredit(userEmail = '') {
   ).lean();
 
   if (!updated) {
-    return { ok: false, message: 'Credit limit reached' };
+    const existingProfile = await UserProfile.findOne({ identifier: normalizedUserEmail })
+      .select({ _id: 1, remainingCredits: 1 })
+      .lean();
+
+    if (existingProfile) {
+      return { ok: false, message: 'Credit limit reached' };
+    }
+
+    const createdProfile = await UserProfile.findOneAndUpdate(
+      { identifier: normalizedUserEmail },
+      {
+        $setOnInsert: {
+          identifier: normalizedUserEmail,
+          totalCredits: DEFAULT_PROFILE_CREDITS,
+          usedCredits: 1,
+          remainingCredits: DEFAULT_PROFILE_CREDITS - 1,
+          creditUsagePercent: 0
+        }
+      },
+      { new: true, upsert: true }
+    ).lean();
+
+    await CreditTransaction.create({
+      userEmail: normalizedUserEmail,
+      type: 'debit',
+      reason: 'credit_reserved_for_send',
+      credits: 1,
+      balanceAfter: Math.max(0, Number(createdProfile?.remainingCredits || 0)),
+      meta: { source: 'campaignRunner', profileCreated: true }
+    });
+
+    return { ok: true, profileCreated: true };
   }
 
   await CreditTransaction.create({
@@ -399,7 +431,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
     return { started: false, message: 'Campaign already started by another process' };
   }
 
-  const state = { running: true, paused: false, stop: false };
+  const state = { running: true, paused: false, stop: false, stopReason: '' };
   runners.set(campaignId, state);
   const campaignType = String(campaign.type || campaign.draftType || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
   const replyMode = typeof campaign.options?.replyMode === 'boolean'
@@ -547,6 +579,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
             }
             if (process.env.NODE_ENV !== 'development') {
               state.stop = true;
+              state.stopReason = 'credit_limit';
               break;
             }
             appendLog(campaign, 'Credit limit reached, but continuing in development mode.', 'info');
@@ -635,7 +668,13 @@ export async function startCampaignRunner(campaignId, options = {}) {
       }
 
       if (state.stop) {
-        campaign.status = 'Paused';
+        if (state.stopReason === 'credit_limit') {
+          campaign.status = 'Failed';
+          campaign.finishedAt = new Date();
+          appendLog(campaign, 'Campaign failed: credit limit reached', 'error');
+        } else {
+          campaign.status = 'Paused';
+        }
       } else {
         campaign.status = 'Completed';
         campaign.finishedAt = new Date();
@@ -685,6 +724,7 @@ export async function stopCampaignRunner(campaignId) {
     return { ok: false, message: 'Campaign is not running' };
   }
   state.stop = true;
+  state.stopReason = 'manual';
   state.paused = false;
   return { ok: true };
 }
@@ -692,3 +732,4 @@ export async function stopCampaignRunner(campaignId) {
 export function getRunnerState(campaignId) {
   return runners.get(campaignId) || { running: false, paused: false };
 }
+
