@@ -7,7 +7,17 @@ if (!cached) {
 let schedulerInitPromise = global.__schedulerInitPromise || null;
 global.__schedulerInitPromise = schedulerInitPromise;
 
+function shouldAutoStartCampaignScheduler() {
+  const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
+  if (configured === 'true') return true;
+  if (configured === 'false') return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
 async function ensureSchedulerInitialized() {
+  if (!shouldAutoStartCampaignScheduler()) {
+    return;
+  }
   if (schedulerInitPromise) {
     await schedulerInitPromise;
     return;

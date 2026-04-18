@@ -22,6 +22,8 @@ const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 1 : 1
 const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
+const CAMPAIGN_WORKER_ID = String(process.env.CAMPAIGN_WORKER_ID || 'web-worker').trim() || 'web-worker';
+const WORKER_HEARTBEAT_INTERVAL_MS = Math.max(5000, Number(process.env.CAMPAIGN_WORKER_HEARTBEAT_MS || 15000));
 
 function senderThreadKey(account = {}) {
   const from = normalizeEmail(account?.from || account?.user || '');
@@ -348,6 +350,49 @@ function parseRowRange(rowRange = '', totalLeads = 0) {
   return { start, end };
 }
 
+function shouldRefreshHeartbeat(lastBeatAt = 0) {
+  return !lastBeatAt || (Date.now() - lastBeatAt) >= WORKER_HEARTBEAT_INTERVAL_MS;
+}
+
+export async function validateCampaignExecutionPreflight(campaign) {
+  await connectDB();
+
+  if (!campaign?._id) {
+    throw new Error('Campaign not found');
+  }
+
+  const list = await LeadList.findById(campaign.listId).lean();
+  if (!list) {
+    throw new Error('Lead list not found');
+  }
+
+  const validLeads = Array.isArray(list.leads)
+    ? list.leads.filter((lead) => normalizeEmail(lead?.Email || lead?.email || ''))
+    : [];
+  if (!validLeads.length) {
+    throw new Error('Recipient list is empty');
+  }
+
+  const templateFromDb = campaign.templateId ? await EmailTemplate.findById(campaign.templateId).lean() : null;
+  const inlineTemplate = campaign.inlineTemplate?.subject && campaign.inlineTemplate?.body
+    ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body }
+    : null;
+  if (!inlineTemplate && !templateFromDb) {
+    throw new Error('Template not found');
+  }
+
+  if (campaign.senderAccountId) {
+    const sender = await resolveSenderAccountById(campaign.senderAccountId, { userEmail: campaign.userEmail || '' });
+    if (!sender) {
+      throw new Error('No sender account found for this user');
+    }
+  } else if (!campaign.senderAccount?.provider && !getAvailableAccounts().length) {
+    throw new Error('No sender account configured');
+  }
+
+  return { list, template: inlineTemplate || templateFromDb };
+}
+
 export async function startCampaignRunner(campaignId, options = {}) {
   if (startingRunners.has(campaignId)) {
     return { started: false, message: 'Campaign start already in progress' };
@@ -418,17 +463,21 @@ export async function startCampaignRunner(campaignId, options = {}) {
         status: 'Running',
         startedAt: campaign.startedAt || null
       }
-    : {
-        _id: campaign._id,
-        status: { $in: ['Draft', 'Paused', 'Scheduled'] }
-      };
+      : {
+          _id: campaign._id,
+          status: { $in: ['Draft', 'Queued', 'Paused', 'Scheduled'] }
+        };
   const claim = await Campaign.updateOne(
     claimQuery,
     {
       $set: {
         status: 'Running',
         startedAt: startTime,
-        scheduledAt: null
+        scheduledAt: null,
+        queueRequestedAt: null,
+        workerId: CAMPAIGN_WORKER_ID,
+        workerLockedAt: startTime,
+        workerHeartbeatAt: startTime
       }
     }
   );
@@ -454,6 +503,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.options.delaySeconds = normalizedDelaySeconds;
   campaign.startedAt = startTime;
   campaign.scheduledAt = null;
+  campaign.workerId = CAMPAIGN_WORKER_ID;
+  campaign.workerLockedAt = startTime;
+  campaign.workerHeartbeatAt = startTime;
   const scopedSent = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'sent').length;
   const scopedFailed = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'failed').length;
   const scopedBounced = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'bounced').length;
@@ -465,6 +517,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.stats.spam = scopedSpam;
   campaign.stats.pending = Math.max(0, scopedLeads.length - scopedSent - scopedFailed - scopedBounced - scopedSpam);
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
+  appendLog(campaign, `Campaign worker claimed: ${CAMPAIGN_WORKER_ID}`);
   if (trigger === 'scheduler') {
     appendLog(campaign, 'Campaign auto-started by scheduler');
   }
@@ -483,6 +536,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
 
   (async () => {
     try {
+      let lastHeartbeatAt = Date.now();
       const pendingIndexes = [];
       const now = Date.now();
       list.leads.forEach((lead, idx) => {
@@ -514,6 +568,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
 
         while (state.paused) {
           campaign.status = 'Paused';
+          if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
+            campaign.workerHeartbeatAt = new Date();
+            lastHeartbeatAt = Date.now();
+          }
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
             return;
@@ -522,6 +580,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
         }
 
         campaign.status = 'Running';
+        if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
+          campaign.workerHeartbeatAt = new Date();
+          lastHeartbeatAt = Date.now();
+        }
         const batch = pendingIndexes.slice(i, i + batchSize);
 
         for (const idx of batch) {
@@ -655,6 +717,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
           }
 
           campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
+            campaign.workerHeartbeatAt = new Date();
+            lastHeartbeatAt = Date.now();
+          }
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
@@ -677,13 +743,22 @@ export async function startCampaignRunner(campaignId, options = {}) {
         if (state.stopReason === 'credit_limit') {
           campaign.status = 'Failed';
           campaign.finishedAt = new Date();
+          campaign.workerId = '';
+          campaign.workerLockedAt = null;
+          campaign.workerHeartbeatAt = null;
           appendLog(campaign, 'Campaign failed: credit limit reached', 'error');
         } else {
           campaign.status = 'Paused';
+          campaign.workerId = '';
+          campaign.workerLockedAt = null;
+          campaign.workerHeartbeatAt = null;
         }
       } else {
         campaign.status = 'Completed';
         campaign.finishedAt = new Date();
+        campaign.workerId = '';
+        campaign.workerLockedAt = null;
+        campaign.workerHeartbeatAt = null;
         appendLog(campaign, 'Campaign completed');
       }
 
@@ -694,6 +769,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
       state.running = false;
     } catch (error) {
       campaign.status = 'Failed';
+      campaign.workerId = '';
+      campaign.workerLockedAt = null;
+      campaign.workerHeartbeatAt = null;
       appendLog(campaign, `Fatal campaign error: ${error.message}`, 'error');
       await saveCampaignIfExists(campaign);
       state.running = false;

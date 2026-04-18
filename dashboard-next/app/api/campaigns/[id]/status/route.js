@@ -1,12 +1,14 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
-import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
+import { getRunnerState } from '@/lib/campaignRunner';
+import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { requireUser } from '@/lib/apiAuth';
 
 export async function GET(req, { params }) {
   const { userEmail, errorResponse } = requireUser(req);
   if (errorResponse) return errorResponse;
+
   await connectDB();
   let campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
   if (!campaign) {
@@ -14,15 +16,20 @@ export async function GET(req, { params }) {
   }
 
   let runner = getRunnerState(String(campaign._id));
-  if (String(campaign.status || '') === 'Running' && !runner?.running) {
-    try {
-      await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
-      campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
-      runner = getRunnerState(String(campaign._id));
-    } catch (error) {
-      // Keep returning current campaign state; recovery failures are captured in campaign logs.
-    }
+  if (['Queued', 'Scheduled'].includes(String(campaign.status || ''))) {
+    await triggerCampaignSchedulerTick();
+    campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
+    runner = getRunnerState(String(campaign._id));
   }
 
-  return NextResponse.json({ campaign, runner });
+  return NextResponse.json({
+    campaign,
+    runner,
+    queueState: {
+      workerId: String(campaign?.workerId || ''),
+      workerLockedAt: campaign?.workerLockedAt || null,
+      workerHeartbeatAt: campaign?.workerHeartbeatAt || null,
+      queueRequestedAt: campaign?.queueRequestedAt || null
+    }
+  });
 }

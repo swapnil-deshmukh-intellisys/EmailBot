@@ -78,7 +78,199 @@ npm run start
 - `POST /api/campaigns/:id/resume`
 - `GET /api/campaigns/:id/status`
 
+## Health Checks
+- `GET /api/health`
+- `GET /api/worker-health`
+
+Example:
+```bash
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/worker-health
+```
+
+## AWS Deployment Runbook
+Use one web process and one separate campaign worker process against the same MongoDB.
+
+### 1. Web App
+Environment:
+```env
+ENABLE_IN_APP_CAMPAIGN_SCHEDULER=false
+CAMPAIGN_SCHEDULER_INTERVAL_MS=5000
+CAMPAIGN_WORKER_LOCK_STALE_MS=120000
+```
+
+Run:
+```bash
+npm install
+npm run build
+npm run start
+```
+
+### 2. Campaign Worker
+Environment:
+```env
+ENABLE_IN_APP_CAMPAIGN_SCHEDULER=true
+CAMPAIGN_WORKER_ID=aws-worker-1
+CAMPAIGN_SCHEDULER_INTERVAL_MS=5000
+CAMPAIGN_WORKER_HEARTBEAT_MS=15000
+CAMPAIGN_WORKER_LOCK_STALE_MS=120000
+```
+
+Run:
+```bash
+npm install
+npm run worker:campaigns
+```
+
+### 3. Operational Checks
+- Web healthy:
+  - `GET /api/health`
+- Queue healthy:
+  - `GET /api/worker-health`
+- Expected:
+  - queued campaigns decrease when worker is live
+  - running campaigns show fresh `workerHeartbeatAt`
+  - `staleRunning` stays `0`
+
+### 4. Failure Recovery
+- If worker crashes, stale running campaigns are automatically re-queued after `CAMPAIGN_WORKER_LOCK_STALE_MS`.
+- If queue grows but running stays `0`, restart the worker process.
+- If `/api/health` fails, check web app logs and MongoDB connectivity first.
+
+### 5. Recommended AWS Shape
+- Web app:
+  - ECS service, EC2 process manager, or similar
+- Worker:
+  - separate ECS service / EC2 process / PM2 process
+- Database:
+  - MongoDB Atlas or central MongoDB reachable from both
+- Secrets:
+  - store SMTP/Graph secrets in AWS Secrets Manager or Parameter Store
+
+## PM2 on EC2
+An EC2-ready PM2 config is included at:
+- `ecosystem.config.cjs`
+
+### Install PM2
+```bash
+npm install -g pm2
+```
+
+### Start both web + worker
+```bash
+pm2 start ecosystem.config.cjs
+```
+
+### Useful PM2 commands
+```bash
+pm2 status
+pm2 logs intellimailpilot-web
+pm2 logs intellimailpilot-worker
+pm2 restart intellimailpilot-web
+pm2 restart intellimailpilot-worker
+pm2 save
+pm2 startup
+```
+
+### Recommended EC2 rollout
+```bash
+git pull
+npm install
+npm run build
+pm2 start ecosystem.config.cjs
+```
+
+### PM2 expectations
+- web runs with `ENABLE_IN_APP_CAMPAIGN_SCHEDULER=false`
+- worker runs with `ENABLE_IN_APP_CAMPAIGN_SCHEDULER=true`
+- both must use the same MongoDB and same production env values
+
+## Docker / ECS
+A production Docker image is included at:
+- `Dockerfile`
+
+A local two-service example is included at:
+- `docker-compose.ecs-local.yml`
+
+### Build image
+```bash
+docker build -t intellimailpilot:latest .
+```
+
+### Run web container
+```bash
+docker run --env-file .env -p 3000:3000 \
+  -e NODE_ENV=production \
+  -e ENABLE_IN_APP_CAMPAIGN_SCHEDULER=false \
+  intellimailpilot:latest
+```
+
+### Run worker container
+```bash
+docker run --env-file .env \
+  -e NODE_ENV=production \
+  -e ENABLE_IN_APP_CAMPAIGN_SCHEDULER=true \
+  -e CAMPAIGN_WORKER_ID=aws-worker-1 \
+  -e CAMPAIGN_SCHEDULER_INTERVAL_MS=5000 \
+  -e CAMPAIGN_WORKER_HEARTBEAT_MS=15000 \
+  -e CAMPAIGN_WORKER_LOCK_STALE_MS=120000 \
+  intellimailpilot:latest npm run worker:campaigns
+```
+
+### ECS shape
+- Service 1:
+  - web container
+  - desired count `1+`
+  - public or behind ALB
+- Service 2:
+  - worker container
+  - desired count `1`
+  - private service, no public listener required
+
+### ECS env guidance
+- Web task:
+  - `ENABLE_IN_APP_CAMPAIGN_SCHEDULER=false`
+- Worker task:
+  - `ENABLE_IN_APP_CAMPAIGN_SCHEDULER=true`
+  - `CAMPAIGN_WORKER_ID=aws-worker-1`
+- Shared:
+  - `MONGODB_URI`
+  - auth envs
+  - SMTP / Graph envs
+  - `JWT_SECRET`
+
+### Local container test
+```bash
+docker compose -f docker-compose.ecs-local.yml up --build
+```
+
+### ECS templates included
+- `aws/ecs/web-task-definition.template.json`
+- `aws/ecs/worker-task-definition.template.json`
+- `aws/ecs/deploy-checklist.md`
+- `aws/ecs/env.example.production`
+
+## Legacy Data Cleanup
+If you have old Mongo records from before the auth/worker fixes, a cleanup script is included:
+- `scripts/cleanup-legacy-data.mjs`
+
+Dry run:
+```bash
+npm run cleanup:legacy
+```
+
+Apply fixes:
+```bash
+npm run cleanup:legacy -- --apply
+```
+
+What it fixes:
+- unsets empty `intellisysUserId` values on `UserProfile`
+- fills missing `intellisysUserId` from email-like identifiers when safe
+- re-queues stale `Running` campaigns with dead worker locks
+- clears worker lock metadata from finished campaigns
+
 ## Notes
-- Campaign runner is in-process (`lib/campaignRunner.js`). For production at scale, move it to a queue worker (BullMQ/RabbitMQ).
+- Campaign execution is now queue-oriented and worker-owned.
 - SMTP credentials should be app passwords or secrets manager values.
 - If Graph variables are present, sender uses Graph first; SMTP is fallback.

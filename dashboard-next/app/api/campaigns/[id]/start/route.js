@@ -1,7 +1,8 @@
 ﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
-import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
+import { getRunnerState, startCampaignRunner, validateCampaignExecutionPreflight } from '@/lib/campaignRunner';
+import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { requireUser } from '@/lib/apiAuth';
 
 export async function POST(req, { params }) {
@@ -33,8 +34,21 @@ export async function POST(req, { params }) {
   }
 
   try {
-    const result = await startCampaignRunner(String(campaign._id));
-    return NextResponse.json({ ok: true, ...result });
+    await validateCampaignExecutionPreflight(campaign);
+    campaign.status = 'Queued';
+    campaign.queueRequestedAt = new Date();
+    campaign.workerLockedAt = null;
+    campaign.workerHeartbeatAt = null;
+    campaign.workerId = '';
+    campaign.finishedAt = null;
+    campaign.logs.push({ level: 'info', message: 'Campaign queued for server worker', at: new Date() });
+    await campaign.save();
+    await triggerCampaignSchedulerTick();
+    return NextResponse.json({
+      ok: true,
+      queued: true,
+      message: 'Campaign queued successfully.'
+    });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

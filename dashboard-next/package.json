@@ -10,6 +10,8 @@
     "dev:clean": "npm run kill:next && npm run kill:3000 && npm run clean:next && npm run dev",
     "build": "next build",
     "start": "next start",
+    "worker:campaigns": "node scripts/campaign-worker.mjs",
+    "cleanup:legacy": "node scripts/cleanup-legacy-data.mjs",
     "lint": "next lint"
   },
   "dependencies": {

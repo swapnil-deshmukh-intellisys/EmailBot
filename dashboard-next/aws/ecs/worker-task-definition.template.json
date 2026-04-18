@@ -1,0 +1,58 @@
+{
+  "family": "intellimailpilot-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "__ECS_EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__ECS_TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "intellimailpilot-worker",
+      "image": "__ECR_IMAGE_URI__",
+      "essential": true,
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "ENABLE_IN_APP_CAMPAIGN_SCHEDULER", "value": "true" },
+        { "name": "CAMPAIGN_WORKER_ID", "value": "aws-worker-1" },
+        { "name": "CAMPAIGN_SCHEDULER_INTERVAL_MS", "value": "5000" },
+        { "name": "CAMPAIGN_WORKER_HEARTBEAT_MS", "value": "15000" },
+        { "name": "CAMPAIGN_WORKER_LOCK_STALE_MS", "value": "120000" }
+      ],
+      "secrets": [
+        { "name": "MONGODB_URI", "valueFrom": "__SECRET_MONGODB_URI__" },
+        { "name": "JWT_SECRET", "valueFrom": "__SECRET_JWT_SECRET__" },
+        { "name": "ADMIN_EMAIL", "valueFrom": "__SECRET_ADMIN_EMAIL__" },
+        { "name": "ADMIN_PASSWORD", "valueFrom": "__SECRET_ADMIN_PASSWORD__" },
+        { "name": "DEFAULT_USER_PASSWORD", "valueFrom": "__SECRET_DEFAULT_USER_PASSWORD__" },
+        { "name": "SMTP_HOST", "valueFrom": "__SECRET_SMTP_HOST__" },
+        { "name": "SMTP_PORT", "valueFrom": "__SECRET_SMTP_PORT__" },
+        { "name": "SMTP_SECURE", "valueFrom": "__SECRET_SMTP_SECURE__" },
+        { "name": "SMTP_USER", "valueFrom": "__SECRET_SMTP_USER__" },
+        { "name": "SMTP_PASS", "valueFrom": "__SECRET_SMTP_PASS__" },
+        { "name": "SMTP_FROM", "valueFrom": "__SECRET_SMTP_FROM__" },
+        { "name": "TENANT_ID", "valueFrom": "__SECRET_TENANT_ID__" },
+        { "name": "CLIENT_ID", "valueFrom": "__SECRET_CLIENT_ID__" },
+        { "name": "CLIENT_SECRET", "valueFrom": "__SECRET_CLIENT_SECRET__" },
+        { "name": "GRAPH_SENDER_EMAIL", "valueFrom": "__SECRET_GRAPH_SENDER_EMAIL__" },
+        { "name": "ALLOWED_ORIGINS", "valueFrom": "__SECRET_ALLOWED_ORIGINS__" }
+      ],
+      "command": ["npm", "run", "worker:campaigns"],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/worker-health').then(()=>process.exit(0)).catch(()=>process.exit(0))\""],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 45
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "__CLOUDWATCH_LOG_GROUP__",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "worker"
+        }
+      }
+    }
+  ]
+}

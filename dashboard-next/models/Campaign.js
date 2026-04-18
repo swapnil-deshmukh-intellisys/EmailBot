@@ -35,7 +35,7 @@ const CampaignSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Scheduled', 'Running', 'Paused', 'Completed', 'Failed'],
+      enum: ['Draft', 'Queued', 'Scheduled', 'Running', 'Paused', 'Completed', 'Failed'],
       default: 'Draft'
     },
     tracking: {
@@ -91,6 +91,10 @@ const CampaignSchema = new mongoose.Schema(
       label: { type: String, default: '' },
       at: { type: Date, default: null }
     },
+    queueRequestedAt: { type: Date, default: null, index: true },
+    workerId: { type: String, default: '' },
+    workerLockedAt: { type: Date, default: null },
+    workerHeartbeatAt: { type: Date, default: null },
     startedAt: Date,
     finishedAt: Date
   },

@@ -1,0 +1,16 @@
+.git
+.gitignore
+.next
+node_modules
+npm-debug.log
+dev*.log
+*.err.log
+*.out.log
+.env
+.env.local
+.env.*.local
+logs
+tmp*
+temp*
+edit.py
+ecosystem.config.cjs

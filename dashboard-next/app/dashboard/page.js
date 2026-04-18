@@ -63,7 +63,7 @@ function StatusBadgeLegacy({ status }) {
   return <span className={`badge ${k}`}>{status}</span>;
 }
 
-const ACTIVE_CAMPAIGN_STATUSES = new Set(['Running', 'Paused']);
+const ACTIVE_CAMPAIGN_STATUSES = new Set(['Queued', 'Running', 'Paused']);
 
 function escapeHtml(value = '') {
   return String(value || '')
