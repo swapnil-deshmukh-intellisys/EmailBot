@@ -13,7 +13,7 @@ import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
-const FIXED_CAMPAIGN_DELAY_SECONDS = Math.max(60, Number(process.env.FIXED_CAMPAIGN_DELAY_SECONDS || 60));
+const FIXED_CAMPAIGN_DELAY_SECONDS = 60;
 
 function normalizeCampaignType(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');

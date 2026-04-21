@@ -17,13 +17,14 @@ global.campaignStartingRunners = startingRunners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
-const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
-const DEFAULT_MIN_DELAY_SECONDS = Math.max(60, Number(process.env.FIXED_CAMPAIGN_DELAY_SECONDS || 60));
-const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
+const MAX_CONCURRENT_CAMPAIGNS = Math.max(0, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 0));
+const CAMPAIGN_SEND_DELAY_MS = 60_000;
+const CAMPAIGN_SEND_DELAY_SECONDS = 60;
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
 const CAMPAIGN_WORKER_ID = String(process.env.CAMPAIGN_WORKER_ID || 'web-worker').trim() || 'web-worker';
 const WORKER_HEARTBEAT_INTERVAL_MS = Math.max(5000, Number(process.env.CAMPAIGN_WORKER_HEARTBEAT_MS || 15000));
+const DELAY_POLL_INTERVAL_MS = 250;
 
 function senderThreadKey(account = {}) {
   const from = normalizeEmail(account?.from || account?.user || '');
@@ -354,6 +355,38 @@ function shouldRefreshHeartbeat(lastBeatAt = 0) {
   return !lastBeatAt || (Date.now() - lastBeatAt) >= WORKER_HEARTBEAT_INTERVAL_MS;
 }
 
+async function syncCampaignHeartbeat(campaign, lastHeartbeatAt = 0) {
+  if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
+    campaign.workerHeartbeatAt = new Date();
+    await saveCampaignIfExists(campaign);
+    return Date.now();
+  }
+  return lastHeartbeatAt;
+}
+
+async function waitForCampaignDelay(state, campaign, delayMs, lastHeartbeatAt = 0) {
+  const nextSendAt = new Date(Date.now() + delayMs);
+  appendLog(campaign, `Next send scheduled at ${nextSendAt.toISOString()}`);
+  await saveCampaignIfExists(campaign);
+
+  let heartbeatAt = lastHeartbeatAt;
+  while (Date.now() < nextSendAt.getTime()) {
+    if (state.stop) {
+      return { completed: false, interruptedBy: 'stop', lastHeartbeatAt: heartbeatAt };
+    }
+
+    if (state.paused) {
+      return { completed: false, interruptedBy: 'pause', lastHeartbeatAt: heartbeatAt };
+    }
+
+    heartbeatAt = await syncCampaignHeartbeat(campaign, heartbeatAt);
+    const remainingMs = Math.max(0, nextSendAt.getTime() - Date.now());
+    await wait(Math.min(DELAY_POLL_INTERVAL_MS, remainingMs));
+  }
+
+  return { completed: true, interruptedBy: '', lastHeartbeatAt: heartbeatAt };
+}
+
 export async function validateCampaignExecutionPreflight(campaign) {
   await connectDB();
 
@@ -412,7 +445,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
   }
 
   const runningCount = Array.from(runners.values()).filter((state) => state?.running).length;
-  if (runningCount >= MAX_CONCURRENT_CAMPAIGNS) {
+  if (MAX_CONCURRENT_CAMPAIGNS > 0 && runningCount >= MAX_CONCURRENT_CAMPAIGNS) {
     return {
       started: false,
       message: `Maximum concurrent running campaigns reached (${MAX_CONCURRENT_CAMPAIGNS}).`
@@ -504,9 +537,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
-  const normalizedDelaySeconds = Math.max(MIN_DELAY_SECONDS, Number(campaign.options?.delaySeconds || MIN_DELAY_SECONDS));
+  const normalizedDelaySeconds = CAMPAIGN_SEND_DELAY_SECONDS;
   campaign.status = 'Running';
   campaign.options.delaySeconds = normalizedDelaySeconds;
+  campaign.options.batchSize = 1;
   campaign.startedAt = startTime;
   campaign.scheduledAt = null;
   campaign.workerId = CAMPAIGN_WORKER_ID;
@@ -536,11 +570,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
     return { started: false, message: 'Campaign was removed before start' };
   }
 
-  const batchSize = 1;
-  const delayMs = Math.max(MIN_DELAY_SECONDS * 1000, Number(campaign.options.delaySeconds || normalizedDelaySeconds) * 1000);
+  const delayMs = CAMPAIGN_SEND_DELAY_MS;
   campaign.options.batchSize = 1;
-  campaign.options.delaySeconds = Math.round(delayMs / 1000);
-  appendLog(campaign, `Mail gap: ${Math.round(delayMs / 1000)} seconds per email`);
+  campaign.options.delaySeconds = CAMPAIGN_SEND_DELAY_SECONDS;
+  appendLog(campaign, `Mail gap: ${CAMPAIGN_SEND_DELAY_SECONDS} seconds per email`);
 
   (async () => {
     try {
@@ -568,7 +601,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
       });
       await list.save();
 
-      for (let i = 0; i < pendingIndexes.length; i += batchSize) {
+      for (let i = 0; i < pendingIndexes.length; i += 1) {
         if (state.stop) {
           appendLog(campaign, 'Campaign stopped');
           break;
@@ -588,161 +621,154 @@ export async function startCampaignRunner(campaignId, options = {}) {
         }
 
         campaign.status = 'Running';
-        if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
-          campaign.workerHeartbeatAt = new Date();
-          lastHeartbeatAt = Date.now();
-        }
-        const batch = pendingIndexes.slice(i, i + batchSize);
-
-        for (const idx of batch) {
-          const sendCycleStartedAt = Date.now();
-          const lead = list.leads[idx];
-          const recipientEmail = normalizeEmail(lead?.Email || lead?.email || '');
-          if (!recipientEmail) {
-            lead.status = 'Failed';
-            lead.error = 'Lead has no email address';
-            lead.failedAt = new Date();
-            lead.sendingStartedAt = null;
-            campaign.stats.failed += 1;
-            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
-            appendLog(campaign, `Failed: unknown - Lead has no email address`, 'error');
-            await persistLeadProgress(list._id, idx, lead);
-            if (!(await saveCampaignIfExists(campaign))) {
-              state.running = false;
-              return;
-            }
-            continue;
-          }
-          const claimedAt = new Date();
-          const claimed = await claimLeadForSend(list._id, idx, claimedAt);
-          if (!claimed) {
-            continue;
-          }
-          const claimedRecipient = await claimRecipientForCampaign(campaign._id, list._id, idx, recipientEmail, claimedAt);
-          if (!claimedRecipient) {
-            lead.status = 'Sent';
-            lead.error = 'Skipped duplicate recipient in this campaign';
-            lead.sentAt = new Date();
-            lead.failedAt = null;
-            lead.sendingStartedAt = null;
-            campaign.stats.sent += 1;
-            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed);
-            appendLog(campaign, `Skipped duplicate recipient: ${recipientEmail}`);
-            await persistLeadProgress(list._id, idx, lead);
-            if (!(await saveCampaignIfExists(campaign))) {
-              state.running = false;
-              return;
-            }
-            continue;
-          }
-          lead.status = 'Sending';
-          lead.error = '';
-          lead.sendingStartedAt = claimedAt;
-
-          const creditReservation = await reserveCampaignCredit(campaign.userEmail || '');
-          if (!creditReservation.ok) {
-            lead.status = 'Failed';
-            lead.error = creditReservation.message || 'Credit limit reached';
-            lead.failedAt = new Date();
-            lead.sendingStartedAt = null;
-            campaign.stats.failed += 1;
-            campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
-            appendLog(campaign, `Campaign stopped: ${creditReservation.message || 'Credit limit reached'}`, 'error');
-            await persistLeadProgress(list._id, idx, lead);
-            if (!(await saveCampaignIfExists(campaign))) {
-              state.running = false;
-              return;
-            }
-            if (process.env.NODE_ENV !== 'development') {
-              state.stop = true;
-              state.stopReason = 'credit_limit';
-              break;
-            }
-            appendLog(campaign, 'Credit limit reached, but continuing in development mode.', 'info');
-            continue;
-          }
-
-          const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
-          const selectedTemplate = inlineTemplate || templateFromDb;
-          const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
-          const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
-
-          try {
-            appendLog(campaign, `Sending to ${recipientEmail} with ${account.provider || 'smtp'} via ${account.from || account.user || 'unknown'}`);
-            const sendResult = await sendEmailForLead({
-              template: selectedTemplate,
-              lead,
-              account,
-              campaignType,
-              replyMode,
-              replyContext: replyContext || null
-            });
-            lead.status = 'Sent';
-            lead.error = '';
-            lead.sentAt = new Date();
-            lead.failedAt = null;
-            lead.sendingStartedAt = null;
-            if (sendResult?.thread) {
-              lead.thread = sendResult.thread;
-              await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
-            }
-            campaign.stats.sent += 1;
-            await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
-            appendLog(
-              campaign,
-              `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
-            );
-            if (replyMode && !sendResult?.isReply) {
-              appendLog(
-                campaign,
-                `Reply mode fallback to new email: no previous messageId for ${lead.Email || lead.email || 'unknown'}`,
-                'info'
-              );
-            }
-          } catch (error) {
-            appendLog(campaign, `Send failed for ${recipientEmail}: ${error.message}`, 'error');
-            await refundCampaignCredit(campaign.userEmail || '', {
-              campaignId: campaign._id,
-              campaignName: campaign.name || '',
-              recipientEmail,
-              reason: 'send_failed_refund',
-              status: 'Failed'
-            });
-            const failureStatus = classifyDeliveryFailure(error.message);
-            lead.status = failureStatus;
-            lead.error = error.message;
-            lead.failedAt = new Date();
-            lead.sendingStartedAt = null;
-            if (failureStatus === 'Bounced') {
-              campaign.stats.bounced += 1;
-            } else if (failureStatus === 'Spam') {
-              campaign.stats.spam += 1;
-            } else {
-              campaign.stats.failed += 1;
-            }
-            await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
-            appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
-          }
-
+        lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
+        const idx = pendingIndexes[i];
+        const lead = list.leads[idx];
+        const recipientEmail = normalizeEmail(lead?.Email || lead?.email || '');
+        if (!recipientEmail) {
+          lead.status = 'Failed';
+          lead.error = 'Lead has no email address';
+          lead.failedAt = new Date();
+          lead.sendingStartedAt = null;
+          campaign.stats.failed += 1;
           campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
-          if (shouldRefreshHeartbeat(lastHeartbeatAt)) {
-            campaign.workerHeartbeatAt = new Date();
-            lastHeartbeatAt = Date.now();
-          }
+          appendLog(campaign, `Failed: unknown - Lead has no email address`, 'error');
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
             return;
           }
+          continue;
+        }
+        const claimedAt = new Date();
+        const claimed = await claimLeadForSend(list._id, idx, claimedAt);
+        if (!claimed) {
+          continue;
+        }
+        const claimedRecipient = await claimRecipientForCampaign(campaign._id, list._id, idx, recipientEmail, claimedAt);
+        if (!claimedRecipient) {
+          lead.status = 'Failed';
+          lead.error = 'Skipped duplicate recipient in this campaign';
+          lead.sentAt = null;
+          lead.failedAt = new Date();
+          lead.sendingStartedAt = null;
+          campaign.stats.failed += 1;
+          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          appendLog(campaign, `Skipped duplicate recipient: ${recipientEmail}`);
+          await persistLeadProgress(list._id, idx, lead);
+          if (!(await saveCampaignIfExists(campaign))) {
+            state.running = false;
+            return;
+          }
+          continue;
+        }
+        lead.status = 'Sending';
+        lead.error = '';
+        lead.sendingStartedAt = claimedAt;
 
-          if (state.stop) {
+        const creditReservation = await reserveCampaignCredit(campaign.userEmail || '');
+        if (!creditReservation.ok) {
+          lead.status = 'Failed';
+          lead.error = creditReservation.message || 'Credit limit reached';
+          lead.failedAt = new Date();
+          lead.sendingStartedAt = null;
+          campaign.stats.failed += 1;
+          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          appendLog(campaign, `Campaign stopped: ${creditReservation.message || 'Credit limit reached'}`, 'error');
+          await persistLeadProgress(list._id, idx, lead);
+          if (!(await saveCampaignIfExists(campaign))) {
+            state.running = false;
+            return;
+          }
+          if (process.env.NODE_ENV !== 'development') {
+            state.stop = true;
+            state.stopReason = 'credit_limit';
             break;
           }
+          appendLog(campaign, 'Credit limit reached, but continuing in development mode.', 'info');
+          continue;
+        }
 
-          const elapsedMs = Date.now() - sendCycleStartedAt;
-          const waitMs = Math.max(0, delayMs - elapsedMs);
-          if (waitMs > 0) {
-            await wait(waitMs);
+        const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
+        const selectedTemplate = inlineTemplate || templateFromDb;
+        const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
+        const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
+
+        try {
+          appendLog(campaign, `Sending to ${recipientEmail} with ${account.provider || 'smtp'} via ${account.from || account.user || 'unknown'}`);
+          const sendResult = await sendEmailForLead({
+            template: selectedTemplate,
+            lead,
+            account,
+            campaignType,
+            replyMode,
+            replyContext: replyContext || null
+          });
+          lead.status = 'Sent';
+          lead.error = '';
+          lead.sentAt = new Date();
+          lead.failedAt = null;
+          lead.sendingStartedAt = null;
+          if (sendResult?.thread) {
+            lead.thread = sendResult.thread;
+            await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
+          }
+          campaign.stats.sent += 1;
+          await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
+          appendLog(
+            campaign,
+            `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
+          );
+          if (replyMode && !sendResult?.isReply) {
+            appendLog(
+              campaign,
+              `Reply mode fallback to new email: no previous messageId for ${lead.Email || lead.email || 'unknown'}`,
+              'info'
+            );
+          }
+        } catch (error) {
+          appendLog(campaign, `Send failed for ${recipientEmail}: ${error.message}`, 'error');
+          await refundCampaignCredit(campaign.userEmail || '', {
+            campaignId: campaign._id,
+            campaignName: campaign.name || '',
+            recipientEmail,
+            reason: 'send_failed_refund',
+            status: 'Failed'
+          });
+          const failureStatus = classifyDeliveryFailure(error.message);
+          lead.status = failureStatus;
+          lead.error = error.message;
+          lead.failedAt = new Date();
+          lead.sendingStartedAt = null;
+          if (failureStatus === 'Bounced') {
+            campaign.stats.bounced += 1;
+          } else if (failureStatus === 'Spam') {
+            campaign.stats.spam += 1;
+          } else {
+            campaign.stats.failed += 1;
+          }
+          await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
+          appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
+        }
+
+        campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+        lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
+        await persistLeadProgress(list._id, idx, lead);
+        if (!(await saveCampaignIfExists(campaign))) {
+          state.running = false;
+          return;
+        }
+
+        if (state.stop) {
+          break;
+        }
+
+        const hasMoreCandidates = i < pendingIndexes.length - 1;
+        if (hasMoreCandidates) {
+          const delayState = await waitForCampaignDelay(state, campaign, delayMs, lastHeartbeatAt);
+          lastHeartbeatAt = delayState.lastHeartbeatAt;
+          if (!delayState.completed) {
+            continue;
           }
         }
       }
