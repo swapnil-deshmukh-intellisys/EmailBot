@@ -7,12 +7,15 @@ export async function POST(req) {
   try {
     const { userEmail, errorResponse } = requireUser(req);
     if (errorResponse) return errorResponse;
-    const { accountId, to, subject, body } = await req.json();
+    const { accountId, to, subject, body, project } = await req.json();
     if (!to) {
       return NextResponse.json({ error: 'Test recipient email is required' }, { status: 400 });
     }
 
-    const account = await resolveSenderAccountById(accountId, { userEmail });
+    const account = await resolveSenderAccountById(accountId, {
+      userEmail,
+      project: String(project || '').trim().toLowerCase()
+    });
     if (!account) {
       return NextResponse.json({ error: 'Sender account not found' }, { status: 404 });
     }

@@ -76,8 +76,8 @@ export default function useCampaigns(campaigns = [], preferredActiveCampaignId =
   const activeCampaignIds = useMemo(() => activeCampaigns.map((c) => c._id), [activeCampaigns]);
   const historyCampaignIds = useMemo(() => historyCampaigns.map((c) => c._id), [historyCampaigns]);
   const progressText = activeCampaign
-    ? `${activeCampaign.stats?.sent || 0}/${activeCampaign.stats?.total || 0} emails sent`
-    : '0/0 emails sent';
+    ? `${activeCampaign.stats?.sent || 0} emails sent`
+    : '0 emails sent';
 
   return {
     activeCampaigns,

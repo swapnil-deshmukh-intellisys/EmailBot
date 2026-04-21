@@ -981,6 +981,7 @@ export default function PremiumDashboardShell({
   const availableTags = useMemo(() => {
     return [
       'All Tags',
+      'Queued',
       'Running',
       'Paused',
       'Completed',
@@ -988,16 +989,16 @@ export default function PremiumDashboardShell({
       ...new Set(
         performanceCampaigns
           .flatMap((item) => item.tags || [])
-          .filter((tag) => tag && !['Running', 'Paused', 'Completed', 'Failed'].includes(tag))
+          .filter((tag) => tag && !['Queued', 'Running', 'Paused', 'Completed', 'Failed'].includes(tag))
       )
     ];
   }, [performanceCampaigns]);
   const filteredCampaigns = useMemo(() => {
     const query = tableSearch.trim().toLowerCase();
     return performanceCampaigns.filter((item) => {
-      const statusValue = String(item.tag || '').toLowerCase();
+      const statusValue = String(item.status || item.tag || '').toLowerCase();
       const selectedStatus = String(selectedTagFilter || '').toLowerCase();
-      const isStatusFilter = ['running', 'paused', 'completed', 'failed'].includes(selectedStatus);
+      const isStatusFilter = ['queued', 'running', 'paused', 'completed', 'failed'].includes(selectedStatus);
       const matchesTag = selectedTagFilter === 'All Tags'
         || (isStatusFilter ? statusValue === selectedStatus : (item.tags || []).includes(selectedTagFilter));
       const haystack = [
@@ -2098,8 +2099,14 @@ export default function PremiumDashboardShell({
                     </span>
                     <span data-label="Sr. No.">{campaign.srNo}</span>
                     <span className="premium-table-campaign" data-label="Campaign">
+                      {(() => {
+                        const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
+                        const isDraftCampaign = normalizedStatus === 'draft';
+                        const isQueuedCampaign = normalizedStatus === 'queued';
+                        return (
+                          <>
                       <strong>{campaign.name}</strong>
-                      {String(campaign.status || '').toLowerCase() === 'draft' ? (
+                      {isDraftCampaign ? (
                         <button
                           type="button"
                           className="campaign-resume-badge"
@@ -2108,8 +2115,20 @@ export default function PremiumDashboardShell({
                           Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
                         </button>
                       ) : null}
+                      {isQueuedCampaign ? (
+                        <button
+                          type="button"
+                          className="campaign-resume-badge"
+                          onClick={() => handleViewCampaign(campaign)}
+                        >
+                          Queued for worker
+                        </button>
+                      ) : null}
                       <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
                       <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
+                          </>
+                        );
+                      })()}
                     </span>
                     <span data-label="Publish Date">{campaign.publishDate || '-'}</span>
                     <span data-label="Total Mails">{campaign.total}</span>
@@ -2133,23 +2152,34 @@ export default function PremiumDashboardShell({
                       >
                         ⋮
                       </button>
-                      {openActionMenu === campaign.id ? (
+                      {openActionMenu === campaign.id ? (() => {
+                        const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
+                        const isDraftCampaign = normalizedStatus === 'draft';
+                        const canPauseCampaign = ['queued', 'running'].includes(normalizedStatus);
+                        const canStopCampaign = ['queued', 'running', 'paused'].includes(normalizedStatus);
+                        const canResumeCampaign = normalizedStatus === 'paused';
+                        return (
                         <div className="premium-row-action-menu">
                           <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
                           <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
-                          {String(campaign.status || '').toLowerCase() === 'draft' ? (
+                          {isDraftCampaign ? (
                             <button type="button" onClick={() => { setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
                               Resume Draft
                             </button>
                           ) : null}
-                          <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
-                          <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
-                          {String(campaign.tag || '').toLowerCase() === 'paused' ? (
+                          {canPauseCampaign ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                          ) : null}
+                          {canStopCampaign ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
+                          ) : null}
+                          {canResumeCampaign ? (
                             <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
                           ) : null}
                           <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
                         </div>
-                      ) : null}
+                        );
+                      })() : null}
                     </span>
                   </div>
                 )) : (

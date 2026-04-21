@@ -4,7 +4,7 @@ import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import PresetSender from '@/models/PresetSender';
 import SenderAccount from '@/models/SenderAccount';
 import { verifyAccountConnection } from '@/lib/emailSender';
-import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
+import { getProjectGraphConfig, getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { requireAuth, requireUser } from '@/lib/apiAuth';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
@@ -60,7 +60,7 @@ export async function GET(req) {
     return NextResponse.json({ accounts: cached.accounts });
   }
 
-  const envAccounts = getRuntimeSenderAccounts().map(toPublicAccount);
+  const envAccounts = getRuntimeSenderAccounts(project).map(toPublicAccount);
 
   const [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
     GraphOAuthAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
@@ -101,7 +101,8 @@ export async function GET(req) {
     ...dbPublic.map((a) => String(a.from || "").toLowerCase())
   ]);
 
-  const graphAppReady = Boolean(process.env.TENANT_ID && process.env.CLIENT_ID && process.env.CLIENT_SECRET);
+  const graphConfig = getProjectGraphConfig(project);
+  const graphAppReady = Boolean(graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret);
 
   const dbPresetPublic = dbPreset
     .filter((entry) => !seen.has(String(entry.email || "").toLowerCase()))

@@ -13,7 +13,7 @@ import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
-const MIN_DELAY_SECONDS = Math.max(1, Number(process.env.MIN_DELAY_SECONDS || 1));
+const FIXED_CAMPAIGN_DELAY_SECONDS = Math.max(60, Number(process.env.FIXED_CAMPAIGN_DELAY_SECONDS || 60));
 
 function normalizeCampaignType(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
@@ -134,7 +134,12 @@ export async function POST(req) {
 
 
 
-    const senderAccount = senderAccountId ? await resolveSenderAccountById(senderAccountId, { userEmail }) : null;
+    const senderAccount = senderAccountId
+      ? await resolveSenderAccountById(senderAccountId, {
+          userEmail,
+          project: String(project || '').trim().toLowerCase()
+        })
+      : null;
 
     if (senderAccountId && !senderAccount) {
 
@@ -166,8 +171,8 @@ export async function POST(req) {
       type: campaignType,
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
       'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
-      'options.batchSize': batchSize,
-      'options.delaySeconds': Math.max(MIN_DELAY_SECONDS, Number(options?.delaySeconds || 60)),
+      'options.batchSize': 1,
+      'options.delaySeconds': FIXED_CAMPAIGN_DELAY_SECONDS,
       'options.replyMode': replyMode
     }).lean();
 
@@ -211,9 +216,8 @@ export async function POST(req) {
 
       options: {
 
-        batchSize,
-
-        delaySeconds: Math.max(MIN_DELAY_SECONDS, Number(options?.delaySeconds || 60)),
+        batchSize: 1,
+        delaySeconds: FIXED_CAMPAIGN_DELAY_SECONDS,
 
         rowRange: '',
         replyMode

@@ -18,7 +18,7 @@ global.campaignStartingRunners = startingRunners;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(1, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 20));
-const DEFAULT_MIN_DELAY_SECONDS = process.env.NODE_ENV === 'development' ? 1 : 1;
+const DEFAULT_MIN_DELAY_SECONDS = Math.max(60, Number(process.env.FIXED_CAMPAIGN_DELAY_SECONDS || 60));
 const MIN_DELAY_SECONDS = Math.max(DEFAULT_MIN_DELAY_SECONDS, Number(process.env.MIN_DELAY_SECONDS || DEFAULT_MIN_DELAY_SECONDS));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
@@ -382,7 +382,10 @@ export async function validateCampaignExecutionPreflight(campaign) {
   }
 
   if (campaign.senderAccountId) {
-    const sender = await resolveSenderAccountById(campaign.senderAccountId, { userEmail: campaign.userEmail || '' });
+    const sender = await resolveSenderAccountById(campaign.senderAccountId, {
+      userEmail: campaign.userEmail || '',
+      project: campaign.project || ''
+    });
     if (!sender) {
       throw new Error('No sender account found for this user');
     }
@@ -436,7 +439,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
   let accounts = [];
   if (campaign.senderAccountId) {
     appendLog(campaign, `Resolving sender account ${campaign.senderAccountId}`);
-    const resolved = await resolveSenderAccountById(campaign.senderAccountId, { userEmail: campaign.userEmail || '' });
+    const resolved = await resolveSenderAccountById(campaign.senderAccountId, {
+      userEmail: campaign.userEmail || '',
+      project: campaign.project || ''
+    });
     if (!resolved) {
       appendLog(campaign, `Sender account not found: ${campaign.senderAccountId}`, 'error');
       throw new Error('Sender account not found');
@@ -530,8 +536,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
     return { started: false, message: 'Campaign was removed before start' };
   }
 
-  const batchSize = Math.max(1, Number(campaign.options.batchSize || 1));
+  const batchSize = 1;
   const delayMs = Math.max(MIN_DELAY_SECONDS * 1000, Number(campaign.options.delaySeconds || normalizedDelaySeconds) * 1000);
+  campaign.options.batchSize = 1;
+  campaign.options.delaySeconds = Math.round(delayMs / 1000);
   appendLog(campaign, `Mail gap: ${Math.round(delayMs / 1000)} seconds per email`);
 
   (async () => {

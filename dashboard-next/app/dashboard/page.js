@@ -1080,7 +1080,7 @@ const handleDeleteDraft = async (draft) => {
   const reportMetricCards = [
     {
       title: 'Total',
-      value: Number(stats?.totalUploaded || 0),
+      value: Number(stats?.total || 0),
       percent: 100,
       meta: 'Backend count',
       tone: 'total',
@@ -1223,7 +1223,7 @@ const handleDeleteDraft = async (draft) => {
       time: '12:00 PM',
       title: 'Pipeline check',
       type: 'Meeting',
-      text: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => String(campaign?.status || '').toLowerCase() === 'running').length || 0)} running`,
+      text: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => ACTIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || ''))).length || 0)} active`,
       status: 'pending',
       done: false
     }
@@ -1231,9 +1231,9 @@ const handleDeleteDraft = async (draft) => {
   const performanceCampaigns = (campaigns || [])
     .slice()
     .sort((a, b) => {
-      const aRunning = String(a?.status || '').toLowerCase() === 'running' ? 1 : 0;
-      const bRunning = String(b?.status || '').toLowerCase() === 'running' ? 1 : 0;
-      if (aRunning !== bRunning) return bRunning - aRunning;
+      const aActive = ACTIVE_CAMPAIGN_STATUSES.has(String(a?.status || '')) ? 1 : 0;
+      const bActive = ACTIVE_CAMPAIGN_STATUSES.has(String(b?.status || '')) ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
       const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
@@ -1244,6 +1244,9 @@ const handleDeleteDraft = async (draft) => {
     const sent = Number(campaign?.stats?.sent || 0);
     const failed = Number(campaign?.stats?.failed || 0);
     const pending = Number(campaign?.stats?.pending || Math.max(total - sent - failed, 0));
+    const opened = Number(campaign?.stats?.opened || campaign?.stats?.opens || campaign?.trackingStats?.openCount || 0);
+    const bounced = Number(campaign?.stats?.bounced || campaign?.stats?.bounce || 0);
+    const spam = Number(campaign?.stats?.spam || 0);
     const projectKey = String(project || 'tec').toUpperCase();
     const senderEmail = String(campaign?.senderEmail || campaign?.sender || campaign?.from || '');
     const senderName = senderEmail ? senderEmail.split('@')[0] : 'Unassigned';
@@ -1266,19 +1269,24 @@ const handleDeleteDraft = async (draft) => {
       id: campaign?._id || index,
       srNo: index + 1,
       name: campaign?.name || `Campaign ${index + 1}`,
+      status,
       publishDate: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : '',
       total,
       sent,
       pending,
       failed,
-      open: Number(campaign?.stats?.opened || campaign?.openedCount || 0),
-      bounced: Number(campaign?.stats?.bounced || campaign?.bouncedCount || 0),
-      spam: Number(campaign?.stats?.spam || campaign?.spamCount || 0),
+      open: opened,
+      bounced,
+      spam,
       tag: status,
       person: senderName,
       broadcast,
       country,
       sector,
+      workerId: campaign?.workerId || '',
+      workerLockedAt: campaign?.workerLockedAt || null,
+      workerHeartbeatAt: campaign?.workerHeartbeatAt || null,
+      queueRequestedAt: campaign?.queueRequestedAt || null,
       tags: [status, country, sector, senderName].filter(Boolean)
     };
   });
@@ -1401,6 +1409,43 @@ const handleDeleteDraft = async (draft) => {
             }),
             next: 'Waiting for sender, template, and recipient queue checks to complete.',
             status: 'pending'
+          };
+        }
+
+        if (normalizedMessage === 'campaign queued for server worker' || normalizedMessage === 'campaign re-queued for server worker') {
+          return {
+            time: timestamp,
+            tag: 'Queued',
+            source: 'Campaign Engine',
+            action: normalizedMessage.includes('re-queued') ? 'Campaign re-queued' : 'Campaign queued',
+            msg: `${campaignName} is waiting in the worker queue`,
+            detail: 'Campaign is queued on the server and will start when the worker claims it.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Queued'
+            }),
+            next: 'Watch for the worker claim and running event in the campaign log.',
+            status: 'info'
+          };
+        }
+
+        if (normalizedMessage.startsWith('campaign worker claimed:')) {
+          const workerName = rawMessage.split(':').slice(1).join(':').trim() || 'server worker';
+          return {
+            time: timestamp,
+            tag: 'Queued',
+            source: 'Campaign Engine',
+            action: 'Worker claimed campaign',
+            msg: `${campaignName} was claimed by ${workerName}`,
+            detail: 'The server worker accepted the campaign and is preparing the send loop.',
+            meta: buildMetaLines({
+              sender: lastLiveSender || senderId,
+              eventTime,
+              status: 'Queued'
+            }),
+            next: 'The campaign should move to running as soon as preflight checks complete.',
+            status: 'info'
           };
         }
 
@@ -1646,13 +1691,13 @@ const handleDeleteDraft = async (draft) => {
           ...performanceCampaigns.slice(0, 4).map((item) => ({
             time: item.publishDate,
             tag: String(item.status || 'Campaign').toLowerCase() === 'running' ? 'Live' : 'Campaign',
-            source: 'Campaign Overview',
-            action: 'Performance update',
-            msg: `${item.name} (${item.tag})`,
-            detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`,
-            next: 'Use the campaign panel to check the next batch and blockers.',
-            status: 'info'
-          })),
+              source: 'Campaign Overview',
+              action: 'Performance update',
+              msg: `${item.name} (${item.tag})`,
+              detail: `${item.sent} sent, ${item.pending} pending, ${item.failed} failed`,
+              next: 'Use the campaign panel to check the next batch and blockers.',
+              status: 'info'
+            })),
           ...campaigns.slice(0, 3).map((item) => ({
             time: item.updatedAt || item.createdAt || new Date().toISOString(),
             tag: String(item.status || 'System').toLowerCase() === 'running' ? 'Live' : 'System',
@@ -1674,7 +1719,7 @@ const handleDeleteDraft = async (draft) => {
     const inboxActivity = Math.max(0, Number(logs?.length || 0));
     const warmupPercent = Math.max(0, Math.min(100, Number(completionRate || 0)));
     return {
-      Dashboard: `${Number(stats?.sent || 0)}/${Math.max(1, Number(totalTrackedMails || 0))}`,
+      Dashboard: String(Number(stats?.sent || 0)),
       'Client Data': String(clientListsTotal),
       Drafts: String(draftsTotal),
       Campaign: `${runningCampaigns}/${campaignTotal}`,
