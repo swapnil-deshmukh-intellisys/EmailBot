@@ -65,7 +65,7 @@ export async function GET(req) {
   const [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
     GraphOAuthAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
     SenderAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
-    PresetSender.find().lean()
+    project ? PresetSender.find({ project }).lean() : PresetSender.find().lean()
   ]);
   const oauthPublic = oauthAccounts.map((a) => ({
     id: `oauth:${String(a._id)}`,
@@ -93,8 +93,11 @@ export async function GET(req) {
     health: a.health || 'Good'
   }));
 
-
-  const presetEmails = getPresetSenderEmails(project);
+  const envPresetEmails = getPresetSenderEmails(project);
+  const dbPresetEmails = dbPreset
+    .map((entry) => String(entry.email || '').trim().toLowerCase())
+    .filter(Boolean);
+  const presetEmails = Array.from(new Set([...envPresetEmails, ...dbPresetEmails]));
   const seen = new Set([
     ...envAccounts.map((a) => String(a.from || "").toLowerCase()),
     ...oauthPublic.map((a) => String(a.from || "").toLowerCase()),
@@ -122,6 +125,7 @@ export async function GET(req) {
 
   const presetPublic = presetEmails
     .filter((email) => !seen.has(email))
+    .filter((email) => !dbPresetEmails.includes(email))
     .map((email) => ({
       id: `graphapp:${email}`,
       provider: "graph",
