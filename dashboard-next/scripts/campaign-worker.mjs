@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER = 'true';
 process.env.CAMPAIGN_WORKER_ID =
   String(process.env.CAMPAIGN_WORKER_ID || `aws-worker-${process.pid}`).trim() || `aws-worker-${process.pid}`;
