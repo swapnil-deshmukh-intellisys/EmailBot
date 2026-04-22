@@ -11,7 +11,7 @@ function parsePresetSenderEmails(raw = '') {
     .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
 }
 
-function getPresetSenderEmails(project = '') {
+export function getPresetSenderEmails(project = '') {
   const normalizedProject = String(project || '').trim().toLowerCase();
   if (normalizedProject === 'tut') {
     return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS_TUT || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
@@ -22,7 +22,7 @@ function getPresetSenderEmails(project = '') {
   return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
 }
 
-function getProjectGraphConfig(project = '') {
+export function getProjectGraphConfig(project = '') {
   const normalizedProject = String(project || '').trim().toLowerCase();
   if (normalizedProject === 'tut') {
     return {
@@ -177,5 +177,3 @@ export async function resolveSenderAccountById(id, options = {}) {
 
   return getRuntimeSenderAccounts(project).find((a) => a.id === raw) || null;
 }
-
-export { getPresetSenderEmails, getProjectGraphConfig };
