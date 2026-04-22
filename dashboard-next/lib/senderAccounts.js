@@ -2,6 +2,42 @@ import connectDB from './mongodb.js';
 import SenderAccount from '../models/SenderAccount.js';
 import GraphOAuthAccount from '../models/GraphOAuthAccount.js';
 
+const DEFAULT_PROJECT_PRESET_SENDERS = {
+  tec: [
+    'lily@theentrepreneurialchronicle.com',
+    'charlie@theentrepreneurialchronicle.com',
+    'robert@theentrepreneurialchronicle.com',
+    'mark@theentrepreneurialchronicle.com',
+    'sam@theentrepreneurialchronicle.com',
+    'clara@theentrepreneurialchronicle.com',
+    'sophia@theentrepreneurialchronicle.com',
+    'jess@theentrepreneurialchronicle.com',
+    'diana@theentrepreneurialchronicle.com',
+    'victoria@theentrepreneurialchronicle.com',
+    'alina@theentrepreneurialchronicle.com',
+    'amelia@theentrepreneurialchronicle.com',
+    'grace@theentrepreneurialchronicle.com',
+    'eliana@theentrepreneurialchronicle.com',
+    'liam@theentrepreneurialchronicle.com',
+    'emma@theentrepreneurialchronicle.com',
+    'fiona@theentrepreneurialchronicle.com',
+    'daniel@theentrepreneurialchronicle.com',
+    'lacy@theentrepreneurialchronicle.com'
+  ],
+  tut: [
+    'matt@theunicorntimes.com',
+    'jordan@theunicorntimes.com',
+    'jessica@theunicorntimes.com',
+    'ethan@theunicorntimes.com',
+    'lily@theunicorntimes.com',
+    'jasmin@theunicorntimes.com',
+    'kevin@theunicorntimes.com',
+    'peter@theunicorntimes.com',
+    'tyler@theunicorntimes.com',
+    'olivia@theunicorntimes.com'
+  ]
+};
+
 function parsePresetSenderEmails(raw = '') {
   return String(raw || '')
     .trim()
@@ -14,10 +50,16 @@ function parsePresetSenderEmails(raw = '') {
 export function getPresetSenderEmails(project = '') {
   const normalizedProject = String(project || '').trim().toLowerCase();
   if (normalizedProject === 'tut') {
-    return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS_TUT || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
+    const configured = parsePresetSenderEmails(
+      process.env.PRESET_SENDER_EMAILS_TUT || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ''
+    );
+    return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tut;
   }
   if (normalizedProject === 'tec') {
-    return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS_TEC || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
+    const configured = parsePresetSenderEmails(
+      process.env.PRESET_SENDER_EMAILS_TEC || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ''
+    );
+    return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tec;
   }
   return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
 }

@@ -8,6 +8,41 @@ import { getProjectGraphConfig, getRuntimeSenderAccounts } from '@/lib/senderAcc
 import { requireAuth, requireUser } from '@/lib/apiAuth';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
+const DEFAULT_PROJECT_PRESET_SENDERS = {
+  tec: [
+    'lily@theentrepreneurialchronicle.com',
+    'charlie@theentrepreneurialchronicle.com',
+    'robert@theentrepreneurialchronicle.com',
+    'mark@theentrepreneurialchronicle.com',
+    'sam@theentrepreneurialchronicle.com',
+    'clara@theentrepreneurialchronicle.com',
+    'sophia@theentrepreneurialchronicle.com',
+    'jess@theentrepreneurialchronicle.com',
+    'diana@theentrepreneurialchronicle.com',
+    'victoria@theentrepreneurialchronicle.com',
+    'alina@theentrepreneurialchronicle.com',
+    'amelia@theentrepreneurialchronicle.com',
+    'grace@theentrepreneurialchronicle.com',
+    'eliana@theentrepreneurialchronicle.com',
+    'liam@theentrepreneurialchronicle.com',
+    'emma@theentrepreneurialchronicle.com',
+    'fiona@theentrepreneurialchronicle.com',
+    'daniel@theentrepreneurialchronicle.com',
+    'lacy@theentrepreneurialchronicle.com'
+  ],
+  tut: [
+    'matt@theunicorntimes.com',
+    'jordan@theunicorntimes.com',
+    'jessica@theunicorntimes.com',
+    'ethan@theunicorntimes.com',
+    'lily@theunicorntimes.com',
+    'jasmin@theunicorntimes.com',
+    'kevin@theunicorntimes.com',
+    'peter@theunicorntimes.com',
+    'tyler@theunicorntimes.com',
+    'olivia@theunicorntimes.com'
+  ]
+};
 
 function getAccountsCache() {
   if (!global.__accountsCache) {
@@ -36,12 +71,13 @@ function getPresetSenderEmails(project = "") {
   const tec = process.env.PRESET_SENDER_EMAILS_TEC;
   const tut = process.env.PRESET_SENDER_EMAILS_TUT;
   const raw = String((p === "tut" ? (tut || "") : (p === "tec" ? (tec || "") : "")) || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || "").trim();
-  if (!raw) return [];
-  return raw
+  const parsed = raw
     .split(/[,\n\r]+/g)
     .map((s) => String(s || "").trim().toLowerCase())
     .filter(Boolean)
     .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  if (parsed.length) return parsed;
+  return DEFAULT_PROJECT_PRESET_SENDERS[p] || [];
 }
 
 
