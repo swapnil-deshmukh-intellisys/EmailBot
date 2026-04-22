@@ -51,13 +51,13 @@ export function getPresetSenderEmails(project = '') {
   const normalizedProject = String(project || '').trim().toLowerCase();
   if (normalizedProject === 'tut') {
     const configured = parsePresetSenderEmails(
-      process.env.PRESET_SENDER_EMAILS_TUT || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ''
+      process.env.PRESET_SENDER_EMAILS_TUT || ''
     );
     return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tut;
   }
   if (normalizedProject === 'tec') {
     const configured = parsePresetSenderEmails(
-      process.env.PRESET_SENDER_EMAILS_TEC || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ''
+      process.env.PRESET_SENDER_EMAILS_TEC || ''
     );
     return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tec;
   }

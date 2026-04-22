@@ -70,7 +70,13 @@ function getPresetSenderEmails(project = "") {
   const p = String(project || "").trim().toLowerCase();
   const tec = process.env.PRESET_SENDER_EMAILS_TEC;
   const tut = process.env.PRESET_SENDER_EMAILS_TUT;
-  const raw = String((p === "tut" ? (tut || "") : (p === "tec" ? (tec || "") : "")) || process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || "").trim();
+  const raw = String(
+    p === "tut"
+      ? (tut || "")
+      : p === "tec"
+        ? (tec || "")
+        : (process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || "")
+  ).trim();
   const parsed = raw
     .split(/[,\n\r]+/g)
     .map((s) => String(s || "").trim().toLowerCase())
