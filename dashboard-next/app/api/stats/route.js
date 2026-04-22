@@ -3,7 +3,6 @@ import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { requireUser } from '@/lib/apiAuth';
-import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const STATS_CACHE_TTL_MS = 10000;
@@ -29,17 +28,6 @@ export async function GET(req) {
 
     await connectDB();
     void processWarmupAutoReplies(userEmail).catch(() => {});
-
-    const runningCampaigns = await Campaign.find({ userEmail, status: 'Running' }).select({ _id: 1 }).lean();
-    for (const campaign of runningCampaigns) {
-      const runner = getRunnerState(String(campaign._id));
-      if (runner?.running) continue;
-      try {
-        await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
-      } catch (error) {
-        // Ignore recovery failures here; the campaign logs keep the reason.
-      }
-    }
 
     const url = new URL(req.url);
     const selectedDate = String(url.searchParams.get('date') || '').trim();

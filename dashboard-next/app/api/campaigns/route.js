@@ -10,7 +10,7 @@ import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { requireAuth, requireUser } from '@/lib/apiAuth';
-import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
+import { getRunnerState } from '@/lib/campaignRunner';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
 const FIXED_CAMPAIGN_DELAY_SECONDS = 60;
@@ -46,19 +46,6 @@ export async function GET(req) {
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
       ];
-    }
-
-    const storedCampaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
-
-    for (const campaign of storedCampaigns) {
-      if (String(campaign?.status || '') !== 'Running') continue;
-      const runner = getRunnerState(String(campaign._id));
-      if (runner?.running) continue;
-      try {
-        await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
-      } catch (error) {
-        // Keep the campaign visible even if recovery fails; the runner logs capture the reason.
-      }
     }
 
     const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();

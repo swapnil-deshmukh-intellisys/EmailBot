@@ -41,6 +41,10 @@
         { "name": "CLIENT_ID", "valueFrom": "__SECRET_CLIENT_ID__" },
         { "name": "CLIENT_SECRET", "valueFrom": "__SECRET_CLIENT_SECRET__" },
         { "name": "GRAPH_SENDER_EMAIL", "valueFrom": "__SECRET_GRAPH_SENDER_EMAIL__" },
+        { "name": "TUT_TENANT_ID", "valueFrom": "__SECRET_TUT_TENANT_ID__" },
+        { "name": "TUT_CLIENT_ID", "valueFrom": "__SECRET_TUT_CLIENT_ID__" },
+        { "name": "TUT_CLIENT_SECRET", "valueFrom": "__SECRET_TUT_CLIENT_SECRET__" },
+        { "name": "TUT_GRAPH_SENDER_EMAIL", "valueFrom": "__SECRET_TUT_GRAPH_SENDER_EMAIL__" },
         { "name": "ALLOWED_ORIGINS", "valueFrom": "__SECRET_ALLOWED_ORIGINS__" }
       ],
       "command": ["npm", "run", "start"],

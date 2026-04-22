@@ -5,7 +5,6 @@ import SenderAccount from '@/models/SenderAccount';
 import Campaign from '@/models/Campaign';
 import WarmupAutoReplyLog from '@/models/WarmupAutoReplyLog';
 import { requireUser } from '@/lib/apiAuth';
-import { getRunnerState, startCampaignRunner } from '@/lib/campaignRunner';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
@@ -32,17 +31,6 @@ export async function GET(req) {
       WarmupAutoReplyLog.find({ userEmail }).sort({ repliedAt: -1, createdAt: -1 }).limit(50).lean(),
       Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean()
     ]);
-
-    for (const campaign of storedCampaigns) {
-      if (String(campaign?.status || '') !== 'Running') continue;
-      const runner = getRunnerState(String(campaign._id));
-      if (runner?.running) continue;
-      try {
-        await startCampaignRunner(String(campaign._id), { trigger: 'recovery' });
-      } catch (error) {
-        // Keep the warmup dashboard responsive even if recovery fails.
-      }
-    }
 
     const campaigns = await Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean();
 

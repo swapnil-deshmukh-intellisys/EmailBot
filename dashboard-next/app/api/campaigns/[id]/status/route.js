@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { getRunnerState } from '@/lib/campaignRunner';
-import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { requireUser } from '@/lib/apiAuth';
 
 export async function GET(req, { params }) {
@@ -16,11 +15,6 @@ export async function GET(req, { params }) {
   }
 
   let runner = getRunnerState(String(campaign._id));
-  if (['Queued', 'Scheduled'].includes(String(campaign.status || ''))) {
-    await triggerCampaignSchedulerTick();
-    campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
-    runner = getRunnerState(String(campaign._id));
-  }
 
   return NextResponse.json({
     campaign,
