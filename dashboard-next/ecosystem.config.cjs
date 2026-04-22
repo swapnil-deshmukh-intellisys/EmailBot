@@ -7,6 +7,7 @@ module.exports = {
     {
       name: 'intellimailpilot-web',
       cwd: appRoot,
+      env_file: path.join(appRoot, '.env'),
       script: 'npm',
       args: 'run start',
       instances: 1,
@@ -26,6 +27,7 @@ module.exports = {
     {
       name: 'intellimailpilot-worker',
       cwd: appRoot,
+      env_file: path.join(appRoot, '.env'),
       script: 'npm',
       args: 'run worker:campaigns',
       instances: 1,
