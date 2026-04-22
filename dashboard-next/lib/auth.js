@@ -5,7 +5,7 @@ import {
   DEFAULT_ADMIN_LOGIN_ID,
   DEFAULT_ADMIN_PASSWORD,
   DEFAULT_USER_PASSWORD
-} from '@/app/lib/authDefaults';
+} from '../app/lib/authDefaults.js';
 
 const COOKIE_NAME = 'auth_token';
 export const USER_ACCOUNT_STATUSES = {
