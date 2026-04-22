@@ -1,6 +1,6 @@
-import connectDB from './mongodb';
-import SenderAccount from '../models/SenderAccount';
-import GraphOAuthAccount from '../models/GraphOAuthAccount';
+import connectDB from './mongodb.js';
+import SenderAccount from '../models/SenderAccount.js';
+import GraphOAuthAccount from '../models/GraphOAuthAccount.js';
 
 function parsePresetSenderEmails(raw = '') {
   return String(raw || '')

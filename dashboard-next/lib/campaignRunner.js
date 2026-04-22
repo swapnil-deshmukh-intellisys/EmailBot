@@ -1,14 +1,14 @@
-import connectDB from './mongodb';
-import Campaign from '../models/Campaign';
-import LeadList from '../models/LeadList';
-import EmailTemplate from '../models/EmailTemplate';
-import EmailThread from '../models/EmailThread';
-import CampaignRecipientClaim from '../models/CampaignRecipientClaim';
-import UserProfile from '../models/UserProfile';
-import CreditTransaction from '../models/CreditTransaction';
-import { getAvailableAccounts, sendEmailForLead } from './emailSender';
-import { resolveSenderAccountById } from './senderAccounts';
-import { USER_ACCOUNT_STATUSES } from './auth';
+import connectDB from './mongodb.js';
+import Campaign from '../models/Campaign.js';
+import LeadList from '../models/LeadList.js';
+import EmailTemplate from '../models/EmailTemplate.js';
+import EmailThread from '../models/EmailThread.js';
+import CampaignRecipientClaim from '../models/CampaignRecipientClaim.js';
+import UserProfile from '../models/UserProfile.js';
+import CreditTransaction from '../models/CreditTransaction.js';
+import { getAvailableAccounts, sendEmailForLead } from './emailSender.js';
+import { resolveSenderAccountById } from './senderAccounts.js';
+import { USER_ACCOUNT_STATUSES } from './auth.js';
 
 const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;

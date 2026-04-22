@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
-import connectDB from './mongodb';
-import GraphOAuthAccount from '../models/GraphOAuthAccount';
-import { decryptString, encryptString } from './tokenCrypto';
+import connectDB from './mongodb.js';
+import GraphOAuthAccount from '../models/GraphOAuthAccount.js';
+import { decryptString, encryptString } from './tokenCrypto.js';
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

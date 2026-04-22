@@ -24,7 +24,7 @@ async function ensureSchedulerInitialized() {
   }
 
   schedulerInitPromise = (async () => {
-    const { initCampaignScheduler } = await import('./campaignScheduler');
+    const { initCampaignScheduler } = await import('./campaignScheduler.js');
     initCampaignScheduler();
   })();
   global.__schedulerInitPromise = schedulerInitPromise;
