@@ -78,10 +78,10 @@ export function getProjectGraphConfig(project = '') {
   if (normalizedProject === 'tec') {
     return {
       project: 'tec',
-      tenantId: process.env.TEC_TENANT_ID || process.env.TENANT_ID || '',
-      clientId: process.env.TEC_CLIENT_ID || process.env.CLIENT_ID || '',
-      clientSecret: process.env.TEC_CLIENT_SECRET || process.env.CLIENT_SECRET || '',
-      defaultFrom: process.env.TEC_GRAPH_SENDER_EMAIL || process.env.GRAPH_SENDER_EMAIL || ''
+      tenantId: process.env.TEC_TENANT_ID || '',
+      clientId: process.env.TEC_CLIENT_ID || '',
+      clientSecret: process.env.TEC_CLIENT_SECRET || '',
+      defaultFrom: process.env.TEC_GRAPH_SENDER_EMAIL || ''
     };
   }
   return {
