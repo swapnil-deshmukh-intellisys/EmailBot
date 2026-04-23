@@ -210,13 +210,23 @@ function sanitizeSubject(value = '') {
     .slice(0, MAX_SUBJECT_LENGTH);
 }
 
-const tokenCache = global.graphTokenCache || { token: null, expiresAt: 0 };
+const tokenCache = global.graphTokenCache || new Map();
 global.graphTokenCache = tokenCache;
+
+function getGraphTokenCacheKey(account = {}) {
+  return [
+    String(account.tenantId || '').trim().toLowerCase(),
+    String(account.clientId || '').trim().toLowerCase(),
+    String(account.from || '').trim().toLowerCase()
+  ].join('::');
+}
 
 async function getGraphAccessToken(account) {
   const now = Date.now();
-  if (tokenCache.token && tokenCache.expiresAt > now + 60_000) {
-    return tokenCache.token;
+  const cacheKey = getGraphTokenCacheKey(account);
+  const cached = tokenCache.get(cacheKey);
+  if (cached?.token && cached.expiresAt > now + 60_000) {
+    return cached.token;
   }
 
   const tokenUrl = `https://login.microsoftonline.com/${account.tenantId}/oauth2/v2.0/token`;
@@ -237,9 +247,11 @@ async function getGraphAccessToken(account) {
     throw new Error(data.error_description || data.error || 'Failed to get Graph access token');
   }
 
-  tokenCache.token = data.access_token;
-  tokenCache.expiresAt = Date.now() + (Number(data.expires_in || 3600) * 1000);
-  return tokenCache.token;
+  tokenCache.set(cacheKey, {
+    token: data.access_token,
+    expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000)
+  });
+  return data.access_token;
 }
 
 export async function getDelegatedAccessToken(oauthAccountId) {
