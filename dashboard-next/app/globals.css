@@ -318,6 +318,13 @@ a { color: inherit; text-decoration: none; }
   box-shadow: none;
 }
 
+.dashboard-brand-logo {
+  display: block;
+  width: min(100%, 270px);
+  height: auto;
+  object-fit: contain;
+}
+
 .dashboard-brand h2 {
   font-size: 1.38rem;
   line-height: 1.1;
@@ -14085,6 +14092,10 @@ body {
   width: 100%;
   text-align: center;
   gap: 6px;
+}
+
+.dashboard-brand > .dashboard-brand-logo {
+  margin-inline: auto;
 }
 
 .dashboard-brand-link > div:last-child {

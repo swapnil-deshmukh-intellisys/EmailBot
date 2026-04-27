@@ -1,10 +1,10 @@
 'use client';
 
-import AppLayout from '../layout/AppLayout';
-import { Sidebar } from '../layout';
-import { cn } from '../../lib/utils';
+import AppLayout from '@/shared-components/layout-components/SharedAppLayoutShell';
+import { Sidebar } from '@/shared-components/layout-components/LayoutComponentExports';
+import { cn } from '@/app/lib/UiClassNameUtility';
 import { getRoleNavigation } from '@/app/lib/roleNavigation';
-import Button from '../ui/Button';
+import Button from '@/shared-components/ui-components/UiActionButton';
 
 export default function RoleDashboardShell({
   role = 'user',

@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import RichTextEditor from './RichTextEditor';
+import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
 
 function clampPercent(value) {
   const numeric = Number(value || 0);

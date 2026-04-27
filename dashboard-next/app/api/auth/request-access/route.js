@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 
 import connectDB from '@/lib/mongodb';
-import { createActivityLog } from '@/lib/activityLog';
+import { createActivityLog } from '@/lib/ActivityLogService';
 import { normalizeLoginIdentifier, USER_ACCOUNT_STATUSES } from '@/lib/auth';
 import SignupRequest from '@/models/SignupRequest';
 import UserProfile from '@/models/UserProfile';

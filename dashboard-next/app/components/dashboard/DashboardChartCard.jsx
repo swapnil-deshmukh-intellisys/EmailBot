@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Spinner } from '@/app/components/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Spinner } from '@/app/components/ui/UiComponentExports';
 
 export function DashboardChartCard({
   title,

@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import RoleDashboardShell from '@/app/components/role-dashboard/RoleDashboardShell';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from '@/app/components/ui';
-import TargetApprovalPanel from './TargetApprovalPanel';
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from '@/app/components/ui/UiComponentExports';
+import TargetApprovalPanel from '@/modules/admin-module/admin-components/AdminTargetApprovalPanel';
 import { MANAGER_EMPLOYEES, MANAGER_SUMMARY } from '@/app/lib/roleDashboardData';
 import { DASHBOARD_ROLES, getDashboardPathForRole, getRoleFromPath } from '@/app/lib/roleRouting';
 import { getAuthCookieName, verifyAuthToken } from '@/lib/auth';

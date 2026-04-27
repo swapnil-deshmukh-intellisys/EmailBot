@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/UiComponentExports';
 
 const defaultActions = [
   { id: 'create-campaign', label: 'Create Campaign' },

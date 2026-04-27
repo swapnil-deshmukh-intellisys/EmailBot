@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@/app/components/ui';
+import { Button } from '@/app/components/ui/UiComponentExports';
 import { DashboardChartCard } from './DashboardChartCard';
 
 const RANGE_OPTIONS = [

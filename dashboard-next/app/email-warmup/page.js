@@ -6,7 +6,7 @@ import AppLayout from '@/app/components/layout/AppLayout';
 import Button from '@/app/components/ui/Button';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import PageSection from '@/app/components/ui/PageSection';
-import draftTemplates from '@/app/dashboard/draftTemplates';
+import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
 
 const WARMUP_WORKSPACE_KEY = 'warmup:workspace:v1';
 

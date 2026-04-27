@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import RichTextEditor from './components/RichTextEditor';
-import { FancyStatCard } from './components/DashboardUiBits';
+import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
+import { FancyStatCard } from './components/DashboardUiPrimitives';
 import {
   COUNTRY_TIME_SLOTS,
   DRAFT_CATEGORIES,
@@ -13,21 +13,21 @@ import {
   QUICK_DRAFT_PREFIX,
   REPLY_MODE_DRAFT_TYPES,
   SUMMARY_RANGES
-} from './dashboardConstants';
-import useStats from './hooks/useStats';
-import useCampaigns from './hooks/useCampaigns';
-import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS, TOP_NAV_ITEMS } from './dashboardLayoutConfig';
-import { buildScheduledDate, normalizeScheduledSlotInput } from './utils/schedule';
-import { buildWordPadTableHtml } from './utils/wordPad';
-import draftTemplates from './draftTemplates';
+} from './DashboardViewConstants';
+import useStats from '@/modules/analytics-module/analytics-hooks/UseDashboardStatsCollection';
+import useCampaigns from '@/modules/campaign-module/campaign-hooks/UseCampaignCollection';
+import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS, TOP_NAV_ITEMS } from './DashboardNavigationLayoutConfig';
+import { buildScheduledDate, normalizeScheduledSlotInput } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
+import { buildWordPadTableHtml } from '@/modules/draft-module/draft-utils/DraftWordPadTableBuilder';
+import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
 import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 // import ScriptManager from "../dashboard/ScriptManager";
 
-const DashboardStats = dynamic(() => import('./components/DashboardStats'));
-const CampaignTable = dynamic(() => import('./components/CampaignTable'));
-const LeadList = dynamic(() => import('./components/LeadList'));
-const ActivityPanel = dynamic(() => import('./components/ActivityPanel'));
+const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
+const CampaignTable = dynamic(() => import('@/modules/campaign-module/campaign-components/CampaignExecutionTable'));
+const LeadList = dynamic(() => import('@/modules/lead-module/lead-components/LeadUploadPreviewList'));
+const ActivityPanel = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardActivityPanel'));
 
 function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
@@ -2716,13 +2716,14 @@ const normalizeSelectedListEmails = async () => {
   return (
     <main className="dashboard-shell">
       <aside className="dashboard-sidebar">
-        <div className="dashboard-sidebar-card">
-          <div className="dashboard-brand">
-            <div className="dashboard-brand-mark">CD</div>
-            <div>
-              <h2>Intelli Mail Pilot</h2>
+          <div className="dashboard-sidebar-card">
+            <div className="dashboard-brand">
+              <img
+                src="/intellimailpilot-logo.png"
+                alt="Intelli Mail Pilot"
+                className="dashboard-brand-logo"
+              />
             </div>
-          </div>
 
           <div className="dashboard-sidebar-stack">
             <div className={`dashboard-topbar-search dashboard-sidebar-search ${normalizedSearchQuery ? 'active' : ''}`}>

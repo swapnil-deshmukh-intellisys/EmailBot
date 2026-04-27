@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import connectDB from '@/lib/mongodb';
-import { createActivityLog } from '@/lib/activityLog';
+import { createActivityLog } from '@/lib/ActivityLogService';
 import { hashPassword, hashResetToken, validatePasswordStrength } from '@/lib/auth';
 import UserProfile from '@/models/UserProfile';
 

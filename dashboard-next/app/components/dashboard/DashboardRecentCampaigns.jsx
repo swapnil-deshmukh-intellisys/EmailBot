@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/UiComponentExports';
 import { DashboardRecentCampaignsTable } from './DashboardRecentCampaignsTable';
 
 export function DashboardRecentCampaigns({

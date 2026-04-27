@@ -7,6 +7,57 @@ A web-based dashboard to upload lead files, create campaigns, send templated ema
 - MongoDB Atlas (Mongoose)
 - Node.js email worker logic (Nodemailer SMTP/Outlook)
 
+## Project Structure
+The codebase is now organized around app routes, feature modules, shared UI, and backend core services:
+
+```text
+app/
+  api/                     Route handlers grouped by feature
+  components/
+    dashboard/             Dashboard-only presentation pieces
+    role-dashboard/        Shared authenticated shell for role-based dashboards
+  dashboard/               Main dashboard route config/constants
+  lib/                     App-facing helpers for roles/navigation/ui
+  <route>/page.js          Feature pages such as campaigns, drafts, inbox, warm-up
+
+modules/
+  admin-module/            Admin-only feature components
+  analytics-module/        Dashboard analytics components and hooks
+  campaign-module/         Campaign tables, hooks, and scheduling helpers
+  draft-module/            Draft editor and draft-specific utilities
+  lead-module/             Lead-list presentation components
+  template-module/         Template and draft-template services
+
+shared-components/
+  ui-components/           Reusable UI primitives
+  layout-components/       App shell, topbar, sidebar, layout wrappers
+  common-components/
+    workspace-components/  Reusable workspace shells and placeholder page templates
+
+core-lib/
+  auth-config/             Auth/session guards and token helpers
+  campaign-engine/         Campaign runner and scheduler
+  database-config/         Mongo connection bootstrap
+  logging/                 Activity logging services
+  mail-engine/             SMTP/Graph sender logic and warmup services
+  constants/               Shared backend constants
+
+database-models/           Mongoose models
+scripts/                   Operational scripts (campaign worker, data cleanup)
+public/                    Static assets
+aws/ecs/                   Deployment templates and runbooks
+```
+
+### Module Boundaries
+- `app/api/*`: request/response orchestration only
+- `core-lib/*`: reusable backend logic used by routes and workers
+- `database-models/*`: database schema definitions only
+- `shared-components/*`: reusable cross-feature UI and layout
+- `modules/*`: feature-owned components, hooks, and utilities
+- `app/components/dashboard/*`: dashboard-only presentation shared by the dashboard route
+- `app/lib/*`: app-facing role, routing, and UI helpers
+- `scripts/*`: standalone operational entry points
+
 ## Features Implemented
 - Login-protected dashboard
 - Upload `.xlsx` / `.csv` lead files

@@ -25,7 +25,7 @@ import {
   isSeedUserEmail,
   normalizeLoginType
 } from '@/app/lib/authDefaults';
-import { createActivityLog } from '@/lib/activityLog';
+import { createActivityLog } from '@/lib/ActivityLogService';
 import UserProfile from '@/models/UserProfile';
 import SignupRequest from '@/models/SignupRequest';
 import { getDashboardPathForRole } from '@/app/lib/roleRouting';

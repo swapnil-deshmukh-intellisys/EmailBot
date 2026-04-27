@@ -4,8 +4,30 @@
     "paths": {
       "@/app/*": ["app/*"],
       "@/components/*": ["app/components/*"],
-      "@/lib/*": ["lib/*"],
-      "@/models/*": ["models/*"]
+      "@/shared-components/*": ["shared-components/*"],
+      "@/modules/*": ["modules/*"],
+      "@/core-lib/*": ["core-lib/*"],
+      "@/database-models/*": ["database-models/*"],
+      "@/app/components/layout/AppLayout": ["shared-components/layout-components/SharedAppLayoutShell"],
+      "@/app/components/layout/PageContainer": ["shared-components/layout-components/SharedPageContainer"],
+      "@/app/components/ui/Badge": ["shared-components/ui-components/UiStatusBadge"],
+      "@/app/components/ui/Button": ["shared-components/ui-components/UiActionButton"],
+      "@/app/components/ui/Card": ["shared-components/ui-components/UiContentCard"],
+      "@/app/components/ui/Input": ["shared-components/ui-components/UiTextInputField"],
+      "@/app/components/ui/PageSection": ["shared-components/ui-components/UiPageSectionBlock"],
+      "@/app/components/ui/UiComponentExports": ["shared-components/ui-components/UiComponentExports"],
+      "@/lib/mongodb": ["core-lib/database-config/MongoDatabaseConnection"],
+      "@/lib/apiAuth": ["core-lib/auth-config/ApiAuthGuard"],
+      "@/lib/auth": ["core-lib/auth-config/AuthSessionService"],
+      "@/lib/tokenCrypto": ["core-lib/auth-config/TokenCryptoService"],
+      "@/lib/emailSender": ["core-lib/mail-engine/GraphAndSmtpMailSender"],
+      "@/lib/senderAccounts": ["core-lib/mail-engine/SenderAccountResolver"],
+      "@/lib/warmupAutoReply": ["core-lib/mail-engine/WarmupAutoReplyService"],
+      "@/lib/campaignRunner": ["core-lib/campaign-engine/CampaignExecutionRunner"],
+      "@/lib/campaignScheduler": ["core-lib/campaign-engine/CampaignQueueScheduler"],
+      "@/lib/ActivityLogService": ["core-lib/logging/ActivityLogService"],
+      "@/lib/DraftCategoryConstants": ["core-lib/constants/DraftCategoryConstants"],
+      "@/models/*": ["database-models/*"]
     }
   }
 }

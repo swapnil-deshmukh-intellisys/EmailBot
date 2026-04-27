@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/UiComponentExports';
 
 export function DashboardStatCard({
   title,

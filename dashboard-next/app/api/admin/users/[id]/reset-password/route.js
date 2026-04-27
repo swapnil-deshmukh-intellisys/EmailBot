@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireAdmin } from '@/lib/apiAuth';
-import { createActivityLog } from '@/lib/activityLog';
+import { createActivityLog } from '@/lib/ActivityLogService';
 import { getDefaultUserPassword, hashPassword } from '@/lib/auth';
 import UserProfile from '@/models/UserProfile';
 

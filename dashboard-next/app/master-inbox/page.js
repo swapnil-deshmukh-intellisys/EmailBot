@@ -1,5 +1,4 @@
-import WorkspaceSectionPage from '../components/WorkspaceSectionPage';
-import { workspacePageConfigs } from '../components/workspacePageConfigs';
+import { WorkspaceSectionPage, workspacePageConfigs } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
 
 export default function MasterInboxPage({ searchParams }) {
   const sender = String(searchParams?.sender || '').trim();

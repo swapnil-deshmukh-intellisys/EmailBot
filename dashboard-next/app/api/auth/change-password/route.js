@@ -10,7 +10,7 @@ import {
   validatePasswordStrength,
   buildSessionPayload
 } from '@/lib/auth';
-import { createActivityLog } from '@/lib/activityLog';
+import { createActivityLog } from '@/lib/ActivityLogService';
 import { getDashboardPathForRole } from '@/app/lib/roleRouting';
 
 export async function POST(req) {

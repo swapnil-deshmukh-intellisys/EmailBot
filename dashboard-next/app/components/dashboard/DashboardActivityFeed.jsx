@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@/app/components/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@/app/components/ui/UiComponentExports';
 import { DashboardActivityItem } from './DashboardActivityItem';
 
 export function DashboardActivityFeed({

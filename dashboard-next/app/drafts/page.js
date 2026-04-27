@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import DashboardPlaceholderShell from '../components/DashboardPlaceholderShell';
-import Button from '../components/ui/Button';
+import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
+import Button from '@/shared-components/ui-components/UiActionButton';
 
 const STATUS_VARIANTS = {
   approved: 'success',

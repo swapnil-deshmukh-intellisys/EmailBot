@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireAdmin } from '@/lib/apiAuth';
-import ActivityLog from '@/models/ActivityLog';
+import ActivityLog from '@/models/ActivityLogModel';
 import Campaign from '@/models/Campaign';
 import EmailDraft from '@/models/EmailDraft';
 import LeadList from '@/models/LeadList';

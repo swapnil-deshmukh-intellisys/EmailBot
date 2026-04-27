@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge } from '@/app/components/ui';
+import { Badge } from '@/app/components/ui/UiComponentExports';
 
 function getVariant(type) {
   const normalized = String(type || '').toLowerCase();

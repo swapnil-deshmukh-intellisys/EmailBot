@@ -4,7 +4,7 @@ import RoleDashboardShell from '@/app/components/role-dashboard/RoleDashboardShe
 import { getAuthCookieName, verifyAuthToken } from '@/lib/auth';
 import { DASHBOARD_ROLES, getDashboardPathForRole } from '@/app/lib/dashboardRoles';
 import { getAdminLiveData } from '@/app/lib/adminLiveData';
-import AdminDashboardView from './AdminDashboardView';
+import AdminDashboardView from '@/modules/admin-module/admin-components/AdminDashboardOverview';
 
 function getSession() {
   const token = cookies().get(getAuthCookieName())?.value || '';

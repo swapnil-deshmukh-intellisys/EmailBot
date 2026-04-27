@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from '@/app/components/ui';
+import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from '@/app/components/ui/UiComponentExports';
 
 const statusVariantMap = {
   Running: 'info',

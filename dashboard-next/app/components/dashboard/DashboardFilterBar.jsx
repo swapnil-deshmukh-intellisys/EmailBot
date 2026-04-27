@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Input, Select } from '@/app/components/ui';
+import { Button, Input, Select } from '@/app/components/ui/UiComponentExports';
 
 export function DashboardFilterBar({
   range = '',
