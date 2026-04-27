@@ -7,6 +7,36 @@ import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const STATS_CACHE_TTL_MS = 10000;
 
+function normalizeDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getCampaignReferenceDate(campaign) {
+  return (
+    normalizeDate(campaign?.startedAt) ||
+    normalizeDate(campaign?.scheduledAt) ||
+    normalizeDate(campaign?.finishedAt) ||
+    normalizeDate(campaign?.updatedAt) ||
+    normalizeDate(campaign?.createdAt)
+  );
+}
+
+function shouldIncludeCampaignInWindow(campaign, rangeStart, rangeEnd) {
+  if (!rangeStart || !rangeEnd) return true;
+  const referenceDate = getCampaignReferenceDate(campaign);
+  if (!referenceDate) return false;
+  return referenceDate >= rangeStart && referenceDate <= rangeEnd;
+}
+
+function shouldCountCampaignStats(campaign) {
+  const status = String(campaign?.status || '').trim().toLowerCase();
+  if (!status || status === 'draft') return false;
+  const total = Number(campaign?.stats?.total || 0);
+  return total > 0 || ['scheduled', 'queued', 'running', 'paused', 'completed', 'failed', 'stopped'].includes(status);
+}
+
 function getStatsCache() {
   if (!global.__dashboardStatsCache) {
     global.__dashboardStatsCache = new Map();
@@ -34,7 +64,10 @@ export async function GET(req) {
     const selectedRange = String(url.searchParams.get('range') || '').trim();
     const customStartDate = String(url.searchParams.get('startDate') || '').trim();
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
-    const lists = await LeadList.find({ userEmail }).sort({ createdAt: -1 }).lean();
+    const [lists, campaigns] = await Promise.all([
+      LeadList.find({ userEmail }).sort({ createdAt: -1 }).lean(),
+      Campaign.find({ userEmail }).sort({ createdAt: -1 }).lean()
+    ]);
 
     let totalUploaded = 0;
     let sent = 0;
@@ -77,6 +110,19 @@ export async function GET(req) {
       dayCountMap.set(key, 0);
     }
 
+    const campaignSummaries = campaigns.filter((campaign) => (
+      shouldCountCampaignStats(campaign) &&
+      shouldIncludeCampaignInWindow(campaign, selectedDayStart, selectedDayEnd)
+    ));
+
+    for (const campaign of campaignSummaries) {
+      sent += Math.max(0, Number(campaign?.stats?.sent || 0));
+      pending += Math.max(0, Number(campaign?.stats?.pending || 0));
+      failed += Math.max(0, Number(campaign?.stats?.failed || 0));
+      bounced += Math.max(0, Number(campaign?.stats?.bounced || 0));
+      spam += Math.max(0, Number(campaign?.stats?.spam || 0));
+    }
+
     const normalizedLists = lists.map((list) => {
       const leadCount = list.leads.length;
       const listUploadedAt = list.uploadedAt ? new Date(list.uploadedAt) : null;
@@ -88,27 +134,6 @@ export async function GET(req) {
       for (const lead of list.leads) {
         const sentAt = lead.sentAt ? new Date(lead.sentAt) : null;
         const failedAt = lead.failedAt ? new Date(lead.failedAt) : null;
-
-        if (selectedDayStart && selectedDayEnd) {
-          const sentOnSelectedDay = sentAt && sentAt >= selectedDayStart && sentAt <= selectedDayEnd;
-          const failedOnSelectedDay = failedAt && failedAt >= selectedDayStart && failedAt <= selectedDayEnd;
-          const existedBySelectedDay = listUploadedAt && listUploadedAt <= selectedDayEnd;
-          const resolvedBySelectedDay =
-            (sentAt && sentAt <= selectedDayEnd) || (failedAt && failedAt <= selectedDayEnd);
-
-          if (sentOnSelectedDay || String(lead.status || '').toLowerCase() === 'sent') sent += 1;
-          if (failedOnSelectedDay || String(lead.status || '').toLowerCase() === 'failed') failed += 1;
-          if (String(lead.status || '').toLowerCase() === 'bounced') bounced += 1;
-          if (String(lead.status || '').toLowerCase() === 'spam') spam += 1;
-          if (existedBySelectedDay && !resolvedBySelectedDay) pending += 1;
-        } else {
-          const status = String(lead.status || '').toLowerCase();
-          if (status === 'sent') sent += 1;
-          else if (status === 'failed') failed += 1;
-          else if (status === 'bounced') bounced += 1;
-          else if (status === 'spam') spam += 1;
-          else pending += 1;
-        }
 
         if (lead.status === 'Sent' && sentAt && sentAt >= tenDaysAgo) {
           last10DaysStats += 1;
