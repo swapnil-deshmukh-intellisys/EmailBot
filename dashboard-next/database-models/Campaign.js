@@ -35,9 +35,16 @@ const CampaignSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Queued', 'Scheduled', 'Running', 'Paused', 'Completed', 'Failed'],
+      enum: ['Draft', 'Queued', 'Scheduled', 'Running', 'Paused', 'Completed', 'Failed', 'Stopped'],
       default: 'Draft'
     },
+    scheduleMode: {
+      type: String,
+      enum: ['send_now', 'scheduled'],
+      default: 'send_now'
+    },
+    country: { type: String, default: 'India' },
+    timezone: { type: String, default: 'Asia/Kolkata' },
     tracking: {
       enabled: { type: Boolean, default: false },
       opens: { type: Boolean, default: false },
@@ -75,6 +82,8 @@ const CampaignSchema = new mongoose.Schema(
     },
     options: {
       batchSize: { type: Number, default: 1 },
+      delayInterval: { type: Number, default: 1 },
+      durationUnit: { type: String, enum: ['seconds', 'minutes', 'hours'], default: 'minutes' },
       delaySeconds: { type: Number, default: 60 },
       rowRange: { type: String, default: '' },
       replyMode: { type: Boolean, default: false }

@@ -25,6 +25,32 @@ export async function POST(req, { params }) {
     });
   }
 
+  const scheduleMode = String(campaign.scheduleMode || 'send_now').trim().toLowerCase();
+  const scheduledAt = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
+  const isScheduledFuture =
+    scheduleMode === 'scheduled' &&
+    scheduledAt instanceof Date &&
+    !Number.isNaN(scheduledAt.getTime()) &&
+    scheduledAt.getTime() > Date.now();
+
+  if (isScheduledFuture) {
+    campaign.status = 'Scheduled';
+    campaign.queueRequestedAt = null;
+    campaign.workerLockedAt = null;
+    campaign.workerHeartbeatAt = null;
+    campaign.workerId = '';
+    campaign.finishedAt = null;
+    campaign.logs.push({ level: 'info', message: 'Campaign kept scheduled until its scheduled time', at: new Date() });
+    await campaign.save();
+    await triggerCampaignSchedulerTick();
+    return NextResponse.json({
+      ok: true,
+      scheduled: true,
+      started: false,
+      message: 'Campaign scheduled successfully.'
+    });
+  }
+
   try {
     await validateCampaignExecutionPreflight(campaign);
     campaign.status = 'Queued';

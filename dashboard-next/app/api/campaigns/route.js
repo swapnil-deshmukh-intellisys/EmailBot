@@ -11,10 +11,14 @@ import EmailTemplate from '@/models/EmailTemplate';
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { getRunnerState } from '@/lib/campaignRunner';
+import {
+  buildScheduledDateTimeInZone,
+  convertDelayIntervalToSeconds,
+  isFutureScheduledDate,
+  normalizeDurationUnit
+} from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
-const FIXED_CAMPAIGN_DELAY_SECONDS = 60;
-
 function normalizeCampaignType(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
 }
@@ -88,7 +92,13 @@ export async function POST(req) {
       senderFrom,
       workflowStep,
       workflowStepLabel,
-      tracking
+      tracking,
+      scheduleMode,
+      scheduledAt,
+      scheduledDate,
+      scheduledTime,
+      timezone,
+      country
     } = body;
 
     if (!name || !listId) {
@@ -145,6 +155,29 @@ export async function POST(req) {
 
     }
 
+    const parsedDelayInterval = Number(String(options?.delayInterval ?? options?.delaySeconds ?? '').trim() || 1);
+    if (!Number.isFinite(parsedDelayInterval) || parsedDelayInterval < 1) {
+      return NextResponse.json({ error: 'Delay interval must be a number greater than or equal to 1.' }, { status: 400 });
+    }
+
+    const normalizedDurationUnit = normalizeDurationUnit(options?.durationUnit || 'seconds');
+    const convertedDelaySeconds = convertDelayIntervalToSeconds(parsedDelayInterval, normalizedDurationUnit);
+    const normalizedScheduleMode = String(scheduleMode || 'send_now').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'send_now';
+    const normalizedCountry = String(country || '').trim() || 'India';
+    const normalizedTimezone = String(timezone || '').trim() || 'Asia/Kolkata';
+    const computedScheduledAt = scheduledAt
+      ? new Date(scheduledAt)
+      : buildScheduledDateTimeInZone(scheduledDate, scheduledTime, normalizedTimezone);
+
+    if (normalizedScheduleMode === 'scheduled') {
+      if (!(computedScheduledAt instanceof Date) || Number.isNaN(computedScheduledAt.getTime())) {
+        return NextResponse.json({ error: 'Valid scheduled date and time are required.' }, { status: 400 });
+      }
+      if (!isFutureScheduledDate(computedScheduledAt)) {
+        return NextResponse.json({ error: 'Scheduled time must be in the future.' }, { status: 400 });
+      }
+    }
+
     const campaignType = normalizeCampaignType(type || draftType);
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
@@ -159,7 +192,9 @@ export async function POST(req) {
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
       'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
       'options.batchSize': 1,
-      'options.delaySeconds': FIXED_CAMPAIGN_DELAY_SECONDS,
+      'options.delayInterval': parsedDelayInterval,
+      'options.durationUnit': normalizedDurationUnit,
+      'options.delaySeconds': convertedDelaySeconds,
       'options.replyMode': replyMode
     }).lean();
 
@@ -193,6 +228,18 @@ export async function POST(req) {
       senderAccount: senderAccount ? { provider: senderAccount.provider, label: senderAccount.label, from: senderAccount.from } : undefined,
       workflowStep: Number.isFinite(Number(workflowStep)) ? Number(workflowStep) : 1,
       workflowStepLabel: String(workflowStepLabel || '').trim(),
+      scheduleMode: normalizedScheduleMode,
+      country: normalizedCountry,
+      timezone: normalizedTimezone,
+      scheduledAt: normalizedScheduleMode === 'scheduled' ? computedScheduledAt : null,
+      status: normalizedScheduleMode === 'scheduled' ? 'Draft' : 'Draft',
+      scheduledStart: {
+        country: normalizedCountry,
+        slot: String(scheduledTime || '').trim(),
+        timezone: normalizedTimezone,
+        label: '',
+        at: normalizedScheduleMode === 'scheduled' ? computedScheduledAt : null
+      },
       tracking: {
         enabled: Boolean(tracking?.enabled),
         opens: Boolean(tracking?.opens),
@@ -203,8 +250,10 @@ export async function POST(req) {
 
       options: {
 
-        batchSize: 1,
-        delaySeconds: FIXED_CAMPAIGN_DELAY_SECONDS,
+        batchSize: Math.max(1, Math.floor(parsedBatchSize)),
+        delayInterval: Math.max(1, Math.floor(parsedDelayInterval)),
+        durationUnit: normalizedDurationUnit,
+        delaySeconds: convertedDelaySeconds,
 
         rowRange: '',
         replyMode

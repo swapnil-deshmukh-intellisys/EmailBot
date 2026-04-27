@@ -18,8 +18,6 @@ global.campaignStartingRunners = startingRunners;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(0, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 0));
-const CAMPAIGN_SEND_DELAY_MS = 60_000;
-const CAMPAIGN_SEND_DELAY_SECONDS = 60;
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
 const CAMPAIGN_WORKER_ID = String(process.env.CAMPAIGN_WORKER_ID || 'web-worker').trim() || 'web-worker';
@@ -532,15 +530,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
     ? campaign.options.replyMode
     : ['reminder', 'follow_up', 'updated_cost', 'final_cost'].includes(campaignType);
   const selectedRange = parseRowRange(campaign.options?.rowRange, list.leads.length);
+  const configuredBatchSize = Math.max(1, Math.floor(Number(campaign.options?.batchSize || 1) || 1));
+  const configuredDelaySeconds = Math.max(1, Math.floor(Number(campaign.options?.delaySeconds || 60) || 60));
   const allowedIndexes = selectedRange
     ? new Set(Array.from({ length: selectedRange.end - selectedRange.start + 1 }, (_, i) => selectedRange.start - 1 + i))
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
 
-  const normalizedDelaySeconds = CAMPAIGN_SEND_DELAY_SECONDS;
   campaign.status = 'Running';
-  campaign.options.delaySeconds = normalizedDelaySeconds;
-  campaign.options.batchSize = 1;
   campaign.startedAt = startTime;
   campaign.scheduledAt = null;
   campaign.workerId = CAMPAIGN_WORKER_ID;
@@ -570,10 +567,13 @@ export async function startCampaignRunner(campaignId, options = {}) {
     return { started: false, message: 'Campaign was removed before start' };
   }
 
-  const delayMs = CAMPAIGN_SEND_DELAY_MS;
-  campaign.options.batchSize = 1;
-  campaign.options.delaySeconds = CAMPAIGN_SEND_DELAY_SECONDS;
-  appendLog(campaign, `Mail gap: ${CAMPAIGN_SEND_DELAY_SECONDS} seconds per email`);
+  const delayMs = configuredDelaySeconds * 1000;
+  appendLog(
+    campaign,
+    configuredBatchSize > 1
+      ? `Mail gap: ${configuredDelaySeconds} seconds between emails (batch size setting: ${configuredBatchSize})`
+      : `Mail gap: ${configuredDelaySeconds} seconds between emails`
+  );
 
   (async () => {
     try {
@@ -782,10 +782,11 @@ export async function startCampaignRunner(campaignId, options = {}) {
           campaign.workerHeartbeatAt = null;
           appendLog(campaign, 'Campaign failed: credit limit reached', 'error');
         } else {
-          campaign.status = 'Paused';
+          campaign.status = 'Stopped';
           campaign.workerId = '';
           campaign.workerLockedAt = null;
           campaign.workerHeartbeatAt = null;
+          campaign.finishedAt = new Date();
         }
       } else {
         campaign.status = 'Completed';

@@ -17,7 +17,14 @@ import {
 import useStats from '@/modules/analytics-module/analytics-hooks/UseDashboardStatsCollection';
 import useCampaigns from '@/modules/campaign-module/campaign-hooks/UseCampaignCollection';
 import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS, TOP_NAV_ITEMS } from './DashboardNavigationLayoutConfig';
-import { buildScheduledDate, normalizeScheduledSlotInput } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
+import {
+  buildScheduledDateTimeInZone,
+  buildScheduledLabel,
+  convertDelayIntervalToSeconds,
+  isFutureScheduledDate,
+  normalizeDurationUnit,
+  normalizeScheduledSlotInput
+} from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 import { buildWordPadTableHtml } from '@/modules/draft-module/draft-utils/DraftWordPadTableBuilder';
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
@@ -385,6 +392,11 @@ export default function DashboardPage() {
   const [scheduledSlot, setScheduledSlot] = useState('');
   const [manualScheduledSlot, setManualScheduledSlot] = useState('');
   const [scheduledStartLabel, setScheduledStartLabel] = useState('');
+  const [scheduleMode, setScheduleMode] = useState('send_now');
+  const [scheduleTimezone, setScheduleTimezone] = useState('Asia/Kolkata');
+  const [scheduledDateValue, setScheduledDateValue] = useState('');
+  const [scheduledTimeValue, setScheduledTimeValue] = useState('');
+  const [durationUnit, setDurationUnit] = useState('seconds');
   const [pendingCampaignId, setPendingCampaignId] = useState('');
   const [selectedUploadedFileIds, setSelectedUploadedFileIds] = useState([]);
   const [selectedDraftUploadedFileIds, setSelectedDraftUploadedFileIds] = useState([]);
@@ -457,6 +469,67 @@ export default function DashboardPage() {
     }
     setScheduledSlot(normalized);
     setManualScheduledSlot(normalized);
+  };
+
+  const prepareScheduleConfig = (input = {}) => {
+    const nextMode = String(input.scheduleMode || scheduleMode || 'send_now').trim().toLowerCase() === 'scheduled'
+      ? 'scheduled'
+      : 'send_now';
+    const nextCountryRaw = String(input.country || scheduledCountry || 'india').trim();
+    const nextCountry = nextCountryRaw || 'india';
+    const nextTimezone = String(
+      input.timezone ||
+      scheduleTimezone ||
+      COUNTRY_TIME_SLOTS[nextCountry]?.timezone ||
+      'Asia/Kolkata'
+    ).trim() || 'Asia/Kolkata';
+    const nextDateValue = String(input.scheduledDate || scheduledDateValue || '').trim();
+    const nextTimeValue = String(input.scheduledTime || scheduledTimeValue || '').trim();
+    const nextDurationUnit = normalizeDurationUnit(input.durationUnit || durationUnit || 'seconds');
+    const nextBatchSize = Math.max(1, Math.floor(Number(input.batchSize ?? batchSize ?? 1) || 1));
+    const nextDelayInterval = Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? 1) || 1));
+    const nextDelaySeconds = convertDelayIntervalToSeconds(nextDelayInterval, nextDurationUnit);
+    const normalizedSlot = nextTimeValue ? normalizeScheduledSlotInput(nextTimeValue) : '';
+    const scheduledAt = nextMode === 'scheduled'
+      ? buildScheduledDateTimeInZone(nextDateValue, nextTimeValue, nextTimezone)
+      : null;
+
+    return {
+      scheduleMode: nextMode,
+      country: nextCountry,
+      timezone: nextTimezone,
+      scheduledDate: nextDateValue,
+      scheduledTime: nextTimeValue,
+      normalizedSlot,
+      batchSize: nextBatchSize,
+      delayInterval: nextDelayInterval,
+      durationUnit: nextDurationUnit,
+      delaySeconds: nextDelaySeconds,
+      scheduledAt,
+      label: nextMode === 'scheduled'
+        ? buildScheduledLabel({
+            country: nextCountry.charAt(0).toUpperCase() + nextCountry.slice(1),
+            timeZone: nextTimezone,
+            dateValue: nextDateValue,
+            timeValue: nextTimeValue,
+            scheduledAt
+          })
+        : ''
+    };
+  };
+
+  const applyScheduleConfigState = (config = {}) => {
+    setScheduleMode(String(config.scheduleMode || 'send_now'));
+    setScheduledCountry(String(config.country || 'india').toLowerCase());
+    setScheduleTimezone(String(config.timezone || 'Asia/Kolkata'));
+    setScheduledDateValue(String(config.scheduledDate || ''));
+    setScheduledTimeValue(String(config.scheduledTime || ''));
+    setScheduledSlot(String(config.normalizedSlot || ''));
+    setManualScheduledSlot(String(config.normalizedSlot || config.scheduledTime || ''));
+    setDurationUnit(normalizeDurationUnit(config.durationUnit || 'seconds'));
+    setBatchSize(String(config.batchSize || '1'));
+    setDelaySeconds(String(config.delayInterval || '1'));
+    setScheduledStartLabel(String(config.label || ''));
   };
 
   const selectProject = (value) => {
@@ -585,6 +658,11 @@ export default function DashboardPage() {
         setScheduledSlot(String(saved.scheduledSlot || ''));
         setManualScheduledSlot(String(saved.manualScheduledSlot || ''));
         setScheduledStartLabel(String(saved.scheduledStartLabel || ''));
+        setScheduleMode(String(saved.scheduleMode || 'send_now'));
+        setScheduleTimezone(String(saved.scheduleTimezone || 'Asia/Kolkata'));
+        setScheduledDateValue(String(saved.scheduledDateValue || ''));
+        setScheduledTimeValue(String(saved.scheduledTimeValue || ''));
+        setDurationUnit(normalizeDurationUnit(saved.durationUnit || 'seconds'));
       }
     } catch (error) {
       // Ignore bad saved dashboard state and continue with defaults.
@@ -717,7 +795,12 @@ export default function DashboardPage() {
       scheduledCountry,
       scheduledSlot,
       manualScheduledSlot,
-      scheduledStartLabel
+      scheduledStartLabel,
+      scheduleMode,
+      scheduleTimezone,
+      scheduledDateValue,
+      scheduledTimeValue,
+      durationUnit
     };
     try {
       window.localStorage.setItem(DASHBOARD_DRAFT_STATE_KEY, JSON.stringify(payload));
@@ -737,7 +820,12 @@ export default function DashboardPage() {
     scheduledCountry,
     scheduledSlot,
     manualScheduledSlot,
-    scheduledStartLabel
+    scheduledStartLabel,
+    scheduleMode,
+    scheduleTimezone,
+    scheduledDateValue,
+    scheduledTimeValue,
+    durationUnit
   ]);
 
 
@@ -2149,7 +2237,8 @@ const handleDeleteDraft = async (draft) => {
     autoStart = false,
     workflowStep = 3,
     workflowStepLabel = 'Campaign',
-    tracking = { enabled: false, opens: false, clicks: false, replies: false }
+    tracking = { enabled: false, opens: false, clicks: false, replies: false },
+    scheduleConfig = null
   } = {}) => {
     if (!selectedAccount) {
       notify('Select Mail ID before creating a campaign.', 'info');
@@ -2170,6 +2259,7 @@ const handleDeleteDraft = async (draft) => {
         draftBody: String(draftBody || '').trim(),
         batchSize: String(batchSize || ''),
         delaySeconds: String(delaySeconds || ''),
+        scheduleConfig: JSON.stringify(scheduleConfig || {}),
         workflowStep: String(workflowStep || ''),
         workflowStepLabel: String(workflowStepLabel || ''),
         tracking: JSON.stringify({
@@ -2191,6 +2281,7 @@ const handleDeleteDraft = async (draft) => {
 
     try {
       campaignCreateLockRef.current = true;
+      const effectiveSchedule = scheduleConfig || prepareScheduleConfig();
       const data = await safeFetchJson('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2204,7 +2295,19 @@ const handleDeleteDraft = async (draft) => {
           draftType: selectedDraft,
           inlineTemplate: { subject: draftSubject, body: draftBody },
           senderAccountId: selectedAccount || null,
-          options: { batchSize, delaySeconds: Number(delaySeconds), replyMode: isReplyModeCampaignType },
+          scheduleMode: effectiveSchedule.scheduleMode,
+          scheduledAt: effectiveSchedule.scheduledAt ? effectiveSchedule.scheduledAt.toISOString() : null,
+          scheduledDate: effectiveSchedule.scheduledDate,
+          scheduledTime: effectiveSchedule.scheduledTime,
+          timezone: effectiveSchedule.timezone,
+          country: effectiveSchedule.country,
+          options: {
+            batchSize: effectiveSchedule.batchSize,
+            delayInterval: effectiveSchedule.delayInterval,
+            durationUnit: effectiveSchedule.durationUnit,
+            delaySeconds: effectiveSchedule.delaySeconds,
+            replyMode: isReplyModeCampaignType
+          },
           tracking: {
             enabled: Boolean(tracking?.enabled),
             opens: Boolean(tracking?.opens),
@@ -2220,9 +2323,10 @@ const handleDeleteDraft = async (draft) => {
         setPendingCampaignId(createdCampaign._id);
         lastCampaignCreateSignatureRef.current = createSignature;
         lastCreatedCampaignIdRef.current = createdCampaign._id;
+        applyScheduleConfigState(effectiveSchedule);
         setShowDraftEditor(true);
         if (autoStart) {
-          await startCampaign(createdCampaign._id, { schedule: Boolean(scheduledSlot), startAfterSchedule: true });
+          await startCampaign(createdCampaign._id, { scheduleConfig: effectiveSchedule, startAfterSchedule: true });
         }
       }
       notify('Campaign created successfully.', 'success');
@@ -2238,21 +2342,83 @@ const handleDeleteDraft = async (draft) => {
     }
   };
 
-  const createAndStartCampaign = async () => {
+  const saveCampaignSchedule = async (rawConfig = {}) => {
+    const config = prepareScheduleConfig(rawConfig);
+    applyScheduleConfigState(config);
+
+    if (config.batchSize < 1) {
+      notify('Batch size must be greater than or equal to 1.', 'warning');
+      return { ok: false };
+    }
+    if (config.delayInterval < 1) {
+      notify('Delay interval must be greater than or equal to 1.', 'warning');
+      return { ok: false };
+    }
+    if (!['seconds', 'minutes', 'hours'].includes(config.durationUnit)) {
+      notify('Duration unit is invalid.', 'warning');
+      return { ok: false };
+    }
+    if (config.scheduleMode === 'scheduled') {
+      if (!config.scheduledDate || !config.scheduledTime) {
+        notify('Please select scheduled date and time', 'warning');
+        return { ok: false };
+      }
+      if (!isFutureScheduledDate(config.scheduledAt)) {
+        notify('Scheduled time must be in future', 'warning');
+        return { ok: false };
+      }
+    }
+
+    if (!pendingCampaignId) {
+      notify('Schedule saved', 'success');
+      return { ok: true, config };
+    }
+
+    try {
+      await safeFetchJson(`/api/campaigns/${pendingCampaignId}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduleMode: config.scheduleMode,
+          scheduledAt: config.scheduledAt ? config.scheduledAt.toISOString() : null,
+          scheduledDate: config.scheduledDate,
+          scheduledTime: config.scheduledTime,
+          country: config.country,
+          timezone: config.timezone,
+          slot: config.normalizedSlot,
+          batchSize: config.batchSize,
+          delayInterval: config.delayInterval,
+          durationUnit: config.durationUnit,
+          persistOnly: true,
+          replyMode: isReplyModeCampaignType
+        })
+      });
+      notify('Schedule saved', 'success');
+      await loadAll();
+      return { ok: true, config };
+    } catch (e) {
+      notify(e.message || 'Failed to save schedule', 'error');
+      return { ok: false };
+    }
+  };
+
+  const createAndStartCampaign = async (rawConfig = {}) => {
     if (campaignCreateLockRef.current) {
       notify('Campaign creation is already in progress.', 'info');
       return;
     }
+    const scheduleConfig = prepareScheduleConfig(rawConfig);
+    applyScheduleConfigState(scheduleConfig);
     let campaignId = pendingCampaignId;
 
     if (!campaignId) {
-      const campaign = await createCampaign({ skipReload: true });
+      const campaign = await createCampaign({ skipReload: true, scheduleConfig });
       campaignId = campaign?._id || '';
     }
 
     if (!campaignId) return;
 
-    await startCampaign(campaignId, { schedule: Boolean(scheduledSlot), startAfterSchedule: true });
+    await startCampaign(campaignId, { scheduleConfig, startAfterSchedule: true });
   };
 
   useEffect(() => {
@@ -2336,45 +2502,61 @@ const normalizeSelectedListEmails = async () => {
   const startCampaign = async (campaignId, options = {}) => {
     try {
       setPreferredActiveCampaignId(campaignId);
-      if (options.schedule) {
-        const effectiveSlot = scheduledSlot;
-        if (!effectiveSlot) {
-          notify('Select a scheduled time first.', 'info');
+      const scheduleConfig = prepareScheduleConfig(options.scheduleConfig || {});
+      applyScheduleConfigState(scheduleConfig);
+      if (scheduleConfig.scheduleMode === 'scheduled') {
+        if (!scheduleConfig.scheduledDate || !scheduleConfig.scheduledTime) {
+          notify('Please select scheduled date and time', 'warning');
           return;
         }
-        const zoneConfig = COUNTRY_TIME_SLOTS[scheduledCountry];
-        const targetDate = buildScheduledDate(zoneConfig.timezone, effectiveSlot);
-        if (!targetDate) {
-          notify('Invalid scheduled time.', 'error');
+        if (!isFutureScheduledDate(scheduleConfig.scheduledAt)) {
+          notify('Scheduled time must be in future', 'warning');
           return;
         }
-        const label = `${scheduledCountry.toUpperCase()} - ${effectiveSlot} (${targetDate.toLocaleString()})`;
         await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            country: scheduledCountry,
-            slot: effectiveSlot,
-            timezone: zoneConfig.timezone,
-            label,
-            scheduledAt: targetDate.toISOString()
+            scheduleMode: 'scheduled',
+            country: scheduleConfig.country,
+            slot: scheduleConfig.normalizedSlot,
+            timezone: scheduleConfig.timezone,
+            label: scheduleConfig.label,
+            scheduledDate: scheduleConfig.scheduledDate,
+            scheduledTime: scheduleConfig.scheduledTime,
+            scheduledAt: scheduleConfig.scheduledAt.toISOString(),
+            batchSize: scheduleConfig.batchSize,
+            delayInterval: scheduleConfig.delayInterval,
+            durationUnit: scheduleConfig.durationUnit,
+            activate: true,
+            replyMode: isReplyModeCampaignType
           })
         });
-        setScheduledStartLabel(label);
-        notify(`Campaign scheduled for ${scheduledCountry.toUpperCase()} at ${effectiveSlot}`, 'success');
-        if (!options.startAfterSchedule) {
-          setPendingCampaignId('');
-          await loadAll();
-          return;
-        }
-        await loadAll();
+        setScheduledStartLabel(scheduleConfig.label);
+      } else {
+        await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scheduleMode: 'send_now',
+            country: scheduleConfig.country,
+            timezone: scheduleConfig.timezone,
+            batchSize: scheduleConfig.batchSize,
+            delayInterval: scheduleConfig.delayInterval,
+            durationUnit: scheduleConfig.durationUnit,
+            persistOnly: true,
+            replyMode: isReplyModeCampaignType
+          })
+        });
       }
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
       setPendingCampaignId('');
-      if (data.started === false && data.message) {
+      if (data.scheduled) {
+        notify('Campaign scheduled successfully', 'success');
+      } else if (data.started === false && data.message) {
         notify(data.message, 'info');
       } else {
-        notify('Campaign started successfully.', 'success');
+        notify('Campaign started now', 'success');
       }
       await loadAll();
     } catch (e) {
@@ -3210,6 +3392,11 @@ const normalizeSelectedListEmails = async () => {
         onBatchSizeChange={setBatchSize}
         delaySeconds={delaySeconds}
         onDelaySecondsChange={setDelaySeconds}
+        initialScheduleMode={scheduleMode}
+        initialScheduledDateValue={scheduledDateValue}
+        initialScheduledTimeValue={scheduledTimeValue}
+        initialScheduleTimezone={scheduleTimezone}
+        initialDurationUnit={durationUnit}
         onCreateCampaign={createCampaign}
         scheduledCountry={
           String(scheduledCountry || '').toLowerCase() === 'usa'
@@ -3229,6 +3416,7 @@ const normalizeSelectedListEmails = async () => {
         manualScheduledSlot={manualScheduledSlot}
         onManualScheduledSlotChange={setManualScheduledSlot}
         onApplyManualScheduledSlot={applyPremiumShellScheduledTime}
+        onSaveSchedule={saveCampaignSchedule}
         onStartCampaign={createAndStartCampaign}
         onPauseCampaign={pauseCampaign}
         onResumeCampaign={resumeCampaign}

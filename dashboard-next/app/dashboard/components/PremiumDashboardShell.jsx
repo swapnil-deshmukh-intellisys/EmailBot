@@ -4,6 +4,11 @@ import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
+import {
+  buildScheduledDateTimeInZone,
+  isFutureScheduledDate,
+  normalizeDurationUnit
+} from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 
 function clampPercent(value) {
   const numeric = Number(value || 0);
@@ -375,6 +380,11 @@ export default function PremiumDashboardShell({
   onBatchSizeChange,
   delaySeconds = 60,
   onDelaySecondsChange,
+  initialScheduleMode = 'send_now',
+  initialScheduledDateValue = '',
+  initialScheduledTimeValue = '',
+  initialScheduleTimezone = 'Asia/Kolkata',
+  initialDurationUnit = 'seconds',
   onCreateCampaign,
   scheduledCountry = 'india',
   onScheduledCountryChange,
@@ -383,6 +393,7 @@ export default function PremiumDashboardShell({
   manualScheduledSlot = '',
   onManualScheduledSlotChange,
   onApplyManualScheduledSlot,
+  onSaveSchedule,
   onStartCampaign,
   onOpenReportRangePopup,
   onApplyReportRange,
@@ -674,7 +685,7 @@ export default function PremiumDashboardShell({
   const [noteTopic, setNoteTopic] = useState('');
   const [noteTag, setNoteTag] = useState('');
   const [quickNotes, setQuickNotes] = useState([]);
-  const [sendMode, setSendMode] = useState('scheduled');
+  const [sendMode, setSendMode] = useState(initialScheduleMode || 'send_now');
   const [clientListTab, setClientListTab] = useState('upload');
   const [clientListName, setClientListName] = useState('');
   const [selectedUploadedList, setSelectedUploadedList] = useState('');
@@ -692,10 +703,10 @@ export default function PremiumDashboardShell({
   const hasShownOverviewWarningRef = useRef(false);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
-  const [durationUnit, setDurationUnit] = useState('Minutes');
-  const [scheduleTimezone, setScheduleTimezone] = useState('Asia/Kolkata');
-  const [scheduledDateValue, setScheduledDateValue] = useState('');
-  const [scheduledTimeValue, setScheduledTimeValue] = useState('');
+  const [durationUnit, setDurationUnit] = useState(normalizeDurationUnit(initialDurationUnit || 'seconds'));
+  const [scheduleTimezone, setScheduleTimezone] = useState(initialScheduleTimezone || 'Asia/Kolkata');
+  const [scheduledDateValue, setScheduledDateValue] = useState(initialScheduledDateValue || '');
+  const [scheduledTimeValue, setScheduledTimeValue] = useState(initialScheduledTimeValue || '');
   const [campaignName, setCampaignName] = useState('');
   const [campaignTags, setCampaignTags] = useState([]);
   const [campaignTagDraft, setCampaignTagDraft] = useState('');
@@ -747,7 +758,7 @@ export default function PremiumDashboardShell({
     const hasDraft = Boolean(String(effectiveDraftSubject || '').trim() || String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim());
     const hasDraftSummary = hasDraft;
     const hasTestMail = Boolean(String(testEmailTo || '').trim());
-    const hasSchedule = Boolean(String(scheduledSlot || manualScheduledSlot || '').trim());
+    const hasSchedule = sendMode === 'send_now' || Boolean(String(scheduledSlot || manualScheduledSlot || scheduledTimeValue || '').trim());
 
     return [
       hasList,
@@ -773,6 +784,40 @@ export default function PremiumDashboardShell({
     completedWorkflowSteps.findIndex((done) => !done) + 1 || workflowSteps.length
   ));
   const completedWorkflowCount = completedWorkflowSteps.filter(Boolean).length;
+
+  useEffect(() => {
+    setSendMode(initialScheduleMode || 'send_now');
+  }, [initialScheduleMode]);
+
+  useEffect(() => {
+    setScheduledDateValue(initialScheduledDateValue || '');
+  }, [initialScheduledDateValue]);
+
+  useEffect(() => {
+    setScheduledTimeValue(initialScheduledTimeValue || '');
+  }, [initialScheduledTimeValue]);
+
+  useEffect(() => {
+    setScheduleTimezone(initialScheduleTimezone || 'Asia/Kolkata');
+  }, [initialScheduleTimezone]);
+
+  useEffect(() => {
+    setDurationUnit(normalizeDurationUnit(initialDurationUnit || 'seconds'));
+  }, [initialDurationUnit]);
+
+  useEffect(() => {
+    if (!showSchedulePopup) return;
+    if (sendMode === 'scheduled') return;
+    setScheduledDateValue('');
+    setScheduledTimeValue('');
+  }, [sendMode, showSchedulePopup]);
+
+  useEffect(() => {
+    const allowedTimezones = scheduleCountries[scheduleCountryKey] || scheduleCountries.India;
+    if (!allowedTimezones.includes(scheduleTimezone)) {
+      setScheduleTimezone(allowedTimezones[0] || 'Asia/Kolkata');
+    }
+  }, [scheduleCountryKey, scheduleTimezone]);
 
   const openAnchoredPopup = (key, setter) => (event) => {
     const workflowPopupKeys = new Set(['clientList', 'overview', 'campaign', 'selectDraft', 'testEmail', 'draftSummary', 'schedule']);
@@ -1556,14 +1601,49 @@ export default function PremiumDashboardShell({
       setShowDraftContinueWarning(false);
     }
   }, [hasDraftRequiredFields, showDraftContinueWarning]);
+  const normalizedScheduleCountry = String(scheduledCountry || 'India').trim() || 'India';
+  const scheduleDraftPayload = useMemo(() => {
+    const normalizedMode = sendMode === 'scheduled' ? 'scheduled' : 'send_now';
+    const normalizedUnit = normalizeDurationUnit(durationUnit);
+    const numericBatchSize = Math.max(1, Math.floor(Number(batchSize) || 1));
+    const numericDelayInterval = Math.max(1, Math.floor(Number(delaySeconds) || 1));
+    const scheduledAt = normalizedMode === 'scheduled'
+      ? buildScheduledDateTimeInZone(scheduledDateValue, scheduledTimeValue, scheduleTimezone)
+      : null;
+    return {
+      scheduleMode: normalizedMode,
+      batchSize: numericBatchSize,
+      delayInterval: numericDelayInterval,
+      durationUnit: normalizedUnit,
+      scheduledDate: scheduledDateValue,
+      scheduledTime: scheduledTimeValue,
+      country: normalizedScheduleCountry,
+      timezone: scheduleTimezone,
+      scheduledAt
+    };
+  }, [
+    batchSize,
+    delaySeconds,
+    durationUnit,
+    scheduleTimezone,
+    scheduledCountry,
+    scheduledDateValue,
+    scheduledTimeValue,
+    sendMode
+  ]);
   const scheduleMissingFields = [
+    !String(batchSize || '').trim() ? 'Batch size is empty' : null,
+    Number(batchSize) < 1 ? 'Batch size must be at least 1' : null,
+    !String(delaySeconds || '').trim() ? 'Delay interval is empty' : null,
+    Number(delaySeconds) < 1 ? 'Delay interval must be at least 1' : null,
+    !['seconds', 'minutes', 'hours'].includes(normalizeDurationUnit(durationUnit)) ? 'Duration unit is invalid' : null,
+    !String(scheduledCountry || '').trim() ? 'Country is empty' : null,
+    !String(scheduleTimezone || '').trim() ? 'Time zone is empty' : null,
     sendMode === 'scheduled' && !String(scheduledDateValue || '').trim() ? 'Scheduled date is empty' : null,
     sendMode === 'scheduled' && !String(scheduledTimeValue || '').trim() ? 'Scheduled time is empty' : null,
-    !String(batchSize || '').trim() ? 'Batch size is empty' : null,
-    !String(delaySeconds || '').trim() ? 'Delay interval is empty' : null,
-    !String(durationUnit || '').trim() ? 'Duration unit is empty' : null,
-    !String(scheduledCountry || '').trim() ? 'Country is empty' : null,
-    !String(scheduleTimezone || '').trim() ? 'Time zone is empty' : null
+    sendMode === 'scheduled' && (!scheduleDraftPayload.scheduledAt || !isFutureScheduledDate(scheduleDraftPayload.scheduledAt))
+      ? 'Scheduled time must be in future'
+      : null
   ].filter(Boolean);
   const hasScheduleRequiredFields = scheduleMissingFields.length === 0;
   const scheduleContinueHint = `Please fill: ${scheduleMissingFields.join(', ')} before continuing.`;
@@ -1636,7 +1716,8 @@ export default function PremiumDashboardShell({
     onDraftSubjectChange?.(String(campaign.inlineTemplate?.subject || ''));
     onDraftBodyChange?.(String(campaign.inlineTemplate?.body || ''));
     onBatchSizeChange?.(String(campaign.options?.batchSize || '1'));
-    onDelaySecondsChange?.(String(campaign.options?.delaySeconds || '60'));
+    onDelaySecondsChange?.(String(campaign.options?.delayInterval ?? campaign.options?.delaySeconds ?? '60'));
+    setDurationUnit(normalizeDurationUnit(campaign.options?.durationUnit || 'seconds'));
     setCampaignTracking({
       opens: Boolean(campaign?.tracking?.opens),
       clicks: Boolean(campaign?.tracking?.clicks),
@@ -3115,16 +3196,16 @@ export default function PremiumDashboardShell({
 
             <div className="premium-schedule-body">
               <div className="premium-schedule-mode">
-                <label>
+                <label className={sendMode === 'send_now' ? 'active' : ''}>
                   <input
                     type="radio"
                     name="sendMode"
-                    checked={sendMode === 'now'}
-                    onChange={() => setSendMode('now')}
+                    checked={sendMode === 'send_now'}
+                    onChange={() => setSendMode('send_now')}
                   />
                   <span>Send now</span>
                 </label>
-                <label>
+                <label className={sendMode === 'scheduled' ? 'active' : ''}>
                   <input
                     type="radio"
                     name="sendMode"
@@ -3138,34 +3219,42 @@ export default function PremiumDashboardShell({
               <div className="premium-schedule-grid premium-schedule-grid-3">
                 <label className="premium-schedule-field">
                   <span>Batch size</span>
-                  <input type="number" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
+                  <input type="number" min="1" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
                 </label>
                 <label className="premium-schedule-field">
                   <span>Delay interval</span>
-                  <input type="number" value={delaySeconds} onChange={(event) => onDelaySecondsChange?.(event.target.value)} />
+                  <input type="number" min="1" value={delaySeconds} onChange={(event) => onDelaySecondsChange?.(event.target.value)} />
                 </label>
                 <label className="premium-schedule-field">
                   <span>Duration unit</span>
                   <select value={durationUnit} onChange={(event) => setDurationUnit(event.target.value)}>
-                    <option>Minutes</option>
-                    <option>Hours</option>
-                    <option>Days</option>
+                    <option value="seconds">Seconds</option>
+                    <option value="minutes">Minutes</option>
+                    <option value="hours">Hours</option>
                   </select>
                 </label>
               </div>
 
-              {sendMode === 'scheduled' ? (
-                <div className="premium-schedule-grid premium-schedule-grid-2">
+              <div className="premium-schedule-grid premium-schedule-grid-2">
                   <label className="premium-schedule-field">
                     <span>Scheduled date</span>
-                    <input type="date" value={scheduledDateValue} onChange={(event) => setScheduledDateValue(event.target.value)} />
+                    <input
+                      type="date"
+                      value={scheduledDateValue}
+                      disabled={sendMode !== 'scheduled'}
+                      onChange={(event) => setScheduledDateValue(event.target.value)}
+                    />
                   </label>
                   <label className="premium-schedule-field">
                     <span>Scheduled time</span>
-                    <input type="time" value={scheduledTimeValue} onChange={(event) => setScheduledTimeValue(event.target.value)} />
+                    <input
+                      type="time"
+                      value={scheduledTimeValue}
+                      disabled={sendMode !== 'scheduled'}
+                      onChange={(event) => setScheduledTimeValue(event.target.value)}
+                    />
                   </label>
                 </div>
-              ) : null}
 
               <div className="premium-schedule-grid premium-schedule-grid-2">
                 <label className="premium-schedule-field">
@@ -3204,20 +3293,19 @@ export default function PremiumDashboardShell({
               >
                 Back
               </button>
-              <button
-                type="button"
-                className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
-                onClick={async () => {
-                  if (!hasScheduleRequiredFields) {
-                    setShowScheduleContinueWarning(true);
-                    onShowMessage?.(scheduleContinueHint, 'warning');
-                    return;
-                  }
-                  if (sendMode === 'scheduled') {
-                    onApplyManualScheduledSlot?.(scheduledTimeValue);
-                  }
-                  onShowMessage?.('Schedule saved. You can start the campaign when ready.', 'success');
-                  setShowSchedulePopup(false);
+                <button
+                  type="button"
+                  className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
+                  onClick={async () => {
+                    if (!hasScheduleRequiredFields) {
+                      setShowScheduleContinueWarning(true);
+                      onShowMessage?.(scheduleContinueHint, 'warning');
+                      return;
+                    }
+                    const result = await onSaveSchedule?.(scheduleDraftPayload);
+                    if (result?.ok !== false) {
+                      setShowSchedulePopup(false);
+                    }
                 }}
                 disabled={!hasScheduleRequiredFields}
               >
@@ -3232,10 +3320,7 @@ export default function PremiumDashboardShell({
                     onShowMessage?.(scheduleContinueHint, 'warning');
                     return;
                   }
-                  if (sendMode === 'scheduled') {
-                    onApplyManualScheduledSlot?.(scheduledTimeValue);
-                  }
-                  onStartCampaign?.({ schedule: sendMode === 'scheduled', startAfterSchedule: true });
+                  onStartCampaign?.(scheduleDraftPayload);
                   setShowSchedulePopup(false);
                 }}
                 disabled={!hasScheduleRequiredFields}
