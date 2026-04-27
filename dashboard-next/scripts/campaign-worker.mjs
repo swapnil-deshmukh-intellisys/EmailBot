@@ -41,8 +41,8 @@ process.env.CAMPAIGN_WORKER_ID =
 
 async function main() {
   const [{ default: connectDB }, { initCampaignScheduler, triggerCampaignSchedulerTick }] = await Promise.all([
-    import('../lib/mongodb.js'),
-    import('../lib/campaignScheduler.js')
+    import('../core-lib/database-config/MongoDatabaseConnection.js'),
+    import('../core-lib/campaign-engine/CampaignQueueScheduler.js')
   ]);
 
   await connectDB();
