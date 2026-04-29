@@ -6,7 +6,6 @@ npm-debug.log
 dev*.log
 *.err.log
 *.out.log
-.env
 .env.local
 .env.*.local
 logs
