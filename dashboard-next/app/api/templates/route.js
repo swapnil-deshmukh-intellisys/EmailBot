@@ -3,6 +3,10 @@ import connectDB from '@/lib/mongodb';
 import EmailTemplate from '@/models/EmailTemplate';
 import { requireAuth, requireUser } from '@/lib/apiAuth';
 
+function shouldUseDemoData() {
+  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+}
+
 async function ensureDefaultTemplate(userEmail) {
   const count = await EmailTemplate.countDocuments({ userEmail });
   if (count > 0) return;
@@ -25,7 +29,21 @@ export async function GET(req) {
     const templates = await EmailTemplate.find({ userEmail }).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ templates });
   } catch (error) {
-    return NextResponse.json({ templates: [], error: error.message || 'Failed to load templates' });
+    const errorMessage = error.message || 'Failed to load templates';
+    if (shouldUseDemoData()) {
+      return NextResponse.json({
+        templates: [
+          {
+            _id: 'demo-template-1',
+            name: 'Demo Intro Template',
+            subject: 'Cover story opportunity for {{Name}}',
+            body: '<p>Hello {{Name}},</p><p>We would like to feature {{Company}} in our next edition.</p>'
+          }
+        ],
+        error: errorMessage
+      });
+    }
+    return NextResponse.json({ templates: [], error: errorMessage });
   }
 }
 

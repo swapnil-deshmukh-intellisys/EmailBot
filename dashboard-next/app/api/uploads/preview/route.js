@@ -35,7 +35,6 @@ function readRowsFromWorkbook(buffer) {
 export async function POST(req) {
   const { userEmail, errorResponse } = requireUser(req);
   if (errorResponse) return errorResponse;
-  await connectDB();
 
   let fileName = 'upload-sheet';
   let rawRows = [];
@@ -65,7 +64,13 @@ export async function POST(req) {
       columns = Array.isArray(body.columns) ? body.columns : Array.from(new Set(rawRows.flatMap((row) => Object.keys(row || {}))));
     }
 
-    const existingLists = await LeadList.find({ userEmail }).select('leads').lean();
+    let existingLists = [];
+    try {
+      await connectDB();
+      existingLists = await LeadList.find({ userEmail }).select('leads').lean();
+    } catch {
+      existingLists = [];
+    }
     const existingKeys = collectExistingLeadKeys(existingLists);
     const result = analyzeRows(rawRows, existingKeys);
 

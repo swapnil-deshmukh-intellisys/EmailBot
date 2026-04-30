@@ -5,6 +5,9 @@ import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { isAdminUserEmail } from '@/lib/auth';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
+function shouldUseDevFallback() {
+  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+}
 
 export async function GET(req) {
   try {
@@ -16,7 +19,22 @@ export async function GET(req) {
     const drafts = await EmailDraft.find(query).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ drafts });
   } catch (error) {
-    return NextResponse.json({ drafts: [], error: error.message || 'Failed to fetch drafts' }, { status: 500 });
+    if (shouldUseDevFallback()) {
+      return NextResponse.json({
+        drafts: [
+          {
+            _id: 'demo-draft-1',
+            category: 'cover_story',
+            title: 'Demo Cover Story Draft',
+            subject: 'Feature opportunity for {{Name}}',
+            body: '<p>Hello {{Name}},</p><p>We would love to feature {{Company}}.</p>',
+            createdAt: new Date().toISOString()
+          }
+        ],
+        error: error.message || 'Failed to fetch drafts'
+      });
+    }
+    return NextResponse.json({ drafts: [], error: error.message || 'Failed to fetch drafts' });
   }
 }
 

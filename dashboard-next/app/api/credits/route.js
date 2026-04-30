@@ -37,22 +37,19 @@ export async function GET(req) {
       transactions
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error.message || 'Failed to load credit history',
-        summary: {
-          planName: 'Basic',
-          upgradeTargetPlan: 'Pro',
-          upgradeTargetCredits: 12000,
-          totalCredits: 6000,
-          usedCredits: 0,
-          remainingCredits: 6000,
-          creditUsagePercent: 0
-        },
-        transactions: []
+    return NextResponse.json({
+      ok: false,
+      error: error.message || 'Failed to load credit history',
+      summary: {
+        planName: 'Basic',
+        upgradeTargetPlan: 'Pro',
+        upgradeTargetCredits: 12000,
+        totalCredits: 6000,
+        usedCredits: 0,
+        remainingCredits: 6000,
+        creditUsagePercent: 0
       },
-      { status: 400 }
-    );
+      transactions: []
+    });
   }
 }

@@ -9,6 +9,25 @@ import {
 import connectDB from '@/lib/mongodb';
 import UserProfile from '@/models/UserProfile';
 
+function shouldBypassAuthInDev() {
+  const raw = String(process.env.DEV_BYPASS_AUTH || '').trim().toLowerCase();
+  if (raw === 'false' || raw === '0' || raw === 'no') return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function getDevBypassSession() {
+  if (!shouldBypassAuthInDev()) return null;
+  const email = normalizeUserEmail(process.env.DEV_BYPASS_EMAIL || process.env.ADMIN_EMAIL || 'akshaymore.intellisys@gmail.com');
+  if (!email) return null;
+  return {
+    id: `seed-${email}`,
+    email,
+    identifier: email,
+    role: normalizeUserRole(process.env.DEV_BYPASS_ROLE || 'admin'),
+    status: 'active'
+  };
+}
+
 function buildSeededCurrentUser(session = null) {
   const sessionId = String(session?.id || '').trim();
   const identifier = normalizeUserEmail(session?.identifier || session?.email || '');
@@ -26,7 +45,7 @@ function buildSeededCurrentUser(session = null) {
 }
 
 export function requireUser(req) {
-  const session = getSessionFromRequest(req);
+  const session = getSessionFromRequest(req) || getDevBypassSession();
   const email = normalizeUserEmail(session?.email || '');
   const status = String(session?.status || 'active').toLowerCase();
   if (!session || !email) {
@@ -50,7 +69,7 @@ export function requireUser(req) {
 
 export async function requireAuth(req, options = {}) {
   const { allowPending = false } = options;
-  const session = getSessionFromRequest(req);
+  const session = getSessionFromRequest(req) || getDevBypassSession();
   const identifier = normalizeUserEmail(session?.identifier || session?.email || '');
   if (!session || !identifier) {
     return {

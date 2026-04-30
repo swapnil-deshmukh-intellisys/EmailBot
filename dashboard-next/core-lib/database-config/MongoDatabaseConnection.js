@@ -32,9 +32,19 @@ async function ensureSchedulerInitialized() {
 }
 
 export default async function connectDB() {
-  const mongoUri = process.env.MONGODB_URI;
+  const mongoUri = String(process.env.MONGODB_URI || '').trim();
   if (!mongoUri) {
     throw new Error('MONGODB_URI is not set');
+  }
+  if (mongoUri.includes('<') || mongoUri.includes('>')) {
+    throw new Error(
+      'MONGODB_URI contains placeholder tokens like <real_user>/<real_cluster>. Replace them with real Atlas credentials.'
+    );
+  }
+  if (mongoUri.includes('username:password@cluster.mongodb.net')) {
+    throw new Error(
+      'MONGODB_URI is using the placeholder value from .env.example. Replace it with a real MongoDB connection string.'
+    );
   }
 
   if (cached.conn) {

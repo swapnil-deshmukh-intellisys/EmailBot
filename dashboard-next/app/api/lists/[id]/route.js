@@ -15,22 +15,43 @@ function normalizeEmail(raw) {
 }
 
 export async function GET(req, { params }) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
-  await connectDB();
-  const list = await LeadList.findOne({ _id: params.id, userEmail }).lean();
-  if (!list) {
-    return NextResponse.json({ error: 'List not found' }, { status: 404 });
-  }
+  try {
+    const { userEmail, errorResponse } = requireUser(req);
+    if (errorResponse) return errorResponse;
+    await connectDB();
+    const list = await LeadList.findOne({ _id: params.id, userEmail }).lean();
+    if (!list) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
 
-  return NextResponse.json({
-    _id: String(list._id),
-    name: list.name,
-    sourceFile: list.sourceFile,
-    columns: list.columns || [],
-    sheetStyle: list.sheetStyle || {},
-    leads: list.leads
-  });
+    return NextResponse.json({
+      _id: String(list._id),
+      name: list.name,
+      sourceFile: list.sourceFile,
+      uploadedAt: list.uploadedAt || null,
+      uploadDate: list.uploadDate || null,
+      createdAt: list.createdAt || null,
+      columns: list.columns || [],
+      sheetStyle: list.sheetStyle || {},
+      leads: list.leads
+    });
+  } catch (error) {
+    if (String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true' && String(params?.id || '') === 'demo-list-1') {
+      return NextResponse.json({
+        _id: 'demo-list-1',
+        name: 'Demo Leads',
+        sourceFile: 'demo.xlsx',
+        columns: ['Name', 'Email', 'Company'],
+        sheetStyle: {},
+        leads: [
+          { Name: 'John Doe', Email: 'john@example.com', Company: 'Acme', status: 'Sent', data: { Name: 'John Doe', Email: 'john@example.com', Company: 'Acme' } },
+          { Name: 'Jane Smith', Email: 'jane@example.com', Company: 'Globex', status: 'Pending', data: { Name: 'Jane Smith', Email: 'jane@example.com', Company: 'Globex' } }
+        ],
+        error: error.message || 'Failed to load list'
+      });
+    }
+    return NextResponse.json({ error: error.message || 'Failed to load list' }, { status: 500 });
+  }
 }
 
 export async function PATCH(req, { params }) {

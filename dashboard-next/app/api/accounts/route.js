@@ -90,8 +90,6 @@ function getPresetSenderEmails(project = "") {
 export async function GET(req) {
   const { userEmail, errorResponse } = requireUser(req);
   if (errorResponse) return errorResponse;
-  await connectDB();
-
   const url = new URL(req.url);
   const project = String(url.searchParams.get("project") || "").trim().toLowerCase();
   const cacheKey = `${userEmail}::${project || '__all__'}`;
@@ -103,12 +101,20 @@ export async function GET(req) {
   }
 
   const envAccounts = getRuntimeSenderAccounts(project).map(toPublicAccount);
-
-  const [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
-    GraphOAuthAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
-    SenderAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
-    project ? PresetSender.find({ project }).lean() : PresetSender.find().lean()
-  ]);
+  let oauthAccounts = [];
+  let dbAccounts = [];
+  let dbPreset = [];
+  try {
+    await connectDB();
+    [oauthAccounts, dbAccounts, dbPreset] = await Promise.all([
+      GraphOAuthAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
+      SenderAccount.find({ userEmail }).sort({ createdAt: -1 }).lean(),
+      project ? PresetSender.find({ project }).lean() : PresetSender.find().lean()
+    ]);
+  } catch (error) {
+    // Keep local development usable when database is offline/misconfigured.
+    console.warn('Accounts API database fallback:', error?.message || error);
+  }
   const oauthPublic = oauthAccounts.map((a) => ({
     id: `oauth:${String(a._id)}`,
     provider: 'graph_oauth',
@@ -185,7 +191,13 @@ export async function GET(req) {
   let accounts = [...envAccounts, ...oauthPublic, ...dbPublic, ...dbPresetPublic, ...presetPublic];
   if ((project === "tec" || project === "tut") && presetEmails.length) {
     const allowed = new Set(presetEmails);
-    accounts = accounts.filter((a) => allowed.has(String(a.from || "").toLowerCase()));
+    accounts = accounts.filter((a) => {
+      const from = String(a.from || "").toLowerCase();
+      const isProjectPreset = allowed.has(from);
+      const isUserOwnedConnected =
+        String(a.id || "").startsWith("db:") || String(a.id || "").startsWith("oauth:");
+      return isProjectPreset || isUserOwnedConnected;
+    });
   }
 
   cache.set(cacheKey, {

@@ -11,17 +11,19 @@ const TABLE_COLUMNS = [
   'Select',
   'Name',
   'Surname',
+  'Designation',
   'Cmp Name',
   'Sector',
   'Country',
   'Email',
   'List Added Date',
-  'Source'
-  , 'Lead Type'
-  , 'Sourcer'
-  , 'User ID'
-  , 'Project Approach'
-  , 'Sender ID'
+  'Source',
+  'Lead Type',
+  'Sourcer',
+  'User ID',
+  'Project Approach',
+  'Sender ID',
+  'Actions'
 ];
 
 const badgeToneMap = {
@@ -98,13 +100,20 @@ function getLeadStatus(lead) {
 
 function buildLeadRow(list, lead, listIndex, leadIndex) {
   const email = getLeadValue(lead, 'Email', 'email');
-  const listAddedDateRaw = list?.uploadedAt || list?.createdAt || null;
+  const listAddedDateRaw =
+    list?.uploadedAt ||
+    list?.uploadDate ||
+    list?.createdAt ||
+    lead?.uploadDate ||
+    getLeadValue(lead, 'List Added Date', 'ListAddedDate', 'listAddedDate') ||
+    null;
   const designation = getLeadValue(lead, 'Designation', 'designation', 'Title', 'title') || '-';
   const freshLead = !lead?.sentAt && !lead?.failedAt;
   return {
     id: `${list?._id || listIndex}-${leadIndex}-${email || 'client'}`,
     sourceListId: String(list?._id || ''),
     sourceFile: String(list?.sourceFile || list?.name || ''),
+    leadIndex,
     name: getLeadValue(lead, 'Name', 'name') || '-',
     surname: getLeadValue(lead, 'Surname', 'surname', 'Last Name', 'lastName') || '-',
     cmpName: getLeadValue(lead, 'Company', 'company', 'Company Name', 'companyName') || '-',
@@ -128,9 +137,34 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
   };
 }
 
+const EDITABLE_ROW_FIELDS = [
+  'name',
+  'surname',
+  'designation',
+  'cmpName',
+  'sector',
+  'country',
+  'email',
+  'leadType',
+  'sourcer',
+  'userId',
+  'projectApproach',
+  'senderId'
+];
+
+function mergeRowWithEdits(row, edits = {}) {
+  return {
+    ...row,
+    ...Object.fromEntries(
+      EDITABLE_ROW_FIELDS.map((field) => [field, typeof edits[field] === 'string' ? edits[field] : row[field]])
+    )
+  };
+}
+
 export default function ClientListPage() {
   const router = useRouter();
   const [lists, setLists] = useState([]);
+  const [clientRowsData, setClientRowsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showClientDirectory, setShowClientDirectory] = useState(true);
@@ -144,6 +178,10 @@ export default function ClientListPage() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [draftFilters, setDraftFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [rowEdits, setRowEdits] = useState({});
+  const [savingDirectory, setSavingDirectory] = useState(false);
+  const [savingRows, setSavingRows] = useState({});
+  const [activeCell, setActiveCell] = useState(null);
   const selectedSheetsSectionRef = useRef(null);
 
   useEffect(() => {
@@ -152,40 +190,21 @@ export default function ClientListPage() {
     const loadLists = async () => {
       try {
         setLoading(true);
-        const statsResponse = await fetch('/api/stats', { cache: 'no-store' });
-        const statsData = await statsResponse.json();
-        if (!statsResponse.ok) {
-          throw new Error(statsData?.error || 'Failed to load client lists');
+        const response = await fetch('/api/client-data/list', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || data?.ok === false) {
+          throw new Error(data?.error || 'Failed to load client lists');
         }
 
-        const baseLists = Array.isArray(statsData?.lists) ? statsData.lists : [];
-        const detailedLists = await Promise.all(
-          baseLists.map(async (list) => {
-            try {
-              const response = await fetch(`/api/lists/${list._id}`, { cache: 'no-store' });
-              const data = await response.json();
-              const resolvedList = data?.list || data || {};
-              return {
-                ...list,
-                kind: resolvedList?.kind || list?.kind || 'uploaded',
-                clonedFrom: resolvedList?.clonedFrom || list?.clonedFrom || '',
-                uploadedAt: resolvedList?.uploadedAt || list?.uploadedAt || null,
-                createdAt: resolvedList?.createdAt || list?.createdAt || null,
-                leads: Array.isArray(resolvedList?.leads) ? resolvedList.leads : []
-              };
-            } catch {
-              return { ...list, leads: [] };
-            }
-          })
-        );
-
         if (!active) return;
-        setLists(detailedLists);
+        setLists(Array.isArray(data?.lists) ? data.lists : []);
+        setClientRowsData(Array.isArray(data?.rows) ? data.rows : []);
         setError('');
       } catch (err) {
         if (!active) return;
         setError(err.message || 'Failed to load client lists');
         setLists([]);
+        setClientRowsData([]);
       } finally {
         if (active) setLoading(false);
       }
@@ -207,12 +226,7 @@ export default function ClientListPage() {
     [lists]
   );
 
-  const clientRows = useMemo(
-    () => uploadedFiles.flatMap((list, listIndex) =>
-      (list.leads || []).map((lead, leadIndex) => buildLeadRow(list, lead, listIndex, leadIndex))
-    ),
-    [uploadedFiles]
-  );
+  const clientRows = useMemo(() => clientRowsData, [clientRowsData]);
 
   const filterOptions = useMemo(() => ({
     sector: extractOptionValues(clientRows, 'sector'),
@@ -221,7 +235,8 @@ export default function ClientListPage() {
 
   const filteredClientRows = useMemo(
     () =>
-      clientRows.filter((row) => {
+      clientRows.filter((baseRow) => {
+        const row = mergeRowWithEdits(baseRow, rowEdits[baseRow.id]);
         if (appliedFilters.date && formatDateOnly(row.listAddedDateRaw) !== appliedFilters.date) return false;
         if (!matchesTextFilter(row.sector, appliedFilters.sector)) return false;
         if (!matchesTextFilter(row.country, appliedFilters.country)) return false;
@@ -231,7 +246,7 @@ export default function ClientListPage() {
         if (appliedFilters.freshLead === 'contacted' && row.freshLead) return false;
         return true;
       }),
-    [clientRows, appliedFilters]
+    [clientRows, rowEdits, appliedFilters]
   );
 
   const contactedCount = useMemo(
@@ -251,6 +266,112 @@ export default function ClientListPage() {
     );
     setSelectionMessage('');
     setSelectionError('');
+  };
+
+  const handleRowFieldChange = (rowId, field, value) => {
+    setRowEdits((current) => ({
+      ...current,
+      [rowId]: {
+        ...(current[rowId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveRow = async (rowId) => {
+    try {
+      setSavingRows((current) => ({ ...current, [rowId]: true }));
+      const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rowEdits[rowId] || {})
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to update row');
+      }
+      setSelectionMessage('Row updated successfully.');
+      setSelectionError('');
+      setActiveCell(null);
+      setRefreshNonce((value) => value + 1);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to update row');
+      setSelectionMessage('');
+    } finally {
+      setSavingRows((current) => {
+        const next = { ...current };
+        delete next[rowId];
+        return next;
+      });
+    }
+  };
+
+  const renderEditableCell = (row, field) => {
+    const isActive = activeCell?.rowId === row.id && activeCell?.field === field;
+    const currentValue = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+    if (isActive) {
+      return (
+        <input
+          autoFocus
+          className="input"
+          value={currentValue}
+          onChange={(event) => handleRowFieldChange(row.id, field, event.target.value)}
+          onBlur={() => setActiveCell(null)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              setActiveCell(null);
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setActiveCell(null);
+            }
+          }}
+        />
+      );
+    }
+    return (
+      <button
+        type="button"
+        className="ghost subtle"
+        onClick={() => setActiveCell({ rowId: row.id, field })}
+      >
+        {currentValue || '-'}
+      </button>
+    );
+  };
+
+  const handleSaveDirectoryEdits = async () => {
+    const editedRowIds = Object.keys(rowEdits);
+    if (!editedRowIds.length) {
+      setSelectionMessage('No changes to save.');
+      setSelectionError('');
+      return;
+    }
+
+    try {
+      setSavingDirectory(true);
+      setSelectionError('');
+      setSelectionMessage('');
+      for (const rowId of editedRowIds) {
+        const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rowEdits[rowId] || {})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || `Failed saving row ${rowId}`);
+      }
+
+      setRowEdits({});
+      setSelectionMessage('Client Directory updates saved successfully.');
+      setRefreshNonce((value) => value + 1);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to save client updates');
+      setSelectionMessage('');
+    } finally {
+      setSavingDirectory(false);
+    }
   };
 
   const toggleSelectAllVisible = () => {
@@ -300,11 +421,17 @@ export default function ClientListPage() {
           rows: selectedRows.map((row) => ({
             Name: row.name === '-' ? '' : row.name,
             Email: row.email === '-' ? '' : row.email,
-            Company: row.company === '-' ? '' : row.company,
+            Company: row.cmpName === '-' ? '' : row.cmpName,
+            Designation: row.designation === '-' ? '' : row.designation,
             Country: row.country === '-' ? '' : row.country,
             Sector: row.sector === '-' ? '' : row.sector,
             City: row.city === '-' ? '' : row.city,
-            Source: row.source === '-' ? '' : row.source
+            Source: row.source === '-' ? '' : row.source,
+            'Lead Type': row.leadType === '-' ? '' : row.leadType,
+            Sourcer: row.sourcer === '-' ? '' : row.sourcer,
+            'User ID': row.userId === '-' ? '' : row.userId,
+            'Project Approach': row.projectApproach === '-' ? '' : row.projectApproach,
+            'Sender ID': row.senderId === '-' ? '' : row.senderId
           }))
         })
       });
@@ -323,7 +450,15 @@ export default function ClientListPage() {
         uploadedAt: data.uploadedAt || new Date().toISOString(),
         createdAt: data.uploadedAt || new Date().toISOString(),
         leadCount: selectedRows.length,
-        leads: selectedRows.map((row) => row.rawLead)
+        leads: selectedRows.map((row) => ({
+          Name: row.name === '-' ? '' : row.name,
+          Surname: row.surname === '-' ? '' : row.surname,
+          Designation: row.designation === '-' ? '' : row.designation,
+          Company: row.cmpName === '-' ? '' : row.cmpName,
+          Sector: row.sector === '-' ? '' : row.sector,
+          Country: row.country === '-' ? '' : row.country,
+          Email: row.email === '-' ? '' : row.email
+        }))
       };
 
       setLists((current) => [nextList, ...current.filter((item) => String(item._id) !== String(nextList._id))]);
@@ -383,8 +518,8 @@ export default function ClientListPage() {
                     {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {contactedCount} contacted
                   </p>
                 </div>
-                <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
-                  <div className="client-data-header-create">
+                  <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
+                    <div className="client-data-header-create">
                     <label className="client-data-selection-name client-data-selection-name-compact">
                       <span>New Sheet Name</span>
                       <input
@@ -403,6 +538,15 @@ export default function ClientListPage() {
                       disabled={creatingSheet || !selectedCount}
                     >
                     {creatingSheet ? 'Creating...' : 'Create Sheet'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleSaveDirectoryEdits}
+                      disabled={savingDirectory || !Object.keys(rowEdits).length}
+                    >
+                      {savingDirectory ? 'Saving...' : 'Save Directory Changes'}
                     </Button>
                   </div>
                   <button type="button" onClick={() => setShowClientDirectory((value) => !value)}>
@@ -498,13 +642,13 @@ export default function ClientListPage() {
                       {TABLE_COLUMNS.slice(1).map((column) => <span key={column}>{column}</span>)}
                     </div>
                     {loading ? (
-                      <div className="client-data-table-row"><span /><span>Loading client data...</span><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row"><span /><span>Loading client data...</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
                     ) : null}
                     {!loading && error ? (
-                      <div className="client-data-table-row"><span /><span>{error}</span><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row"><span /><span>{error}</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
                     ) : null}
                     {!loading && !error && !filteredClientRows.length ? (
-                      <div className="client-data-table-row"><span /><span>No client data found.</span><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row"><span /><span>No client data found.</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
                     ) : null}
                     {!loading && !error ? filteredClientRows.map((row) => (
                       <div key={row.id} className="client-data-table-row">
@@ -516,19 +660,25 @@ export default function ClientListPage() {
                             aria-label={`Select ${row.name}`}
                           />
                         </span>
-                        <span>{row.name}</span>
-                        <span>{row.surname}</span>
-                        <span>{row.cmpName}</span>
-                        <span>{row.sector}</span>
-                        <span>{row.country}</span>
-                        <span>{row.email}</span>
+                        <span>{renderEditableCell(row, 'name')}</span>
+                        <span>{renderEditableCell(row, 'surname')}</span>
+                        <span>{renderEditableCell(row, 'designation')}</span>
+                        <span>{renderEditableCell(row, 'cmpName')}</span>
+                        <span>{renderEditableCell(row, 'sector')}</span>
+                        <span>{renderEditableCell(row, 'country')}</span>
+                        <span>{renderEditableCell(row, 'email')}</span>
                         <span>{row.listAddedDate}</span>
                         <span>{row.source}</span>
-                        <span>{row.leadType}</span>
-                        <span>{row.sourcer}</span>
-                        <span>{row.userId}</span>
-                        <span>{row.projectApproach}</span>
-                        <span>{row.senderId}</span>
+                        <span>{renderEditableCell(row, 'leadType')}</span>
+                        <span>{renderEditableCell(row, 'sourcer')}</span>
+                        <span>{renderEditableCell(row, 'userId')}</span>
+                        <span>{renderEditableCell(row, 'projectApproach')}</span>
+                        <span>{renderEditableCell(row, 'senderId')}</span>
+                        <span className="client-data-row-actions">
+                          <Button type="button" size="sm" variant="secondary" onClick={() => handleSaveRow(row.id)} disabled={Boolean(savingRows[row.id])}>
+                            {savingRows[row.id] ? 'Saving...' : 'Save'}
+                          </Button>
+                        </span>
                       </div>
                     )) : null}
                   </div>
@@ -566,6 +716,7 @@ export default function ClientListPage() {
                         </div>
                         <div className="client-data-mobile-grid">
                           <div><span>Cmp Name</span><strong>{row.cmpName}</strong></div>
+                          <div><span>Designation</span><strong>{row.designation}</strong></div>
                           <div><span>Sector</span><strong>{row.sector}</strong></div>
                           <div><span>Country</span><strong>{row.country}</strong></div>
                           <div><span>Email</span><strong>{row.email}</strong></div>

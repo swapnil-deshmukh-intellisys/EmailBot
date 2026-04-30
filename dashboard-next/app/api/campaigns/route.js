@@ -27,6 +27,9 @@ function escapeRegex(value = '') {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function shouldUseDemoData() {
+  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+}
 
 export async function GET(req) {
 
@@ -57,8 +60,24 @@ export async function GET(req) {
     return NextResponse.json({ campaigns });
 
   } catch (error) {
-
-    return NextResponse.json({ campaigns: [], error: error.message || 'Failed to load campaigns' });
+    const errorMessage = error.message || 'Failed to load campaigns';
+    if (shouldUseDemoData()) {
+      return NextResponse.json({
+        campaigns: [
+          {
+            _id: 'demo-campaign-1',
+            name: 'Demo Outreach Campaign',
+            status: 'Running',
+            type: 'cover_sent',
+            project: 'tec',
+            stats: { total: 50, sent: 22, failed: 1, bounced: 0, spam: 0, pending: 27 },
+            createdAt: new Date().toISOString()
+          }
+        ],
+        error: errorMessage
+      });
+    }
+    return NextResponse.json({ campaigns: [], error: errorMessage });
 
   }
 

@@ -6,6 +6,9 @@ import { requireUser } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const STATS_CACHE_TTL_MS = 10000;
+function shouldUseDemoData() {
+  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+}
 
 function normalizeDate(value) {
   if (!value) return null;
@@ -154,7 +157,9 @@ export async function GET(req) {
         sourceFile: list.sourceFile,
         kind: list.kind || 'uploaded',
         leadCount,
-        uploadedAt: list.uploadedAt
+        uploadedAt: list.uploadedAt,
+        uploadDate: list.uploadDate || null,
+        createdAt: list.createdAt || null
       };
     });
 
@@ -184,6 +189,25 @@ export async function GET(req) {
 
     return NextResponse.json(payload);
   } catch (error) {
+    if (shouldUseDemoData()) {
+      const today = new Date().toISOString().slice(0, 10);
+      return NextResponse.json({
+        total: 50,
+        totalUploaded: 50,
+        sent: 22,
+        pending: 27,
+        failed: 1,
+        bounced: 0,
+        spam: 0,
+        last10DaysStats: 22,
+        dailyMailCounts: [{ date: today, count: 22 }],
+        selectedRange: '',
+        customStartDate: '',
+        customEndDate: '',
+        lists: [{ _id: 'demo-list-1', name: 'Demo Leads', sourceFile: 'demo.xlsx', kind: 'uploaded', leadCount: 50, uploadedAt: new Date().toISOString() }],
+        error: error.message || 'Failed to load stats'
+      });
+    }
     return NextResponse.json({
       total: 0,
       totalUploaded: 0,

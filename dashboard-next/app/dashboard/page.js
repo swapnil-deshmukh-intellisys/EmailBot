@@ -708,9 +708,13 @@ export default function DashboardPage() {
 
     const loadProfile = async () => {
       try {
-        const res = await fetch('/api/auth/me', { signal: controller.signal });
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
+        const [profileRes, creditsRes] = await Promise.all([
+          fetch('/api/auth/me', { signal: controller.signal }),
+          fetch('/api/credits', { signal: controller.signal })
+        ]);
+        if (!profileRes.ok) return;
+        const data = await profileRes.json().catch(() => null);
+        const creditsData = creditsRes.ok ? await creditsRes.json().catch(() => null) : null;
         const user = data?.user || {};
         const profile = data?.profile || {};
         setProfileUser({
