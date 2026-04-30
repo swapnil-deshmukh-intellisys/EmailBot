@@ -25,14 +25,23 @@ export async function POST(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-    const { category, title, subject, body } = await req.json();
+    const { category, title, subject, body, sector, domain } = await req.json();
     if (!category || !title || !subject || !body) {
       return NextResponse.json({ error: 'category, title, subject, and body are required' }, { status: 400 });
     }
     if (!ALLOWED_CATEGORIES.includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
-    const draft = await EmailDraft.create({ userId: auth.currentUser._id, userEmail, category, title, subject, body });
+    const draft = await EmailDraft.create({
+      userId: auth.currentUser._id,
+      userEmail,
+      category,
+      title,
+      sector: String(sector || '').trim(),
+      domain: String(domain || '').trim().toLowerCase(),
+      subject,
+      body
+    });
     return NextResponse.json({ draft });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to create draft' }, { status: 500 });

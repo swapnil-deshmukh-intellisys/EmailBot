@@ -1,10 +1,12 @@
 ﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
+import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
 
 const TABLE_COLUMNS = ['Name', 'Email', 'Company', 'City', 'Status', 'Source'];
 
@@ -44,6 +46,7 @@ function formatUploadedAt(value) {
 }
 
 export default function ClientDataPage() {
+  const router = useRouter();
   const [lists, setLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedList, setSelectedList] = useState(null);
@@ -463,6 +466,25 @@ export default function ClientDataPage() {
       topbarProps={{
         title: 'Client Data',
         subtitle: 'Upload, manage, and review client files and records.',
+        copyFooter: (
+          <div className="client-data-section-switcher client-data-section-switcher-top" aria-label="Client data section controls">
+            <button
+              type="button"
+              className="client-data-section-switcher-button active"
+              onClick={() => router.push('/client-data/uploaded-files')}
+            >
+              Uploaded Files
+            </button>
+            <button
+              type="button"
+              className="client-data-section-switcher-button"
+              onClick={() => router.push('/client-data/client-list')}
+            >
+              Client List
+            </button>
+            <UploadSheetWorkflow buttonClassName="client-data-section-switcher-button" />
+          </div>
+        ),
         actions: (
           <>
             <Button variant="secondary">Create Sheet</Button>

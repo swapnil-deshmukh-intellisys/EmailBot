@@ -303,7 +303,17 @@ const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 export default function DashboardPage() {
   const router = useRouter();
   const defaultProjectOptions = ['tec', 'tut'];
-  const [stats, setStats] = useState({ totalUploaded: 0, sent: 0, pending: 0, failed: 0, last10DaysStats: 0, dailyMailCounts: [] });
+  const [stats, setStats] = useState({
+    total: 0,
+    totalUploaded: 0,
+    sent: 0,
+    pending: 0,
+    failed: 0,
+    bounced: 0,
+    spam: 0,
+    last10DaysStats: 0,
+    dailyMailCounts: []
+  });
   const [selectedStatsDate, setSelectedStatsDate] = useState('');
   const [selectedStatsRange, setSelectedStatsRange] = useState('');
   const [customStatsStartDate, setCustomStatsStartDate] = useState('');
@@ -1108,8 +1118,12 @@ const handleDeleteDraft = async (draft) => {
     [quickDraftButtons, savedDraftFilterCategory]
   );
   const totalTrackedMails = Math.max(
-    Number(stats?.totalUploaded || 0),
-    Number(stats?.sent || 0) + Number(stats?.pending || 0) + Number(stats?.failed || 0)
+    Number(stats?.total || 0),
+    Number(stats?.sent || 0) +
+      Number(stats?.pending || 0) +
+      Number(stats?.failed || 0) +
+      Number(stats?.bounced || 0) +
+      Number(stats?.spam || 0)
   );
   const safeTrackedMails = Math.max(totalTrackedMails, 1);
   const completionRate = Math.round((Number(stats?.sent || 0) / safeTrackedMails) * 100);

@@ -47,6 +47,7 @@ function initialsFromName(value = '') {
 export function Topbar({
   title = '',
   subtitle = '',
+  copyFooter = null,
   searchPlaceholder = 'Search...',
   showSearch = false,
   showTabs = true,
@@ -91,6 +92,7 @@ export function Topbar({
           <div className="dashboard-topbar-copy">
             {title ? <h1>{title}</h1> : null}
             {subtitle ? <p>{subtitle}</p> : null}
+            {copyFooter ? <div className="dashboard-topbar-copy-footer">{copyFooter}</div> : null}
           </div>
         ) : null}
       </div>

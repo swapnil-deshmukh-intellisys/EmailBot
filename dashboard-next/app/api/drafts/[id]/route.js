@@ -11,7 +11,7 @@ export async function PATCH(req, { params }) {
     if (errorResponse) return errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, title, subject, body } = await req.json();
+    const { category, title, subject, body, sector, domain } = await req.json();
     if (!category || !title || !subject || !body) {
       return NextResponse.json({ error: 'category, title, subject, and body are required' }, { status: 400 });
     }
@@ -20,7 +20,14 @@ export async function PATCH(req, { params }) {
     }
     const draft = await EmailDraft.findOneAndUpdate(
       { _id: id, userEmail },
-      { category, title, subject, body },
+      {
+        category,
+        title,
+        sector: String(sector || '').trim(),
+        domain: String(domain || '').trim().toLowerCase(),
+        subject,
+        body
+      },
       { new: true, runValidators: true }
     ).lean();
     if (!draft) {

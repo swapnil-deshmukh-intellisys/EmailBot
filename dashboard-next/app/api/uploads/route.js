@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import UploadFile from '@/models/UploadFile';
 import { requireAuth } from '@/lib/apiAuth';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -227,4 +228,32 @@ export async function POST(req) {
     sheetStyle: list.sheetStyle,
     preview: leads
   });
+}
+
+export async function GET(req) {
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
+  await connectDB();
+
+  try {
+    const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
+    const uploads = await UploadFile.find({ userEmail }).sort({ uploadedDate: -1, createdAt: -1 }).lean();
+    return NextResponse.json({
+      uploads: uploads.map((upload) => ({
+        _id: String(upload._id),
+        fileName: upload.fileName,
+        uploadedDate: upload.uploadedDate,
+        totalRecords: Number(upload.totalRecords || 0),
+        validRecords: Number(upload.validRecords || 0),
+        duplicateRecords: Number(upload.duplicateRecords || 0),
+        invalidRecords: Number(upload.invalidRecords || 0),
+        uploadedBy: upload.uploadedBy || '',
+        status: upload.status || 'Valid',
+        sourceListId: upload.sourceListId ? String(upload.sourceListId) : '',
+        previewRows: Array.isArray(upload.previewRows) ? upload.previewRows : []
+      }))
+    });
+  } catch (error) {
+    return NextResponse.json({ uploads: [], error: error.message || 'Failed to load uploads' }, { status: 500 });
+  }
 }
