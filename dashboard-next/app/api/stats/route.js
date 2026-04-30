@@ -69,6 +69,7 @@ export async function GET(req) {
       Campaign.find({ userEmail }).sort({ createdAt: -1 }).lean()
     ]);
 
+    let total = 0;
     let totalUploaded = 0;
     let sent = 0;
     let pending = 0;
@@ -116,6 +117,7 @@ export async function GET(req) {
     ));
 
     for (const campaign of campaignSummaries) {
+      total += Math.max(0, Number(campaign?.stats?.total || 0));
       sent += Math.max(0, Number(campaign?.stats?.sent || 0));
       pending += Math.max(0, Number(campaign?.stats?.pending || 0));
       failed += Math.max(0, Number(campaign?.stats?.failed || 0));
@@ -159,6 +161,7 @@ export async function GET(req) {
     const dailyMailCounts = Array.from(dayCountMap.entries()).map(([date, count]) => ({ date, count }));
 
     const payload = {
+      total,
       totalUploaded,
       sent,
       pending,
@@ -182,6 +185,7 @@ export async function GET(req) {
     return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json({
+      total: 0,
       totalUploaded: 0,
       sent: 0,
       pending: 0,
