@@ -22,8 +22,7 @@ const TABLE_COLUMNS = [
   'Sourcer',
   'User ID',
   'Project Approach',
-  'Sender ID',
-  'Actions'
+  'Sender ID'
 ];
 
 const badgeToneMap = {
@@ -151,6 +150,7 @@ const EDITABLE_ROW_FIELDS = [
   'projectApproach',
   'senderId'
 ];
+const GRID_EDITABLE_FIELDS = [...EDITABLE_ROW_FIELDS];
 
 function mergeRowWithEdits(row, edits = {}) {
   return {
@@ -180,8 +180,8 @@ export default function ClientListPage() {
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
-  const [savingRows, setSavingRows] = useState({});
   const [activeCell, setActiveCell] = useState(null);
+  const cellRefs = useRef({});
   const selectedSheetsSectionRef = useRef(null);
 
   useEffect(() => {
@@ -278,67 +278,72 @@ export default function ClientListPage() {
     }));
   };
 
-  const handleSaveRow = async (rowId) => {
-    try {
-      setSavingRows((current) => ({ ...current, [rowId]: true }));
-      const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rowEdits[rowId] || {})
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to update row');
-      }
-      setSelectionMessage('Row updated successfully.');
-      setSelectionError('');
-      setActiveCell(null);
-      setRefreshNonce((value) => value + 1);
-    } catch (err) {
-      setSelectionError(err.message || 'Failed to update row');
-      setSelectionMessage('');
-    } finally {
-      setSavingRows((current) => {
-        const next = { ...current };
-        delete next[rowId];
-        return next;
-      });
+  const focusGridCell = (rowId, field) => {
+    const key = `${rowId}:${field}`;
+    const input = cellRefs.current[key];
+    if (input) {
+      input.focus();
+      input.select();
+    }
+    setActiveCell({ rowId, field });
+  };
+
+  const handleGridCellKeyDown = (event, rowIndex, fieldIndex) => {
+    if (!filteredClientRows.length) return;
+    const maxRow = filteredClientRows.length - 1;
+    const maxCol = GRID_EDITABLE_FIELDS.length - 1;
+    if (event.key === 'ArrowRight' || event.key === 'Tab') {
+      event.preventDefault();
+      const nextCol = event.shiftKey ? Math.max(0, fieldIndex - 1) : Math.min(maxCol, fieldIndex + 1);
+      focusGridCell(filteredClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[nextCol]);
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      focusGridCell(filteredClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[Math.max(0, fieldIndex - 1)]);
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'Enter') {
+      event.preventDefault();
+      const nextRow = Math.min(maxRow, rowIndex + 1);
+      focusGridCell(filteredClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const nextRow = Math.max(0, rowIndex - 1);
+      focusGridCell(filteredClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
     }
   };
 
-  const renderEditableCell = (row, field) => {
-    const isActive = activeCell?.rowId === row.id && activeCell?.field === field;
-    const currentValue = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
-    if (isActive) {
-      return (
-        <input
-          autoFocus
-          className="input"
-          value={currentValue}
-          onChange={(event) => handleRowFieldChange(row.id, field, event.target.value)}
-          onBlur={() => setActiveCell(null)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              setActiveCell(null);
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              setActiveCell(null);
-            }
-          }}
-        />
-      );
-    }
-    return (
-      <button
-        type="button"
-        className="ghost subtle"
-        onClick={() => setActiveCell({ rowId: row.id, field })}
-      >
-        {currentValue || '-'}
-      </button>
-    );
+  const handleGridPaste = (event, startRowIndex, startFieldIndex) => {
+    const rawText = event.clipboardData?.getData('text/plain');
+    if (!rawText || !rawText.trim()) return;
+    event.preventDefault();
+
+    const rows = rawText
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => line.split('\t'));
+    if (!rows.length) return;
+
+    setRowEdits((current) => {
+      const next = { ...current };
+      rows.forEach((pastedRow, rowOffset) => {
+        const targetRowIndex = startRowIndex + rowOffset;
+        const targetRow = filteredClientRows[targetRowIndex];
+        if (!targetRow) return;
+        const rowPatch = { ...(next[targetRow.id] || {}) };
+        pastedRow.forEach((value, colOffset) => {
+          const field = GRID_EDITABLE_FIELDS[startFieldIndex + colOffset];
+          if (!field) return;
+          rowPatch[field] = value;
+        });
+        next[targetRow.id] = rowPatch;
+      });
+      return next;
+    });
   };
 
   const handleSaveDirectoryEdits = async () => {
@@ -629,9 +634,9 @@ export default function ClientListPage() {
                       </Button>
                     </div>
                   </div>
-                  <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table">
-                    <div className="client-data-table-head">
-                      <span>
+                  <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
+                    <div className="client-data-table-head client-directory-excel-head">
+                      <span className="client-directory-excel-head-cell">
                         <input
                           type="checkbox"
                           checked={allVisibleSelected}
@@ -639,20 +644,22 @@ export default function ClientListPage() {
                           aria-label="Select all visible clients"
                         />
                       </span>
-                      {TABLE_COLUMNS.slice(1).map((column) => <span key={column}>{column}</span>)}
+                      {TABLE_COLUMNS.slice(1).map((column) => (
+                        <span key={column} className="client-directory-excel-head-cell">{column}</span>
+                      ))}
                     </div>
                     {loading ? (
-                      <div className="client-data-table-row"><span /><span>Loading client data...</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">Loading client data...</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
                     ) : null}
                     {!loading && error ? (
-                      <div className="client-data-table-row"><span /><span>{error}</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">{error}</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
                     ) : null}
                     {!loading && !error && !filteredClientRows.length ? (
-                      <div className="client-data-table-row"><span /><span>No client data found.</span><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">No client data found.</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
                     ) : null}
-                    {!loading && !error ? filteredClientRows.map((row) => (
-                      <div key={row.id} className="client-data-table-row">
-                        <span>
+                    {!loading && !error ? filteredClientRows.map((row, rowIndex) => (
+                      <div key={row.id} className="client-data-table-row client-directory-excel-row">
+                        <span className="client-directory-excel-cell">
                           <input
                             type="checkbox"
                             checked={selectedClientIds.includes(row.id)}
@@ -660,27 +667,63 @@ export default function ClientListPage() {
                             aria-label={`Select ${row.name}`}
                           />
                         </span>
-                        <span>{renderEditableCell(row, 'name')}</span>
-                        <span>{renderEditableCell(row, 'surname')}</span>
-                        <span>{renderEditableCell(row, 'designation')}</span>
-                        <span>{renderEditableCell(row, 'cmpName')}</span>
-                        <span>{renderEditableCell(row, 'sector')}</span>
-                        <span>{renderEditableCell(row, 'country')}</span>
-                        <span>{renderEditableCell(row, 'email')}</span>
-                        <span>{row.listAddedDate}</span>
-                        <span>{row.source}</span>
-                        <span>{renderEditableCell(row, 'leadType')}</span>
-                        <span>{renderEditableCell(row, 'sourcer')}</span>
-                        <span>{renderEditableCell(row, 'userId')}</span>
-                        <span>{renderEditableCell(row, 'projectApproach')}</span>
-                        <span>{renderEditableCell(row, 'senderId')}</span>
-                        <span className="client-data-row-actions">
-                          <Button type="button" size="sm" variant="secondary" onClick={() => handleSaveRow(row.id)} disabled={Boolean(savingRows[row.id])}>
-                            {savingRows[row.id] ? 'Saving...' : 'Save'}
-                          </Button>
-                        </span>
+                        {GRID_EDITABLE_FIELDS.slice(0, 7).map((field, fieldIndex) => {
+                          const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                          return (
+                            <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
+                              <div
+                                ref={(node) => {
+                                  cellRefs.current[`${row.id}:${field}`] = node;
+                                }}
+                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''}`}
+                                contentEditable
+                                suppressContentEditableWarning
+                                onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                onInput={(event) => handleRowFieldChange(row.id, field, event.currentTarget.textContent || '')}
+                                onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
+                                onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
+                              >
+                                {value}
+                              </div>
+                            </span>
+                          );
+                        })}
+                        <span className="client-directory-excel-cell">{row.listAddedDate}</span>
+                        <span className="client-directory-excel-cell">{row.source}</span>
+                        {GRID_EDITABLE_FIELDS.slice(7).map((field, idx) => {
+                          const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                          const fieldIndex = idx + 7;
+                          return (
+                            <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
+                              <div
+                                ref={(node) => {
+                                  cellRefs.current[`${row.id}:${field}`] = node;
+                                }}
+                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''}`}
+                                contentEditable
+                                suppressContentEditableWarning
+                                onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                onInput={(event) => handleRowFieldChange(row.id, field, event.currentTarget.textContent || '')}
+                                onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
+                                onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
+                              >
+                                {value}
+                              </div>
+                            </span>
+                          );
+                        })}
                       </div>
                     )) : null}
+                  </div>
+                  <div className="client-data-sheet-savebar">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleSaveDirectoryEdits}
+                      disabled={savingDirectory || !Object.keys(rowEdits).length}
+                    >
+                      {savingDirectory ? 'Saving...' : 'Save Sheet Changes'}
+                    </Button>
                   </div>
 
                   <div className="client-data-mobile-list">

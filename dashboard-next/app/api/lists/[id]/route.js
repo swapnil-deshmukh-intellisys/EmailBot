@@ -65,12 +65,24 @@ export async function PATCH(req, { params }) {
   }
 
   const body = await req.json();
+  const nextName = String(body?.name || '').trim();
   const rows = Array.isArray(body.rows) ? body.rows : null;
   const columns = Array.isArray(body.columns) ? body.columns.map((c) => String(c || '').trim()).filter(Boolean) : null;
   const sheetStyle = body.sheetStyle && typeof body.sheetStyle === 'object' ? body.sheetStyle : null;
 
+  // Metadata-only update: allow sheet renaming without requiring full rows payload.
+  if (!rows && nextName) {
+    list.name = nextName;
+    await list.save();
+    return NextResponse.json({ ok: true, name: list.name });
+  }
+
   if (!rows) {
-    return NextResponse.json({ error: 'rows are required' }, { status: 400 });
+    return NextResponse.json({ error: 'rows are required (or provide a sheet name to rename)' }, { status: 400 });
+  }
+
+  if (nextName) {
+    list.name = nextName;
   }
 
   list.columns = columns || list.columns || [];

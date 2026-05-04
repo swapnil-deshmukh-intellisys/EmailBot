@@ -62,6 +62,10 @@ export default function ClientDataPage() {
   const [customListMessage, setCustomListMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingList, setLoadingList] = useState(false);
+  const [cardEditingId, setCardEditingId] = useState('');
+  const [cardDraftName, setCardDraftName] = useState('');
+  const [cardSavingId, setCardSavingId] = useState('');
+  const [cardDeletingId, setCardDeletingId] = useState('');
   const [error, setError] = useState('');
   const workspaceRef = useRef(null);
   const customListImportRef = useRef(null);
@@ -290,6 +294,108 @@ export default function ClientDataPage() {
     requestAnimationFrame(() => {
       workspaceRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     });
+  };
+
+  const handleEditSheet = (sheet) => {
+    setCardEditingId(String(sheet.id || ''));
+    setCardDraftName(String(sheet.title || '').trim());
+    setCustomListError('');
+    setCustomListMessage('');
+  };
+
+  const handleUpdateSheet = async (sheetId) => {
+    try {
+      setCardSavingId(String(sheetId));
+      const response = await fetch(`/api/lists/${encodeURIComponent(sheetId)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to refresh sheet');
+      }
+      setLists((current) =>
+        current.map((item) =>
+          String(item._id) === String(sheetId)
+            ? {
+                ...item,
+                name: data?.name || item.name,
+                sourceFile: data?.sourceFile || item.sourceFile,
+                leadCount: Array.isArray(data?.leads) ? data.leads.length : Number(item.leadCount || 0),
+                uploadedAt: data?.uploadedAt || item.uploadedAt
+              }
+            : item
+        )
+      );
+      setCustomListMessage('Sheet updated.');
+      setCustomListError('');
+    } catch (err) {
+      setCustomListError(err.message || 'Failed to update sheet');
+      setCustomListMessage('');
+    } finally {
+      setCardSavingId('');
+    }
+  };
+
+  const handleSaveSheetName = async (sheetId) => {
+    const nextName = String(cardDraftName || '').trim();
+    if (!nextName) {
+      setCustomListError('Sheet name cannot be empty.');
+      setCustomListMessage('');
+      return;
+    }
+    try {
+      setCardSavingId(String(sheetId));
+      const response = await fetch(`/api/lists/${encodeURIComponent(sheetId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nextName })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to save sheet name');
+      }
+      setLists((current) =>
+        current.map((item) => (String(item._id) === String(sheetId) ? { ...item, name: nextName } : item))
+      );
+      if (selectedList && String(selectedList._id) === String(sheetId)) {
+        setSelectedList((current) => ({ ...(current || {}), name: nextName }));
+      }
+      setCardEditingId('');
+      setCardDraftName('');
+      setCustomListMessage('Sheet saved.');
+      setCustomListError('');
+    } catch (err) {
+      setCustomListError(err.message || 'Failed to save sheet');
+      setCustomListMessage('');
+    } finally {
+      setCardSavingId('');
+    }
+  };
+
+  const handleDeleteSheet = async (sheetId) => {
+    if (!window.confirm('Delete this sheet permanently?')) return;
+    try {
+      setCardDeletingId(String(sheetId));
+      const response = await fetch(`/api/lists/${encodeURIComponent(sheetId)}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to delete sheet');
+      }
+      setLists((current) => current.filter((item) => String(item._id) !== String(sheetId)));
+      if (String(selectedListId) === String(sheetId)) {
+        setSelectedListId('');
+        setSelectedList(null);
+      }
+      if (String(cardEditingId) === String(sheetId)) {
+        setCardEditingId('');
+        setCardDraftName('');
+      }
+      setCustomListMessage('Sheet deleted.');
+      setCustomListError('');
+    } catch (err) {
+      setCustomListError(err.message || 'Failed to delete sheet');
+      setCustomListMessage('');
+    } finally {
+      setCardDeletingId('');
+    }
   };
 
   const handleCreateCustomList = async () => {
@@ -528,22 +634,50 @@ export default function ClientDataPage() {
 
           <div className="client-data-upload-grid">
             {visibleUploadedFileCards.length ? visibleUploadedFileCards.map((item) => (
-              <button
+              <article
                 key={item.id}
-                type="button"
                 className={`client-data-upload-card ${selectedListId === item.id ? 'active' : ''}`}
                 onClick={() => openUploadedFile(item.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openUploadedFile(item.id);
+                  }
+                }}
               >
                 <div className="client-data-upload-card-head">
                   <div className="client-data-upload-card-title">
-                    <strong>{item.title}</strong>
+                    {cardEditingId === String(item.id) ? (
+                      <input
+                        className="input"
+                        value={cardDraftName}
+                        onChange={(event) => setCardDraftName(event.target.value)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    ) : (
+                      <strong>{item.title}</strong>
+                    )}
                     <span className="client-data-upload-kind">Uploaded</span>
                   </div>
                   <span>{item.leadCount} contacts</span>
                 </div>
                 <p>{item.fileName}</p>
                 <small>Uploaded {item.uploadedAt}</small>
-              </button>
+                <div className="client-data-sheet-savebar" onClick={(event) => event.stopPropagation()}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => handleEditSheet(item)}>Edit</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateSheet(item.id)} disabled={cardSavingId === String(item.id)}>
+                    {cardSavingId === String(item.id) ? 'Updating...' : 'Update'}
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => handleSaveSheetName(item.id)} disabled={cardEditingId !== String(item.id) || cardSavingId === String(item.id)}>
+                    {cardSavingId === String(item.id) ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteSheet(item.id)} disabled={cardDeletingId === String(item.id)}>
+                    {cardDeletingId === String(item.id) ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
+              </article>
             )) : (
               <div className="client-data-upload-empty">
                 <strong>No uploaded files yet.</strong>
@@ -765,22 +899,50 @@ export default function ClientDataPage() {
 
           <div className="client-data-upload-grid client-data-custom-grid">
             {visibleCustomFileCards.length ? visibleCustomFileCards.map((item) => (
-              <button
+              <article
                 key={item.id}
-                type="button"
                 className={`client-data-upload-card ${selectedListId === item.id ? 'active' : ''}`}
                 onClick={() => openUploadedFile(item.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openUploadedFile(item.id);
+                  }
+                }}
               >
                 <div className="client-data-upload-card-head">
                   <div className="client-data-upload-card-title">
-                    <strong>{item.title}</strong>
+                    {cardEditingId === String(item.id) ? (
+                      <input
+                        className="input"
+                        value={cardDraftName}
+                        onChange={(event) => setCardDraftName(event.target.value)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    ) : (
+                      <strong>{item.title}</strong>
+                    )}
                     <span className="client-data-upload-kind">Custom</span>
                   </div>
                   <span>{item.leadCount} contacts</span>
                 </div>
                 <p>{item.fileName}</p>
                 <small>Saved {item.uploadedAt}</small>
-              </button>
+                <div className="client-data-sheet-savebar" onClick={(event) => event.stopPropagation()}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => handleEditSheet(item)}>Edit</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateSheet(item.id)} disabled={cardSavingId === String(item.id)}>
+                    {cardSavingId === String(item.id) ? 'Updating...' : 'Update'}
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => handleSaveSheetName(item.id)} disabled={cardEditingId !== String(item.id) || cardSavingId === String(item.id)}>
+                    {cardSavingId === String(item.id) ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteSheet(item.id)} disabled={cardDeletingId === String(item.id)}>
+                    {cardDeletingId === String(item.id) ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
+              </article>
             )) : (
               <div className="client-data-upload-empty">
                 <strong>No custom lists yet.</strong>
