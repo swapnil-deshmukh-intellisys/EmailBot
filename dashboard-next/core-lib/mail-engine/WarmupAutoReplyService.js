@@ -1,12 +1,12 @@
-import connectDB from '@/lib/mongodb';
+import connectDB from '../database-config/MongoDatabaseConnection.js';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
-import GraphOAuthAccount from '@/models/GraphOAuthAccount';
-import SenderAccount from '@/models/SenderAccount';
-import WarmupAutoReplySetting from '@/models/WarmupAutoReplySetting';
-import WarmupAutoReplyLog from '@/models/WarmupAutoReplyLog';
-import { getDelegatedAccessToken } from '@/lib/emailSender';
-import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
+import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
+import SenderAccount from '../../database-models/SenderAccount.js';
+import WarmupAutoReplySetting from '../../database-models/WarmupAutoReplySetting.js';
+import WarmupAutoReplyLog from '../../database-models/WarmupAutoReplyLog.js';
+import { getDelegatedAccessToken } from './GraphAndSmtpMailSender.js';
+import { getRuntimeSenderAccounts } from './SenderAccountResolver.js';
 
 const DEFAULT_SCAN_LIMIT = 20;
 const MIN_SCAN_INTERVAL_MS = 45 * 1000;

@@ -5,9 +5,9 @@ import {
   isActiveAccountStatus,
   normalizeUserEmail,
   normalizeUserRole
-} from '@/lib/auth';
-import connectDB from '@/lib/mongodb';
-import UserProfile from '@/models/UserProfile';
+} from './AuthSessionService.js';
+import connectDB from '../database-config/MongoDatabaseConnection.js';
+import UserProfile from '../../database-models/UserProfile.js';
 
 function shouldBypassAuthInDev() {
   const raw = String(process.env.DEV_BYPASS_AUTH || '').trim().toLowerCase();

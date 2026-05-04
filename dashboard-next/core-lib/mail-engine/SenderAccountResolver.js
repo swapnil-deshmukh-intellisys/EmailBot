@@ -1,6 +1,6 @@
-import connectDB from '@/lib/mongodb';
-import SenderAccount from '@/models/SenderAccount';
-import GraphOAuthAccount from '@/models/GraphOAuthAccount';
+import connectDB from '../database-config/MongoDatabaseConnection.js';
+import SenderAccount from '../../database-models/SenderAccount.js';
+import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
 
 const DEFAULT_PROJECT_PRESET_SENDERS = {
   tec: [

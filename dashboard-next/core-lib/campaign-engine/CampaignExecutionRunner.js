@@ -1,14 +1,14 @@
-import connectDB from '@/lib/mongodb';
-import Campaign from '@/models/Campaign';
-import LeadList from '@/models/LeadList';
-import EmailTemplate from '@/models/EmailTemplate';
-import EmailThread from '@/models/EmailThread';
-import CampaignRecipientClaim from '@/models/CampaignRecipientClaim';
-import UserProfile from '@/models/UserProfile';
-import CreditTransaction from '@/models/CreditTransaction';
-import { getAvailableAccounts, sendEmailForLead } from '@/lib/emailSender';
-import { resolveSenderAccountById } from '@/lib/senderAccounts';
-import { USER_ACCOUNT_STATUSES } from '@/lib/auth';
+import connectDB from '../database-config/MongoDatabaseConnection.js';
+import Campaign from '../../database-models/Campaign.js';
+import LeadList from '../../database-models/LeadList.js';
+import EmailTemplate from '../../database-models/EmailTemplate.js';
+import EmailThread from '../../database-models/EmailThread.js';
+import CampaignRecipientClaim from '../../database-models/CampaignRecipientClaim.js';
+import UserProfile from '../../database-models/UserProfile.js';
+import CreditTransaction from '../../database-models/CreditTransaction.js';
+import { getAvailableAccounts, sendEmailForLead } from '../mail-engine/GraphAndSmtpMailSender.js';
+import { resolveSenderAccountById } from '../mail-engine/SenderAccountResolver.js';
+import { USER_ACCOUNT_STATUSES } from '../auth-config/AuthSessionService.js';
 
 const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;

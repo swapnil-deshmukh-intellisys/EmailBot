@@ -1,5 +1,5 @@
-import connectDB from '@/lib/mongodb';
-import ActivityLog from '@/models/ActivityLogModel';
+import connectDB from '../database-config/MongoDatabaseConnection.js';
+import ActivityLog from '../../database-models/ActivityLogModel.js';
 
 export async function createActivityLog({
   user = null,

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import Campaign from '@/models/Campaign';
-import { startCampaignRunner } from '@/lib/campaignRunner';
+import Campaign from '../../database-models/Campaign.js';
+import { startCampaignRunner } from './CampaignExecutionRunner.js';
 
 const schedulerState =
   global.campaignSchedulerState ||
