@@ -17,6 +17,7 @@ global.campaignStartingRunners = startingRunners;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+const normalizeRecipientEmail = (value = '') => normalizeEmail(String(value || '').split(/[;,/]/)[0] || '');
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(0, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 0));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
 const DEFAULT_PROFILE_CREDITS = 6000;
@@ -31,7 +32,7 @@ function senderThreadKey(account = {}) {
 }
 
 async function getStoredThreadForLead(lead, account, userEmail = '') {
-  const recipientEmail = normalizeEmail(lead?.Email || lead?.email || lead?.thread?.recipientEmail || '');
+  const recipientEmail = normalizeRecipientEmail(lead?.Email || lead?.email || lead?.thread?.recipientEmail || '');
   if (!recipientEmail) return null;
   const senderKey = senderThreadKey(account);
   const doc = await EmailThread.findOne({ userEmail, recipientEmail, senderKey }).lean();
@@ -50,7 +51,7 @@ async function getStoredThreadForLead(lead, account, userEmail = '') {
 
 async function upsertStoredThreadForLead(lead, account, thread, campaignType = '', userEmail = '') {
   if (!String(thread?.messageId || '').trim()) return;
-  const recipientEmail = normalizeEmail(lead?.Email || lead?.email || thread?.recipientEmail || '');
+  const recipientEmail = normalizeRecipientEmail(lead?.Email || lead?.email || thread?.recipientEmail || '');
   if (!recipientEmail) return;
   const senderKey = senderThreadKey(account);
   await EmailThread.updateOne(
@@ -75,15 +76,34 @@ async function upsertStoredThreadForLead(lead, account, thread, campaignType = '
 }
 
 async function saveCampaignIfExists(campaign) {
-  try {
-    await campaign.save();
-    return true;
-  } catch (error) {
-    if (error?.name === 'DocumentNotFoundError' || /No document found/i.test(error?.message || '')) {
-      return false;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await campaign.save();
+      return true;
+    } catch (error) {
+      if (error?.name === 'DocumentNotFoundError' || /No document found/i.test(error?.message || '')) {
+        return false;
+      }
+      if (!isTransientInfrastructureError(error) || attempt === 3) {
+        throw error;
+      }
+      await wait(500 * attempt);
     }
-    throw error;
   }
+
+  return false;
+}
+
+function isTransientInfrastructureError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('socket hang up') ||
+    message.includes('connection') ||
+    message.includes('topology') ||
+    message.includes('server selection')
+  );
 }
 
 function appendLog(campaign, message, level = 'info') {
@@ -398,7 +418,7 @@ export async function validateCampaignExecutionPreflight(campaign) {
   }
 
   const validLeads = Array.isArray(list.leads)
-    ? list.leads.filter((lead) => normalizeEmail(lead?.Email || lead?.email || ''))
+    ? list.leads.filter((lead) => normalizeRecipientEmail(lead?.Email || lead?.email || ''))
     : [];
   if (!validLeads.length) {
     throw new Error('Recipient list is empty');
@@ -624,7 +644,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
         lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
         const idx = pendingIndexes[i];
         const lead = list.leads[idx];
-        const recipientEmail = normalizeEmail(lead?.Email || lead?.email || '');
+        const recipientEmail = normalizeRecipientEmail(lead?.Email || lead?.email || '');
         if (!recipientEmail) {
           lead.status = 'Failed';
           lead.error = 'Lead has no email address';
@@ -803,11 +823,21 @@ export async function startCampaignRunner(campaignId, options = {}) {
       }
       state.running = false;
     } catch (error) {
-      campaign.status = 'Failed';
+      const transientFailure = isTransientInfrastructureError(error);
+      campaign.status = transientFailure ? 'Queued' : 'Failed';
       campaign.workerId = '';
       campaign.workerLockedAt = null;
       campaign.workerHeartbeatAt = null;
-      appendLog(campaign, `Fatal campaign error: ${error.message}`, 'error');
+      if (transientFailure) {
+        campaign.queueRequestedAt = new Date();
+      }
+      appendLog(
+        campaign,
+        transientFailure
+          ? `Transient runner error, campaign re-queued: ${error.message}`
+          : `Fatal campaign error: ${error.message}`,
+        'error'
+      );
       await saveCampaignIfExists(campaign);
       state.running = false;
     }

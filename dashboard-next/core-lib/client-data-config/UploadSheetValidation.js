@@ -45,6 +45,7 @@ function normalizeEmail(value = '') {
   email = email.replace(/^[<[\("'`\s]+/, '').replace(/[>\])"'`\s]+$/, '');
   if (email.includes(',')) email = email.split(',')[0].trim();
   if (email.includes(';')) email = email.split(';')[0].trim();
+  if (email.includes('/')) email = email.split('/')[0].trim();
   email = email.replace(/\s+/g, '');
   email = email.replace(/\[at\]|\(at\)|\sat\s/gi, '@');
   email = email.replace(/\[dot\]|\(dot\)|\sdot\s/gi, '.');

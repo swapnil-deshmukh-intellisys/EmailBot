@@ -18,11 +18,25 @@ export async function POST(req, { params }) {
     if (runner?.running) {
       return NextResponse.json({ ok: true, started: false, message: 'Campaign is already running' });
     }
-    return NextResponse.json({
-      ok: true,
-      started: false,
-      message: 'Campaign is already marked running. Use the worker/scheduler to continue it.'
-    });
+    try {
+      await validateCampaignExecutionPreflight(campaign);
+      campaign.status = 'Queued';
+      campaign.queueRequestedAt = new Date();
+      campaign.workerLockedAt = null;
+      campaign.workerHeartbeatAt = null;
+      campaign.workerId = '';
+      campaign.finishedAt = null;
+      campaign.logs.push({ level: 'info', message: 'Campaign re-queued because no active worker was found', at: new Date() });
+      await campaign.save();
+      await triggerCampaignSchedulerTick();
+      return NextResponse.json({
+        ok: true,
+        queued: true,
+        message: 'Campaign re-queued successfully.'
+      });
+    } catch (error) {
+      return NextResponse.json({ error: error.message || 'Failed to re-queue campaign' }, { status: 400 });
+    }
   }
 
   const scheduleMode = String(campaign.scheduleMode || 'send_now').trim().toLowerCase();

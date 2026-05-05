@@ -21,8 +21,9 @@ async function recoverStaleCampaigns(now = new Date()) {
   const staleBefore = new Date(now.getTime() - WORKER_LOCK_STALE_MS);
   const staleCampaigns = await Campaign.find({
     status: 'Running',
-    workerLockedAt: { $ne: null, $lt: staleBefore },
     $or: [
+      { workerLockedAt: null },
+      { workerLockedAt: { $lt: staleBefore } },
       { workerHeartbeatAt: null },
       { workerHeartbeatAt: { $lt: staleBefore } }
     ]
@@ -38,8 +39,9 @@ async function recoverStaleCampaigns(now = new Date()) {
       {
         _id: campaign._id,
         status: 'Running',
-        workerLockedAt: { $ne: null, $lt: staleBefore },
         $or: [
+          { workerLockedAt: null },
+          { workerLockedAt: { $lt: staleBefore } },
           { workerHeartbeatAt: null },
           { workerHeartbeatAt: { $lt: staleBefore } }
         ]

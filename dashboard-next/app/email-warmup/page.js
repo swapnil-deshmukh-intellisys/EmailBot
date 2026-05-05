@@ -7,6 +7,7 @@ import Button from '@/app/components/ui/Button';
 import { Card, CardContent } from '@/app/components/ui/Card';
 import PageSection from '@/app/components/ui/PageSection';
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
+import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const WARMUP_WORKSPACE_KEY = 'warmup:workspace:v1';
 
@@ -49,6 +50,16 @@ export default function EmailWarmupPage() {
   const [overviewMinimized, setOverviewMinimized] = useState(true);
   const [sheetMinimized, setSheetMinimized] = useState(false);
   const [sheetBusy, setSheetBusy] = useState(false);
+  const [warmupStartLogs, setWarmupStartLogs] = useState([]);
+
+  const appendWarmupStartLog = (message) => {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      at: new Date().toISOString(),
+      message: String(message || '').trim()
+    };
+    setWarmupStartLogs((current) => [entry, ...current].slice(0, 25));
+  };
 
   const persistWorkspace = (next = {}) => {
     if (typeof window === 'undefined') return;
@@ -270,24 +281,29 @@ export default function EmailWarmupPage() {
   };
 
   const handleStartWarmupMails = async () => {
+    appendWarmupStartLog('Warmup start requested.');
     if (!uploadedListId) {
       setSetupMessage('Upload a sheet first.');
+      appendWarmupStartLog('Start blocked: no warmup sheet uploaded.');
       return;
     }
     if (!selectedSenderAccountId) {
       setSetupMessage('Select a sender account first.');
+      appendWarmupStartLog('Start blocked: no sender account selected.');
       return;
     }
 
     const draft = draftTemplates[selectedDraftType];
     if (!draft?.subject || !draft?.body) {
       setSetupMessage('Selected draft type is not available.');
+      appendWarmupStartLog(`Start blocked: draft type "${selectedDraftType}" is unavailable.`);
       return;
     }
 
     try {
       setSetupBusy(true);
       setSetupMessage('');
+      appendWarmupStartLog('Saving latest warmup sheet edits...');
       if (uploadedListId && previewRows.length) {
         await fetch(`/api/lists/${uploadedListId}`, {
           method: 'PATCH',
@@ -298,6 +314,7 @@ export default function EmailWarmupPage() {
           })
         });
       }
+      appendWarmupStartLog('Creating warmup campaign...');
       const campaignName = `Warmup ${draft.label || selectedDraftType} ${new Date().toLocaleString()}`;
       const createResponse = await fetch('/api/campaigns', {
         method: 'POST',
@@ -325,6 +342,8 @@ export default function EmailWarmupPage() {
         throw new Error(created?.error || 'Failed to create warmup campaign');
       }
 
+      appendWarmupStartLog(`Warmup campaign created: ${created.campaign._id}`);
+      appendWarmupStartLog('Starting warmup campaign...');
       const startResponse = await fetch(`/api/campaigns/${created.campaign._id}/start`, {
         method: 'POST'
       });
@@ -334,10 +353,12 @@ export default function EmailWarmupPage() {
       }
 
       setSetupMessage('Warmup mails started successfully.');
+      appendWarmupStartLog('Warmup mails started successfully.');
       setShowWarmupSetup(false);
       setError('');
     } catch (err) {
       setSetupMessage(err.message || 'Failed to start warmup mails');
+      appendWarmupStartLog(`Warmup start failed: ${err.message || 'Unknown error'}`);
     } finally {
       setSetupBusy(false);
     }
@@ -391,25 +412,35 @@ export default function EmailWarmupPage() {
   const visiblePreviewRows = sheetMinimized ? previewRows.slice(0, 2) : previewRows;
 
   return (
-    <AppLayout
-      topbarProps={{
-        title: 'Email Warmup',
-        subtitle: 'Track all warm-up related sender accounts from one live page.',
-        actions: (
-          <>
-            <Button variant="secondary" loading={setupBusy} onClick={() => setShowWarmupSetup(true)}>
-              Start Warmup Mails
-            </Button>
-            <Button variant="secondary" loading={busy} onClick={handleRunNow}>
-              Run Warmup Reply Now
-            </Button>
-            <Button loading={busy} onClick={() => handleToggle(!data.setting?.enabled)}>
-              {data.setting?.enabled ? 'Turn Warmup Off' : 'Turn Warmup On'}
-            </Button>
-          </>
-        )
-      }}
-    >
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+      <PageSection
+        title="Email Warmup"
+        description="Track all warm-up related sender accounts from one live page."
+      >
+        <Card className="workspace-panel" style={{ marginBottom: 16 }}>
+          <CardContent>
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start',
+                alignItems: 'center'
+              }}
+            >
+              <Button variant="secondary" loading={setupBusy} onClick={() => setShowWarmupSetup(true)}>
+                Start Warmup Mails
+              </Button>
+              <Button variant="secondary" loading={busy} onClick={handleRunNow}>
+                Run Warmup Reply Now
+              </Button>
+              <Button loading={busy} onClick={() => handleToggle(!data.setting?.enabled)}>
+                {data.setting?.enabled ? 'Turn Warmup Off' : 'Turn Warmup On'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </PageSection>
       <PageSection
         title="Overview"
         description="All connected sender accounts used for warm-up are shown here with live status."
@@ -433,7 +464,7 @@ export default function EmailWarmupPage() {
           ) : null}
 
           <div className="workspace-grid">
-            <section className="workspace-panel workspace-panel-large">
+            <section className="workspace-panel workspace-panel-large" style={{ gridColumn: '1 / -1' }}>
               <div className="workspace-panel-head">
                 <div>
                   <h2>Warmup Setup</h2>
@@ -518,6 +549,28 @@ export default function EmailWarmupPage() {
                       Start Warmup
                     </Button>
                   </div>
+
+                  <div className="workspace-panel-head" style={{ marginTop: 18 }}>
+                    <div>
+                      <h2>Warmup Start Mail Log</h2>
+                      <p>Live log of what happened when you click Start Warmup.</p>
+                    </div>
+                  </div>
+                  <div className="workspace-activity">
+                    {warmupStartLogs.length ? warmupStartLogs.map((item) => (
+                      <article key={item.id}>
+                        <strong>{item.message}</strong>
+                        <span style={{ display: 'block', color: '#64748b', fontSize: 12 }}>
+                          {formatDateTime(item.at)}
+                        </span>
+                      </article>
+                    )) : (
+                      <article>
+                        <strong>No warmup start logs yet.</strong>
+                        <p>Click Start Warmup to see a step-by-step action log here.</p>
+                      </article>
+                    )}
+                  </div>
                 </section>
 
                 <section className="workspace-panel workspace-panel-large warmup-sheet-panel">
@@ -574,7 +627,7 @@ export default function EmailWarmupPage() {
               </div>
             </section>
 
-            <section className="workspace-panel">
+            <section className="workspace-panel workspace-panel-large" style={{ gridColumn: '1 / -1' }}>
               <div className="workspace-panel-head">
                 <div>
                   <h2>Warmup Segments</h2>

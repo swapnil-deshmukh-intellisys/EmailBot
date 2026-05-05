@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
@@ -7,6 +7,7 @@ import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/Card';
 import PageSection from '@/app/components/ui/PageSection';
+import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const badgeToneMap = {
   Draft: 'default',
@@ -194,18 +195,7 @@ export default function CampaignsPage() {
   }, [libraryFilter, liveCampaigns, completedCampaigns, draftIncompleteCampaigns, pausedCampaigns, campaigns]);
 
   return (
-    <AppLayout
-      topbarProps={{
-        title: 'Campaigns',
-        subtitle: 'Track all campaign activity, status, and launch timing from one live page.',
-        actions: (
-          <>
-            <Button variant="secondary">Open Calendar</Button>
-            <Button>New Campaign</Button>
-          </>
-        )
-      }}
-    >
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <PageContainer>
         <div className="campaigns-page-shell">
           <div className="campaigns-page-hero">

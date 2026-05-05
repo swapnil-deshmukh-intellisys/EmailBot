@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const WarmupAutoReplySettingSchema = new mongoose.Schema(
   {
-    userEmail: { type: String, required: true, index: true },
+    userEmail: { type: String, required: true },
     enabled: { type: Boolean, default: false },
     replyTemplate: {
       type: String,

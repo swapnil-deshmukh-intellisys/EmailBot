@@ -60,6 +60,7 @@ function normalizeEmail(raw) {
   value = value.replace(/^[<[\("'`\s]+/, '').replace(/[>\])"'`\s]+$/, '');
   if (value.includes(',')) value = value.split(',')[0].trim();
   if (value.includes(';')) value = value.split(';')[0].trim();
+  if (value.includes('/')) value = value.split('/')[0].trim();
   return value.toLowerCase();
 }
 

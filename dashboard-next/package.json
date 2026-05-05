@@ -11,7 +11,10 @@
     "dev:clean": "npm run dev",
     "build:next": "next build",
     "build": "npm run clean:next && npm run build:next",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
+    "start:rebuild": "npm run build && node .next/standalone/server.js",
+    "start:next": "next start",
+    "deploy:ecs": "node scripts/deploy-ecs-immutable.mjs",
     "worker:campaigns": "node scripts/campaign-worker.mjs",
     "cleanup:legacy": "node scripts/cleanup-legacy-data.mjs",
     "lint": "next lint"

@@ -194,6 +194,9 @@ function normalizeRecipient(raw) {
   if (value.includes(';')) {
     value = value.split(';')[0].trim();
   }
+  if (value.includes('/')) {
+    value = value.split('/')[0].trim();
+  }
 
   return value.replace(/[\r\n]/g, '').trim();
 }

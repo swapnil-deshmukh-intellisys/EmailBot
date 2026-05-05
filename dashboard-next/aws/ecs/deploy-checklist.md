@@ -30,23 +30,39 @@
 - `GRAPH_SENDER_EMAIL`
 - `ALLOWED_ORIGINS`
 
-## Build + Push Image
+## Build + Push Image (Immutable Tag)
 ```bash
-docker build -t intellimailpilot:latest .
-docker tag intellimailpilot:latest <aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repo>:latest
-docker push <aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repo>:latest
+TAG=2026-05-05-001
+docker build --build-arg DEPLOYMENT_VERSION=$TAG -t intellimailpilot:$TAG .
+docker tag intellimailpilot:$TAG <aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repo>:$TAG
+docker push <aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repo>:$TAG
+```
+
+## Automated Rollout (Preferred)
+```bash
+npm run deploy:ecs
 ```
 
 ## Deploy
-1. Register web task definition from `web-task-definition.template.json`
-2. Register worker task definition from `worker-task-definition.template.json`
-3. Update ECS web service to new revision
-4. Update ECS worker service to new revision
-5. Verify `/api/health`
-6. Verify `/api/worker-health`
-7. Run legacy cleanup dry-run, then apply
-8. Start one test campaign
-9. Start two campaigns together
+1. Register web task definition from `web-task-definition.template.json` using the exact immutable image tag.
+2. Register worker task definition from `worker-task-definition.template.json` using the exact immutable image tag.
+3. Update ECS web service to new revision.
+4. Update ECS worker service to new revision.
+5. Force new ECS deployment so all old tasks are replaced.
+6. Confirm every running task is on the same image tag.
+7. Verify `/api/health`.
+8. Verify `/api/worker-health`.
+9. Run legacy cleanup dry-run, then apply.
+10. Start one test campaign.
+11. Start two campaigns together.
+
+## Important For Next.js Static Chunks
+- Build once in CI/Docker image (`docker build ...`), do **not** run `next build` at container runtime.
+- Keep web container command as `npm run start` where `start` only launches `node .next/standalone/server.js`.
+- Use immutable image tags per release (avoid reusing `latest` for active deployments).
+- After deploy, force new deployment so all running web tasks use the exact same image/build.
+- If CloudFront/CDN is used, invalidate `/*` or at minimum `/_next/*` plus all HTML routes.
+- Hard refresh browser (or clear site data) after deployment.
 
 ## Expected Healthy State
 - web service stable

@@ -245,7 +245,8 @@ A local two-service example is included at:
 
 ### Build image
 ```bash
-docker build -t intellimailpilot:latest .
+TAG=2026-05-05-001
+docker build --build-arg DEPLOYMENT_VERSION=$TAG -t intellimailpilot:$TAG .
 ```
 
 ### Run web container
@@ -253,7 +254,7 @@ docker build -t intellimailpilot:latest .
 docker run --env-file .env -p 3000:3000 \
   -e NODE_ENV=production \
   -e ENABLE_IN_APP_CAMPAIGN_SCHEDULER=false \
-  intellimailpilot:latest
+  intellimailpilot:$TAG
 ```
 
 ### Run worker container
@@ -265,7 +266,12 @@ docker run --env-file .env \
   -e CAMPAIGN_SCHEDULER_INTERVAL_MS=5000 \
   -e CAMPAIGN_WORKER_HEARTBEAT_MS=15000 \
   -e CAMPAIGN_WORKER_LOCK_STALE_MS=120000 \
-  intellimailpilot:latest npm run worker:campaigns
+  intellimailpilot:$TAG npm run worker:campaigns
+```
+
+### Immutable ECS rollout
+```bash
+npm run deploy:ecs
 ```
 
 ### ECS shape

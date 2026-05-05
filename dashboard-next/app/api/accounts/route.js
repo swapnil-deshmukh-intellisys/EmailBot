@@ -52,6 +52,7 @@ function getAccountsCache() {
 }
 
 function toPublicAccount(a) {
+  const errorCount = Number(a?.errorCount ?? a?.errors ?? 0) || 0;
   return {
     id: a.id,
     provider: a.provider,
@@ -61,7 +62,7 @@ function toPublicAccount(a) {
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
     sentToday: a.sentToday || 18,
-    errors: a.errors || 0,
+    errors: errorCount,
     health: a.health || 'Good'
   };
 }
@@ -124,7 +125,7 @@ export async function GET(req) {
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
     sentToday: a.sentToday || 18,
-    errors: a.errors || 0,
+    errors: Number(a?.errorCount ?? a?.errors ?? 0) || 0,
     health: a.health || 'Good'
   }));
 
@@ -137,7 +138,7 @@ export async function GET(req) {
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
     sentToday: a.sentToday || 18,
-    errors: a.errors || 0,
+    errors: Number(a?.errorCount ?? a?.errors ?? 0) || 0,
     health: a.health || 'Good'
   }));
 
@@ -256,7 +257,7 @@ export async function POST(req) {
         lastSync: created.lastSync || created.updatedAt || created.createdAt || null,
         dailyLimit: created.dailyLimit || 250,
         sentToday: created.sentToday || 18,
-        errors: created.errors || 0,
+        errors: Number(created?.errorCount ?? created?.errors ?? 0) || 0,
         health: created.health || 'Good'
       }
     });

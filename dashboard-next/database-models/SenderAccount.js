@@ -22,7 +22,7 @@ const SenderAccountSchema = new mongoose.Schema(
     lastSync: { type: Date, default: Date.now },
     dailyLimit: { type: Number, default: 250 },
     sentToday: { type: Number, default: 18 },
-    errors: { type: Number, default: 0 },
+    errorCount: { type: Number, default: 0 },
     health: { type: String, default: 'Good' }
   },
   { timestamps: true }

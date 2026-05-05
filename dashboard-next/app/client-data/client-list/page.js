@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
-import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
+import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
   'Select',
@@ -36,6 +35,7 @@ const badgeToneMap = {
 };
 
 const EMPTY_FILTERS = {
+  search: '',
   date: '',
   sector: '',
   country: '',
@@ -43,6 +43,37 @@ const EMPTY_FILTERS = {
   designation: '',
   freshLead: ''
 };
+
+const ALL_COUNTRIES = [
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
+  'Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia',
+  'Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia',
+  'Cameroon','Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica',
+  "Cote d'Ivoire",'Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic',
+  'Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland',
+  'France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana',
+  'Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan',
+  'Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya',
+  'Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands',
+  'Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique',
+  'Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea',
+  'North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru',
+  'Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia',
+  'Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia',
+  'Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea',
+  'South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania',
+  'Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda',
+  'Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City',
+  'Venezuela','Vietnam','Yemen','Zambia','Zimbabwe'
+];
+
+const ALL_SECTORS = [
+  'Aerospace','Agriculture','Automotive','Banking','Biotechnology','Chemicals','Construction','Consulting',
+  'Consumer Goods','Defense','Education','Energy','Engineering','Entertainment','Fashion','Finance','Food and Beverage',
+  'Government','Healthcare','Hospitality','Human Resources','Information Technology','Insurance','Legal','Logistics',
+  'Manufacturing','Marketing','Media','Mining','Nonprofit','Oil and Gas','Pharmaceuticals','Real Estate','Retail',
+  'Sales','Software','Telecommunications','Textiles','Transportation','Travel','Utilities'
+];
 
 function normalizeText(value = '') {
   return String(value || '').trim();
@@ -77,6 +108,42 @@ function extractOptionValues(rows, key) {
         .filter((value) => value && value !== '-')
     )
   ).sort((a, b) => a.localeCompare(b));
+}
+
+function uniqueSorted(values = []) {
+  return Array.from(new Set(values.map((value) => normalizeText(value)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+function buildRowSearchBlob(row = {}) {
+  return [
+    row.name,
+    row.surname,
+    row.email,
+    row.cmpName,
+    row.designation,
+    row.country,
+    row.sector,
+    row.source,
+    row.city,
+    row.leadType,
+    row.sourcer,
+    row.userId,
+    row.projectApproach,
+    row.senderId
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .join(' ');
+}
+
+function normalizeDateInput(value) {
+  const text = normalizeText(value);
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(text)) {
+    const [day, month, year] = text.split('-');
+    return `${year}-${month}-${day}`;
+  }
+  return text;
 }
 
 function getLeadValue(lead, ...keys) {
@@ -151,6 +218,7 @@ const EDITABLE_ROW_FIELDS = [
   'senderId'
 ];
 const GRID_EDITABLE_FIELDS = [...EDITABLE_ROW_FIELDS];
+const CLIENT_ROWS_PER_PAGE = 100;
 
 function mergeRowWithEdits(row, edits = {}) {
   return {
@@ -161,8 +229,107 @@ function mergeRowWithEdits(row, edits = {}) {
   };
 }
 
+const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
+  initialFilters,
+  filterOptions,
+  hasAppliedFilters,
+  isApplyingFilters,
+  onApply,
+  onReset
+}) {
+  const [localFilters, setLocalFilters] = useState(initialFilters);
+  const [searchInput, setSearchInput] = useState(initialFilters.search || '');
+
+  useEffect(() => {
+    setLocalFilters(initialFilters);
+    setSearchInput(initialFilters.search || '');
+  }, [initialFilters]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setLocalFilters((current) => (current.search === searchInput ? current : { ...current, search: searchInput }));
+    }, 350);
+    return () => clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  const updateField = useCallback((field, value) => {
+    setLocalFilters((current) => ({ ...current, [field]: value }));
+  }, []);
+
+  const applyNow = useCallback(() => {
+    onApply({ ...localFilters, search: searchInput });
+  }, [localFilters, onApply, searchInput]);
+
+  const hasLocalChanges = useMemo(() => {
+    const normalizedSearch = normalizeText(searchInput);
+    return normalizedSearch !== normalizeText(initialFilters.search)
+      || localFilters.date !== initialFilters.date
+      || localFilters.sector !== initialFilters.sector
+      || localFilters.country !== initialFilters.country
+      || localFilters.name !== initialFilters.name
+      || localFilters.designation !== initialFilters.designation
+      || localFilters.freshLead !== initialFilters.freshLead;
+  }, [initialFilters, localFilters, searchInput]);
+
+  const onEnterApply = useCallback((event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    applyNow();
+  }, [applyNow]);
+
+  return (
+    <div className="client-data-directory-filters client-data-directory-filters-inline">
+      <label className="client-data-filter-field">
+        <span>Search</span>
+        <input className="input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} onKeyDown={onEnterApply} placeholder="Name, email, company, source..." />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Date</span>
+        <input className="input" type="date" value={localFilters.date} onChange={(event) => updateField('date', event.target.value)} />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Sector</span>
+        <select className="input" value={localFilters.sector} onChange={(event) => updateField('sector', event.target.value)}>
+          <option value="">All sectors</option>
+          {filterOptions.sector.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </label>
+      <label className="client-data-filter-field">
+        <span>Country</span>
+        <select className="input" value={localFilters.country} onChange={(event) => updateField('country', event.target.value)}>
+          <option value="">All countries</option>
+          {filterOptions.country.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </label>
+      <label className="client-data-filter-field">
+        <span>Name</span>
+        <input className="input" value={localFilters.name} onChange={(event) => updateField('name', event.target.value)} onKeyDown={onEnterApply} placeholder="Client name" />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Designation</span>
+        <input className="input" value={localFilters.designation} onChange={(event) => updateField('designation', event.target.value)} onKeyDown={onEnterApply} placeholder="Designation" />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Fresh Lead</span>
+        <select className="input" value={localFilters.freshLead} onChange={(event) => updateField('freshLead', event.target.value)}>
+          <option value="">All leads</option>
+          <option value="fresh">Fresh leads</option>
+          <option value="contacted">Contacted leads</option>
+        </select>
+      </label>
+      <div className="client-data-filter-actions client-data-directory-filter-actions">
+        <Button type="button" variant="secondary" onClick={applyNow} disabled={!hasLocalChanges || isApplyingFilters}>
+          {isApplyingFilters ? 'Applying...' : 'Apply Filters'}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onReset} disabled={(!hasAppliedFilters && !hasLocalChanges) || isApplyingFilters}>
+          Reset Filters
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 export default function ClientListPage() {
-  const router = useRouter();
   const [lists, setLists] = useState([]);
   const [clientRowsData, setClientRowsData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,8 +343,10 @@ export default function ClientListPage() {
   const [selectionError, setSelectionError] = useState('');
   const [recentCreatedSheetId, setRecentCreatedSheetId] = useState('');
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [draftFilters, setDraftFilters] = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [activeCell, setActiveCell] = useState(null);
@@ -229,34 +398,84 @@ export default function ClientListPage() {
   const clientRows = useMemo(() => clientRowsData, [clientRowsData]);
 
   const filterOptions = useMemo(() => ({
-    sector: extractOptionValues(clientRows, 'sector'),
-    country: extractOptionValues(clientRows, 'country')
+    sector: uniqueSorted([
+      ...ALL_SECTORS,
+      ...extractOptionValues(clientRows, 'sector')
+    ]),
+    country: uniqueSorted([
+      ...ALL_COUNTRIES,
+      ...extractOptionValues(clientRows, 'country')
+    ])
   }), [clientRows]);
 
-  const filteredClientRows = useMemo(
+  const rowsWithEdits = useMemo(
     () =>
-      clientRows.filter((baseRow) => {
+      clientRows.map((baseRow) => {
         const row = mergeRowWithEdits(baseRow, rowEdits[baseRow.id]);
-        if (appliedFilters.date && formatDateOnly(row.listAddedDateRaw) !== appliedFilters.date) return false;
-        if (!matchesTextFilter(row.sector, appliedFilters.sector)) return false;
-        if (!matchesTextFilter(row.country, appliedFilters.country)) return false;
-        if (!matchesTextFilter(row.name, appliedFilters.name)) return false;
-        if (!matchesTextFilter(row.designation, appliedFilters.designation)) return false;
+        return {
+          ...row,
+          _searchBlob: buildRowSearchBlob(row),
+          _dateKey: normalizeDateInput(formatDateOnly(row.listAddedDateRaw) || formatDateOnly(row.listAddedDate)),
+          _sector: normalizeText(row.sector).toLowerCase(),
+          _country: normalizeText(row.country).toLowerCase(),
+          _name: normalizeText(row.name).toLowerCase(),
+          _designation: normalizeText(row.designation).toLowerCase()
+        };
+      }),
+    [clientRows, rowEdits]
+  );
+
+  const filteredClientRows = useMemo(
+    () => {
+      const searchFilter = normalizeText(appliedFilters.search).toLowerCase();
+      const dateFilter = normalizeDateInput(appliedFilters.date);
+      const sectorFilter = normalizeText(appliedFilters.sector).toLowerCase();
+      const countryFilter = normalizeText(appliedFilters.country).toLowerCase();
+      const nameFilter = normalizeText(appliedFilters.name).toLowerCase();
+      const designationFilter = normalizeText(appliedFilters.designation).toLowerCase();
+
+      return rowsWithEdits.filter((row) => {
+        if (searchFilter && !row._searchBlob.includes(searchFilter)) return false;
+        if (dateFilter && row._dateKey !== dateFilter) return false;
+        if (sectorFilter && !row._sector.includes(sectorFilter)) return false;
+        if (countryFilter && !row._country.includes(countryFilter)) return false;
+        if (nameFilter && !row._name.includes(nameFilter)) return false;
+        if (designationFilter && !row._designation.includes(designationFilter)) return false;
         if (appliedFilters.freshLead === 'fresh' && !row.freshLead) return false;
         if (appliedFilters.freshLead === 'contacted' && row.freshLead) return false;
         return true;
-      }),
-    [clientRows, rowEdits, appliedFilters]
+      });
+    },
+    [rowsWithEdits, appliedFilters]
   );
+
+  const hasAppliedFilters = useMemo(
+    () => Object.values(appliedFilters).some(Boolean),
+    [appliedFilters]
+  );
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredClientRows.length / CLIENT_ROWS_PER_PAGE)),
+    [filteredClientRows.length]
+  );
+
+  const paginatedClientRows = useMemo(() => {
+    const start = (currentPage - 1) * CLIENT_ROWS_PER_PAGE;
+    return filteredClientRows.slice(start, start + CLIENT_ROWS_PER_PAGE);
+  }, [currentPage, filteredClientRows]);
 
   const contactedCount = useMemo(
     () => filteredClientRows.filter((row) => row.campaignMailDate !== '-').length,
     [filteredClientRows]
   );
 
-  const visibleClientIds = useMemo(() => filteredClientRows.map((row) => row.id), [filteredClientRows]);
+  const visibleClientIds = useMemo(() => paginatedClientRows.map((row) => row.id), [paginatedClientRows]);
   const selectedCount = selectedClientIds.length;
   const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedClientIds.includes(id));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const toggleClientSelection = (clientId) => {
     setSelectedClientIds((current) =>
@@ -289,30 +508,30 @@ export default function ClientListPage() {
   };
 
   const handleGridCellKeyDown = (event, rowIndex, fieldIndex) => {
-    if (!filteredClientRows.length) return;
-    const maxRow = filteredClientRows.length - 1;
+    if (!paginatedClientRows.length) return;
+    const maxRow = paginatedClientRows.length - 1;
     const maxCol = GRID_EDITABLE_FIELDS.length - 1;
     if (event.key === 'ArrowRight' || event.key === 'Tab') {
       event.preventDefault();
       const nextCol = event.shiftKey ? Math.max(0, fieldIndex - 1) : Math.min(maxCol, fieldIndex + 1);
-      focusGridCell(filteredClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[nextCol]);
+      focusGridCell(paginatedClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[nextCol]);
       return;
     }
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      focusGridCell(filteredClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[Math.max(0, fieldIndex - 1)]);
+      focusGridCell(paginatedClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[Math.max(0, fieldIndex - 1)]);
       return;
     }
     if (event.key === 'ArrowDown' || event.key === 'Enter') {
       event.preventDefault();
       const nextRow = Math.min(maxRow, rowIndex + 1);
-      focusGridCell(filteredClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
+      focusGridCell(paginatedClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       const nextRow = Math.max(0, rowIndex - 1);
-      focusGridCell(filteredClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
+      focusGridCell(paginatedClientRows[nextRow].id, GRID_EDITABLE_FIELDS[fieldIndex]);
     }
   };
 
@@ -332,7 +551,7 @@ export default function ClientListPage() {
       const next = { ...current };
       rows.forEach((pastedRow, rowOffset) => {
         const targetRowIndex = startRowIndex + rowOffset;
-        const targetRow = filteredClientRows[targetRowIndex];
+        const targetRow = paginatedClientRows[targetRowIndex];
         if (!targetRow) return;
         const rowPatch = { ...(next[targetRow.id] || {}) };
         pastedRow.forEach((value, colOffset) => {
@@ -390,14 +609,30 @@ export default function ClientListPage() {
     setSelectionError('');
   };
 
-  const handleApplyFilters = () => {
-    setAppliedFilters({ ...draftFilters });
-  };
+  const handleApplyFilters = useCallback((nextFilters) => {
+    const normalized = {
+      search: normalizeText(nextFilters.search),
+      date: normalizeText(nextFilters.date),
+      sector: normalizeText(nextFilters.sector),
+      country: normalizeText(nextFilters.country),
+      name: normalizeText(nextFilters.name),
+      designation: normalizeText(nextFilters.designation),
+      freshLead: normalizeText(nextFilters.freshLead)
+    };
+    setFilters(normalized);
+    setIsApplyingFilters(true);
+    requestAnimationFrame(() => {
+      setAppliedFilters(normalized);
+      setCurrentPage(1);
+      setIsApplyingFilters(false);
+    });
+  }, []);
 
-  const handleClearFilters = () => {
-    setDraftFilters(EMPTY_FILTERS);
+  const handleClearFilters = useCallback(() => {
+    setFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
-  };
+    setCurrentPage(1);
+  }, []);
 
   const handleCreateSheet = async () => {
     const selectedRows = clientRows.filter((row) => selectedClientIds.includes(row.id));
@@ -483,34 +718,7 @@ export default function ClientListPage() {
   };
 
   return (
-    <AppLayout
-      topbarProps={{
-        title: 'Client Data',
-        subtitle: 'Upload, manage, and review client files and records.',
-        copyFooter: (
-          <div className="client-data-section-switcher client-data-section-switcher-top" aria-label="Client data section controls">
-            <button
-              type="button"
-              className="client-data-section-switcher-button"
-              onClick={() => router.push('/client-data/uploaded-files')}
-            >
-              Uploaded Files
-            </button>
-            <button
-              type="button"
-              className="client-data-section-switcher-button active"
-              onClick={() => router.push('/client-data/client-list')}
-            >
-              Client List
-            </button>
-            <UploadSheetWorkflow
-              buttonClassName="client-data-section-switcher-button"
-              onUploadSaved={() => setRefreshNonce((value) => value + 1)}
-            />
-          </div>
-        )
-      }}
-    >
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <div className="client-data-page">
         <section className="ui-page-section">
           <div className="client-data-clientlist-stack">
@@ -563,77 +771,31 @@ export default function ClientListPage() {
               {selectionMessage ? <p className="client-data-custom-note success">{selectionMessage}</p> : null}
               {showClientDirectory ? (
                 <div className="ui-card-content">
-                  <div className="client-data-directory-filters client-data-directory-filters-inline">
-                    <label className="client-data-filter-field">
-                      <span>Date</span>
-                      <input
-                        className="input"
-                        type="date"
-                        value={draftFilters.date}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))}
-                      />
-                    </label>
-                    <label className="client-data-filter-field">
-                      <span>Sector</span>
-                      <select
-                        className="input"
-                        value={draftFilters.sector}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, sector: event.target.value }))}
-                      >
-                        <option value="">All sectors</option>
-                        {filterOptions.sector.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </label>
-                    <label className="client-data-filter-field">
-                      <span>Country</span>
-                      <select
-                        className="input"
-                        value={draftFilters.country}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, country: event.target.value }))}
-                      >
-                        <option value="">All countries</option>
-                        {filterOptions.country.map((item) => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </label>
-                    <label className="client-data-filter-field">
-                      <span>Name</span>
-                      <input
-                        className="input"
-                        value={draftFilters.name}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, name: event.target.value }))}
-                        placeholder="Client name"
-                      />
-                    </label>
-                    <label className="client-data-filter-field">
-                      <span>Designation</span>
-                      <input
-                        className="input"
-                        value={draftFilters.designation}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, designation: event.target.value }))}
-                        placeholder="Designation"
-                      />
-                    </label>
-                    <label className="client-data-filter-field">
-                      <span>Fresh Lead</span>
-                      <select
-                        className="input"
-                        value={draftFilters.freshLead}
-                        onChange={(event) => setDraftFilters((current) => ({ ...current, freshLead: event.target.value }))}
-                      >
-                        <option value="">All leads</option>
-                        <option value="fresh">Fresh leads</option>
-                        <option value="contacted">Contacted leads</option>
-                      </select>
-                    </label>
-                    <div className="client-data-filter-actions client-data-directory-filter-actions">
-                      <Button type="button" variant="secondary" onClick={handleApplyFilters}>
-                        Apply Filter
+                  <div className="client-data-custom-note" style={{ marginBottom: 10 }}>
+                    Use filters below, then click <strong>Apply Filters</strong> to show matching sheet rows.
+                  </div>
+                  <ClientDirectoryFilters
+                    initialFilters={filters}
+                    filterOptions={filterOptions}
+                    hasAppliedFilters={hasAppliedFilters}
+                    isApplyingFilters={isApplyingFilters}
+                    onApply={handleApplyFilters}
+                    onReset={handleClearFilters}
+                  />
+                  <p className="ui-card-description" style={{ marginBottom: 12 }}>
+                    Showing {filteredClientRows.length} of {clientRows.length} clients.
+                  </p>
+                  {totalPages > 1 ? (
+                    <div className="client-data-filter-actions" style={{ marginBottom: 12 }}>
+                      <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
+                        Previous
                       </Button>
-                      <Button type="button" variant="ghost" onClick={handleClearFilters}>
-                        Clear Filter
+                      <span className="ui-card-description">Page {currentPage} of {totalPages}</span>
+                      <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
+                        Next
                       </Button>
                     </div>
-                  </div>
+                  ) : null}
                   <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
                     <div className="client-data-table-head client-directory-excel-head">
                       <span className="client-directory-excel-head-cell">
@@ -657,7 +819,7 @@ export default function ClientListPage() {
                     {!loading && !error && !filteredClientRows.length ? (
                       <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">No client data found.</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
                     ) : null}
-                    {!loading && !error ? filteredClientRows.map((row, rowIndex) => (
+                    {!loading && !error ? paginatedClientRows.map((row, rowIndex) => (
                       <div key={row.id} className="client-data-table-row client-directory-excel-row">
                         <span className="client-directory-excel-cell">
                           <input
@@ -742,7 +904,7 @@ export default function ClientListPage() {
                         <strong>No client data found.</strong>
                       </article>
                     ) : null}
-                    {!loading && !error ? filteredClientRows.map((row) => (
+                    {!loading && !error ? paginatedClientRows.map((row) => (
                       <article key={`${row.id}-mobile`} className="client-data-mobile-card">
                         <label className="client-data-mobile-select">
                           <input

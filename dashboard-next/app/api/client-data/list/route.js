@@ -53,7 +53,28 @@ export async function GET(req) {
     const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
     const query = role === 'admin' ? {} : { userEmail };
 
-    const lists = await LeadList.find(query).sort({ createdAt: -1 }).lean();
+    const projection = [
+      'name',
+      'sourceFile',
+      'kind',
+      'uploadedAt',
+      'createdAt',
+      'uploadDate',
+      'leads.Name',
+      'leads.Surname',
+      'leads.Email',
+      'leads.Company',
+      'leads.Designation',
+      'leads.Sector',
+      'leads.Country',
+      'leads.uploadDate',
+      'leads.status',
+      'leads.sentAt',
+      'leads.failedAt',
+      'leads.data'
+    ].join(' ');
+
+    const lists = await LeadList.find(query).select(projection).sort({ createdAt: -1 }).lean();
     const rows = [];
     for (const list of lists) {
       const leads = Array.isArray(list?.leads) ? list.leads : [];

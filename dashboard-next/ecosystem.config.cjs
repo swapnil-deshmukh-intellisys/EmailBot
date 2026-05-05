@@ -8,8 +8,8 @@ module.exports = {
       name: 'intellimailpilot-web',
       cwd: appRoot,
       env_file: path.join(appRoot, '.env'),
-      script: 'npm',
-      args: 'run start',
+      // Run the standalone server directly to keep _next/static assets in sync.
+      script: path.join(appRoot, '.next', 'standalone', 'server.js'),
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,

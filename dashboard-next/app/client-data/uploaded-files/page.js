@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Button from '@/app/components/ui/Button';
-import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
+import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 function formatUploadedAt(value) {
   if (!value) return '-';
@@ -27,28 +26,121 @@ function matchesPreviewFilter(previewRows = [], predicate) {
   return previewRows.some(predicate);
 }
 
+const EMPTY_UPLOAD_FILTERS = {
+  search: '',
+  date: '',
+  status: '',
+  name: '',
+  designation: '',
+  sector: '',
+  country: ''
+};
+
+const UploadedFilesFilters = memo(function UploadedFilesFilters({
+  initialFilters,
+  sectorOptions,
+  countryOptions,
+  hasAppliedFilters,
+  isApplyingFilters,
+  onApply,
+  onReset
+}) {
+  const [localFilters, setLocalFilters] = useState(initialFilters);
+  const [searchInput, setSearchInput] = useState(initialFilters.search || '');
+
+  useEffect(() => {
+    setLocalFilters(initialFilters);
+    setSearchInput(initialFilters.search || '');
+  }, [initialFilters]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setLocalFilters((current) => (current.search === searchInput ? current : { ...current, search: searchInput }));
+    }, 350);
+    return () => clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  const setField = useCallback((field, value) => {
+    setLocalFilters((current) => ({ ...current, [field]: value }));
+  }, []);
+
+  const hasLocalChanges = useMemo(
+    () =>
+      searchInput !== initialFilters.search ||
+      localFilters.date !== initialFilters.date ||
+      localFilters.status !== initialFilters.status ||
+      localFilters.name !== initialFilters.name ||
+      localFilters.designation !== initialFilters.designation ||
+      localFilters.sector !== initialFilters.sector ||
+      localFilters.country !== initialFilters.country,
+    [initialFilters, localFilters, searchInput]
+  );
+
+  const applyNow = useCallback(() => {
+    onApply({ ...localFilters, search: searchInput });
+  }, [localFilters, onApply, searchInput]);
+
+  return (
+    <div className="client-data-filter-bar">
+      <label className="client-data-filter-field">
+        <span>Search File Name</span>
+        <input className="input" type="text" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search file name" />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Date</span>
+        <input className="input" type="date" value={localFilters.date} onChange={(event) => setField('date', event.target.value)} />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Status</span>
+        <select className="input" value={localFilters.status} onChange={(event) => setField('status', event.target.value)}>
+          <option value="">All</option>
+          <option value="Valid">Valid</option>
+          <option value="Duplicate">Duplicate</option>
+          <option value="Invalid">Invalid</option>
+        </select>
+      </label>
+      <label className="client-data-filter-field">
+        <span>Name</span>
+        <input className="input" type="text" value={localFilters.name} onChange={(event) => setField('name', event.target.value)} placeholder="Filter row name" />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Designation</span>
+        <input className="input" type="text" value={localFilters.designation} onChange={(event) => setField('designation', event.target.value)} placeholder="Filter designation" />
+      </label>
+      <label className="client-data-filter-field">
+        <span>Sector</span>
+        <select className="input" value={localFilters.sector} onChange={(event) => setField('sector', event.target.value)}>
+          <option value="">All sectors</option>
+          {sectorOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </label>
+      <label className="client-data-filter-field">
+        <span>Country</span>
+        <select className="input" value={localFilters.country} onChange={(event) => setField('country', event.target.value)}>
+          <option value="">All countries</option>
+          {countryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </label>
+      <div className="client-data-filter-actions">
+        <Button type="button" disabled={!hasLocalChanges || isApplyingFilters} onClick={applyNow}>
+          {isApplyingFilters ? 'Applying...' : 'Apply Filters'}
+        </Button>
+        <Button type="button" variant="secondary" disabled={(!hasAppliedFilters && !hasLocalChanges) || isApplyingFilters} onClick={onReset}>
+          Reset Filters
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 export default function UploadedFilesPage() {
-  const router = useRouter();
   const [uploads, setUploads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [searchDraft, setSearchDraft] = useState('');
-  const [filterDateDraft, setFilterDateDraft] = useState('');
-  const [filterStatusDraft, setFilterStatusDraft] = useState('');
-  const [filterNameDraft, setFilterNameDraft] = useState('');
-  const [filterDesignationDraft, setFilterDesignationDraft] = useState('');
-  const [filterSectorDraft, setFilterSectorDraft] = useState('');
-  const [filterCountryDraft, setFilterCountryDraft] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({
-    search: '',
-    date: '',
-    status: '',
-    name: '',
-    designation: '',
-    sector: '',
-    country: ''
-  });
+  const [filters, setFilters] = useState(EMPTY_UPLOAD_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_UPLOAD_FILTERS);
+  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -125,27 +217,36 @@ export default function UploadedFilesPage() {
     [uploads, appliedFilters]
   );
 
+  const hasAppliedFilters = useMemo(
+    () => Object.values(appliedFilters).some(Boolean),
+    [appliedFilters]
+  );
+
+  const handleApplyFilters = useCallback((nextFilters) => {
+    const normalized = {
+      search: String(nextFilters.search || '').trim(),
+      date: String(nextFilters.date || '').trim(),
+      status: String(nextFilters.status || '').trim(),
+      name: String(nextFilters.name || '').trim(),
+      designation: String(nextFilters.designation || '').trim(),
+      sector: String(nextFilters.sector || '').trim(),
+      country: String(nextFilters.country || '').trim()
+    };
+    setFilters(normalized);
+    setIsApplyingFilters(true);
+    requestAnimationFrame(() => {
+      setAppliedFilters(normalized);
+      setIsApplyingFilters(false);
+    });
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    setFilters(EMPTY_UPLOAD_FILTERS);
+    setAppliedFilters(EMPTY_UPLOAD_FILTERS);
+  }, []);
+
   return (
-    <AppLayout
-      topbarProps={{
-        title: 'Client Data',
-        subtitle: 'Upload, manage, and review client files and records.',
-        copyFooter: (
-          <div className="client-data-section-switcher client-data-section-switcher-top" aria-label="Client data section controls">
-            <button type="button" className="client-data-section-switcher-button active" onClick={() => router.push('/client-data/uploaded-files')}>
-              Uploaded Files
-            </button>
-            <button type="button" className="client-data-section-switcher-button" onClick={() => router.push('/client-data/client-list')}>
-              Client List
-            </button>
-            <UploadSheetWorkflow
-              buttonClassName="client-data-section-switcher-button"
-              onUploadSaved={() => setRefreshNonce((value) => value + 1)}
-            />
-          </div>
-        )
-      }}
-    >
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <div className="client-data-page">
         <section className="ui-page-section">
           <div className="ui-page-section-header">
@@ -157,89 +258,18 @@ export default function UploadedFilesPage() {
             </div>
           </div>
 
-          <div className="client-data-filter-bar">
-            <label className="client-data-filter-field">
-              <span>Search File Name</span>
-              <input className="input" type="text" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Search file name" />
-            </label>
-            <label className="client-data-filter-field">
-              <span>Date</span>
-              <input className="input" type="date" value={filterDateDraft} onChange={(event) => setFilterDateDraft(event.target.value)} />
-            </label>
-            <label className="client-data-filter-field">
-              <span>Status</span>
-              <select className="input" value={filterStatusDraft} onChange={(event) => setFilterStatusDraft(event.target.value)}>
-                <option value="">All</option>
-                <option value="Valid">Valid</option>
-                <option value="Duplicate">Duplicate</option>
-                <option value="Invalid">Invalid</option>
-              </select>
-            </label>
-            <label className="client-data-filter-field">
-              <span>Name</span>
-              <input className="input" type="text" value={filterNameDraft} onChange={(event) => setFilterNameDraft(event.target.value)} placeholder="Filter row name" />
-            </label>
-            <label className="client-data-filter-field">
-              <span>Designation</span>
-              <input className="input" type="text" value={filterDesignationDraft} onChange={(event) => setFilterDesignationDraft(event.target.value)} placeholder="Filter designation" />
-            </label>
-            <label className="client-data-filter-field">
-              <span>Sector</span>
-              <select className="input" value={filterSectorDraft} onChange={(event) => setFilterSectorDraft(event.target.value)}>
-                <option value="">All sectors</option>
-                {sectorOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <label className="client-data-filter-field">
-              <span>Country</span>
-              <select className="input" value={filterCountryDraft} onChange={(event) => setFilterCountryDraft(event.target.value)}>
-                <option value="">All countries</option>
-                {countryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <div className="client-data-filter-actions">
-              <Button
-                type="button"
-                onClick={() =>
-                  setAppliedFilters({
-                    search: searchDraft,
-                    date: filterDateDraft,
-                    status: filterStatusDraft,
-                    name: filterNameDraft,
-                    designation: filterDesignationDraft,
-                    sector: filterSectorDraft,
-                    country: filterCountryDraft
-                  })
-                }
-              >
-                Apply Filter
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setSearchDraft('');
-                  setFilterDateDraft('');
-                  setFilterStatusDraft('');
-                  setFilterNameDraft('');
-                  setFilterDesignationDraft('');
-                  setFilterSectorDraft('');
-                  setFilterCountryDraft('');
-                  setAppliedFilters({
-                    search: '',
-                    date: '',
-                    status: '',
-                    name: '',
-                    designation: '',
-                    sector: '',
-                    country: ''
-                  });
-                }}
-              >
-                Clear Filter
-              </Button>
-            </div>
-          </div>
+          <UploadedFilesFilters
+            initialFilters={filters}
+            sectorOptions={sectorOptions}
+            countryOptions={countryOptions}
+            hasAppliedFilters={hasAppliedFilters}
+            isApplyingFilters={isApplyingFilters}
+            onApply={handleApplyFilters}
+            onReset={handleResetFilters}
+          />
+          <p className="ui-card-description" style={{ marginBottom: 12 }}>
+            Showing {filteredUploads.length} of {uploads.length} uploaded files.
+          </p>
 
           <div className="client-data-upload-grid">
             {!loading && !error && !filteredUploads.length ? (

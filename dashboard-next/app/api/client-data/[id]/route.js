@@ -4,7 +4,7 @@ import LeadList from '@/models/LeadList';
 import { requireAuth } from '@/lib/apiAuth';
 
 function normalizeEmail(raw) {
-  return String(raw || '').trim().toLowerCase();
+  return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
 }
 
 export async function PATCH(req, { params }) {
@@ -83,4 +83,3 @@ export async function PATCH(req, { params }) {
     return NextResponse.json({ error: error.message || 'Failed to update row' }, { status: 500 });
   }
 }
-

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -228,7 +228,7 @@ export default function ClientDataPage() {
     () =>
       lists.slice(0, 6).map((list) => ({
         title: list.name,
-        meta: `${list.leadCount || 0} contacts â€¢ uploaded ${formatUploadedAt(list.uploadedAt)}`
+        meta: `${list.leadCount || 0} contacts • uploaded ${formatUploadedAt(list.uploadedAt)}`
       })),
     [lists]
   );
@@ -237,7 +237,7 @@ export default function ClientDataPage() {
     () =>
       lists.slice(0, 3).map((list) => ({
         title: list.sourceFile || list.name || 'Uploaded list',
-        meta: `${list.leadCount || 0} contacts â€¢ ${formatUploadedAt(list.uploadedAt)}`
+        meta: `${list.leadCount || 0} contacts • ${formatUploadedAt(list.uploadedAt)}`
       })),
     [lists]
   );
@@ -284,7 +284,7 @@ export default function ClientDataPage() {
         .slice(0, 6)
         .map((list) => ({
           title: list.name,
-          meta: `${list.leadCount || 0} contacts â€¢ uploaded ${formatUploadedAt(list.uploadedAt)}`
+          meta: `${list.leadCount || 0} contacts • uploaded ${formatUploadedAt(list.uploadedAt)}`
         })),
     [lists]
   );
@@ -826,7 +826,7 @@ export default function ClientDataPage() {
                         )
                       }
                     >
-                      Ã—
+                      ×
                     </button>
                   </div>
                 ))}
