@@ -1,12 +1,14 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
+  '#',
   'Select',
   'Name',
   'Surname',
@@ -23,6 +25,8 @@ const TABLE_COLUMNS = [
   'Project Approach',
   'Sender ID'
 ];
+
+const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 const badgeToneMap = {
   Verified: 'success',
@@ -146,6 +150,17 @@ function normalizeDateInput(value) {
   return text;
 }
 
+function validateEmailForSheet(raw = '') {
+  const email = normalizeText(raw).toLowerCase();
+  if (!email) return { ok: false, reason: 'Missing required data' };
+  if (email.includes(' ')) return { ok: false, reason: 'Invalid email format: contains spaces' };
+  if (email.includes('..')) return { ok: false, reason: 'Invalid email format: double dots' };
+  if (email.startsWith('.') || email.endsWith('.')) return { ok: false, reason: 'Invalid email format: starts or ends with dot' };
+  if (email.split('@').length !== 2) return { ok: false, reason: 'Invalid email format: must contain exactly one @' };
+  if (!EMAIL_REGEX.test(email)) return { ok: false, reason: 'Invalid email format' };
+  return { ok: true, reason: '' };
+}
+
 function getLeadValue(lead, ...keys) {
   const data = lead?.data || {};
   for (const key of keys) {
@@ -187,7 +202,7 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
     country: getLeadValue(lead, 'Country', 'country') || '-',
     email: email || '-',
     designation,
-    listAddedDate: formatDateTime(listAddedDateRaw),
+    listAddedDate: formatDateOnly(listAddedDateRaw),
     listAddedDateRaw,
     campaignMailDate: formatDateTime(lead?.sentAt),
     city: getLeadValue(lead, 'City', 'city', 'Location', 'location') || '-',
@@ -211,6 +226,8 @@ const EDITABLE_ROW_FIELDS = [
   'sector',
   'country',
   'email',
+  'listAddedDate',
+  'source',
   'leadType',
   'sourcer',
   'userId',
@@ -330,12 +347,14 @@ const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
 });
 
 export default function ClientListPage() {
+  const router = useRouter();
   const [lists, setLists] = useState([]);
   const [clientRowsData, setClientRowsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showClientDirectory, setShowClientDirectory] = useState(true);
   const [showSelectedSheets, setShowSelectedSheets] = useState(true);
+  const [showCreatedSheetsPicker, setShowCreatedSheetsPicker] = useState(false);
   const [selectedClientIds, setSelectedClientIds] = useState([]);
   const [newSheetName, setNewSheetName] = useState('');
   const [creatingSheet, setCreatingSheet] = useState(false);
@@ -349,9 +368,24 @@ export default function ClientListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
+  const [creatingRow, setCreatingRow] = useState(false);
+  const [deletingRowId, setDeletingRowId] = useState('');
   const [activeCell, setActiveCell] = useState(null);
   const cellRefs = useRef({});
   const selectedSheetsSectionRef = useRef(null);
+  const createdSheetsPickerRef = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (event) => {
+      if (!showCreatedSheetsPicker) return;
+      if (!createdSheetsPickerRef.current) return;
+      if (!createdSheetsPickerRef.current.contains(event.target)) {
+        setShowCreatedSheetsPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showCreatedSheetsPicker]);
 
   useEffect(() => {
     let active = true;
@@ -425,6 +459,32 @@ export default function ClientListPage() {
     [clientRows, rowEdits]
   );
 
+  const duplicateEmailRowIds = useMemo(() => {
+    const emailBuckets = new Map();
+    for (const row of rowsWithEdits) {
+      const email = normalizeText(row.email).toLowerCase();
+      if (!email || email === '-') continue;
+      if (!emailBuckets.has(email)) emailBuckets.set(email, []);
+      emailBuckets.get(email).push(row.id);
+    }
+    const duplicateIds = new Set();
+    for (const ids of emailBuckets.values()) {
+      if (ids.length > 1) ids.forEach((id) => duplicateIds.add(id));
+    }
+    return duplicateIds;
+  }, [rowsWithEdits]);
+
+  const rowEmailIssues = useMemo(() => {
+    const issues = {};
+    for (const row of rowsWithEdits) {
+      const result = validateEmailForSheet(row.email === '-' ? '' : row.email);
+      if (!result.ok) {
+        issues[row.id] = result.reason;
+      }
+    }
+    return issues;
+  }, [rowsWithEdits]);
+
   const filteredClientRows = useMemo(
     () => {
       const searchFilter = normalizeText(appliedFilters.search).toLowerCase();
@@ -472,6 +532,9 @@ export default function ClientListPage() {
   const visibleClientIds = useMemo(() => paginatedClientRows.map((row) => row.id), [paginatedClientRows]);
   const selectedCount = selectedClientIds.length;
   const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedClientIds.includes(id));
+  const editedRowIds = useMemo(() => Object.keys(rowEdits), [rowEdits]);
+  const hasEditedEmailErrors = useMemo(() => editedRowIds.some((rowId) => Boolean(rowEmailIssues[rowId])), [editedRowIds, rowEmailIssues]);
+  const hasEditedDuplicateEmails = useMemo(() => editedRowIds.some((rowId) => duplicateEmailRowIds.has(rowId)), [editedRowIds, duplicateEmailRowIds]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -573,18 +636,36 @@ export default function ClientListPage() {
       return;
     }
 
+    const invalidEdited = editedRowIds.filter((rowId) => rowEmailIssues[rowId]);
+    if (invalidEdited.length) {
+      setSelectionError('Fix invalid email format rows before saving.');
+      setSelectionMessage('');
+      return;
+    }
+
+    const duplicateEdited = editedRowIds.filter((rowId) => duplicateEmailRowIds.has(rowId));
+    if (duplicateEdited.length) {
+      setSelectionError('Duplicate email rows found. Resolve duplicates before saving.');
+      setSelectionMessage('');
+      return;
+    }
+
     try {
       setSavingDirectory(true);
       setSelectionError('');
       setSelectionMessage('');
-      for (const rowId of editedRowIds) {
-        const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(rowEdits[rowId] || {})
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.error || `Failed saving row ${rowId}`);
+      const updates = editedRowIds.map((rowId) => ({
+        rowId,
+        changes: rowEdits[rowId] || {}
+      }));
+      const response = await fetch('/api/client-data/bulk-update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to save directory changes');
       }
 
       setRowEdits({});
@@ -596,6 +677,12 @@ export default function ClientListPage() {
     } finally {
       setSavingDirectory(false);
     }
+  };
+
+  const handleCancelDirectoryEdits = () => {
+    setRowEdits({});
+    setSelectionError('');
+    setSelectionMessage('Pending changes discarded.');
   };
 
   const toggleSelectAllVisible = () => {
@@ -633,6 +720,91 @@ export default function ClientListPage() {
     setAppliedFilters(EMPTY_FILTERS);
     setCurrentPage(1);
   }, []);
+
+  const handleAddNewRow = async () => {
+    const sourceListId =
+      (uploadedFiles.find((list) => String(list?.kind || 'uploaded') !== 'custom')?._id)
+      || uploadedFiles[0]?._id
+      || lists[0]?._id;
+    if (!sourceListId) {
+      setSelectionError('No list available to add a new row.');
+      setSelectionMessage('');
+      return;
+    }
+
+    try {
+      setCreatingRow(true);
+      setSelectionError('');
+      setSelectionMessage('');
+      const response = await fetch('/api/client-data/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceListId: String(sourceListId),
+          row: {
+            name: '',
+            surname: '',
+            designation: '',
+            cmpName: '',
+            sector: '',
+            country: '',
+            email: '',
+            listAddedDate: '',
+            source: '',
+            leadType: '',
+            sourcer: '',
+            userId: '',
+            projectApproach: '',
+            senderId: ''
+          }
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to add row');
+      }
+      setSelectionMessage('New empty row added.');
+      setRefreshNonce((value) => value + 1);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to add row');
+      setSelectionMessage('');
+    } finally {
+      setCreatingRow(false);
+    }
+  };
+
+  const handleDeleteSelectedRows = async () => {
+    if (!selectedClientIds.length) {
+      setSelectionError('Select at least one row to delete.');
+      setSelectionMessage('');
+      return;
+    }
+    if (!window.confirm(`Delete ${selectedClientIds.length} selected row(s)?`)) return;
+
+    try {
+      setDeletingRowId('bulk');
+      setSelectionError('');
+      setSelectionMessage('');
+
+      const ids = [...selectedClientIds];
+      for (const rowId of ids) {
+        const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, { method: 'DELETE' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data?.error || `Failed to delete row ${rowId}`);
+        }
+      }
+
+      setSelectedClientIds([]);
+      setSelectionMessage('Selected rows deleted successfully.');
+      setRefreshNonce((value) => value + 1);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to delete selected rows');
+      setSelectionMessage('');
+    } finally {
+      setDeletingRowId('');
+    }
+  };
 
   const handleCreateSheet = async () => {
     const selectedRows = clientRows.filter((row) => selectedClientIds.includes(row.id));
@@ -707,6 +879,7 @@ export default function ClientListPage() {
       setNewSheetName('');
       setShowSelectedSheets(true);
       setRecentCreatedSheetId(String(nextList._id));
+      router.push(`/dashboard?listId=${encodeURIComponent(String(nextList._id))}`);
       requestAnimationFrame(() => {
         selectedSheetsSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       });
@@ -743,24 +916,6 @@ export default function ClientListPage() {
                         placeholder="April Leads"
                       />
                     </label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleCreateSheet}
-                      disabled={creatingSheet || !selectedCount}
-                    >
-                    {creatingSheet ? 'Creating...' : 'Create Sheet'}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleSaveDirectoryEdits}
-                      disabled={savingDirectory || !Object.keys(rowEdits).length}
-                    >
-                      {savingDirectory ? 'Saving...' : 'Save Directory Changes'}
-                    </Button>
                   </div>
                   <button type="button" onClick={() => setShowClientDirectory((value) => !value)}>
                     {showClientDirectory ? 'x Close' : '+ Show More'}
@@ -796,8 +951,109 @@ export default function ClientListPage() {
                       </Button>
                     </div>
                   ) : null}
+                  <div className="client-data-sheet-savebar" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div className="client-data-filter-actions">
+                      <div ref={createdSheetsPickerRef} style={{ position: 'relative' }}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setShowCreatedSheetsPicker((prev) => !prev)}
+                        >
+                          Created Sheets
+                        </Button>
+                        {showCreatedSheetsPicker ? (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 'calc(100% + 8px)',
+                              left: 0,
+                              zIndex: 50,
+                              minWidth: 360,
+                              maxHeight: 320,
+                              overflowY: 'auto',
+                              border: '1px solid var(--button-border)',
+                              borderRadius: 10,
+                              background: 'var(--panel-strong)',
+                              padding: 10,
+                              boxShadow: '0 12px 30px var(--shadow-color)'
+                            }}
+                          >
+                            {selectedClientSheets.length ? selectedClientSheets.map((list) => (
+                              <div key={`picker-${list._id}`} style={{ padding: '8px 6px', borderBottom: '1px solid var(--border-color)' }}>
+                                <strong style={{ display: 'block' }}>{list.name || 'Selected client sheet'}</strong>
+                                <small style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                  {Number(list.leadCount || list.leads?.length || 0)} clients
+                                </small>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                                  >
+                                    Upload Sheet
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}`)}
+                                  >
+                                    Campaign Flow
+                                  </Button>
+                                </div>
+                              </div>
+                            )) : (
+                              <p style={{ margin: 0 }}>No created sheets yet. Create from selected rows first.</p>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleCreateSheet}
+                        disabled={creatingSheet || !selectedCount}
+                      >
+                        {creatingSheet ? 'Creating...' : 'Create Sheet'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleDeleteSelectedRows}
+                        disabled={deletingRowId === 'bulk' || !selectedCount}
+                      >
+                        {deletingRowId === 'bulk' ? 'Deleting...' : 'Delete Selected Rows'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleSaveDirectoryEdits}
+                        disabled={savingDirectory || !editedRowIds.length || hasEditedEmailErrors || hasEditedDuplicateEmails}
+                      >
+                        {savingDirectory ? 'Saving...' : 'Save Directory Changes'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleCancelDirectoryEdits}
+                        disabled={savingDirectory || !editedRowIds.length}
+                      >
+                        Cancel Changes
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddNewRow}
+                      disabled={creatingRow}
+                    >
+                      {creatingRow ? 'Adding...' : 'Add New Row'}
+                    </Button>
+                  </div>
                   <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
-                    <div className="client-data-table-head client-directory-excel-head">
+                    <div className="client-data-table-head client-directory-excel-head" style={{ position: 'sticky', top: 0, zIndex: 3 }}>
+                      <span className="client-directory-excel-head-cell">#</span>
                       <span className="client-directory-excel-head-cell">
                         <input
                           type="checkbox"
@@ -806,21 +1062,28 @@ export default function ClientListPage() {
                           aria-label="Select all visible clients"
                         />
                       </span>
-                      {TABLE_COLUMNS.slice(1).map((column) => (
+                      {TABLE_COLUMNS.slice(2).map((column) => (
                         <span key={column} className="client-directory-excel-head-cell">{column}</span>
                       ))}
                     </div>
                     {loading ? (
-                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">Loading client data...</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
+                      <div className="client-data-table-row client-directory-excel-row">
+                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>Loading client data...</span>
+                      </div>
                     ) : null}
                     {!loading && error ? (
-                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">{error}</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
+                      <div className="client-data-table-row client-directory-excel-row">
+                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>{error}</span>
+                      </div>
                     ) : null}
                     {!loading && !error && !filteredClientRows.length ? (
-                      <div className="client-data-table-row client-directory-excel-row"><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell">No client data found.</span><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /><span className="client-directory-excel-cell" /></div>
+                      <div className="client-data-table-row client-directory-excel-row">
+                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>No client data found.</span>
+                      </div>
                     ) : null}
                     {!loading && !error ? paginatedClientRows.map((row, rowIndex) => (
                       <div key={row.id} className="client-data-table-row client-directory-excel-row">
+                        <span className="client-directory-excel-cell">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</span>
                         <span className="client-directory-excel-cell">
                           <input
                             type="checkbox"
@@ -829,65 +1092,39 @@ export default function ClientListPage() {
                             aria-label={`Select ${row.name}`}
                           />
                         </span>
-                        {GRID_EDITABLE_FIELDS.slice(0, 7).map((field, fieldIndex) => {
+                        {GRID_EDITABLE_FIELDS.map((field, fieldIndex) => {
                           const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                          const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
+                          const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
+                          const hasDuplicateEmail = field === 'email' && duplicateEmailRowIds.has(row.id);
                           return (
                             <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
-                              <div
+                              <input
                                 ref={(node) => {
                                   cellRefs.current[`${row.id}:${field}`] = node;
                                 }}
-                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''}`}
-                                contentEditable
-                                suppressContentEditableWarning
+                                type={field === 'listAddedDate' ? 'date' : 'text'}
+                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                value={value}
                                 onFocus={() => setActiveCell({ rowId: row.id, field })}
-                                onInput={(event) => handleRowFieldChange(row.id, field, event.currentTarget.textContent || '')}
+                                onClick={() => setActiveCell({ rowId: row.id, field })}
+                                onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
                                 onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
                                 onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
-                              >
-                                {value}
-                              </div>
-                            </span>
-                          );
-                        })}
-                        <span className="client-directory-excel-cell">{row.listAddedDate}</span>
-                        <span className="client-directory-excel-cell">{row.source}</span>
-                        {GRID_EDITABLE_FIELDS.slice(7).map((field, idx) => {
-                          const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
-                          const fieldIndex = idx + 7;
-                          return (
-                            <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
-                              <div
-                                ref={(node) => {
-                                  cellRefs.current[`${row.id}:${field}`] = node;
-                                }}
-                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''}`}
-                                contentEditable
-                                suppressContentEditableWarning
-                                onFocus={() => setActiveCell({ rowId: row.id, field })}
-                                onInput={(event) => handleRowFieldChange(row.id, field, event.currentTarget.textContent || '')}
-                                onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
-                                onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
-                              >
-                                {value}
-                              </div>
+                                aria-label={`${field} row ${rowIndex + 1}`}
+                              />
                             </span>
                           );
                         })}
                       </div>
                     )) : null}
                   </div>
-                  <div className="client-data-sheet-savebar">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleSaveDirectoryEdits}
-                      disabled={savingDirectory || !Object.keys(rowEdits).length}
-                    >
-                      {savingDirectory ? 'Saving...' : 'Save Sheet Changes'}
-                    </Button>
-                  </div>
-
+                  {hasEditedEmailErrors ? (
+                    <div className="client-data-custom-note error">Invalid email format detected in edited rows. Fix before saving.</div>
+                  ) : null}
+                  {hasEditedDuplicateEmails ? (
+                    <div className="client-data-custom-note error">Duplicate email rows detected. Resolve duplicates before saving.</div>
+                  ) : null}
                   <div className="client-data-mobile-list">
                     {loading ? (
                       <article className="client-data-mobile-card">
@@ -959,6 +1196,25 @@ export default function ClientListPage() {
                       <div key={list._id} className={String(list._id) === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''}>
                         <strong>{list.name || 'Selected client sheet'}</strong>
                         <span>{Number(list.leadCount || list.leads?.length || 0)} clients | created {formatDateTime(list.uploadedAt || list.createdAt)} | source {list.sourceFile || '-'}</span>
+                        <div style={{ marginTop: 8 }}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}`)}
+                          >
+                            Use For Campaign
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            Upload This Sheet
+                          </Button>
+                        </div>
                       </div>
                     )) : (
                       <div>

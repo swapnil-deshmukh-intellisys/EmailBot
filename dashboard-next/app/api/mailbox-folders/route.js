@@ -6,11 +6,15 @@ import { getDelegatedAccessToken } from '@/lib/emailSender';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 const FOLDERS = [
-  { id: 'inbox', label: 'Received' },
-  { id: 'sentitems', label: 'Sending' },
-  { id: 'drafts', label: 'Draft' },
-  { id: 'junkemail', label: 'Junk' },
-  { id: 'deleteditems', label: 'Deleted' }
+  { id: 'inbox', label: 'Inbox' },
+  { id: 'sentitems', label: 'Sent Mail' },
+  { id: 'drafts', label: 'Drafts' },
+  { id: 'deleteditems', label: 'Deleted Items' },
+  { id: 'junkemail', label: 'Junk Email' },
+  { id: 'archive', label: 'Archive' },
+  { id: 'conversationhistory', label: 'Conversation History' },
+  { id: 'searchfolders', label: 'Search Folders' },
+  { id: 'notes', label: 'Notes' }
 ];
 
 async function fetchFolderMessages(token, folderId) {
@@ -54,12 +58,20 @@ export async function GET(req) {
 
     const folderResults = await Promise.all(
       FOLDERS.map(async (folder) => {
-        const messages = await fetchFolderMessages(token, folder.id);
-        return {
-          ...folder,
-          count: messages.length,
-          messages
-        };
+        try {
+          const messages = await fetchFolderMessages(token, folder.id);
+          return {
+            ...folder,
+            count: messages.length,
+            messages
+          };
+        } catch (error) {
+          return {
+            ...folder,
+            count: 0,
+            messages: []
+          };
+        }
       })
     );
 

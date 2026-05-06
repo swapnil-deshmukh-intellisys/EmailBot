@@ -9,15 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app
 import PageSection from '@/app/components/ui/PageSection';
 
 const badgeToneMap = {
-  Received: 'info',
-  Sending: 'success',
-  Draft: 'warning',
-  Junk: 'danger',
-  Spam: 'danger',
-  Deleted: 'default'
+  Inbox: 'info',
+  'Sent Mail': 'success',
+  Drafts: 'warning',
+  'Junk Email': 'danger',
+  'Deleted Items': 'default',
+  Archive: 'default',
+  'Conversation History': 'default',
+  'Search Folders': 'default',
+  Notes: 'default'
 };
 
-const FILTER_ORDER = ['All', 'Received', 'Sending', 'Draft', 'Spam', 'Deleted'];
+const FILTER_ORDER = ['All', 'Inbox', 'Sent Mail', 'Drafts', 'Deleted Items', 'Junk Email', 'Archive', 'Conversation History', 'Search Folders', 'Notes'];
 
 function formatDateTime(value) {
   if (!value) return '-';
@@ -28,7 +31,6 @@ function formatDateTime(value) {
 
 function normalizeFolderLabel(label) {
   const value = String(label || '').trim();
-  if (value.toLowerCase() === 'junk') return 'Spam';
   return value;
 }
 
@@ -149,11 +151,12 @@ export default function MailInboxPage() {
 
   const inboxItems = useMemo(
     () => [
-      { title: 'Received', meta: `${folderCountMap.get('Received') || 0} inbox mails found` },
-      { title: 'Sending', meta: `${folderCountMap.get('Sending') || 0} sent mails found` },
-      { title: 'Draft', meta: `${folderCountMap.get('Draft') || 0} draft mails found` },
-      { title: 'Junk / Spam', meta: `${folderCountMap.get('Junk') || folderCountMap.get('Spam') || 0} junk or spam mails found` },
-      { title: 'Deleted', meta: `${folderCountMap.get('Deleted') || 0} deleted mails found` }
+      { title: 'Inbox', meta: `${folderCountMap.get('Inbox') || 0} inbox mails found` },
+      { title: 'Sent Mail', meta: `${folderCountMap.get('Sent Mail') || 0} sent mails found` },
+      { title: 'Drafts', meta: `${folderCountMap.get('Drafts') || 0} draft mails found` },
+      { title: 'Junk Email', meta: `${folderCountMap.get('Junk Email') || 0} junk mails found` },
+      { title: 'Deleted Items', meta: `${folderCountMap.get('Deleted Items') || 0} deleted mails found` },
+      { title: 'Archive', meta: `${folderCountMap.get('Archive') || 0} archived mails found` }
     ],
     [folderCountMap]
   );
@@ -170,7 +173,7 @@ export default function MailInboxPage() {
   const outlookReplyItems = useMemo(
     () =>
       mailboxData.messages
-        .filter((item) => ['Received', 'Sending'].includes(normalizeFolderLabel(item.folderLabel)))
+        .filter((item) => ['Inbox', 'Sent Mail'].includes(normalizeFolderLabel(item.folderLabel)))
         .slice(0, 8)
         .map((item) => ({
           id: item.id,
@@ -232,7 +235,7 @@ export default function MailInboxPage() {
     <AppLayout
       topbarProps={{
         title: 'Mail Inbox',
-        subtitle: 'See received, sending, junk, spam, deleted, and draft mails from your connected mailbox.',
+        subtitle: 'See Outlook-style folders: Inbox, Sent Mail, Drafts, Deleted Items, Junk Email, Archive, and more.',
         actions: (
           <>
             <Button
@@ -276,12 +279,13 @@ export default function MailInboxPage() {
               </p>
             </div>
             <div className="mail-inbox-stat-grid">
-              {[
-                { label: 'Received', value: loading ? '...' : String(folderCountMap.get('Received') || 0) },
-                { label: 'Sending', value: loading ? '...' : String(folderCountMap.get('Sending') || 0) },
-                { label: 'Draft', value: loading ? '...' : String(folderCountMap.get('Draft') || 0) },
-                { label: 'Junk / Spam', value: loading ? '...' : String(folderCountMap.get('Junk') || folderCountMap.get('Spam') || 0) },
-                { label: 'Deleted', value: loading ? '...' : String(folderCountMap.get('Deleted') || 0) },
+              {[ 
+                { label: 'Inbox', value: loading ? '...' : String(folderCountMap.get('Inbox') || 0) },
+                { label: 'Sent Mail', value: loading ? '...' : String(folderCountMap.get('Sent Mail') || 0) },
+                { label: 'Drafts', value: loading ? '...' : String(folderCountMap.get('Drafts') || 0) },
+                { label: 'Junk Email', value: loading ? '...' : String(folderCountMap.get('Junk Email') || 0) },
+                { label: 'Deleted Items', value: loading ? '...' : String(folderCountMap.get('Deleted Items') || 0) },
+                { label: 'Archive', value: loading ? '...' : String(folderCountMap.get('Archive') || 0) },
                 { label: 'Warmup Auto Reply', value: mailboxData.warmupAutoReply?.enabled ? 'ON' : 'OFF' },
                 { label: 'Warmup Replies', value: String(mailboxData.warmupRun?.replied || 0) }
               ].map((card) => (

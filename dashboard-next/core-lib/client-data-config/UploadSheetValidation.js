@@ -1,5 +1,4 @@
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-const DOMAIN_REGEX = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 function normalizeText(value = '') {
   return String(value ?? '').trim();
@@ -46,14 +45,31 @@ function normalizeEmail(value = '') {
   if (email.includes(',')) email = email.split(',')[0].trim();
   if (email.includes(';')) email = email.split(';')[0].trim();
   if (email.includes('/')) email = email.split('/')[0].trim();
-  email = email.replace(/\s+/g, '');
-  email = email.replace(/\[at\]|\(at\)|\sat\s/gi, '@');
-  email = email.replace(/\[dot\]|\(dot\)|\sdot\s/gi, '.');
-  email = email.replace(/,@/g, '@').replace(/\.@/g, '@');
-  email = email.replace(/@+/g, '@');
-  email = email.replace(/,+/g, '.');
-  email = email.replace(/\.\.+/g, '.');
   return email;
+}
+
+function validateEmailFormat(emailValue = '') {
+  const email = String(emailValue || '').trim().toLowerCase();
+  if (!email) return { valid: false, detail: 'Missing required data: email' };
+  if (email.includes(' ')) return { valid: false, detail: 'Invalid email format: contains spaces' };
+  if (email.includes('..')) return { valid: false, detail: 'Invalid email format: double dots' };
+  if (email.startsWith('.') || email.endsWith('.')) return { valid: false, detail: 'Invalid email format: starts or ends with dot' };
+  if (email.split('@').length !== 2) return { valid: false, detail: 'Invalid email format: must contain exactly one @' };
+  if (!email.includes('@')) return { valid: false, detail: 'Invalid email format: missing @' };
+
+  const [localPart, domainPart] = email.split('@');
+  if (!localPart) return { valid: false, detail: 'Invalid email format: missing local part' };
+  if (!domainPart) return { valid: false, detail: 'Invalid email format: missing domain' };
+  if (!domainPart.includes('.')) return { valid: false, detail: 'Invalid email format: missing dot' };
+
+  const localAllowed = /^[A-Za-z0-9._%+-]+$/;
+  const domainAllowed = /^[A-Za-z0-9.-]+$/;
+  if (!localAllowed.test(localPart) || !domainAllowed.test(domainPart)) {
+    return { valid: false, detail: 'Invalid email format: invalid special character' };
+  }
+
+  if (!EMAIL_REGEX.test(email)) return { valid: false, detail: 'Invalid email format' };
+  return { valid: true, detail: '' };
 }
 
 function normalizePhone(value = '') {
@@ -245,36 +261,25 @@ export function collectExistingLeadKeys(lists = []) {
 
 export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), phones: new Set(), fullNameCompany: new Set() }) {
   const seenEmails = new Set();
-  const seenPhones = new Set();
-  const seenFullNameCompany = new Set();
 
   const previewRows = rawRows.map((rawRow, index) => {
     const mapped = mapRawRowToLead(rawRow);
     const errors = [];
+    const emailValidation = validateEmailFormat(mapped.Email);
 
-    if (!mapped.Name) errors.push('Missing name');
-    if (!mapped.Company) errors.push('Missing company');
-    if (!mapped.Email || !EMAIL_REGEX.test(mapped.Email)) errors.push('Invalid email');
-    if (mapped.Phone && mapped.Phone.replace(/[^\d]/g, '').length < 7) errors.push('Invalid phone');
-    if (mapped.Domain && !DOMAIN_REGEX.test(mapped.Domain)) errors.push('Broken domain');
+    if (!mapped.Name) errors.push('Missing required data: missing name');
+    if (!mapped.Company) errors.push('Missing required data: missing company');
+    if (!emailValidation.valid) errors.push(emailValidation.detail);
 
     const duplicateReasons = [];
-    if (mapped.dedupe.email && (seenEmails.has(mapped.dedupe.email) || existingKeys.emails?.has(mapped.dedupe.email))) {
-      duplicateReasons.push('Duplicate email');
+    if (mapped.dedupe.email && seenEmails.has(mapped.dedupe.email)) {
+      duplicateReasons.push('Duplicate email in uploaded sheet');
     }
-    if (mapped.dedupe.phone && (seenPhones.has(mapped.dedupe.phone) || existingKeys.phones?.has(mapped.dedupe.phone))) {
-      duplicateReasons.push('Duplicate phone');
-    }
-    if (
-      mapped.dedupe.fullNameCompany &&
-      (seenFullNameCompany.has(mapped.dedupe.fullNameCompany) || existingKeys.fullNameCompany?.has(mapped.dedupe.fullNameCompany))
-    ) {
-      duplicateReasons.push('Duplicate name + company');
+    if (mapped.dedupe.email && existingKeys.emails?.has(mapped.dedupe.email)) {
+      duplicateReasons.push('Email already exists in client list');
     }
 
     if (mapped.dedupe.email) seenEmails.add(mapped.dedupe.email);
-    if (mapped.dedupe.phone) seenPhones.add(mapped.dedupe.phone);
-    if (mapped.dedupe.fullNameCompany) seenFullNameCompany.add(mapped.dedupe.fullNameCompany);
 
     const validationStatus = errors.length ? 'Invalid' : duplicateReasons.length ? 'Duplicate' : 'Valid';
     const reasons = errors.length ? errors : duplicateReasons;

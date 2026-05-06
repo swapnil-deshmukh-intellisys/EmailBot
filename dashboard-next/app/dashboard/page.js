@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
 import { FancyStatCard } from './components/DashboardUiPrimitives';
 import {
@@ -236,6 +236,10 @@ const PROJECT_PRESET_SENDERS = {
     'charlie@theentrepreneurialchronicle.com',
     'robert@theentrepreneurialchronicle.com',
     'mark@theentrepreneurialchronicle.com',
+    'juan@theentrepreneurialchronicle.com',
+    'manuel@theentrepreneurialchronicle.com',
+    'antonio@theentrepreneurialchronicle.com',
+    'john@theentrepreneurialchronicle.com',
     'sam@theentrepreneurialchronicle.com',
     'clara@theentrepreneurialchronicle.com',
     'sophia@theentrepreneurialchronicle.com',
@@ -250,8 +254,7 @@ const PROJECT_PRESET_SENDERS = {
     'emma@theentrepreneurialchronicle.com',
     'fiona@theentrepreneurialchronicle.com',
     'daniel@theentrepreneurialchronicle.com',
-    'lacy@theentrepreneurialchronicle.com',
-    'victoria@theentrepreneurialchronicle.com'
+    'lacy@theentrepreneurialchronicle.com'
   ],
   tut: [
     'matt@theunicorntimes.com',
@@ -302,6 +305,7 @@ const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const defaultProjectOptions = ['tec', 'tut'];
   const [stats, setStats] = useState({
     total: 0,
@@ -428,6 +432,12 @@ export default function DashboardPage() {
   const campaignCreateLockRef = useRef(false);
   const lastCampaignCreateSignatureRef = useRef('');
   const lastCreatedCampaignIdRef = useRef('');
+  const requestedListIdRef = useRef('');
+  const requestedAutoUploadRef = useRef(false);
+  useEffect(() => {
+    requestedListIdRef.current = String(searchParams?.get('listId') || '').trim();
+    requestedAutoUploadRef.current = String(searchParams?.get('autoUpload') || '').trim() === '1';
+  }, [searchParams]);
   const notify = (message, tone = 'info') => {
     if (!message) return;
     if (toastTimeoutRef.current) {
@@ -1072,6 +1082,22 @@ const handleDeleteDraft = async (draft) => {
     if (!selectedList) return 'Select List';
     return `${selectedList.name} (${selectedList.leadCount || 0})`;
   }, [lists, selectedListId]);
+  useEffect(() => {
+    const requestedListId = requestedListIdRef.current;
+    if (!requestedListId || selectedListId) return;
+    const exists = lists.some((list) => String(list?._id) === requestedListId);
+    if (exists) {
+      setSelectedListId(requestedListId);
+    }
+  }, [lists, selectedListId]);
+
+  useEffect(() => {
+    if (!requestedAutoUploadRef.current) return;
+    if (!selectedListId) return;
+    setShowUploadPreview(true);
+    notify('Sheet uploaded automatically. Continue with sender and create campaign.', 'success');
+    requestedAutoUploadRef.current = false;
+  }, [selectedListId]);
   const searchableSectionText = useMemo(
     () => ({
       summary: `summary filter project client active project working mail select mail id quick range starting date today total mails sent pending failed ${project} ${selectedAccountLabel} ${(stats.dailyMailCounts || []).map((item) => `${item.date} ${item.count}`).join(' ')}`,

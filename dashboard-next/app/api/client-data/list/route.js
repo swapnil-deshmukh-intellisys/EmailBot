@@ -20,6 +20,8 @@ function getLeadValue(lead = {}, ...keys) {
 
 function buildClientRow(list = {}, lead = {}, leadIndex = 0) {
   const email = getLeadValue(lead, 'Email', 'email');
+  const leadSource = getLeadValue(lead, 'Source', 'source');
+  const leadAddedDate = getLeadValue(lead, 'List Added Date', 'ListAddedDate', 'listAddedDate');
   return {
     id: `${String(list?._id || '')}__${leadIndex}`,
     sourceListId: String(list?._id || ''),
@@ -32,8 +34,8 @@ function buildClientRow(list = {}, lead = {}, leadIndex = 0) {
     sector: getLeadValue(lead, 'Sector', 'sector', 'Industry', 'industry') || '-',
     country: getLeadValue(lead, 'Country', 'country') || '-',
     email: email || '-',
-    listAddedDateRaw: list?.uploadedAt || list?.uploadDate || list?.createdAt || lead?.uploadDate || null,
-    source: String(list?.sourceFile || list?.name || 'Uploaded File'),
+    listAddedDateRaw: leadAddedDate || lead?.uploadDate || list?.uploadedAt || list?.uploadDate || list?.createdAt || null,
+    source: leadSource || String(list?.sourceFile || list?.name || 'Uploaded File'),
     leadType: getLeadValue(lead, 'Lead Type', 'LeadType', 'leadType') || '-',
     sourcer: getLeadValue(lead, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
     userId: getLeadValue(lead, 'User ID', 'UserId', 'userId') || '-',

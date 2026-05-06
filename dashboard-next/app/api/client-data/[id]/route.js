@@ -7,6 +7,17 @@ function normalizeEmail(raw) {
   return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
 }
 
+function parseDateOrNull(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getListQuery({ role, listId, userEmail }) {
+  return role === 'admin' ? { _id: listId } : { _id: listId, userEmail };
+}
+
 export async function PATCH(req, { params }) {
   try {
     const auth = await requireAuth(req);
@@ -22,7 +33,7 @@ export async function PATCH(req, { params }) {
 
     const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
     const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-    const query = role === 'admin' ? { _id: listId } : { _id: listId, userEmail };
+    const query = getListQuery({ role, listId, userEmail });
 
     const list = await LeadList.findOne(query);
     if (!list) {
@@ -47,8 +58,14 @@ export async function PATCH(req, { params }) {
       Sourcer: String(body.sourcer ?? lead?.data?.Sourcer ?? '').trim(),
       UserId: String(body.userId ?? lead?.data?.UserId ?? lead?.data?.['User ID'] ?? '').trim(),
       ProjectApproach: String(body.projectApproach ?? lead?.data?.ProjectApproach ?? lead?.data?.['Project Approach'] ?? '').trim(),
-      SenderId: String(body.senderId ?? lead?.data?.SenderId ?? lead?.data?.['Sender ID'] ?? '').trim()
+      SenderId: String(body.senderId ?? lead?.data?.SenderId ?? lead?.data?.['Sender ID'] ?? '').trim(),
+      Source: String(body.source ?? lead?.data?.Source ?? '').trim()
     };
+
+    const nextUploadDate =
+      body.listAddedDate !== undefined
+        ? parseDateOrNull(body.listAddedDate)
+        : lead?.uploadDate || null;
 
     lead.Name = next.Name;
     lead.Surname = next.Surname;
@@ -57,6 +74,7 @@ export async function PATCH(req, { params }) {
     lead.Sector = next.Sector;
     lead.Country = next.Country;
     lead.Email = next.Email;
+    lead.uploadDate = nextUploadDate;
     lead.data = {
       ...(lead.data || {}),
       Name: next.Name,
@@ -74,12 +92,49 @@ export async function PATCH(req, { params }) {
       'Project Approach': next.ProjectApproach,
       ProjectApproach: next.ProjectApproach,
       'Sender ID': next.SenderId,
-      SenderId: next.SenderId
+      SenderId: next.SenderId,
+      Source: next.Source,
+      listAddedDate: nextUploadDate ? nextUploadDate.toISOString() : ''
     };
 
     await list.save();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to update row' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req, { params }) {
+  try {
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    await connectDB();
+
+    const rowId = String(params?.id || '');
+    const [listId, indexToken] = rowId.split('__');
+    const leadIndex = Number(indexToken);
+    if (!listId || !Number.isInteger(leadIndex) || leadIndex < 0) {
+      return NextResponse.json({ error: 'Invalid row id' }, { status: 400 });
+    }
+
+    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
+    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
+    const query = getListQuery({ role, listId, userEmail });
+
+    const list = await LeadList.findOne(query);
+    if (!list) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
+
+    if (!Array.isArray(list.leads) || !list.leads[leadIndex]) {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+    }
+
+    list.leads.splice(leadIndex, 1);
+    await list.save();
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error.message || 'Failed to delete row' }, { status: 500 });
   }
 }
