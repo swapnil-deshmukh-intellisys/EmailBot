@@ -49,18 +49,83 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
     selection.addRange(selectionRef.current);
   };
 
+  const selectNodeContents = (node) => {
+    if (!node || typeof window === 'undefined') return;
+    const selection = window.getSelection?.();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    selectionRef.current = range.cloneRange();
+  };
+
+  const applyInlineFormat = (command, val = null) => {
+    restoreSelection();
+    const selection = window.getSelection?.();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      document.execCommand(command, false, val);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current?.contains(range.commonAncestorContainer)) {
+      return;
+    }
+
+    const wrapperMap = {
+      bold: 'span',
+      italic: 'span',
+      underline: 'span',
+      fontName: 'span',
+      fontSize: 'span'
+    };
+    const wrapper = document.createElement(wrapperMap[command] || 'span');
+
+    if (command === 'bold') {
+      wrapper.style.fontWeight = '700';
+    }
+    if (command === 'italic') {
+      wrapper.style.fontStyle = 'italic';
+    }
+    if (command === 'underline') {
+      wrapper.style.textDecoration = 'underline';
+    }
+    if (command === 'fontName') {
+      wrapper.style.fontFamily = val;
+    }
+    if (command === 'fontSize') {
+      const sizeMap = {
+        2: '13px',
+        3: '15px',
+        4: '17px',
+        5: '20px',
+        6: '24px'
+      };
+      wrapper.style.fontSize = sizeMap[val] || `${val}px`;
+    }
+
+    wrapper.appendChild(range.extractContents());
+    range.insertNode(wrapper);
+    selectNodeContents(wrapper);
+  };
+
   const runCommand = (command, val = null) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
-    restoreSelection();
-    document.execCommand(command, false, val);
+    if (['bold', 'italic', 'underline', 'fontName', 'fontSize'].includes(command)) {
+      applyInlineFormat(command, val);
+    } else {
+      restoreSelection();
+      document.execCommand(command, false, val);
+    }
     saveSelection();
     updateValue(true);
   };
 
-  const handleToolbarMouseDown = (event) => {
+  const handleToolbarCommand = (event, command, val = null) => {
     event.preventDefault();
-    saveSelection();
+    runCommand(command, val);
   };
 
   const onPaste = (e) => {
@@ -103,14 +168,14 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
           <option value="5">Large</option>
           <option value="6">XL</option>
         </select>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('bold')}>B</button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('italic')}><i>I</i></button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('underline')}><u>U</u></button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('insertUnorderedList')}>List</button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('justifyLeft')}>Left</button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('justifyCenter')}>Center</button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('justifyRight')}>Right</button>
-        <button type="button" className="button secondary" onMouseDown={handleToolbarMouseDown} onClick={() => runCommand('removeFormat')}>Clear Format</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'bold')}>B</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'italic')}><i>I</i></button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'underline')}><u>U</u></button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'insertUnorderedList')}>List</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyLeft')}>Left</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyCenter')}>Center</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyRight')}>Right</button>
+        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'removeFormat')}>Clear Format</button>
       </div>
       <div
         ref={editorRef}
