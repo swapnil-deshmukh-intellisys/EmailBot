@@ -35,6 +35,16 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
     () => previewRows.filter((row) => row.validationStatus === 'Valid').length,
     [previewRows]
   );
+  const repeatedRows = useMemo(
+    () => previewRows.filter((row) => row.validationStatus === 'Duplicate'),
+    [previewRows]
+  );
+  const repeatedRowLabel = useMemo(() => {
+    const rowIds = repeatedRows.map((row) => row.rowNumber).filter(Boolean);
+    if (!rowIds.length) return '-';
+    const visibleIds = rowIds.slice(0, 8).join(', ');
+    return rowIds.length > 8 ? `${visibleIds} +${rowIds.length - 8} more` : visibleIds;
+  }, [repeatedRows]);
 
   useEffect(() => {
     if (!open) return;
@@ -422,9 +432,9 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
             {summary ? (
               <div className="client-upload-summary">
                 <article><span>Total Records</span><strong>{summary.totalRecords}</strong></article>
-                <article><span>Valid Records</span><strong>{summary.validRecords}</strong></article>
-                <article><span>Repeated Clients</span><strong>{summary.repeatedClientCount ?? summary.duplicateRecords}</strong></article>
-                <article><span>Repeated Row IDs</span><strong>{previewRows.filter((row) => row.validationStatus === 'Duplicate').map((row) => row.rowNumber).join(', ') || '-'}</strong></article>
+                <article><span>Unique Records</span><strong>{summary.validRecords}</strong></article>
+                <article><span>Repeated Clients</span><strong>{repeatedRows.length}</strong></article>
+                <article><span>Repeated Row IDs</span><strong>{repeatedRowLabel}</strong></article>
               </div>
             ) : null}
 

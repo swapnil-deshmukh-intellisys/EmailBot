@@ -10,6 +10,20 @@ function inferUploadStatus(summary = {}) {
   return 'Valid';
 }
 
+function hasClientData(row = {}) {
+  return [
+    row.Name,
+    row.Surname,
+    row.Company,
+    row.Designation,
+    row.Email,
+    row.Phone,
+    row.Domain,
+    row.Sector,
+    row.Country
+  ].some((value) => String(value || '').trim());
+}
+
 export async function POST(req) {
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
@@ -19,7 +33,7 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     const fileName = String(body.fileName || '').trim();
     const columns = Array.isArray(body.columns) ? body.columns.map((item) => String(item || '').trim()).filter(Boolean) : [];
-    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const rows = Array.isArray(body.rows) ? body.rows.filter(hasClientData) : [];
     const summary = body.summary && typeof body.summary === 'object' ? body.summary : {};
     const validRows = rows.filter((row) => String(row?.validationStatus || row?.status || '') === 'Valid');
 

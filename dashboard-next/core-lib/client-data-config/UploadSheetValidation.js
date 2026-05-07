@@ -263,16 +263,27 @@ export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), ph
   const seenEmails = new Set();
   const seenEmailRows = new Map();
 
-  const previewRows = rawRows.map((rawRow, index) => {
-    const mapped = mapRawRowToLead(rawRow);
+  const mappedRows = (rawRows || [])
+    .map((rawRow) => mapRawRowToLead(rawRow))
+    .filter((mapped) =>
+      [
+        mapped.Name,
+        mapped.Surname,
+        mapped.Company,
+        mapped.Designation,
+        mapped.Email,
+        mapped.Phone,
+        mapped.Domain,
+        mapped.Sector,
+        mapped.Country
+      ].some((value) => normalizeText(value))
+    );
 
+  const previewRows = mappedRows.map((mapped, index) => {
     const duplicateReasons = [];
     if (mapped.dedupe.email && seenEmails.has(mapped.dedupe.email)) {
       const firstRowNumber = seenEmailRows.get(mapped.dedupe.email);
       duplicateReasons.push(`Repeated client email from row ${firstRowNumber}`);
-    }
-    if (mapped.dedupe.email && existingKeys.emails?.has(mapped.dedupe.email)) {
-      duplicateReasons.push('Repeated client already exists in saved client list');
     }
 
     if (mapped.dedupe.email) {
