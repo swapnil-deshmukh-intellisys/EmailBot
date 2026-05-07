@@ -261,28 +261,29 @@ export function collectExistingLeadKeys(lists = []) {
 
 export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), phones: new Set(), fullNameCompany: new Set() }) {
   const seenEmails = new Set();
+  const seenEmailRows = new Map();
 
   const previewRows = rawRows.map((rawRow, index) => {
     const mapped = mapRawRowToLead(rawRow);
-    const errors = [];
-    const emailValidation = validateEmailFormat(mapped.Email);
-
-    if (!mapped.Name) errors.push('Missing required data: missing name');
-    if (!mapped.Company) errors.push('Missing required data: missing company');
-    if (!emailValidation.valid) errors.push(emailValidation.detail);
 
     const duplicateReasons = [];
     if (mapped.dedupe.email && seenEmails.has(mapped.dedupe.email)) {
-      duplicateReasons.push('Duplicate email in uploaded sheet');
+      const firstRowNumber = seenEmailRows.get(mapped.dedupe.email);
+      duplicateReasons.push(`Repeated client email from row ${firstRowNumber}`);
     }
     if (mapped.dedupe.email && existingKeys.emails?.has(mapped.dedupe.email)) {
-      duplicateReasons.push('Email already exists in client list');
+      duplicateReasons.push('Repeated client already exists in saved client list');
     }
 
-    if (mapped.dedupe.email) seenEmails.add(mapped.dedupe.email);
+    if (mapped.dedupe.email) {
+      seenEmails.add(mapped.dedupe.email);
+      if (!seenEmailRows.has(mapped.dedupe.email)) {
+        seenEmailRows.set(mapped.dedupe.email, index + 1);
+      }
+    }
 
-    const validationStatus = errors.length ? 'Invalid' : duplicateReasons.length ? 'Duplicate' : 'Valid';
-    const reasons = errors.length ? errors : duplicateReasons;
+    const validationStatus = duplicateReasons.length ? 'Duplicate' : 'Valid';
+    const reasons = duplicateReasons;
 
     return {
       rowId: `${index + 1}`,
@@ -297,7 +298,6 @@ export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), ph
   const totalRecords = previewRows.length;
   const validRecords = previewRows.filter((row) => row.validationStatus === 'Valid').length;
   const duplicateRecords = previewRows.filter((row) => row.validationStatus === 'Duplicate').length;
-  const invalidRecords = previewRows.filter((row) => row.validationStatus === 'Invalid').length;
 
   return {
     rows: previewRows,
@@ -305,7 +305,9 @@ export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), ph
       totalRecords,
       validRecords,
       duplicateRecords,
-      invalidRecords
+      repeatedRecords: duplicateRecords,
+      repeatedClientCount: duplicateRecords,
+      invalidRecords: 0
     }
   };
 }

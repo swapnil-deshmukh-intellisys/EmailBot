@@ -8,7 +8,7 @@ const SHEET_FIELDS = ['Name', 'Surname', 'Designation', 'Email', 'Phone', 'Domai
 function statusClassName(status) {
   if (status === 'Valid') return 'client-upload-preview-row valid';
   if (status === 'Duplicate') return 'client-upload-preview-row duplicate';
-  return 'client-upload-preview-row invalid';
+  return 'client-upload-preview-row valid';
 }
 
 export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSaved = null }) {
@@ -148,7 +148,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
         })
       );
       setEditingRows(true);
-      setMessage('Automatic corrections applied. Remaining invalid or duplicate rows can be edited below.');
+      setMessage('Automatic corrections applied. Repeated client rows can be edited below.');
     } catch (err) {
       setError(err.message || 'Failed to customize data');
     } finally {
@@ -389,7 +389,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
             <div className="client-upload-modal-head">
               <div>
                 <h3>Upload Sheet</h3>
-                <p>Upload Excel or CSV, preview the rows, mark duplicates or invalid data, and save all valid clients.</p>
+                <p>Upload Excel or CSV, preview repeated clients, and save all unique clients.</p>
               </div>
               <button type="button" className="client-upload-modal-close" onClick={() => setOpen(false)}>x</button>
             </div>
@@ -423,8 +423,8 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
               <div className="client-upload-summary">
                 <article><span>Total Records</span><strong>{summary.totalRecords}</strong></article>
                 <article><span>Valid Records</span><strong>{summary.validRecords}</strong></article>
-                <article><span>Duplicate Records</span><strong>{summary.duplicateRecords}</strong></article>
-                <article><span>Invalid Records</span><strong>{summary.invalidRecords}</strong></article>
+                <article><span>Repeated Clients</span><strong>{summary.repeatedClientCount ?? summary.duplicateRecords}</strong></article>
+                <article><span>Repeated Row IDs</span><strong>{previewRows.filter((row) => row.validationStatus === 'Duplicate').map((row) => row.rowNumber).join(', ') || '-'}</strong></article>
               </div>
             ) : null}
 
@@ -531,7 +531,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
               ) : (
                 <div className="client-data-upload-empty">
                   <strong>No preview yet.</strong>
-                  <p>Choose an Excel or CSV file to preview valid, duplicate, and invalid rows before saving.</p>
+                  <p>Choose an Excel or CSV file to preview unique and repeated clients before saving.</p>
                 </div>
               )}
             </div>
