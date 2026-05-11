@@ -34,6 +34,8 @@ export function middleware(req) {
     '/unauthorized',
     '/account/pending',
     '/account/disabled',
+    '/api/health',
+    '/api/worker-health',
     '/api/auth/login',
     '/api/auth/request-access',
     '/api/graph-oauth/start',
