@@ -156,6 +156,29 @@ function classifyDeliveryFailure(errorMessage = '') {
   return 'Failed';
 }
 
+function isCriticalSendError(errorMessage = '') {
+  const text = String(errorMessage || '').toLowerCase();
+  return (
+    text.includes('sender account not found') ||
+    text.includes('sender disconnected') ||
+    text.includes('failed to get graph access token') ||
+    text.includes('failed to refresh graph token') ||
+    text.includes('invalid_client') ||
+    text.includes('invalid client') ||
+    text.includes('client secret') ||
+    text.includes('unauthorized_client') ||
+    text.includes('authorization_requestdenied') ||
+    text.includes('access denied') ||
+    text.includes('mail.send') ||
+    text.includes('smtp auth') ||
+    text.includes('authentication unsuccessful') ||
+    text.includes('invalid login') ||
+    text.includes('535 authentication') ||
+    text.includes('graph app-only sending is disabled') ||
+    text.includes('oauth account not found')
+  );
+}
+
 async function reserveCampaignCredit(userEmail = '') {
   const normalizedUserEmail = normalizeEmail(userEmail);
   if (!normalizedUserEmail) return { ok: true, skipped: true };
@@ -1068,6 +1091,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
           });
           await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
           appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
+          if (isCriticalSendError(error.message)) {
+            state.stop = true;
+            state.stopReason = 'critical_send_error';
+            campaign.failureReason = classifyFailureReason(error.message);
+            campaign.lastRunError = error.message;
+            campaign.lastRunErrorAt = new Date();
+            appendLog(campaign, `Campaign failed because sender configuration is not usable: ${error.message}`, 'error');
+          }
         }
 
         campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
@@ -1080,7 +1111,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
         campaign.failedCount = campaign.stats.failed;
         lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
         await persistLeadProgress(list._id, idx, lead);
-        await refreshCampaignRollups(campaign._id).catch(() => {});
+        if (state.stop || i === pendingIndexes.length - 1 || (i + 1) % 10 === 0) {
+          await refreshCampaignRollups(campaign._id).catch(() => {});
+        }
         if (!(await saveCampaignIfExists(campaign))) {
           state.running = false;
           return;
@@ -1116,6 +1149,21 @@ export async function startCampaignRunner(campaignId, options = {}) {
           campaign.workerLockedAt = null;
           campaign.workerHeartbeatAt = null;
           appendLog(campaign, 'Campaign failed: credit limit reached', 'error');
+        } else if (state.stopReason === 'critical_send_error') {
+          campaign.status = 'Failed';
+          campaign.finishedAt = new Date();
+          campaign.failureReason = campaign.failureReason || 'Sender account failed';
+          campaign.lastError = campaign.lastError || campaign.lastRunError || 'Sender account failed';
+          campaign.lastErrorAt = campaign.lastErrorAt || new Date();
+          campaign.lastRunError = campaign.lastRunError || campaign.lastError;
+          campaign.lastRunErrorAt = campaign.lastRunErrorAt || campaign.lastErrorAt;
+          campaign.lastActivityAt = new Date();
+          campaign.workerId = '';
+          campaign.workerLockedBy = '';
+          campaign.workerStatus = 'failed';
+          campaign.workerLockedAt = null;
+          campaign.workerHeartbeatAt = null;
+          appendLog(campaign, 'Campaign failed: sender configuration requires attention', 'error');
         } else {
           campaign.status = 'Stopped';
           campaign.workerId = '';

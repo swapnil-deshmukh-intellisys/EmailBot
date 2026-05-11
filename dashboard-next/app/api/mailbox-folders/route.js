@@ -28,7 +28,7 @@ function toLegacyFolder(folder = {}) {
 export async function GET(req) {
   try {
     const auth = await requireAuth(req);
-    if (!auth.ok) return auth.response;
+    if (auth.errorResponse) return auth.errorResponse;
 
     const warmupSetting = await getWarmupAutoReplySetting(auth.userEmail, { lean: true });
     const account = await getCurrentUserMailboxAccount(auth).catch((error) => {
