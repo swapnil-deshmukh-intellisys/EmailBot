@@ -116,13 +116,15 @@ async function checkGraph(project, explicitSender = '', sendTo = '') {
   });
   const userData = await userResponse.json().catch(() => ({}));
   if (!userResponse.ok) {
-    throw new Error(userData?.error?.message || `Graph sender lookup failed (${userResponse.status})`);
+    console.warn('[graph-sender-warning]', userData?.error?.message || `Graph sender lookup failed (${userResponse.status})`);
+    console.warn('[graph-sender-warning]', 'This can happen when the app has Mail.Send but not user-read permissions. Use --send-to to verify actual sending.');
+  } else {
+    console.log('[graph-sender] ok', {
+      mail: userData.mail || '',
+      userPrincipalName: userData.userPrincipalName || '',
+      accountEnabled: userData.accountEnabled
+    });
   }
-  console.log('[graph-sender] ok', {
-    mail: userData.mail || '',
-    userPrincipalName: userData.userPrincipalName || '',
-    accountEnabled: userData.accountEnabled
-  });
 
   if (!sendTo) return;
 
