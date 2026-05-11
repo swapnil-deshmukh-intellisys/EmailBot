@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import PresetSender from '@/models/PresetSender';
+import { requireAdmin } from '@/lib/apiAuth';
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -8,6 +9,8 @@ function normalizeEmail(value) {
 
 export async function POST(req) {
   try {
+    const auth = await requireAdmin(req);
+    if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { email, project } = await req.json();
     const normalized = normalizeEmail(email);

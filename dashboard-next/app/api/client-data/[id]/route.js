@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 function normalizeEmail(raw) {
   return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
@@ -14,8 +14,8 @@ function parseDateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getListQuery({ role, listId, userEmail }) {
-  return role === 'admin' ? { _id: listId } : { _id: listId, userEmail };
+function getListQuery(auth, listId) {
+  return buildAuthOwnerFilter(auth, { _id: listId });
 }
 
 export async function PATCH(req, { params }) {
@@ -31,9 +31,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Invalid row id' }, { status: 400 });
     }
 
-    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-    const query = getListQuery({ role, listId, userEmail });
+    const query = getListQuery(auth, listId);
 
     const list = await LeadList.findOne(query);
     if (!list) {
@@ -117,9 +115,7 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ error: 'Invalid row id' }, { status: 400 });
     }
 
-    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-    const query = getListQuery({ role, listId, userEmail });
+    const query = getListQuery(auth, listId);
 
     const list = await LeadList.findOne(query);
     if (!list) {

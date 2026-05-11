@@ -164,9 +164,6 @@ async function reserveCampaignCredit(userEmail = '') {
   if (summary.status !== 'active') {
     return { ok: false, message: 'Subscription is not active' };
   }
-  if (summary.remainingCredits <= 0) {
-    return { ok: false, message: 'Monthly mail limit reached' };
-  }
   if (summary.dailyRemainingCredits <= 0) {
     return { ok: false, message: 'Daily mail limit reached. You can send again tomorrow.' };
   }
@@ -176,13 +173,11 @@ async function reserveCampaignCredit(userEmail = '') {
     {
       userEmail: normalizedUserEmail,
       status: 'active',
-      remainingCredits: { $gt: 0 },
       dailyRemainingCredits: { $gt: 0 }
     },
     {
       $inc: {
         usedCredits: 1,
-        remainingCredits: -1,
         usedToday: 1,
         remainingToday: -1,
         dailyUsedCredits: 1,
@@ -201,7 +196,7 @@ async function reserveCampaignCredit(userEmail = '') {
     if (latest.summary.dailyRemainingCredits <= 0) {
       return { ok: false, message: 'Daily mail limit reached. You can send again tomorrow.' };
     }
-    return { ok: false, message: 'Monthly mail limit reached' };
+    return { ok: false, message: 'Unable to reserve daily mail credit' };
   }
 
   const updated = await UserProfile.findOneAndUpdate(
@@ -212,13 +207,11 @@ async function reserveCampaignCredit(userEmail = '') {
         { username: normalizedUserEmail },
         { employeeId: normalizedUserEmail },
         { intellisysUserId: normalizedUserEmail }
-      ],
-      remainingCredits: { $gt: 0 }
+      ]
     },
     {
       $inc: {
-        usedCredits: 1,
-        remainingCredits: -1
+        usedCredits: 1
       }
     },
     { new: true }
@@ -235,7 +228,6 @@ async function reserveCampaignCredit(userEmail = '') {
         {
           $inc: {
             usedCredits: -1,
-            remainingCredits: 1,
             usedToday: -1,
             remainingToday: 1,
             dailyUsedCredits: -1,
@@ -243,7 +235,7 @@ async function reserveCampaignCredit(userEmail = '') {
           }
         }
       );
-      return { ok: false, message: 'Credit limit reached' };
+      return { ok: false, message: 'Unable to reserve daily mail credit' };
     }
 
     const createdProfile = await UserProfile.findOneAndUpdate(
@@ -258,7 +250,7 @@ async function reserveCampaignCredit(userEmail = '') {
           role: 'user',
           totalCredits: DEFAULT_PROFILE_CREDITS,
           usedCredits: 1,
-          remainingCredits: DEFAULT_PROFILE_CREDITS - 1,
+          remainingCredits: DEFAULT_PROFILE_CREDITS,
           creditUsagePercent: 0
         }
       },
@@ -270,7 +262,7 @@ async function reserveCampaignCredit(userEmail = '') {
       type: 'debit',
       reason: 'credit_reserved_for_send',
       credits: 1,
-      balanceAfter: Math.max(0, Number(createdProfile?.remainingCredits || 0)),
+      balanceAfter: Math.max(0, Number(subscriptionReservation?.dailyRemainingCredits || 0)),
       meta: { source: 'campaignRunner', profileCreated: true }
     });
 
@@ -282,7 +274,7 @@ async function reserveCampaignCredit(userEmail = '') {
     type: 'debit',
     reason: 'credit_reserved_for_send',
     credits: 1,
-    balanceAfter: Math.max(0, Number(updated.remainingCredits || 0)),
+    balanceAfter: Math.max(0, Number(subscriptionReservation?.dailyRemainingCredits || 0)),
     meta: { source: 'campaignRunner' }
   });
 
@@ -297,8 +289,7 @@ async function refundCampaignCredit(userEmail = '', campaignMeta = {}) {
     { identifier: normalizedUserEmail },
     {
       $inc: {
-        usedCredits: -1,
-        remainingCredits: 1
+        usedCredits: -1
       }
     },
     { new: true }
@@ -321,7 +312,6 @@ async function refundCampaignCredit(userEmail = '', campaignMeta = {}) {
     {
       $inc: {
         usedCredits: -1,
-        remainingCredits: 1,
         usedToday: -1,
         remainingToday: 1,
         dailyUsedCredits: -1,
@@ -367,7 +357,7 @@ function getLeadField(lead = {}, keys = []) {
   return '';
 }
 
-async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pending', stepNumber = 1, trackingId = '', failureReason = '', sendResult = null }) {
+async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pending', stepNumber = 1, trackingId = '', failureReason = '', sendResult = null, provider = '' }) {
   const email = normalizeRecipientEmail(lead?.Email || lead?.email || '');
   if (!email || !campaign?._id) return null;
   const now = new Date();
@@ -382,7 +372,8 @@ async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pendin
     messageId: sendResult?.messageId || stepLogs[stepIndex]?.messageId || '',
     internetMessageId: sendResult?.internetMessageId || stepLogs[stepIndex]?.internetMessageId || '',
     conversationId: sendResult?.conversationId || stepLogs[stepIndex]?.conversationId || '',
-    failureReason: failureReason || stepLogs[stepIndex]?.failureReason || ''
+    failureReason: failureReason || stepLogs[stepIndex]?.failureReason || '',
+    provider: provider || stepLogs[stepIndex]?.provider || ''
   };
   if (status === 'Sent') step.sentAt = lead.sentAt || now;
   if (['Failed', 'Bounced', 'Spam'].includes(status)) step.failedAt = lead.failedAt || now;
@@ -396,11 +387,12 @@ async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pendin
         userId: campaign.userId || null,
         userEmail: campaign.userEmail || '',
         campaignId: campaign._id,
-        campaignName: String(campaign.name || ''),
         projectId: campaign.projectId || campaign.project || '',
         projectName: normalizeProjectName(campaign.projectName || campaign.project || ''),
         recipientId: String(idx),
+        recipientEmail: email,
         clientName: [getLeadField(lead, ['Name', 'name']), getLeadField(lead, ['Surname', 'surname'])].filter(Boolean).join(' '),
+        recipientName: [getLeadField(lead, ['Name', 'name']), getLeadField(lead, ['Surname', 'surname'])].filter(Boolean).join(' '),
         email,
         company: getLeadField(lead, ['Company', 'company', 'Organization', 'Organisation']),
         designation: getLeadField(lead, ['Designation', 'designation', 'Title', 'title']),
@@ -413,7 +405,10 @@ async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pendin
         stepLogs,
         sentCount: sent ? Math.max(1, Number(existing?.sentCount || 0)) : Number(existing?.sentCount || 0),
         failedCount: failed ? Math.max(1, Number(existing?.failedCount || 0)) : Number(existing?.failedCount || 0),
+        pendingCount: status === 'Pending' || status === 'Sending' ? 1 : 0,
+        skippedCount: status === 'Skipped' ? 1 : Number(existing?.skippedCount || 0),
         lastSentAt: sent ? (lead.sentAt || now) : existing?.lastSentAt || null,
+        lastFailedAt: failed ? (lead.failedAt || now) : existing?.lastFailedAt || null,
         failureReason: failed ? classifyFailureReason(failureReason || lead.error || status) : existing?.failureReason || '',
         bounceReason: status === 'Bounced' ? classifyFailureReason(failureReason || lead.error || status) : existing?.bounceReason || '',
         lastActivityAt: now
@@ -613,11 +608,8 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
     if (summary.dailyRemainingCredits <= 0) {
       throw new Error('Daily mail limit reached. You can send again tomorrow.');
     }
-    if (summary.remainingCredits <= 0 || summary.sendingDisabled) {
-      throw new Error('Monthly mail limit reached. Upgrade your plan before starting this campaign.');
-    }
-    if (requiredCredits > summary.remainingCredits) {
-      throw new Error(`Not enough mail credits. This campaign needs ${requiredCredits}, but only ${summary.remainingCredits} remain this month.`);
+    if (summary.sendingDisabled) {
+      throw new Error('Sending is disabled for this account.');
     }
     if (requiredCredits > summary.dailyRemainingCredits) {
       throw new Error(`Daily mail limit is ${summary.dailyLimit || 500}. You can send only ${summary.dailyRemainingCredits} more today.`);
@@ -742,9 +734,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
         startedAt: startTime,
         scheduledAt: null,
         queueRequestedAt: null,
+        queueReason: '',
         workerId: CAMPAIGN_WORKER_ID,
+        workerLockedBy: CAMPAIGN_WORKER_ID,
+        workerStatus: 'running',
         workerLockedAt: startTime,
-        workerHeartbeatAt: startTime
+        workerHeartbeatAt: startTime,
+        lastRunError: '',
+        lastRunErrorAt: null
       }
     }
   );
@@ -770,9 +767,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.status = 'Running';
   campaign.startedAt = startTime;
   campaign.scheduledAt = null;
+  campaign.queueReason = '';
   campaign.workerId = CAMPAIGN_WORKER_ID;
+  campaign.workerLockedBy = CAMPAIGN_WORKER_ID;
+  campaign.workerStatus = 'running';
   campaign.workerLockedAt = startTime;
   campaign.workerHeartbeatAt = startTime;
+  campaign.lastRunError = '';
+  campaign.lastRunErrorAt = null;
   const scopedSent = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'sent').length;
   const scopedFailed = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'failed').length;
   const scopedBounced = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'bounced').length;
@@ -1014,7 +1016,8 @@ export async function startCampaignRunner(campaignId, options = {}) {
             status: 'Sent',
             stepNumber: currentStep,
             trackingId,
-            sendResult
+            sendResult,
+            provider: account.provider || ''
           });
           appendLog(
             campaign,
@@ -1060,7 +1063,8 @@ export async function startCampaignRunner(campaignId, options = {}) {
             status: failureStatus,
             stepNumber: currentStep,
             trackingId,
-            failureReason: error.message
+            failureReason: error.message,
+            provider: account.provider || ''
           });
           await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
           appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
@@ -1068,6 +1072,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
 
         campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
         campaign.totalRecipients = campaign.stats.total;
+        campaign.status = 'Running';
+        campaign.workerStatus = 'running';
+        campaign.queueReason = '';
         campaign.sentCount = campaign.stats.sent;
         campaign.pendingCount = campaign.stats.pending;
         campaign.failedCount = campaign.stats.failed;
@@ -1100,14 +1107,20 @@ export async function startCampaignRunner(campaignId, options = {}) {
           campaign.failureReason = campaign.failureReason || 'Credits finished';
           campaign.lastError = campaign.lastError || 'Credit limit reached';
           campaign.lastErrorAt = campaign.lastErrorAt || new Date();
+          campaign.lastRunError = campaign.lastError;
+          campaign.lastRunErrorAt = campaign.lastErrorAt;
           campaign.lastActivityAt = new Date();
           campaign.workerId = '';
+          campaign.workerLockedBy = '';
+          campaign.workerStatus = 'failed';
           campaign.workerLockedAt = null;
           campaign.workerHeartbeatAt = null;
           appendLog(campaign, 'Campaign failed: credit limit reached', 'error');
         } else {
           campaign.status = 'Stopped';
           campaign.workerId = '';
+          campaign.workerLockedBy = '';
+          campaign.workerStatus = 'stopped';
           campaign.workerLockedAt = null;
           campaign.workerHeartbeatAt = null;
           campaign.finishedAt = new Date();
@@ -1115,7 +1128,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
       } else {
         campaign.status = 'Completed';
         campaign.finishedAt = new Date();
+        campaign.completedAt = campaign.finishedAt;
         campaign.workerId = '';
+        campaign.workerLockedBy = '';
+        campaign.workerStatus = 'completed';
         campaign.workerLockedAt = null;
         campaign.workerHeartbeatAt = null;
         appendLog(campaign, 'Campaign completed');
@@ -1130,11 +1146,16 @@ export async function startCampaignRunner(campaignId, options = {}) {
       const transientFailure = isTransientInfrastructureError(error);
       campaign.status = transientFailure ? 'Queued' : 'Failed';
       campaign.workerId = '';
+      campaign.workerLockedBy = '';
+      campaign.workerStatus = transientFailure ? 'transient_requeued' : 'failed';
       campaign.workerLockedAt = null;
       campaign.workerHeartbeatAt = null;
       if (transientFailure) {
         campaign.queueRequestedAt = new Date();
+        campaign.queueReason = `Requeued after transient runner error: ${error.message}`;
       }
+      campaign.lastRunError = error.message;
+      campaign.lastRunErrorAt = new Date();
       appendLog(
         campaign,
         transientFailure

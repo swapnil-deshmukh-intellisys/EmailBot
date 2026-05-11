@@ -41,7 +41,7 @@ module.exports = {
         CAMPAIGN_WORKER_ID: 'aws-worker-1',
         CAMPAIGN_SCHEDULER_INTERVAL_MS: '5000',
         CAMPAIGN_WORKER_HEARTBEAT_MS: '15000',
-        CAMPAIGN_WORKER_LOCK_STALE_MS: '120000'
+        CAMPAIGN_WORKER_LOCK_STALE_MS: '300000'
       },
       out_file: path.join(appRoot, 'logs', 'worker.out.log'),
       error_file: path.join(appRoot, 'logs', 'worker.err.log'),

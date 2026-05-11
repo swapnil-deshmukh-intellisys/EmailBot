@@ -4,7 +4,8 @@ import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { getRunnerState, validateCampaignExecutionPreflight } from '@/lib/campaignRunner';
 import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import { computeCampaignDisplayStatus } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 
 const ROUTE_NAME = 'POST /api/campaigns/[id]/start';
 
@@ -33,54 +34,72 @@ function jsonError({
 
 function resetWorkerFields(campaign) {
   campaign.queueRequestedAt = null;
+  campaign.queueReason = '';
   campaign.workerLockedAt = null;
   campaign.workerHeartbeatAt = null;
   campaign.workerId = '';
+  campaign.workerLockedBy = '';
+  campaign.workerStatus = '';
   campaign.finishedAt = null;
 }
 
 export async function POST(req, { params }) {
-  const auth = await requireAuth(req);
-  if (auth.errorResponse) return auth.errorResponse;
-
-  const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '')
-    .trim()
-    .toLowerCase();
   const campaignId = String(params?.id || '').trim();
+  let userEmail = '';
 
-  if (!mongoose.isValidObjectId(campaignId)) {
-    return jsonError({
-      status: 400,
-      code: 'INVALID_CAMPAIGN_ID',
-      message: 'Invalid campaign id.',
-      campaignId,
-      userEmail
-    });
-  }
+  try {
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
 
-  await connectDB();
-  const campaign = await Campaign.findOne({ _id: campaignId, userEmail });
-  if (!campaign) {
-    return jsonError({
-      status: 404,
-      code: 'CAMPAIGN_NOT_FOUND',
-      message: 'Campaign not found for current user.',
-      campaignId,
-      userEmail
-    });
-  }
+    userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '')
+      .trim()
+      .toLowerCase();
 
-  if (campaign.status === 'Running') {
-    const runner = getRunnerState(String(campaign._id));
-    if (runner?.running) {
-      return NextResponse.json({ success: true, ok: true, started: false, message: 'Campaign is already running.' });
+    if (!mongoose.isValidObjectId(campaignId)) {
+      return jsonError({
+        status: 400,
+        code: 'INVALID_CAMPAIGN_ID',
+        message: 'Invalid campaign id.',
+        campaignId,
+        userEmail
+      });
     }
 
-    try {
+    await connectDB();
+    const campaign = await Campaign.findOne(buildAuthOwnerFilter(auth, { _id: campaignId }));
+    if (!campaign) {
+      return jsonError({
+        status: 404,
+        code: 'CAMPAIGN_NOT_FOUND',
+        message: 'Campaign not found for current user.',
+        campaignId,
+        userEmail
+      });
+    }
+
+    if (campaign.status === 'Running') {
+      const runner = getRunnerState(String(campaign._id));
+      if (runner?.running) {
+        return NextResponse.json({
+          success: true,
+          ok: true,
+          started: false,
+          status: campaign.status,
+          displayStatus: computeCampaignDisplayStatus(campaign),
+          workerStatus: campaign.workerStatus || '',
+          queueReason: '',
+          sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+          pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+          failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+          message: 'Campaign is already running.'
+        });
+      }
+
       await validateCampaignExecutionPreflight(campaign, { userEmail });
       campaign.status = 'Queued';
       resetWorkerFields(campaign);
       campaign.queueRequestedAt = new Date();
+      campaign.queueReason = 'Queued because no active worker was found for a Running campaign';
       campaign.logs.push({ level: 'info', message: 'Campaign re-queued because no active worker was found', at: new Date() });
       await campaign.save();
       await triggerCampaignSchedulerTick();
@@ -88,59 +107,53 @@ export async function POST(req, { params }) {
         success: true,
         ok: true,
         queued: true,
+        status: campaign.status,
+        displayStatus: computeCampaignDisplayStatus(campaign),
+        workerStatus: campaign.workerStatus || '',
+        queueReason: campaign.queueReason,
+        sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+        pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+        failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
         message: 'Campaign re-queued successfully.'
       });
-    } catch (error) {
-      return jsonError({
-        status: 400,
-        code: 'CAMPAIGN_PREFLIGHT_FAILED',
-        message: error.message || 'Failed to re-queue campaign.',
-        campaignId,
-        userEmail
-      });
-    }
-  }
-
-  const scheduleMode = String(campaign.scheduleMode || 'send_now').trim().toLowerCase();
-  const scheduledAt = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
-  const isScheduledFuture =
-    scheduleMode === 'scheduled' &&
-    scheduledAt instanceof Date &&
-    !Number.isNaN(scheduledAt.getTime()) &&
-    scheduledAt.getTime() > Date.now();
-
-  if (isScheduledFuture) {
-    try {
-      await validateCampaignExecutionPreflight(campaign, { userEmail });
-    } catch (error) {
-      return jsonError({
-        status: 400,
-        code: 'CAMPAIGN_PREFLIGHT_FAILED',
-        message: error.message || 'Campaign preflight validation failed.',
-        campaignId,
-        userEmail
-      });
     }
 
-    campaign.status = 'Scheduled';
-    resetWorkerFields(campaign);
-    campaign.logs.push({ level: 'info', message: 'Campaign kept scheduled until its scheduled time', at: new Date() });
-    await campaign.save();
-    await triggerCampaignSchedulerTick();
-    return NextResponse.json({
-      success: true,
-      ok: true,
-      scheduled: true,
-      started: false,
-      message: 'Campaign scheduled successfully.'
-    });
-  }
+    const scheduleMode = String(campaign.scheduleMode || 'send_now').trim().toLowerCase();
+    const scheduledAt = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
+    const isScheduledFuture =
+      scheduleMode === 'scheduled' &&
+      scheduledAt instanceof Date &&
+      !Number.isNaN(scheduledAt.getTime()) &&
+      scheduledAt.getTime() > Date.now();
 
-  try {
     await validateCampaignExecutionPreflight(campaign, { userEmail });
+
+    if (isScheduledFuture) {
+      campaign.status = 'Scheduled';
+      resetWorkerFields(campaign);
+      campaign.logs.push({ level: 'info', message: 'Campaign kept scheduled until its scheduled time', at: new Date() });
+      await campaign.save();
+      await triggerCampaignSchedulerTick();
+      return NextResponse.json({
+        success: true,
+        ok: true,
+        scheduled: true,
+        started: false,
+        status: campaign.status,
+        displayStatus: computeCampaignDisplayStatus(campaign),
+        workerStatus: campaign.workerStatus || '',
+        queueReason: '',
+        sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+        pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+        failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+        message: 'Campaign scheduled successfully.'
+      });
+    }
+
     campaign.status = 'Queued';
     resetWorkerFields(campaign);
     campaign.queueRequestedAt = new Date();
+    campaign.queueReason = 'Queued by user start request';
     campaign.logs.push({ level: 'info', message: 'Campaign queued for server worker', at: new Date() });
     await campaign.save();
     await triggerCampaignSchedulerTick();
@@ -148,13 +161,21 @@ export async function POST(req, { params }) {
       success: true,
       ok: true,
       queued: true,
+      status: campaign.status,
+      displayStatus: computeCampaignDisplayStatus(campaign),
+      workerStatus: campaign.workerStatus || '',
+      queueReason: campaign.queueReason,
+      sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+      pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+      failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
       message: 'Campaign queued successfully.'
     });
   } catch (error) {
+    const isValidationError = !error?.name || error.name === 'Error' || error.name === 'ValidationError';
     return jsonError({
-      status: 400,
-      code: 'CAMPAIGN_PREFLIGHT_FAILED',
-      message: error.message || 'Campaign preflight validation failed.',
+      status: error?.name === 'CastError' || isValidationError ? 400 : 500,
+      code: error?.name === 'CastError' ? 'INVALID_CAMPAIGN_ID' : isValidationError ? 'CAMPAIGN_PREFLIGHT_FAILED' : 'CAMPAIGN_START_FAILED',
+      message: error.message || 'Campaign start failed.',
       campaignId,
       userEmail
     });

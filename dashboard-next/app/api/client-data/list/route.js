@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeText(value = '') {
@@ -52,9 +52,7 @@ export async function GET(req) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
 
-    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-    const query = role === 'admin' ? {} : { userEmail };
+    const query = buildAuthOwnerFilter(auth);
 
     const projection = [
       'name',

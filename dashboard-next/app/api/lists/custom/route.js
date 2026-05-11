@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeLeadRow(row = {}) {
@@ -17,8 +17,9 @@ function normalizeLeadRow(row = {}) {
 }
 
 export async function POST(req) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
+  const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
   await connectDB();
 
   const body = await req.json().catch(() => ({}));
@@ -43,6 +44,7 @@ export async function POST(req) {
       }));
 
   const list = await LeadList.create({
+    userId: auth.currentUser?._id || null,
     userEmail,
     name,
     sourceFile,

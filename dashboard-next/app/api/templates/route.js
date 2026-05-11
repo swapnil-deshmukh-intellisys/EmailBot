@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailTemplate from '@/models/EmailTemplate';
-import { requireAuth, requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 function shouldUseDemoData() {
   return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
@@ -21,12 +21,13 @@ async function ensureDefaultTemplate(userEmail) {
 
 export async function GET(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
     await connectDB();
     await ensureDefaultTemplate(userEmail);
 
-    const templates = await EmailTemplate.find({ userEmail }).sort({ createdAt: -1 }).lean();
+    const templates = await EmailTemplate.find(buildAuthOwnerFilter(auth)).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ templates });
   } catch (error) {
     const errorMessage = error.message || 'Failed to load templates';

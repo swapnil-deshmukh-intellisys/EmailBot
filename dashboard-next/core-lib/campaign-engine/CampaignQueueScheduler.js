@@ -15,49 +15,56 @@ const schedulerState =
     lastError: '',
     recoveredCount: 0
   });
-const WORKER_LOCK_STALE_MS = Math.max(30000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 120000));
+const WORKER_LOCK_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 10 * 60 * 1000));
 
 async function recoverStaleCampaigns(now = new Date()) {
   const staleBefore = new Date(now.getTime() - WORKER_LOCK_STALE_MS);
   const staleCampaigns = await Campaign.find({
     status: 'Running',
     $or: [
-      { workerLockedAt: null },
-      { workerLockedAt: { $lt: staleBefore } },
-      { workerHeartbeatAt: null },
-      { workerHeartbeatAt: { $lt: staleBefore } }
+      { workerHeartbeatAt: { $lt: staleBefore } },
+      { workerHeartbeatAt: null, workerLockedAt: { $lt: staleBefore } },
+      { workerHeartbeatAt: null, workerLockedAt: null }
     ]
   })
-    .select('_id')
+    .select('_id sentCount pendingCount workerStatus workerLockedAt workerHeartbeatAt')
     .lean();
 
   for (const campaign of staleCampaigns) {
     const id = String(campaign._id);
     if (schedulerState.inFlight.has(id)) continue;
 
+    const staleForMs = Math.max(
+      0,
+      now.getTime() - new Date(campaign.workerHeartbeatAt || campaign.workerLockedAt || 0).getTime()
+    );
+    const staleMinutes = Math.max(1, Math.round(staleForMs / 60000));
+    const queueReason = `Requeued because worker heartbeat stale for ${staleMinutes} minutes`;
     await Campaign.updateOne(
       {
         _id: campaign._id,
         status: 'Running',
         $or: [
-          { workerLockedAt: null },
-          { workerLockedAt: { $lt: staleBefore } },
-          { workerHeartbeatAt: null },
-          { workerHeartbeatAt: { $lt: staleBefore } }
+          { workerHeartbeatAt: { $lt: staleBefore } },
+          { workerHeartbeatAt: null, workerLockedAt: { $lt: staleBefore } },
+          { workerHeartbeatAt: null, workerLockedAt: null }
         ]
       },
       {
         $set: {
           status: 'Queued',
           queueRequestedAt: now,
+          queueReason,
+          workerStatus: 'stale_requeued',
           workerId: '',
+          workerLockedBy: '',
           workerLockedAt: null,
           workerHeartbeatAt: null
         },
         $push: {
           logs: {
             level: 'info',
-            message: 'Campaign re-queued after stale worker lock recovery',
+            message: queueReason,
             at: now
           }
         }

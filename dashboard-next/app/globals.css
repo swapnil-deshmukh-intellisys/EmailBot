@@ -3408,22 +3408,6 @@ p { margin: 0; color: var(--muted); }
   font-weight: 800;
 }
 
-.premium-workflow-refresh,
-.premium-step-card .premium-step-refresh {
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: rgba(255, 255, 255, 0.82);
-  color: #0f172a;
-  cursor: pointer;
-  font-weight: 900;
-}
-
-.premium-workflow-refresh {
-  min-height: 28px;
-  padding: 0 10px;
-  font-size: 11px;
-}
-
 .premium-step-card {
   display: grid;
   gap: 8px;
@@ -3477,17 +3461,6 @@ p { margin: 0; color: var(--muted); }
   align-items: center;
   justify-content: center;
   text-decoration: none;
-}
-
-.premium-step-card .premium-step-refresh {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  min-height: 28px;
-  padding: 0;
-  z-index: 2;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
 }
 
 .premium-step-action-1 {
@@ -18974,19 +18947,6 @@ html[data-theme='dark'] .campaign-mail-cell-ok {
   }
 }
 
-.premium-dashboard-shell .premium-step-card .premium-step-refresh {
-  width: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0;
-}
-
-html[data-theme='dark'] .premium-workflow-refresh,
-html[data-theme='dark'] .premium-step-card .premium-step-refresh {
-  border-color: rgba(148, 163, 184, 0.36);
-  background: rgba(15, 23, 42, 0.72);
-  color: #f8fafc;
-}
 .master-mail-page {
   min-height: calc(100vh - 92px);
   padding: 18px;

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
-import { requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
 
 export async function PATCH(req, { params }) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
     const { category, title, subject, body, sector, domain } = await req.json();
@@ -19,7 +19,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
     const draft = await EmailDraft.findOneAndUpdate(
-      { _id: id, userEmail },
+      buildAuthOwnerFilter(auth, { _id: id }),
       {
         category,
         title,
@@ -41,11 +41,11 @@ export async function PATCH(req, { params }) {
 
 export async function DELETE(req, { params }) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const draft = await EmailDraft.findOneAndDelete({ _id: id, userEmail });
+    const draft = await EmailDraft.findOneAndDelete(buildAuthOwnerFilter(auth, { _id: id }));
     if (!draft) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }

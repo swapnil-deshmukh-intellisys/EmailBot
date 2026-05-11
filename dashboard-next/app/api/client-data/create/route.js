@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 function normalizeText(value = '') {
   return String(value ?? '').trim();
@@ -24,16 +24,13 @@ export async function POST(req) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
 
-    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-
     const body = await req.json().catch(() => ({}));
     const sourceListId = normalizeText(body?.sourceListId);
     if (!sourceListId) {
       return NextResponse.json({ ok: false, error: 'sourceListId is required' }, { status: 400 });
     }
 
-    const query = role === 'admin' ? { _id: sourceListId } : { _id: sourceListId, userEmail };
+    const query = buildAuthOwnerFilter(auth, { _id: sourceListId });
     const list = await LeadList.findOne(query);
     if (!list) {
       return NextResponse.json({ ok: false, error: 'List not found' }, { status: 404 });

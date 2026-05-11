@@ -254,7 +254,7 @@ export async function getOrCreateSubscriptionSummary(userEmail = '', user = null
       status,
       warningLevel: getUsageTone(usagePercentage),
       dailyWarningLevel: getUsageTone(dailyUsagePercentage),
-      sendingDisabled: status !== 'active' || remainingCredits <= 0 || dailyRemainingCredits <= 0
+      sendingDisabled: status !== 'active' || dailyRemainingCredits <= 0
     }
   };
 }
@@ -421,7 +421,7 @@ export async function upgradeSubscriptionPlan(userEmail = '', user = null, reque
       status: 'active',
       warningLevel: getUsageTone(usagePercentage),
       dailyWarningLevel: getUsageTone(dailyUsagePercentage),
-      sendingDisabled: remainingCredits <= 0 || dailyRemainingCredits <= 0
+      sendingDisabled: dailyRemainingCredits <= 0
     }
   };
 }
@@ -586,7 +586,7 @@ export async function updateSubscriptionLimitsForAdmin(userEmail = '', adminUser
       pendingUpgradeRequestId: null,
       warningLevel: getUsageTone(usagePercentage),
       dailyWarningLevel: getUsageTone(dailyUsagePercentage),
-      sendingDisabled: remainingCredits <= 0 || remainingToday <= 0
+      sendingDisabled: remainingToday <= 0
     }
   };
 }

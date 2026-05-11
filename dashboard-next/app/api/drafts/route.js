@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
-import { requireAuth, requireUser } from '@/lib/apiAuth';
-import { isAdminUserEmail } from '@/lib/auth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
 function shouldUseDevFallback() {
@@ -11,11 +10,10 @@ function shouldUseDevFallback() {
 
 export async function GET(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
-    const scope = req.nextUrl.searchParams.get('scope');
-    const query = scope === 'all' && isAdminUserEmail(userEmail) ? {} : { userEmail };
+    const query = buildAuthOwnerFilter(auth);
     const drafts = await EmailDraft.find(query).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ drafts });
   } catch (error) {

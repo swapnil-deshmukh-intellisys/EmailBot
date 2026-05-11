@@ -35,6 +35,21 @@ function loadEnvFromFile() {
 
 loadEnvFromFile();
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[CAMPAIGN_WORKER_UNHANDLED_REJECTION]', {
+    message: reason?.message || String(reason || 'Unknown rejection'),
+    stack: reason?.stack || ''
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[CAMPAIGN_WORKER_UNCAUGHT_EXCEPTION]', {
+    message: error?.message || 'Unknown exception',
+    stack: error?.stack || ''
+  });
+  process.exit(1);
+});
+
 process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER = 'true';
 process.env.CAMPAIGN_WORKER_ID =
   String(process.env.CAMPAIGN_WORKER_ID || `aws-worker-${process.pid}`).trim() || `aws-worker-${process.pid}`;

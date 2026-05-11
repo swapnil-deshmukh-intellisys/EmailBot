@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
 function normalizeEmail(raw) {
   return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
@@ -14,8 +14,8 @@ function parseDateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getListQuery({ role, listId, userEmail }) {
-  return role === 'admin' ? { _id: listId } : { _id: listId, userEmail };
+function getListQuery(auth, listId) {
+  return buildAuthOwnerFilter(auth, { _id: listId });
 }
 
 function applyLeadPatch(lead, patch = {}) {
@@ -77,9 +77,6 @@ export async function PATCH(req) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
 
-    const role = String(auth.currentUser?.role || auth.session?.role || 'user').toLowerCase();
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || '').toLowerCase();
-
     const body = await req.json().catch(() => ({}));
     const updates = Array.isArray(body?.updates) ? body.updates : [];
     if (!updates.length) {
@@ -98,7 +95,7 @@ export async function PATCH(req) {
 
     const touched = [];
     for (const [listId, items] of byList.entries()) {
-      const list = await LeadList.findOne(getListQuery({ role, listId, userEmail }));
+      const list = await LeadList.findOne(getListQuery(auth, listId));
       if (!list) continue;
       for (const item of items) {
         const lead = Array.isArray(list.leads) ? list.leads[item.leadIndex] : null;

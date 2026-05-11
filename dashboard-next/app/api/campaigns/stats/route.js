@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import connectDB from '@/lib/mongodb';
-import { requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import Campaign from '@/models/Campaign';
 import {
   buildCampaignCounts,
@@ -15,25 +15,26 @@ function escapeRegex(value = '') {
 
 export async function GET(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
 
     await connectDB();
 
-    const query = { userEmail };
+    const filters = {};
     const url = new URL(req.url);
     const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
     const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
 
-    if (project) query.project = project;
+    if (project) filters.project = project;
     if (sender) {
       const senderRegex = new RegExp(`^${escapeRegex(sender)}$`, 'i');
-      query.$or = [
+      filters.$or = [
         { senderFrom: senderRegex },
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
       ];
     }
+    const query = buildAuthOwnerFilter(auth, filters);
 
     const campaigns = await Campaign.find(query).select('status listId templateId inlineTemplate senderAccountId senderFrom senderAccount stats').lean();
     const counts = buildCampaignCounts(campaigns);

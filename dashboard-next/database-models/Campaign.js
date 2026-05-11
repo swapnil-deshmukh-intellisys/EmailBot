@@ -118,16 +118,25 @@ const CampaignSchema = new mongoose.Schema(
       at: { type: Date, default: null }
     },
     queueRequestedAt: { type: Date, default: null, index: true },
+    queueReason: { type: String, default: '' },
+    workerStatus: { type: String, default: '' },
+    workerLockedBy: { type: String, default: '' },
     workerId: { type: String, default: '' },
     workerLockedAt: { type: Date, default: null },
     workerHeartbeatAt: { type: Date, default: null },
+    lastRunError: { type: String, default: '' },
+    lastRunErrorAt: { type: Date, default: null },
     startedAt: Date,
-    finishedAt: Date
+    finishedAt: Date,
+    completedAt: Date
   },
   { timestamps: true }
 );
 
 CampaignSchema.index({ userId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, status: 1 });
+CampaignSchema.index({ status: 1 });
+CampaignSchema.index({ createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
 CampaignSchema.index({ userEmail: 1, lastActivityAt: -1 });

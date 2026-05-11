@@ -29,5 +29,7 @@ const SenderAccountSchema = new mongoose.Schema(
 );
 
 SenderAccountSchema.index({ userId: 1, createdAt: -1 });
+SenderAccountSchema.index({ userId: 1, from: 1 });
+SenderAccountSchema.index({ userEmail: 1, from: 1 });
 
 export default mongoose.models.SenderAccount || mongoose.model('SenderAccount', SenderAccountSchema);

@@ -15,6 +15,7 @@ const ActivityLogSchema = new mongoose.Schema(
 );
 
 ActivityLogSchema.index({ userEmail: 1, createdAt: -1 });
+ActivityLogSchema.index({ userId: 1, createdAt: -1 });
 ActivityLogSchema.index({ actorEmail: 1, createdAt: -1 });
 
 export default mongoose.models.ActivityLog || mongoose.model('ActivityLog', ActivityLogSchema);

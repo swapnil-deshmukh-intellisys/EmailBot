@@ -5,6 +5,7 @@ import AppLayout from '@/app/components/layout/AppLayout';
 import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
+import { apiFetchJson } from '@/app/lib/apiClient';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const EMPTY_COUNTS = {
@@ -66,7 +67,7 @@ function hasRequiredCampaignData(campaign = {}) {
 }
 
 function normalizeCampaignStatusBucket(campaign = {}) {
-  const status = normalizeText(campaign?.status || 'Draft');
+  const status = normalizeText(getDisplayStatus(campaign));
   if (status === 'running') return 'running';
   if (status === 'paused') return 'paused';
   if (status === 'failed') return 'failed';
@@ -77,9 +78,24 @@ function normalizeCampaignStatusBucket(campaign = {}) {
 }
 
 function getDisplayStatus(campaign = {}) {
-  const status = String(campaign?.status || '').trim();
-  if (status) return status;
-  return 'Draft';
+  const displayStatus = String(campaign?.displayStatus || '').trim();
+  if (displayStatus) return displayStatus;
+
+  const status = normalizeText(campaign?.status || '');
+  const workerStatus = normalizeText(campaign?.workerStatus || '');
+  const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+  const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? 0);
+
+  if (['paused', 'stopped', 'failed', 'completed'].includes(status)) {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+  if (workerStatus === 'running') return 'Running';
+  if (sent > 0 && pending > 0) return 'Running';
+  if (status === 'queued' && sent === 0) return 'Queued';
+  if (status === 'running') return 'Running';
+
+  const rawStatus = String(campaign?.status || '').trim();
+  return rawStatus || 'Draft';
 }
 
 function formatDateTime(value) {
@@ -125,6 +141,7 @@ function getCampaignName(value = {}, fallback = 'Untitled campaign') {
 }
 
 function getFailureReason(campaign = {}) {
+  if (getDisplayStatus(campaign) === 'Queued' && campaign.queueReason) return campaign.queueReason;
   return campaign.failureReason || campaign.lastError || '-';
 }
 
@@ -360,9 +377,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
     try {
       if (silent) setRefreshing(true);
       if (!silent) setLoading(true);
-      const response = await fetch(`/api/campaigns/${campaignId}`, { cache: 'no-store' });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.success === false) throw new Error(getApiMessage(data, 'Unable to load campaign details'));
+      const data = await apiFetchJson(`/api/campaigns/${campaignId}`);
       setDetail(data);
       setError('');
     } catch (err) {
@@ -382,15 +397,14 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
   const syncReplies = async () => {
     setNotice('');
     setError('');
-    const response = await fetch(`/api/campaigns/${campaignId}/sync-replies`, { method: 'POST' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.success === false) {
-      setError(getApiMessage(data, 'Reply sync failed'));
-      return;
+    try {
+      const data = await apiFetchJson(`/api/campaigns/${campaignId}/sync-replies`, { method: 'POST' });
+      setNotice(data.message || 'Replies synced.');
+      await loadDetail({ silent: true });
+      onActionCompleted?.();
+    } catch (err) {
+      setError(err.message || 'Reply sync failed');
     }
-    setNotice(data.message || 'Replies synced.');
-    await loadDetail({ silent: true });
-    onActionCompleted?.();
   };
 
   const copyTable = async () => {
@@ -438,7 +452,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
         {!loading ? (
           <>
             <div className="dashboard-subscription-modal-grid">
-              <article><span>Status</span><strong>{campaign.status || '-'}</strong></article>
+              <article><span>Status</span><strong>{getDisplayStatus(campaign)}</strong></article>
               <article><span>Total recipients</span><strong>{Number(campaign.stats?.total || campaign.totalRecipients || recipients.length || 0).toLocaleString()}</strong></article>
               <article><span>Sent</span><strong>{Number(campaign.stats?.sent || campaign.sentCount || 0).toLocaleString()}</strong></article>
               <article><span>Pending</span><strong>{Number(campaign.stats?.pending || campaign.pendingCount || 0).toLocaleString()}</strong></article>
@@ -581,12 +595,7 @@ export default function CampaignsPage() {
       if (silent) setRefreshing(true);
       if (!silent) setLoading(true);
 
-      const response = await fetch('/api/campaigns', { cache: 'no-store' });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data?.success === false) {
-        throw new Error(getApiMessage(data, 'Unable to fetch campaigns'));
-      }
+      const data = await apiFetchJson('/api/campaigns');
 
       setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
       setCounts({ ...EMPTY_COUNTS, ...(data?.counts || {}) });
@@ -673,20 +682,12 @@ export default function CampaignsPage() {
 
     if (nextStatus) {
       setCampaigns((items) =>
-        items.map((item) => (item._id === campaignId ? { ...item, status: nextStatus } : item))
+        items.map((item) => (item._id === campaignId ? { ...item, status: nextStatus, displayStatus: nextStatus } : item))
       );
     }
 
     try {
-      const response = await fetch(`/api/campaigns/${campaignId}/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data?.success === false || data?.ok === false) {
-        throw new Error(getApiMessage(data, `${ACTION_LABELS[action]} campaign failed.`));
-      }
+      const data = await apiFetchJson(`/api/campaigns/${campaignId}/${action}`, { method: 'POST' });
 
       setNotice(getApiMessage(data, `${ACTION_LABELS[action]} request completed.`));
       await loadCampaigns({ silent: true });

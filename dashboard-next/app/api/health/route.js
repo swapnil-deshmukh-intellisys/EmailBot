@@ -4,6 +4,8 @@ import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { getCampaignSchedulerState } from '@/lib/campaignScheduler';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await connectDB();
@@ -20,6 +22,8 @@ export async function GET() {
     return NextResponse.json({
       status: 'healthy',
       service: 'intellimailpilot-web',
+      version: process.env.npm_package_version || '1.0.0',
+      buildTime: process.env.NEXT_PUBLIC_BUILD_TIME || process.env.BUILD_TIME || null,
       database: {
         connected: mongoose.connection.readyState === 1,
         readyState: mongoose.connection.readyState

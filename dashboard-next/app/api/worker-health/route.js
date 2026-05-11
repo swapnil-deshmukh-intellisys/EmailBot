@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 
-const WORKER_LOCK_STALE_MS = Math.max(30000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 120000));
+export const dynamic = 'force-dynamic';
+
+const WORKER_LOCK_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 5 * 60 * 1000));
 
 export async function GET() {
   try {
@@ -24,6 +26,9 @@ export async function GET() {
 
     return NextResponse.json({
       status: staleRunning > 0 ? 'degraded' : 'healthy',
+      service: 'intellimailpilot-worker',
+      version: process.env.npm_package_version || '1.0.0',
+      buildTime: process.env.NEXT_PUBLIC_BUILD_TIME || process.env.BUILD_TIME || null,
       queue: {
         queued,
         running,

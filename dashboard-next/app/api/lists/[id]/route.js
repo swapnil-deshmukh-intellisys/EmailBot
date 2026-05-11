@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
-import { requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeEmail(raw) {
@@ -18,10 +18,11 @@ function normalizeEmail(raw) {
 
 export async function GET(req, { params }) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
-    const list = await LeadList.findOne({ _id: params.id, userEmail }).lean();
+    const query = buildAuthOwnerFilter(auth, { _id: params.id });
+    const list = await LeadList.findOne(query).lean();
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
@@ -57,11 +58,12 @@ export async function GET(req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
   await connectDB();
 
-  const list = await LeadList.findOne({ _id: params.id, userEmail });
+  const query = buildAuthOwnerFilter(auth, { _id: params.id });
+  const list = await LeadList.findOne(query);
   if (!list) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }
@@ -133,10 +135,11 @@ export async function PATCH(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
   await connectDB();
-  const deleted = await LeadList.findOneAndDelete({ _id: params.id, userEmail });
+  const query = buildAuthOwnerFilter(auth, { _id: params.id });
+  const deleted = await LeadList.findOneAndDelete(query);
   if (!deleted) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }

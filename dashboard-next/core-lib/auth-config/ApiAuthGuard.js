@@ -167,9 +167,20 @@ export async function requireAdmin(req) {
 export function buildOwnerFilter(user = null, extra = {}) {
   const userId = String(user?._id || '').trim();
   const userEmail = normalizeUserEmail(user?.email || user?.identifier || '');
+  const intellisysUserId = normalizeUserEmail(user?.intellisysUserId || user?.employeeId || user?.identifier || '');
   const or = [];
-  if (userId) or.push({ userId });
+  if (userId) {
+    or.push({ userId });
+    or.push({ ownerId: userId });
+    or.push({ createdBy: userId });
+  }
   if (userEmail) or.push({ userEmail });
-  if (!or.length) return extra;
-  return { ...extra, $or: or };
+  if (intellisysUserId) or.push({ intellisysUserId });
+  const ownerFilter = or.length ? { $or: or } : { _id: null };
+  if (!extra || !Object.keys(extra).length) return ownerFilter;
+  return { $and: [ownerFilter, extra] };
+}
+
+export function buildAuthOwnerFilter(auth = null, extra = {}) {
+  return buildOwnerFilter(auth?.currentUser || auth?.session || null, extra);
 }

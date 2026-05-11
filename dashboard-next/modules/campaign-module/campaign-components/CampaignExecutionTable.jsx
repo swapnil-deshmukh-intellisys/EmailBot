@@ -25,6 +25,20 @@ function CampaignTable({
   onDelete,
   emptyText
 }) {
+  const getDisplayStatus = (campaign = {}) => {
+    const displayStatus = String(campaign.displayStatus || '').trim();
+    if (displayStatus) return displayStatus;
+    const rawStatus = String(campaign.status || '').trim();
+    const status = rawStatus.toLowerCase();
+    const workerStatus = String(campaign.workerStatus || '').trim().toLowerCase();
+    const sent = Number(campaign.sentCount ?? campaign.stats?.sent ?? 0);
+    const pending = Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0);
+
+    if (workerStatus === 'running') return 'Running';
+    if (sent > 0 && pending > 0 && !['paused', 'stopped', 'failed', 'completed'].includes(status)) return 'Running';
+    return rawStatus || 'Draft';
+  };
+
   return (
     <Card className="ui-panel-card" id={title === 'Campaigns' ? 'campaigns-panel' : undefined}>
       <CardHeader className="ui-panel-card-header">
@@ -103,7 +117,7 @@ function CampaignTable({
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell><StatusBadge status={campaign.status} /></TableCell>
+                    <TableCell><StatusBadge status={getDisplayStatus(campaign)} /></TableCell>
                     <TableCell>
                       <div className="progress"><div style={{ width: `${percent}%` }} /></div>
                       <small>{percent}%</small>

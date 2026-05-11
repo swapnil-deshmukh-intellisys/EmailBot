@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import Campaign from '../../database-models/Campaign.js';
 import CampaignRecipientLog from '../../database-models/CampaignRecipientLog.js';
 import LeadList from '../../database-models/LeadList.js';
+import { computeCampaignDisplayStatus } from './CampaignStatusSummary.js';
 
 export function normalizeEmail(value = '') {
   return String(value || '').trim().toLowerCase();
@@ -198,7 +199,7 @@ export function deriveCampaignReason(campaign = {}) {
 }
 
 export function getSafeActions(campaign = {}) {
-  const status = String(campaign.status || 'Draft').toLowerCase();
+  const status = String(computeCampaignDisplayStatus(campaign) || 'Draft').toLowerCase();
   return {
     canView: true,
     canStart: ['draft', 'queued', 'scheduled', 'failed', 'stopped'].includes(status),
@@ -211,18 +212,20 @@ export function getSafeActions(campaign = {}) {
 
 export function serializeCampaignForList(campaign = {}, recipientLogs = []) {
   const logs = Array.isArray(recipientLogs) ? recipientLogs : [];
-  const openCount = logs.reduce((sum, item) => sum + Number(item.openCount || 0), 0);
-  const replyCount = logs.reduce((sum, item) => sum + Number(item.replyCount || 0), 0);
-  const positiveReplyCount = logs.filter((item) => item.replyType === 'positive').length;
-  const negativeReplyCount = logs.filter((item) => item.replyType === 'negative' || item.replyType === 'unsubscribe').length;
-  const followUpStoppedCount = logs.filter((item) => item.followUpStopped).length;
-  const lastActivityAt = logs
+  const summaryLog = logs.find((item) => item?.__summary);
+  const openCount = summaryLog ? Number(summaryLog.openCount || 0) : logs.reduce((sum, item) => sum + Number(item.openCount || 0), 0);
+  const replyCount = summaryLog ? Number(summaryLog.replyCount || 0) : logs.reduce((sum, item) => sum + Number(item.replyCount || 0), 0);
+  const positiveReplyCount = summaryLog ? Number(summaryLog.positiveReplyCount || 0) : logs.filter((item) => item.replyType === 'positive').length;
+  const negativeReplyCount = summaryLog ? Number(summaryLog.negativeReplyCount || 0) : logs.filter((item) => item.replyType === 'negative' || item.replyType === 'unsubscribe').length;
+  const followUpStoppedCount = summaryLog ? Number(summaryLog.followUpStoppedCount || 0) : logs.filter((item) => item.followUpStopped).length;
+  const lastActivityAt = summaryLog?.lastActivityAt || logs
     .map((item) => item.lastActivityAt || item.updatedAt || item.createdAt)
     .filter(Boolean)
     .sort((a, b) => new Date(b) - new Date(a))[0] || campaign.lastActivityAt || campaign.updatedAt || campaign.createdAt || null;
   return {
     ...campaign,
     _id: String(campaign._id),
+    displayStatus: computeCampaignDisplayStatus(campaign),
     projectName: normalizeProjectName(campaign.projectName || campaign.project || ''),
     projectId: campaign.projectId || campaign.project || '',
     openCount: Number(campaign.openCount || campaign.trackingStats?.openCount || openCount),
@@ -259,6 +262,18 @@ export function buildTimeline(campaign = {}, recipientLogs = []) {
 
 export async function refreshCampaignRollups(campaignId) {
   const logs = await CampaignRecipientLog.find({ campaignId }).lean();
+  const campaign = await Campaign.findById(campaignId).select('totalRecipients stats').lean();
+  const totalRecipients = Math.max(
+    Number(campaign?.totalRecipients || 0),
+    Number(campaign?.stats?.total || 0),
+    logs.length
+  );
+  const sentCount = logs.filter((item) => String(item.status || '').toLowerCase() === 'sent').length;
+  const failedCount = logs.filter((item) => ['failed', 'bounced', 'spam'].includes(String(item.status || '').toLowerCase())).length;
+  const bouncedCount = logs.filter((item) => String(item.status || '').toLowerCase() === 'bounced').length;
+  const spamCount = logs.filter((item) => String(item.status || '').toLowerCase() === 'spam').length;
+  const skippedCount = logs.filter((item) => String(item.status || '').toLowerCase() === 'skipped' || item.followUpStopped).length;
+  const pendingCount = Math.max(0, totalRecipients - sentCount - failedCount - skippedCount);
   const openCount = logs.reduce((sum, item) => sum + Number(item.openCount || 0), 0);
   const replyCount = logs.reduce((sum, item) => sum + Number(item.replyCount || 0), 0);
   const positiveReplyCount = logs.filter((item) => item.replyType === 'positive').length;
@@ -274,6 +289,18 @@ export async function refreshCampaignRollups(campaignId) {
       $set: {
         openCount,
         replyCount,
+        totalRecipients,
+        sentCount,
+        pendingCount,
+        failedCount,
+        skippedCount,
+        bouncedCount,
+        'stats.total': totalRecipients,
+        'stats.sent': sentCount,
+        'stats.failed': failedCount,
+        'stats.bounced': bouncedCount,
+        'stats.spam': spamCount,
+        'stats.pending': pendingCount,
         positiveReplyCount,
         negativeReplyCount,
         followUpStoppedCount,

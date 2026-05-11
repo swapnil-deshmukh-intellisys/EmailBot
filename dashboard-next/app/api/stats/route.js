@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
-import { requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
@@ -50,8 +50,9 @@ function getStatsCache() {
 
 export async function GET(req) {
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').toLowerCase();
     const cache = getStatsCache();
     const cacheKey = `${userEmail}::${req.url}`;
     const now = Date.now();
@@ -68,9 +69,10 @@ export async function GET(req) {
     const selectedRange = String(url.searchParams.get('range') || '').trim();
     const customStartDate = String(url.searchParams.get('startDate') || '').trim();
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
+    const ownerQuery = buildAuthOwnerFilter(auth);
     const [lists, campaigns] = await Promise.all([
-      LeadList.find({ userEmail }).sort({ createdAt: -1 }).lean(),
-      Campaign.find({ userEmail }).sort({ createdAt: -1 }).lean()
+      LeadList.find(ownerQuery).sort({ createdAt: -1 }).lean(),
+      Campaign.find(ownerQuery).sort({ createdAt: -1 }).lean()
     ]);
 
     let total = 0;

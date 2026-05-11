@@ -14,6 +14,7 @@ const StepLogSchema = new mongoose.Schema(
     messageId: { type: String, default: '' },
     internetMessageId: { type: String, default: '' },
     conversationId: { type: String, default: '' },
+    provider: { type: String, default: '' },
     trackingId: { type: String, default: '' }
   },
   { _id: false }
@@ -28,6 +29,8 @@ const CampaignRecipientLogSchema = new mongoose.Schema(
     projectId: { type: String, default: '' },
     projectName: { type: String, default: '' },
     recipientId: { type: String, default: '' },
+    recipientEmail: { type: String, default: '' },
+    recipientName: { type: String, default: '' },
     clientName: { type: String, default: '' },
     email: { type: String, required: true, index: true },
     company: { type: String, default: '' },
@@ -37,9 +40,12 @@ const CampaignRecipientLogSchema = new mongoose.Schema(
     totalSteps: { type: Number, default: 5 },
     sentCount: { type: Number, default: 0 },
     failedCount: { type: Number, default: 0 },
+    pendingCount: { type: Number, default: 0 },
+    skippedCount: { type: Number, default: 0 },
     openCount: { type: Number, default: 0 },
     replyCount: { type: Number, default: 0 },
     lastSentAt: { type: Date, default: null },
+    lastFailedAt: { type: Date, default: null },
     lastOpenedAt: { type: Date, default: null },
     firstOpenedAt: { type: Date, default: null },
     lastReplyAt: { type: Date, default: null },
@@ -60,7 +66,10 @@ const CampaignRecipientLogSchema = new mongoose.Schema(
 );
 
 CampaignRecipientLogSchema.index({ campaignId: 1, email: 1 }, { unique: true });
+CampaignRecipientLogSchema.index({ userId: 1, campaignId: 1 });
 CampaignRecipientLogSchema.index({ campaignId: 1, status: 1, lastActivityAt: -1 });
+CampaignRecipientLogSchema.index({ campaignId: 1, recipientEmail: 1 });
 CampaignRecipientLogSchema.index({ 'stepLogs.trackingId': 1 });
+CampaignRecipientLogSchema.index({ trackingId: 1 });
 
 export default mongoose.models.CampaignRecipientLog || mongoose.model('CampaignRecipientLog', CampaignRecipientLogSchema);

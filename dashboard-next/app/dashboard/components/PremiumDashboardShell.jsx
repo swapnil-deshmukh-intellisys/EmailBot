@@ -38,7 +38,7 @@ function MetricCard({ item }) {
   );
 }
 
-function WorkflowStep({ step, isLast, status = 'pending', onAction, onRefresh, selectedDraftType, onSelectedDraftTypeChange }) {
+function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraftType, onSelectedDraftTypeChange }) {
   const isDraftStep = Number(step?.index) === 4;
   const isOverviewStep = Number(step?.index) === 2;
   const stepLabels = {
@@ -110,19 +110,6 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, onRefresh, s
           {step.action}
         </button>
       )}
-      <button
-        type="button"
-        className="premium-step-refresh"
-        title={`Refresh ${step.title}`}
-        aria-label={`Refresh ${step.title}`}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onRefresh?.(step);
-        }}
-      >
-        ↻
-      </button>
     </article>
   );
 }
@@ -389,8 +376,6 @@ export default function PremiumDashboardShell({
   reportMetricCards,
   dailyMailCounts = [],
   workflowSteps,
-  onRefreshWorkflow,
-  initialWorkflowStep = 0,
   totalTrackedMails,
   notificationCards,
   timelineCards,
@@ -473,7 +458,6 @@ export default function PremiumDashboardShell({
   targetApprovalRequestNote = ''
 }) {
   const router = useRouter();
-  const lastOpenedInitialWorkflowStepRef = useRef('');
   const scheduleCountries = {
     USA: ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'],
     UK: ['Europe/London'],
@@ -1924,23 +1908,6 @@ export default function PremiumDashboardShell({
     setShowSchedulePopup(true);
   };
 
-  useEffect(() => {
-    const requestedStep = Number(initialWorkflowStep || 0);
-    if (!requestedStep) return;
-    const step = Math.max(1, Math.min(7, requestedStep));
-
-    const key = String(step);
-    if (lastOpenedInitialWorkflowStepRef.current === key) return;
-    lastOpenedInitialWorkflowStepRef.current = key;
-
-    const timer = window.setTimeout(() => {
-      openWorkflowStep(step);
-      onShowMessage?.(`Opened campaign workflow step ${step}.`, 'info');
-    }, 150);
-
-    return () => window.clearTimeout(timer);
-  }, [initialWorkflowStep]);
-
   const resumeCampaignDraft = (campaign) => {
     if (!campaign) return;
     onCampaignNameChange?.(String(campaign.name || ''));
@@ -2040,14 +2007,6 @@ export default function PremiumDashboardShell({
     onShowMessage?.(`Added ${label} filter option.`, 'success');
   };
 
-  const handleWorkflowRefresh = async (step = null) => {
-    const stepLabel = step?.title ? ` ${step.title}` : '';
-    const refreshed = await onRefreshWorkflow?.(step ? `step-${step.index}` : 'all');
-    if (refreshed !== false) {
-      onShowMessage?.(`Refreshed${stepLabel || ' dashboard'}.`, 'success');
-    }
-  };
-
   return (
     <section className="premium-dashboard-shell">
       <div className="premium-kpi-row">
@@ -2064,15 +2023,6 @@ export default function PremiumDashboardShell({
         >
           <div className="premium-workflow-title">
             <h3>Campaign Workflow</h3>
-            <button
-              type="button"
-              className="premium-workflow-refresh"
-              onClick={() => handleWorkflowRefresh(null)}
-              title="Refresh campaign workflow"
-              aria-label="Refresh campaign workflow"
-            >
-              ↻ Refresh
-            </button>
           </div>
           {workflowSteps.map((step, index) => (
             (() => {
@@ -2086,7 +2036,6 @@ export default function PremiumDashboardShell({
                   isLast={index === workflowSteps.length - 1}
                   status={status}
                   onAction={handleWorkflowAction}
-                  onRefresh={handleWorkflowRefresh}
                   selectedDraftType={selectedDraftType}
                   onSelectedDraftTypeChange={onSelectedDraftTypeChange}
                 />

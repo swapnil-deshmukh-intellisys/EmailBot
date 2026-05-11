@@ -9,7 +9,7 @@ import LeadList from '@/models/LeadList';
 import EmailTemplate from '@/models/EmailTemplate';
 
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
-import { requireAuth, requireUser } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { getRunnerState } from '@/lib/campaignRunner';
 import {
   buildScheduledDateTimeInZone,
@@ -24,7 +24,6 @@ import {
 } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import {
-  ensureRecipientLogsForCampaign,
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 
@@ -49,35 +48,111 @@ function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = '
 export async function GET(req) {
 
   try {
-    const { userEmail, errorResponse } = requireUser(req);
-    if (errorResponse) return errorResponse;
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
 
     await connectDB();
-    const query = { userEmail };
+    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
+    const filters = {};
     const url = new URL(req.url);
     const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
     const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
 
     if (project) {
-      query.project = project;
+      filters.project = project;
     }
     if (sender) {
       const senderRegex = new RegExp(`^${escapeRegex(sender)}$`, 'i');
-      query.$or = [
+      filters.$or = [
         { senderFrom: senderRegex },
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
       ];
     }
+    const query = buildAuthOwnerFilter(auth, filters);
 
-    const rawCampaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
-    await Promise.all(rawCampaigns.slice(0, 50).map((campaign) => ensureRecipientLogsForCampaign(campaign).catch(() => [])));
+    const rawCampaigns = await Campaign.find(query)
+      .select({
+        userId: 1,
+        userEmail: 1,
+        name: 1,
+        project: 1,
+        projectId: 1,
+        projectName: 1,
+        senderFrom: 1,
+        type: 1,
+        listId: 1,
+        templateId: 1,
+        draftType: 1,
+        'inlineTemplate.subject': 1,
+        senderAccountId: 1,
+        'senderAccount.provider': 1,
+        'senderAccount.label': 1,
+        'senderAccount.from': 1,
+        'senderAccount.user': 1,
+        status: 1,
+        scheduleMode: 1,
+        country: 1,
+        timezone: 1,
+        tracking: 1,
+        trackingStats: 1,
+        workflowStep: 1,
+        workflowStepLabel: 1,
+        scheduledAt: 1,
+        stats: 1,
+        totalRecipients: 1,
+        sentCount: 1,
+        pendingCount: 1,
+        failedCount: 1,
+        openCount: 1,
+        replyCount: 1,
+        positiveReplyCount: 1,
+        negativeReplyCount: 1,
+        followUpStoppedCount: 1,
+        failureReason: 1,
+        pauseReason: 1,
+        stopReason: 1,
+        lastError: 1,
+        lastErrorAt: 1,
+        lastActivityAt: 1,
+        options: 1,
+        scheduledStart: 1,
+        queueRequestedAt: 1,
+        queueReason: 1,
+        workerStatus: 1,
+        workerLockedBy: 1,
+        workerId: 1,
+        workerLockedAt: 1,
+        workerHeartbeatAt: 1,
+        lastRunError: 1,
+        lastRunErrorAt: 1,
+        startedAt: 1,
+        finishedAt: 1,
+        completedAt: 1,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      .sort({ createdAt: -1 })
+      .lean();
     const campaignIds = rawCampaigns.map((campaign) => campaign._id);
-    const recipientLogs = await CampaignRecipientLog.find({ campaignId: { $in: campaignIds } }).lean();
-    const logsByCampaign = recipientLogs.reduce((map, item) => {
-      const key = String(item.campaignId);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(item);
+    const recipientLogSummaries = campaignIds.length
+      ? await CampaignRecipientLog.aggregate([
+          { $match: { campaignId: { $in: campaignIds } } },
+          {
+            $group: {
+              _id: '$campaignId',
+              openCount: { $sum: { $ifNull: ['$openCount', 0] } },
+              replyCount: { $sum: { $ifNull: ['$replyCount', 0] } },
+              positiveReplyCount: { $sum: { $cond: [{ $eq: ['$replyType', 'positive'] }, 1, 0] } },
+              negativeReplyCount: { $sum: { $cond: [{ $in: ['$replyType', ['negative', 'unsubscribe']] }, 1, 0] } },
+              followUpStoppedCount: { $sum: { $cond: ['$followUpStopped', 1, 0] } },
+              lastActivityAt: { $max: { $ifNull: ['$lastActivityAt', '$updatedAt'] } }
+            }
+          }
+        ])
+      : [];
+    const logsByCampaign = recipientLogSummaries.reduce((map, item) => {
+      map.set(String(item._id), [{ ...item, __summary: true, campaignId: item._id }]);
       return map;
     }, new Map());
     const campaigns = rawCampaigns.map((campaign) => serializeCampaignForList(campaign, logsByCampaign.get(String(campaign._id)) || []));

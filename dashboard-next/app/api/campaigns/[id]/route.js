@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { stopCampaignRunner } from '@/lib/campaignRunner';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import {
   buildTimeline,
@@ -33,8 +33,8 @@ async function getCampaignForCurrentUser(req, params) {
     };
   }
   await connectDB();
-  const campaign = await Campaign.findOne({ _id: campaignId, userEmail });
-  return { campaign, campaignId, userEmail };
+  const campaign = await Campaign.findOne(buildAuthOwnerFilter(auth, { _id: campaignId }));
+  return { campaign, campaignId, userEmail, auth };
 }
 
 export async function GET(req, { params }) {

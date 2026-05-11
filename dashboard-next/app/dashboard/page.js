@@ -470,7 +470,6 @@ export default function DashboardPage() {
     requestedListIdRef.current = String(searchParams?.get('listId') || '').trim();
     requestedAutoUploadRef.current = String(searchParams?.get('autoUpload') || '').trim() === '1';
   }, [searchParams]);
-  const requestedWorkflowStep = Math.max(0, Math.min(7, Number(searchParams?.get('workflowStep') || 0)));
   const notify = (message, tone = 'info') => {
     if (!message) return;
     if (toastTimeoutRef.current) {
@@ -2729,13 +2728,6 @@ const handleDeleteDraft = async (draft) => {
   }
 };
 
-  const refreshDashboardWorkflow = useCallback(async (scope = 'dashboard') => {
-    await loadAll();
-    router.refresh();
-    notify(scope === 'all' ? 'Dashboard refreshed.' : 'Workflow step refreshed.', 'success');
-    return true;
-  }, [loadAll, notify, router]);
-
 const normalizeSelectedListEmails = async () => {
     if (!selectedListId) {
       notify('Select a list first.', 'info');
@@ -3632,7 +3624,7 @@ const normalizeSelectedListEmails = async () => {
                   <div>
                     <span>Subscription</span>
                     <h2>{profileCredits.planName || 'Basic'} Plan</h2>
-                    <p>{profileUser.email || 'Current user'} has a separate monthly mail credit balance.</p>
+                    <p>{profileUser.email || 'Current user'} has a separate daily mail limit.</p>
                   </div>
                   <button type="button" onClick={() => setShowSubscriptionDetails(false)} aria-label="Close subscription details">
                     ×
@@ -3773,8 +3765,6 @@ const normalizeSelectedListEmails = async () => {
         reportMetricCards={reportMetricCards}
         dailyMailCounts={stats.dailyMailCounts}
         workflowSteps={workflowSteps}
-        onRefreshWorkflow={refreshDashboardWorkflow}
-        initialWorkflowStep={requestedWorkflowStep}
         completionRate={completionRate}
         totalTrackedMails={totalTrackedMails}
         notificationCards={notificationCards}
