@@ -6,9 +6,20 @@ import EmailThread from '../../database-models/EmailThread.js';
 import CampaignRecipientClaim from '../../database-models/CampaignRecipientClaim.js';
 import UserProfile from '../../database-models/UserProfile.js';
 import CreditTransaction from '../../database-models/CreditTransaction.js';
+import UserSubscription from '../../database-models/UserSubscription.js';
+import CampaignRecipientLog from '../../database-models/CampaignRecipientLog.js';
 import { getAvailableAccounts, sendEmailForLead } from '../mail-engine/GraphAndSmtpMailSender.js';
 import { resolveSenderAccountById } from '../mail-engine/SenderAccountResolver.js';
 import { USER_ACCOUNT_STATUSES } from '../auth-config/AuthSessionService.js';
+import { getOrCreateSubscriptionSummary, PLAN_LIMITS } from '../billing/SubscriptionCreditService.js';
+import {
+  buildTrackingId,
+  buildTrackingPixel,
+  classifyFailureReason,
+  ensureStepLogs,
+  normalizeProjectName,
+  refreshCampaignRollups
+} from './CampaignAnalyticsService.js';
 
 const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;
@@ -20,7 +31,7 @@ const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const normalizeRecipientEmail = (value = '') => normalizeEmail(String(value || '').split(/[;,/]/)[0] || '');
 const MAX_CONCURRENT_CAMPAIGNS = Math.max(0, Number(process.env.MAX_CONCURRENT_CAMPAIGNS || 0));
 const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_LOCK_TTL_MS || 15 * 60 * 1000));
-const DEFAULT_PROFILE_CREDITS = 6000;
+const DEFAULT_PROFILE_CREDITS = PLAN_LIMITS.Basic;
 const CAMPAIGN_WORKER_ID = String(process.env.CAMPAIGN_WORKER_ID || 'web-worker').trim() || 'web-worker';
 const WORKER_HEARTBEAT_INTERVAL_MS = Math.max(5000, Number(process.env.CAMPAIGN_WORKER_HEARTBEAT_MS || 15000));
 const DELAY_POLL_INTERVAL_MS = 250;
@@ -149,12 +160,61 @@ async function reserveCampaignCredit(userEmail = '') {
   const normalizedUserEmail = normalizeEmail(userEmail);
   if (!normalizedUserEmail) return { ok: true, skipped: true };
 
-  if (process.env.NODE_ENV === 'development') {
-    return { ok: true, skipped: true, message: 'Credit check bypassed in development' };
+  const { summary } = await getOrCreateSubscriptionSummary(normalizedUserEmail);
+  if (summary.status !== 'active') {
+    return { ok: false, message: 'Subscription is not active' };
+  }
+  if (summary.remainingCredits <= 0) {
+    return { ok: false, message: 'Monthly mail limit reached' };
+  }
+  if (summary.dailyRemainingCredits <= 0) {
+    return { ok: false, message: 'Daily mail limit reached. You can send again tomorrow.' };
+  }
+
+  const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const subscriptionReservation = await UserSubscription.findOneAndUpdate(
+    {
+      userEmail: normalizedUserEmail,
+      status: 'active',
+      remainingCredits: { $gt: 0 },
+      dailyRemainingCredits: { $gt: 0 }
+    },
+    {
+      $inc: {
+        usedCredits: 1,
+        remainingCredits: -1,
+        usedToday: 1,
+        remainingToday: -1,
+        dailyUsedCredits: 1,
+        dailyRemainingCredits: -1
+      },
+      $set: {
+        lastDailyResetAt: todayStart,
+        lastDailyReset: todayStart
+      }
+    },
+    { new: true }
+  ).lean();
+
+  if (!subscriptionReservation) {
+    const latest = await getOrCreateSubscriptionSummary(normalizedUserEmail);
+    if (latest.summary.dailyRemainingCredits <= 0) {
+      return { ok: false, message: 'Daily mail limit reached. You can send again tomorrow.' };
+    }
+    return { ok: false, message: 'Monthly mail limit reached' };
   }
 
   const updated = await UserProfile.findOneAndUpdate(
-    { identifier: normalizedUserEmail, remainingCredits: { $gt: 0 } },
+    {
+      $or: [
+        { identifier: normalizedUserEmail },
+        { email: normalizedUserEmail },
+        { username: normalizedUserEmail },
+        { employeeId: normalizedUserEmail },
+        { intellisysUserId: normalizedUserEmail }
+      ],
+      remainingCredits: { $gt: 0 }
+    },
     {
       $inc: {
         usedCredits: 1,
@@ -170,6 +230,19 @@ async function reserveCampaignCredit(userEmail = '') {
       .lean();
 
     if (existingProfile) {
+      await UserSubscription.updateOne(
+        { userEmail: normalizedUserEmail },
+        {
+          $inc: {
+            usedCredits: -1,
+            remainingCredits: 1,
+            usedToday: -1,
+            remainingToday: 1,
+            dailyUsedCredits: -1,
+            dailyRemainingCredits: 1
+          }
+        }
+      );
       return { ok: false, message: 'Credit limit reached' };
     }
 
@@ -242,6 +315,20 @@ async function refundCampaignCredit(userEmail = '', campaignMeta = {}) {
     balanceAfter: Math.max(0, Number(updated?.remainingCredits || 0)),
     meta: { source: 'campaignRunner', status: campaignMeta.status || 'Failed' }
   });
+
+  await UserSubscription.updateOne(
+    { userEmail: normalizedUserEmail },
+    {
+      $inc: {
+        usedCredits: -1,
+        remainingCredits: 1,
+        usedToday: -1,
+        remainingToday: 1,
+        dailyUsedCredits: -1,
+        dailyRemainingCredits: 1
+      }
+    }
+  );
 }
 
 async function persistLeadProgress(listId, idx, lead) {
@@ -270,6 +357,70 @@ async function persistLeadProgress(listId, idx, lead) {
   if (!result.matchedCount) {
     throw new Error(`Lead list not found for campaign update: ${listId}`);
   }
+}
+
+function getLeadField(lead = {}, keys = []) {
+  for (const key of keys) {
+    const value = lead?.[key] ?? lead?.data?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
+async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pending', stepNumber = 1, trackingId = '', failureReason = '', sendResult = null }) {
+  const email = normalizeRecipientEmail(lead?.Email || lead?.email || '');
+  if (!email || !campaign?._id) return null;
+  const now = new Date();
+  const existing = await CampaignRecipientLog.findOne({ campaignId: campaign._id, email }).lean();
+  const stepLogs = ensureStepLogs(existing?.stepLogs || [], 5);
+  const stepIndex = Math.max(0, Math.min(stepLogs.length - 1, Number(stepNumber || 1) - 1));
+  const step = {
+    ...stepLogs[stepIndex],
+    stepNumber,
+    status,
+    trackingId: trackingId || stepLogs[stepIndex]?.trackingId || '',
+    messageId: sendResult?.messageId || stepLogs[stepIndex]?.messageId || '',
+    internetMessageId: sendResult?.internetMessageId || stepLogs[stepIndex]?.internetMessageId || '',
+    conversationId: sendResult?.conversationId || stepLogs[stepIndex]?.conversationId || '',
+    failureReason: failureReason || stepLogs[stepIndex]?.failureReason || ''
+  };
+  if (status === 'Sent') step.sentAt = lead.sentAt || now;
+  if (['Failed', 'Bounced', 'Spam'].includes(status)) step.failedAt = lead.failedAt || now;
+  stepLogs[stepIndex] = step;
+  const failed = ['Failed', 'Bounced', 'Spam'].includes(status);
+  const sent = status === 'Sent';
+  return CampaignRecipientLog.findOneAndUpdate(
+    { campaignId: campaign._id, email },
+    {
+      $setOnInsert: {
+        userId: campaign.userId || null,
+        userEmail: campaign.userEmail || '',
+        campaignId: campaign._id,
+        campaignName: String(campaign.name || ''),
+        projectId: campaign.projectId || campaign.project || '',
+        projectName: normalizeProjectName(campaign.projectName || campaign.project || ''),
+        recipientId: String(idx),
+        clientName: [getLeadField(lead, ['Name', 'name']), getLeadField(lead, ['Surname', 'surname'])].filter(Boolean).join(' '),
+        email,
+        company: getLeadField(lead, ['Company', 'company', 'Organization', 'Organisation']),
+        designation: getLeadField(lead, ['Designation', 'designation', 'Title', 'title']),
+        totalSteps: 5
+      },
+      $set: {
+        campaignName: String(campaign.name || ''),
+        status,
+        currentStep: stepNumber,
+        stepLogs,
+        sentCount: sent ? Math.max(1, Number(existing?.sentCount || 0)) : Number(existing?.sentCount || 0),
+        failedCount: failed ? Math.max(1, Number(existing?.failedCount || 0)) : Number(existing?.failedCount || 0),
+        lastSentAt: sent ? (lead.sentAt || now) : existing?.lastSentAt || null,
+        failureReason: failed ? classifyFailureReason(failureReason || lead.error || status) : existing?.failureReason || '',
+        bounceReason: status === 'Bounced' ? classifyFailureReason(failureReason || lead.error || status) : existing?.bounceReason || '',
+        lastActivityAt: now
+      }
+    },
+    { upsert: true, new: true }
+  ).lean();
 }
 
 async function claimLeadForSend(listId, idx, claimedAt = new Date()) {
@@ -405,16 +556,41 @@ async function waitForCampaignDelay(state, campaign, delayMs, lastHeartbeatAt = 
   return { completed: true, interruptedBy: '', lastHeartbeatAt: heartbeatAt };
 }
 
-export async function validateCampaignExecutionPreflight(campaign) {
+export async function validateCampaignExecutionPreflight(campaign, options = {}) {
   await connectDB();
 
   if (!campaign?._id) {
     throw new Error('Campaign not found');
   }
 
+  const campaignUserEmail = normalizeEmail(campaign.userEmail || '');
+  const requestUserEmail = normalizeEmail(options?.userEmail || '');
+  if (requestUserEmail && campaignUserEmail && campaignUserEmail !== requestUserEmail) {
+    throw new Error('You cannot start another user campaign');
+  }
+
+  const profile = campaignUserEmail
+    ? await UserProfile.findOne({
+        $or: [
+          { identifier: campaignUserEmail },
+          { email: campaignUserEmail },
+          { username: campaignUserEmail },
+          { employeeId: campaignUserEmail },
+          { intellisysUserId: campaignUserEmail }
+        ]
+      }).lean()
+    : null;
+  if (!profile && process.env.NODE_ENV === 'production') {
+    throw new Error('User profile not found for campaign owner');
+  }
+
   const list = await LeadList.findById(campaign.listId).lean();
   if (!list) {
     throw new Error('Lead list not found');
+  }
+  const listUserEmail = normalizeEmail(list.userEmail || '');
+  if (campaignUserEmail && listUserEmail && listUserEmail !== campaignUserEmail) {
+    throw new Error('Lead list does not belong to campaign owner');
   }
 
   const validLeads = Array.isArray(list.leads)
@@ -424,7 +600,37 @@ export async function validateCampaignExecutionPreflight(campaign) {
     throw new Error('Recipient list is empty');
   }
 
+  const alreadyHandledLeadCount = validLeads.filter((lead) => {
+    const status = String(lead?.status || '').toLowerCase();
+    return status === 'sent' || status === 'failed' || status === 'bounced' || status === 'spam';
+  }).length;
+  const requiredCredits = Math.max(0, validLeads.length - alreadyHandledLeadCount);
+  if (campaignUserEmail && requiredCredits > 0) {
+    const { summary } = await getOrCreateSubscriptionSummary(campaignUserEmail, profile);
+    if (summary.status !== 'active') {
+      throw new Error('Subscription is not active');
+    }
+    if (summary.dailyRemainingCredits <= 0) {
+      throw new Error('Daily mail limit reached. You can send again tomorrow.');
+    }
+    if (summary.remainingCredits <= 0 || summary.sendingDisabled) {
+      throw new Error('Monthly mail limit reached. Upgrade your plan before starting this campaign.');
+    }
+    if (requiredCredits > summary.remainingCredits) {
+      throw new Error(`Not enough mail credits. This campaign needs ${requiredCredits}, but only ${summary.remainingCredits} remain this month.`);
+    }
+    if (requiredCredits > summary.dailyRemainingCredits) {
+      throw new Error(`Daily mail limit is ${summary.dailyLimit || 500}. You can send only ${summary.dailyRemainingCredits} more today.`);
+    }
+  }
+
   const templateFromDb = campaign.templateId ? await EmailTemplate.findById(campaign.templateId).lean() : null;
+  if (templateFromDb) {
+    const templateUserEmail = normalizeEmail(templateFromDb.userEmail || '');
+    if (campaignUserEmail && templateUserEmail && templateUserEmail !== campaignUserEmail) {
+      throw new Error('Template does not belong to campaign owner');
+    }
+  }
   const inlineTemplate = campaign.inlineTemplate?.subject && campaign.inlineTemplate?.body
     ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body }
     : null;
@@ -439,6 +645,10 @@ export async function validateCampaignExecutionPreflight(campaign) {
     });
     if (!sender) {
       throw new Error('No sender account found for this user');
+    }
+    const senderStatus = String(sender.status || 'Connected').trim().toLowerCase();
+    if (senderStatus && !['connected', 'active', 'good', 'verified'].includes(senderStatus)) {
+      throw new Error(`Sender account is not connected: ${sender.status}`);
     }
   } else if (!campaign.senderAccount?.provider && !getAvailableAccounts().length) {
     throw new Error('No sender account configured');
@@ -660,6 +870,41 @@ export async function startCampaignRunner(campaignId, options = {}) {
           }
           continue;
         }
+        const existingRecipientLog = await CampaignRecipientLog.findOne({ campaignId: campaign._id, email: recipientEmail }).lean();
+        const hasBlockingReply = existingRecipientLog?.replyReceived && existingRecipientLog?.replyType !== 'auto-reply';
+        if (hasBlockingReply || existingRecipientLog?.followUpStopped || existingRecipientLog?.dnc || existingRecipientLog?.unsubscribe) {
+          lead.status = 'Failed';
+          lead.error = existingRecipientLog?.followUpStopReason || 'Client replied - follow-up stopped';
+          lead.failedAt = new Date();
+          lead.sendingStartedAt = null;
+          campaign.stats.failed += 1;
+          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          const stepLogs = ensureStepLogs(existingRecipientLog?.stepLogs || [], 5).map((step) => (
+            Number(step.stepNumber) > 1 && !['Sent', 'Opened', 'Replied'].includes(step.status)
+              ? { ...step, status: 'Skipped', skippedAt: step.skippedAt || new Date(), failureReason: 'Client replied - follow-up stopped' }
+              : step
+          ));
+          await CampaignRecipientLog.updateOne(
+            { _id: existingRecipientLog._id },
+            {
+              $set: {
+                status: 'Follow-up Stopped',
+                followUpStopped: true,
+                followUpStopReason: existingRecipientLog?.followUpStopReason || 'Client replied - follow-up stopped',
+                stepLogs,
+                lastActivityAt: new Date()
+              }
+            }
+          );
+          appendLog(campaign, `Skipped follow-up for ${recipientEmail}: Client replied - follow-up stopped`);
+          await persistLeadProgress(list._id, idx, lead);
+          await refreshCampaignRollups(campaign._id).catch(() => {});
+          if (!(await saveCampaignIfExists(campaign))) {
+            state.running = false;
+            return;
+          }
+          continue;
+        }
         const claimedAt = new Date();
         const claimed = await claimLeadForSend(list._id, idx, claimedAt);
         if (!claimed) {
@@ -685,6 +930,16 @@ export async function startCampaignRunner(campaignId, options = {}) {
         lead.status = 'Sending';
         lead.error = '';
         lead.sendingStartedAt = claimedAt;
+        const currentStep = Math.max(1, Number(campaign.workflowStep || 1));
+        const trackingId = buildTrackingId(campaign._id, recipientEmail, currentStep);
+        await upsertRecipientLogForLead({
+          campaign,
+          lead,
+          idx,
+          status: 'Sending',
+          stepNumber: currentStep,
+          trackingId
+        });
 
         const creditReservation = await reserveCampaignCredit(campaign.userEmail || '');
         if (!creditReservation.ok) {
@@ -694,7 +949,20 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.sendingStartedAt = null;
           campaign.stats.failed += 1;
           campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          campaign.failureReason = classifyFailureReason(creditReservation.message || 'Credit limit reached');
+          campaign.lastError = creditReservation.message || 'Credit limit reached';
+          campaign.lastErrorAt = new Date();
+          campaign.lastActivityAt = new Date();
           appendLog(campaign, `Campaign stopped: ${creditReservation.message || 'Credit limit reached'}`, 'error');
+          await upsertRecipientLogForLead({
+            campaign,
+            lead,
+            idx,
+            status: 'Failed',
+            stepNumber: currentStep,
+            trackingId,
+            failureReason: creditReservation.message || 'Credit limit reached'
+          });
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
             state.running = false;
@@ -722,7 +990,8 @@ export async function startCampaignRunner(campaignId, options = {}) {
             account,
             campaignType,
             replyMode,
-            replyContext: replyContext || null
+            replyContext: replyContext || null,
+            trackingPixelHtml: buildTrackingPixel(trackingId)
           });
           lead.status = 'Sent';
           lead.error = '';
@@ -734,7 +1003,19 @@ export async function startCampaignRunner(campaignId, options = {}) {
             await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
           }
           campaign.stats.sent += 1;
+          campaign.sentCount = campaign.stats.sent;
+          campaign.pendingCount = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          campaign.lastActivityAt = new Date();
           await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
+          await upsertRecipientLogForLead({
+            campaign,
+            lead,
+            idx,
+            status: 'Sent',
+            stepNumber: currentStep,
+            trackingId,
+            sendResult
+          });
           appendLog(
             campaign,
             `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
@@ -767,13 +1048,32 @@ export async function startCampaignRunner(campaignId, options = {}) {
           } else {
             campaign.stats.failed += 1;
           }
+          campaign.failedCount = campaign.stats.failed;
+          campaign.failureReason = campaign.failureReason || classifyFailureReason(error.message);
+          campaign.lastError = error.message;
+          campaign.lastErrorAt = new Date();
+          campaign.lastActivityAt = new Date();
+          await upsertRecipientLogForLead({
+            campaign,
+            lead,
+            idx,
+            status: failureStatus,
+            stepNumber: currentStep,
+            trackingId,
+            failureReason: error.message
+          });
           await markRecipientClaimStatus(campaign._id, recipientEmail, failureStatus, { failedAt: lead.failedAt, error: error.message });
           appendLog(campaign, `${failureStatus}: ${lead.Email || lead.email || 'unknown'} - ${error.message}`, 'error');
         }
 
         campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+        campaign.totalRecipients = campaign.stats.total;
+        campaign.sentCount = campaign.stats.sent;
+        campaign.pendingCount = campaign.stats.pending;
+        campaign.failedCount = campaign.stats.failed;
         lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
         await persistLeadProgress(list._id, idx, lead);
+        await refreshCampaignRollups(campaign._id).catch(() => {});
         if (!(await saveCampaignIfExists(campaign))) {
           state.running = false;
           return;
@@ -797,6 +1097,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
         if (state.stopReason === 'credit_limit') {
           campaign.status = 'Failed';
           campaign.finishedAt = new Date();
+          campaign.failureReason = campaign.failureReason || 'Credits finished';
+          campaign.lastError = campaign.lastError || 'Credit limit reached';
+          campaign.lastErrorAt = campaign.lastErrorAt || new Date();
+          campaign.lastActivityAt = new Date();
           campaign.workerId = '';
           campaign.workerLockedAt = null;
           campaign.workerHeartbeatAt = null;

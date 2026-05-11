@@ -83,6 +83,26 @@ function normalizeText(value = '') {
   return String(value || '').trim();
 }
 
+function hasVisibleClientData(row = {}) {
+  return [
+    row.name,
+    row.surname,
+    row.designation,
+    row.cmpName,
+    row.sector,
+    row.country,
+    row.email,
+    row.leadType,
+    row.sourcer,
+    row.userId,
+    row.projectApproach,
+    row.senderId
+  ].some((value) => {
+    const text = normalizeText(value);
+    return text && text !== '-';
+  });
+}
+
 function formatDateTime(value) {
   if (!value) return '-';
   const date = value instanceof Date ? value : new Date(value);
@@ -429,7 +449,10 @@ export default function ClientListPage() {
     [lists]
   );
 
-  const clientRows = useMemo(() => clientRowsData, [clientRowsData]);
+  const clientRows = useMemo(
+    () => clientRowsData.filter(hasVisibleClientData),
+    [clientRowsData]
+  );
 
   const filterOptions = useMemo(() => ({
     sector: uniqueSorted([

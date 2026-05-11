@@ -1,26 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
-import PageContainer from '@/app/components/layout/PageContainer';
-import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/Card';
-import PageSection from '@/app/components/ui/PageSection';
+import Badge from '@/app/components/ui/Badge';
+import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
-const badgeToneMap = {
-  Inbox: 'info',
-  'Sent Mail': 'success',
-  Drafts: 'warning',
-  'Junk Email': 'danger',
-  'Deleted Items': 'default',
-  Archive: 'default',
-  'Conversation History': 'default',
-  'Search Folders': 'default',
-  Notes: 'default'
-};
-
-const FILTER_ORDER = ['All', 'Inbox', 'Sent Mail', 'Drafts', 'Deleted Items', 'Junk Email', 'Archive', 'Conversation History', 'Search Folders', 'Notes'];
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'flagged', label: 'Flagged' }
+];
 
 function formatDateTime(value) {
   if (!value) return '-';
@@ -29,483 +19,481 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
-function normalizeFolderLabel(label) {
-  const value = String(label || '').trim();
-  return value;
+function formatMailTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return sameDay
+    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function getMessageDate(message = {}) {
+  return message.receivedDateTime || message.sentDateTime || message.createdDateTime || message.lastModifiedDateTime;
+}
+
+function getFromLabel(message = {}, fallback = '') {
+  return message.from?.name || message.from?.email || message.sender?.name || message.sender?.email || fallback || 'Unknown sender';
+}
+
+function getApiMessage(data, fallback) {
+  return data?.message || data?.error || data?.code || fallback;
+}
+
+function getFolderIcon(folder = {}) {
+  const name = String(folder.displayName || folder.wellKnownName || '').toLowerCase();
+  if (name.includes('inbox')) return 'IN';
+  if (name.includes('sent')) return 'SE';
+  if (name.includes('draft')) return 'DR';
+  if (name.includes('deleted') || name.includes('trash')) return 'DE';
+  if (name.includes('junk') || name.includes('spam')) return 'JU';
+  if (name.includes('archive')) return 'AR';
+  return 'FL';
+}
+
+function MailSkeleton({ rows = 5 }) {
+  return (
+    <div className="master-mail-skeleton-list">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={`mail-skeleton-${index}`} className="master-mail-skeleton-row" />
+      ))}
+    </div>
+  );
 }
 
 export default function MailInboxPage() {
-  const [mailboxData, setMailboxData] = useState({ connected: false, account: null, folders: [], messages: [], warmupAutoReply: null, warmupRun: null });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [account, setAccount] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState('');
   const [selectedMessageId, setSelectedMessageId] = useState('');
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [warmupBusy, setWarmupBusy] = useState(false);
+  const [folderLoading, setFolderLoading] = useState(true);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [showFoldersMobile, setShowFoldersMobile] = useState(false);
+  const [showDetailMobile, setShowDetailMobile] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState({ to: '', subject: '', body: '' });
 
-  useEffect(() => {
-    let active = true;
-    let intervalId = null;
+  const selectedFolder = useMemo(
+    () => folders.find((folder) => folder.id === selectedFolderId) || null,
+    [folders, selectedFolderId]
+  );
 
-    const loadMailbox = async ({ silent = false } = {}) => {
-      try {
-        if (!silent) setLoading(true);
-        const response = await fetch('/api/mailbox-folders', { cache: 'no-store' });
-        const data = await response.json();
-
-        if (!active) return;
-
-        setMailboxData({
-          connected: Boolean(data?.connected),
-          account: data?.account || null,
-          folders: Array.isArray(data?.folders) ? data.folders : [],
-          messages: Array.isArray(data?.messages) ? data.messages : [],
-          warmupAutoReply: data?.warmupAutoReply || null,
-          warmupRun: data?.warmupRun || null
-        });
-
-        setError(data?.error || '');
-
-        if (!response.ok && !data?.messages?.length) {
-          setError(data?.error || 'Failed to load mailbox data');
-        }
-      } catch (err) {
-        if (!active) return;
-        setError(err.message || 'Failed to load mailbox data');
-        if (!silent) {
-          setMailboxData({ connected: false, account: null, folders: [], messages: [], warmupAutoReply: null, warmupRun: null });
-        }
-      } finally {
-        if (active && !silent) setLoading(false);
+  const loadFolders = useCallback(async () => {
+    try {
+      setFolderLoading(true);
+      setError('');
+      const accountResponse = await fetch('/api/mailbox/accounts', { cache: 'no-store' });
+      const accountData = await accountResponse.json().catch(() => ({}));
+      if (!accountResponse.ok || accountData?.success === false) {
+        throw new Error(getApiMessage(accountData, 'Mailbox not connected'));
       }
-    };
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void loadMailbox({ silent: true });
+      setConnected(Boolean(accountData.connected));
+      setAccount(accountData.account || null);
+      if (!accountData.connected) {
+        setFolders([]);
+        setMessages([]);
+        setSelectedFolderId('');
+        setSelectedMessageId('');
+        setSelectedMessage(null);
+        setError('');
+        return;
       }
-    };
 
-    void loadMailbox();
-    intervalId = window.setInterval(() => {
-      void loadMailbox({ silent: true });
-    }, 5000);
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
+      const folderResponse = await fetch('/api/mailbox/folders', { cache: 'no-store' });
+      const folderData = await folderResponse.json().catch(() => ({}));
+      if (!folderResponse.ok || folderData?.success === false) {
+        throw new Error(getApiMessage(folderData, 'Unable to fetch mailbox folders'));
+      }
 
-    return () => {
-      active = false;
-      if (intervalId) window.clearInterval(intervalId);
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
+      const nextFolders = Array.isArray(folderData.folders) ? folderData.folders : [];
+      setFolders(nextFolders);
+      const inbox = nextFolders.find((folder) => String(folder.displayName || folder.wellKnownName || '').toLowerCase().includes('inbox'));
+      const nextSelected = selectedFolderId && nextFolders.some((folder) => folder.id === selectedFolderId)
+        ? selectedFolderId
+        : inbox?.id || nextFolders[0]?.id || '';
+      setSelectedFolderId(nextSelected);
+    } catch (err) {
+      setError(err.message || 'Unable to fetch mailbox folders');
+      setConnected(false);
+      setAccount(null);
+      setFolders([]);
+    } finally {
+      setFolderLoading(false);
+    }
+  }, [selectedFolderId]);
+
+  const loadMessages = useCallback(async ({ silent = false } = {}) => {
+    if (!selectedFolderId) return;
+    try {
+      if (silent) setRefreshing(true);
+      if (!silent) setMessageLoading(true);
+      setError('');
+      const params = new URLSearchParams({ folder: selectedFolderId, top: '30' });
+      if (filter === 'unread') params.set('unread', 'true');
+      if (filter === 'flagged') params.set('flagged', 'true');
+      if (searchTerm.trim()) params.set('search', searchTerm.trim());
+      const response = await fetch(`/api/mailbox/messages?${params.toString()}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        throw new Error(getApiMessage(data, 'Unable to fetch inbox messages'));
+      }
+      const nextMessages = Array.isArray(data.messages) ? data.messages : [];
+      setMessages(nextMessages);
+      setSelectedMessageId((current) => (
+        current && nextMessages.some((message) => message.id === current)
+          ? current
+          : nextMessages[0]?.id || ''
+      ));
+    } catch (err) {
+      setError(err.message || 'Unable to fetch inbox messages');
+      if (!silent) setMessages([]);
+    } finally {
+      setMessageLoading(false);
+      setRefreshing(false);
+    }
+  }, [filter, searchTerm, selectedFolderId]);
+
+  const loadMessageDetail = useCallback(async (messageId) => {
+    if (!messageId) {
+      setSelectedMessage(null);
+      return;
+    }
+    try {
+      setDetailLoading(true);
+      const response = await fetch(`/api/mailbox/messages/${encodeURIComponent(messageId)}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        throw new Error(getApiMessage(data, 'Unable to fetch email details'));
+      }
+      setSelectedMessage(data.message || null);
+      setShowDetailMobile(true);
+    } catch (err) {
+      setError(err.message || 'Unable to fetch email details');
+      setSelectedMessage(null);
+    } finally {
+      setDetailLoading(false);
+    }
   }, []);
 
-  const folderCountMap = useMemo(() => {
-    const map = new Map();
-    for (const folder of mailboxData.folders) {
-      map.set(folder.label, Number(folder.count || 0));
-      if (String(folder.label).toLowerCase() === 'junk') {
-        map.set('Spam', Number(folder.count || 0));
-      }
-    }
-    return map;
-  }, [mailboxData.folders]);
-
-  const filterCards = useMemo(
-    () => FILTER_ORDER.map((label) => ({
-      label,
-      count: label === 'All'
-        ? mailboxData.messages.length
-        : Number(folderCountMap.get(label) || 0)
-    })),
-    [folderCountMap, mailboxData.messages.length]
-  );
-
-  const filteredMessages = useMemo(() => {
-    const term = String(searchTerm || '').trim().toLowerCase();
-    return mailboxData.messages.filter((message) => {
-      const folder = normalizeFolderLabel(message.folderLabel);
-      const matchesFilter = selectedFilter === 'All' || folder === selectedFilter;
-      const haystack = [
-        message.subject,
-        message.from,
-        ...(Array.isArray(message.to) ? message.to : [])
-      ].join(' ').toLowerCase();
-      const matchesSearch = !term || haystack.includes(term);
-      return matchesFilter && matchesSearch;
-    });
-  }, [mailboxData.messages, searchTerm, selectedFilter]);
+  useEffect(() => {
+    void loadFolders();
+  }, []);
 
   useEffect(() => {
-    const currentExists = filteredMessages.some((item) => item.id === selectedMessageId);
-    if (!currentExists) {
-      setSelectedMessageId(filteredMessages[0]?.id || '');
-    }
-  }, [filteredMessages, selectedMessageId]);
+    void loadMessages();
+  }, [loadMessages]);
 
-  const selectedMessage = useMemo(
-    () => filteredMessages.find((item) => item.id === selectedMessageId) || filteredMessages[0] || null,
-    [filteredMessages, selectedMessageId]
-  );
+  useEffect(() => {
+    void loadMessageDetail(selectedMessageId);
+  }, [loadMessageDetail, selectedMessageId]);
 
-  const inboxItems = useMemo(
-    () => [
-      { title: 'Inbox', meta: `${folderCountMap.get('Inbox') || 0} inbox mails found` },
-      { title: 'Sent Mail', meta: `${folderCountMap.get('Sent Mail') || 0} sent mails found` },
-      { title: 'Drafts', meta: `${folderCountMap.get('Drafts') || 0} draft mails found` },
-      { title: 'Junk Email', meta: `${folderCountMap.get('Junk Email') || 0} junk mails found` },
-      { title: 'Deleted Items', meta: `${folderCountMap.get('Deleted Items') || 0} deleted mails found` },
-      { title: 'Archive', meta: `${folderCountMap.get('Archive') || 0} archived mails found` }
-    ],
-    [folderCountMap]
-  );
+  const handleRefresh = useCallback(async () => {
+    setNotice('');
+    await loadFolders();
+    await loadMessages({ silent: true });
+  }, [loadFolders, loadMessages]);
 
-  const activityItems = useMemo(
-    () =>
-      mailboxData.messages.slice(0, 3).map((item) => ({
-        title: item.subject || '(No subject)',
-        meta: `${normalizeFolderLabel(item.folderLabel)} | ${formatDateTime(item.receivedAt || item.updatedAt)}`
-      })),
-    [mailboxData.messages]
-  );
-
-  const outlookReplyItems = useMemo(
-    () =>
-      mailboxData.messages
-        .filter((item) => ['Inbox', 'Sent Mail'].includes(normalizeFolderLabel(item.folderLabel)))
-        .slice(0, 8)
-        .map((item) => ({
-          id: item.id,
-          folder: normalizeFolderLabel(item.folderLabel),
-          subject: item.subject || '(No subject)',
-          from: item.from || 'Unknown sender',
-          to: (Array.isArray(item.to) && item.to.length ? item.to.join(', ') : mailboxData.account?.email || '-'),
-          receivedAt: formatDateTime(item.receivedAt || item.updatedAt),
-          bodyPreview: item.bodyPreview || ''
-        })),
-    [mailboxData.account?.email, mailboxData.messages]
-  );
-
-  const toggleWarmupAutoReply = async (enabled) => {
+  const handleMessageAction = useCallback(async (action, messageId = selectedMessageId, extraBody = {}) => {
+    if (!messageId) return;
+    const endpointMap = {
+      archive: `/api/mailbox/messages/${encodeURIComponent(messageId)}/archive`,
+      delete: `/api/mailbox/messages/${encodeURIComponent(messageId)}/delete`,
+      read: `/api/mailbox/messages/${encodeURIComponent(messageId)}/mark-read`,
+      unread: `/api/mailbox/messages/${encodeURIComponent(messageId)}/mark-read`
+    };
     try {
-      setWarmupBusy(true);
-      const response = await fetch('/api/warmup-auto-reply', {
+      setActionLoading(action);
+      setNotice('');
+      const response = await fetch(endpointMap[action], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
+        body: JSON.stringify(action === 'unread' ? { isRead: false } : extraBody)
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to update warmup auto reply');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        throw new Error(getApiMessage(data, 'Mailbox action failed'));
       }
-      setMailboxData((current) => ({ ...current, warmupAutoReply: data.setting || current.warmupAutoReply }));
+      setNotice(data.message || 'Mailbox updated');
+      await loadMessages({ silent: true });
     } catch (err) {
-      setError(err.message || 'Failed to update warmup auto reply');
+      setError(err.message || 'Mailbox action failed');
     } finally {
-      setWarmupBusy(false);
+      setActionLoading('');
     }
-  };
+  }, [loadMessages, selectedMessageId]);
 
-  const runWarmupAutoReplyNow = async () => {
+  const handleSend = useCallback(async () => {
     try {
-      setWarmupBusy(true);
-      const response = await fetch('/api/warmup-auto-reply', {
+      setActionLoading('send');
+      setNotice('');
+      const response = await fetch('/api/mailbox/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runNow: true })
+        body: JSON.stringify(composeDraft)
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to run warmup auto reply');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) {
+        throw new Error(getApiMessage(data, 'Unable to send email'));
       }
-      setMailboxData((current) => ({
-        ...current,
-        warmupAutoReply: data.setting || current.warmupAutoReply,
-        warmupRun: data.run || null
-      }));
+      setNotice('Email sent');
+      setComposerOpen(false);
+      setComposeDraft({ to: '', subject: '', body: '' });
     } catch (err) {
-      setError(err.message || 'Failed to run warmup auto reply');
+      setError(err.message || 'Unable to send email');
     } finally {
-      setWarmupBusy(false);
+      setActionLoading('');
     }
+  }, [composeDraft]);
+
+  const openConnect = () => {
+    window.location.href = '/api/graph-oauth/start?returnTo=/mail-inbox';
   };
 
   return (
-    <AppLayout
-      topbarProps={{
-        title: 'Mail Inbox',
-        subtitle: 'See Outlook-style folders: Inbox, Sent Mail, Drafts, Deleted Items, Junk Email, Archive, and more.',
-        actions: (
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                window.location.href = '/api/graph-oauth/start?returnTo=/mail-inbox';
-              }}
-            >
-              Connect Mailbox
-            </Button>
-            <Button
-              variant={mailboxData.warmupAutoReply?.enabled ? 'secondary' : 'ghost'}
-              loading={warmupBusy}
-              onClick={() => toggleWarmupAutoReply(!mailboxData.warmupAutoReply?.enabled)}
-            >
-              {mailboxData.warmupAutoReply?.enabled ? 'Auto Warmup Reply ON' : 'Auto Warmup Reply OFF'}
-            </Button>
-            <Button variant="ghost" loading={warmupBusy} onClick={runWarmupAutoReplyNow}>
-              Run Warmup Check
-            </Button>
-            <Button onClick={() => window.location.reload()}>
-              Refresh Mail
-            </Button>
-          </>
-        )
-      }}
-    >
-      <PageContainer>
-        <PageSection
-          title="Mailbox Pulse"
-          description="Mailbox folders are loaded live from your connected Microsoft account."
-        >
-          <div className="mail-inbox-hero">
-            <div className="mail-inbox-account-card">
-              <span className="mail-inbox-account-kicker">Connected Mailbox</span>
-              <strong>{mailboxData.account?.displayName || mailboxData.account?.email || 'Microsoft mailbox not connected'}</strong>
-              <p>
-                {mailboxData.connected
-                  ? `Live folders synced for ${mailboxData.account?.email || 'your mailbox'}`
-                  : 'Connect a Microsoft mailbox to load received, sent, junk, spam, draft, and deleted mails.'}
-              </p>
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+      <main className="master-mail-page">
+        <section className="master-mail-shell">
+          <aside className={`master-mail-sidebar ${showFoldersMobile ? 'is-open' : ''}`}>
+            <div className="master-mail-account">
+              <span>Connected Mailbox</span>
+              <strong>{account?.email || 'No Outlook mailbox'}</strong>
+              <small>{connected ? account?.displayName || 'Microsoft Outlook' : 'Connect Outlook to load mail'}</small>
             </div>
-            <div className="mail-inbox-stat-grid">
-              {[ 
-                { label: 'Inbox', value: loading ? '...' : String(folderCountMap.get('Inbox') || 0) },
-                { label: 'Sent Mail', value: loading ? '...' : String(folderCountMap.get('Sent Mail') || 0) },
-                { label: 'Drafts', value: loading ? '...' : String(folderCountMap.get('Drafts') || 0) },
-                { label: 'Junk Email', value: loading ? '...' : String(folderCountMap.get('Junk Email') || 0) },
-                { label: 'Deleted Items', value: loading ? '...' : String(folderCountMap.get('Deleted Items') || 0) },
-                { label: 'Archive', value: loading ? '...' : String(folderCountMap.get('Archive') || 0) },
-                { label: 'Warmup Auto Reply', value: mailboxData.warmupAutoReply?.enabled ? 'ON' : 'OFF' },
-                { label: 'Warmup Replies', value: String(mailboxData.warmupRun?.replied || 0) }
-              ].map((card) => (
-                <div key={card.label} className="mail-inbox-stat-tile">
-                  <span>{card.label}</span>
-                  <strong>{card.value}</strong>
-                </div>
+
+            <div className="master-mail-sidebar-actions">
+              <Button type="button" onClick={() => connected ? setComposerOpen(true) : openConnect()}>
+                {connected ? 'Compose' : 'Connect Outlook Mailbox'}
+              </Button>
+              <Button type="button" variant="ghost" loading={refreshing || folderLoading} onClick={handleRefresh} disabled={!connected}>
+                Refresh
+              </Button>
+            </div>
+
+            <div className="master-mail-folder-title">Folders</div>
+            <div className="master-mail-folder-list">
+              {folderLoading ? <MailSkeleton rows={7} /> : null}
+              {!folderLoading && folders.map((folder) => (
+                <button
+                  key={folder.id}
+                  type="button"
+                  className={`master-mail-folder ${selectedFolderId === folder.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedFolderId(folder.id);
+                    setShowFoldersMobile(false);
+                  }}
+                >
+                  <span className="master-mail-folder-icon">{getFolderIcon(folder)}</span>
+                  <span className="master-mail-folder-name">{folder.displayName}</span>
+                  {folder.unreadItemCount > 0 ? <strong>{folder.unreadItemCount}</strong> : null}
+                </button>
+              ))}
+              {!folderLoading && connected && !folders.length ? (
+                <div className="master-mail-empty-small">No Outlook folders returned by Microsoft Graph.</div>
+              ) : null}
+            </div>
+          </aside>
+
+          <section className="master-mail-list-pane">
+            <div className="master-mail-mobile-bar">
+              <Button type="button" variant="secondary" onClick={() => setShowFoldersMobile(true)}>Folders</Button>
+              <Button type="button" variant="ghost" loading={refreshing} onClick={handleRefresh}>Refresh</Button>
+            </div>
+
+            <div className="master-mail-list-header">
+              <div>
+                <span>{selectedFolder?.displayName || 'Master Inbox'}</span>
+                <h1>Master Inbox</h1>
+              </div>
+              <Badge variant={connected ? 'success' : 'warning'}>
+                {connected ? account?.email || 'Connected' : 'Mailbox not connected'}
+              </Badge>
+            </div>
+
+            <div className="master-mail-search-row">
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void loadMessages();
+                }}
+                placeholder="Search mail"
+              />
+              <Button type="button" variant="secondary" loading={messageLoading} onClick={() => loadMessages()}>
+                Search
+              </Button>
+            </div>
+
+            <div className="master-mail-filter-tabs">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={filter === item.key ? 'active' : ''}
+                  onClick={() => setFilter(item.key)}
+                >
+                  {item.label}
+                </button>
               ))}
             </div>
-          </div>
-        </PageSection>
 
-        <PageSection
-          title="Mail Workspace"
-          description="A cleaner mailbox layout for scanning folders, message lists, and recent activity."
-        >
-          <div className="mail-inbox-layout">
-            <Card className="client-data-panel mail-inbox-sidebar">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Folders</CardTitle>
-                  <CardDescription>Filter the live mailbox feed.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mail-inbox-folder-list">
-                  {filterCards.map((item) => (
+            {error ? (
+              <div className="master-mail-alert error">
+                <span>{error}</span>
+                <Button type="button" variant="ghost" size="sm" onClick={handleRefresh}>Retry</Button>
+              </div>
+            ) : null}
+            {notice ? <div className="master-mail-alert success">{notice}</div> : null}
+
+            {!connected && !folderLoading ? (
+              <div className="master-mail-connect-state">
+                <strong>Mailbox not connected</strong>
+                <p>Connect Outlook Mailbox to show only your Microsoft mailbox folders and messages.</p>
+                <Button type="button" onClick={openConnect}>Connect Outlook Mailbox</Button>
+              </div>
+            ) : null}
+
+            {connected ? (
+              <div className="master-mail-message-list">
+                {messageLoading ? <MailSkeleton rows={8} /> : null}
+                {!messageLoading && !messages.length ? (
+                  <div className="master-mail-connect-state">
+                    <strong>Empty folder</strong>
+                    <p>No messages found in this folder or filter.</p>
+                  </div>
+                ) : null}
+                {!messageLoading && messages.map((message) => {
+                  const active = selectedMessageId === message.id;
+                  const unread = !message.isRead;
+                  return (
                     <button
-                      key={item.label}
+                      key={message.id}
                       type="button"
-                      className={`mail-inbox-folder-item ${selectedFilter === item.label ? 'active' : ''}`}
-                      onClick={() => setSelectedFilter(item.label)}
+                      className={`master-mail-row ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
+                      onClick={() => setSelectedMessageId(message.id)}
                     >
-                      <span>{item.label}</span>
-                      <strong>{item.count}</strong>
+                      <div className="master-mail-row-top">
+                        <strong>{getFromLabel(message, account?.email)}</strong>
+                        <span>{formatMailTime(getMessageDate(message))}</span>
+                      </div>
+                      <div className="master-mail-row-subject">
+                        <span>{message.subject}</span>
+                        {message.hasAttachments ? <em aria-label="Has attachments">A</em> : null}
+                      </div>
+                      <p>{message.preview || 'No preview available.'}</p>
+                      <div className="master-mail-row-meta">
+                        {message.importance === 'high' ? <Badge variant="danger" size="sm">Important</Badge> : null}
+                        {message.flag?.flagStatus === 'flagged' ? <Badge variant="warning" size="sm">Flagged</Badge> : null}
+                        {message.isDraft ? <Badge variant="warning" size="sm">Draft</Badge> : null}
+                      </div>
                     </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
 
-            <Card className="client-data-panel mail-inbox-feed">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Inbox Feed</CardTitle>
-                  <CardDescription>Real mailbox messages from Inbox, Sent, Drafts, Junk, and Deleted folders.</CardDescription>
-                </div>
-                <div className="mail-inbox-head-tools">
-                  <input
-                    className="input"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search subject, sender, or recipient"
-                  />
-                  <Button variant="ghost" size="sm">
-                    {loading ? '...' : `${filteredMessages.length} mails`}
+          <section className={`master-mail-reading-pane ${showDetailMobile ? 'is-open' : ''}`}>
+            <div className="master-mail-reading-head">
+              <button type="button" className="master-mail-mobile-close" onClick={() => setShowDetailMobile(false)}>Back</button>
+              <div>
+                <span>Reading Pane</span>
+                <h2>{selectedMessage?.subject || 'Select an email'}</h2>
+              </div>
+            </div>
+
+            {detailLoading ? <MailSkeleton rows={5} /> : null}
+
+            {!detailLoading && selectedMessage ? (
+              <>
+                <div className="master-mail-reading-actions">
+                  <Button type="button" variant="secondary" loading={actionLoading === 'unread'} onClick={() => handleMessageAction('unread')}>
+                    Mark unread
+                  </Button>
+                  <Button type="button" variant="secondary" loading={actionLoading === 'archive'} onClick={() => handleMessageAction('archive')}>
+                    Archive
+                  </Button>
+                  <Button type="button" variant="danger" loading={actionLoading === 'delete'} onClick={() => handleMessageAction('delete')}>
+                    Delete
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setComposeDraft({
+                    to: selectedMessage.from?.email || '',
+                    subject: `RE: ${selectedMessage.subject || ''}`,
+                    body: ''
+                  }) || setComposerOpen(true)}>
+                    Reply
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setComposeDraft({
+                    to: '',
+                    subject: `FW: ${selectedMessage.subject || ''}`,
+                    body: ''
+                  }) || setComposerOpen(true)}>
+                    Forward
                   </Button>
                 </div>
-              </CardHeader>
 
-              <CardContent>
-                <div className="mail-inbox-message-list">
-                  {loading ? (
-                    <div className="mail-inbox-empty-state">Loading mailbox messages...</div>
-                  ) : null}
-
-                  {!loading && error && !filteredMessages.length ? (
-                    <div className="mail-inbox-empty-state">{error}</div>
-                  ) : null}
-
-                  {!loading && !error && !filteredMessages.length ? (
-                    <div className="mail-inbox-empty-state">No mails found for this folder/filter.</div>
-                  ) : null}
-
-                  {!loading && filteredMessages.map((row) => {
-                    const folder = normalizeFolderLabel(row.folderLabel);
-                    const isActive = selectedMessage?.id === row.id;
-                    return (
-                      <button
-                        key={row.id}
-                        type="button"
-                        className={`mail-inbox-message-card ${isActive ? 'active' : ''}`}
-                        onClick={() => setSelectedMessageId(row.id)}
-                      >
-                        <div className="mail-inbox-message-top">
-                          <strong>{row.subject}</strong>
-                          <Badge variant={badgeToneMap[folder] || 'default'}>
-                            {folder}
-                          </Badge>
-                        </div>
-                        <div className="mail-inbox-message-meta">
-                          <span>{row.from || 'Unknown sender'}</span>
-                          <span>{formatDateTime(row.receivedAt || row.updatedAt)}</span>
-                        </div>
-                        <p>{(row.to && row.to.join(', ')) || mailboxData.account?.email || '-'}</p>
-                      </button>
-                    );
-                  })}
+                <div className="master-mail-reading-meta">
+                  <div><span>From</span><strong>{selectedMessage.from?.name || selectedMessage.from?.email || '-'}</strong></div>
+                  <div><span>To</span><strong>{selectedMessage.to?.map((item) => item.address || item.email).filter(Boolean).join(', ') || '-'}</strong></div>
+                  <div><span>Date</span><strong>{formatDateTime(getMessageDate(selectedMessage))}</strong></div>
+                  <div><span>Importance</span><strong>{selectedMessage.importance || 'normal'}</strong></div>
                 </div>
-              </CardContent>
-            </Card>
 
-            <Card className="client-data-panel mail-inbox-preview">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Message Details</CardTitle>
-                  <CardDescription>Selected mail context and folder status.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {selectedMessage ? (
-                  <div className="mail-inbox-preview-card">
-                    <div className="mail-inbox-preview-badges">
-                      <Badge variant={badgeToneMap[normalizeFolderLabel(selectedMessage.folderLabel)] || 'default'}>
-                        {normalizeFolderLabel(selectedMessage.folderLabel)}
-                      </Badge>
-                    </div>
-                    <h3>{selectedMessage.subject}</h3>
-                    <div className="mail-inbox-preview-meta">
-                      <div>
-                        <span>From</span>
-                        <strong>{selectedMessage.from || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>To</span>
-                        <strong>{(selectedMessage.to && selectedMessage.to.join(', ')) || mailboxData.account?.email || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>Updated</span>
-                        <strong>{formatDateTime(selectedMessage.receivedAt || selectedMessage.updatedAt)}</strong>
-                      </div>
-                    </div>
+                {selectedMessage.attachments?.length ? (
+                  <div className="master-mail-attachments">
+                    {selectedMessage.attachments.map((item) => (
+                      <span key={item.id}>{item.name} ({Math.ceil(Number(item.size || 0) / 1024)} KB)</span>
+                    ))}
                   </div>
-                ) : (
-                  <div className="mail-inbox-empty-state">
-                    Select a mail item to see its details.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </PageSection>
+                ) : null}
 
-        <PageSection
-          title="Mailbox Notes"
-          description="Operational summaries and latest activity from the connected account."
-        >
-          <div className="client-data-grid">
-            <Card className="client-data-panel">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Mailbox Buckets</CardTitle>
-                  <CardDescription>Folder counts from your connected mailbox.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="client-data-health-list">
-                  {inboxItems.map((item) => (
-                    <div key={item.title}>
-                      <strong>{item.title}</strong>
-                      <span>{item.meta}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                <iframe
+                  className="master-mail-body-frame"
+                  title="Email body"
+                  sandbox=""
+                  srcDoc={selectedMessage.body?.content || '<p>No email body available.</p>'}
+                />
+              </>
+            ) : null}
 
-            <Card className="client-data-panel">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <CardTitle>Mail Activity</CardTitle>
-                  <CardDescription>Latest mailbox activity from the connected account.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="client-data-activity-list">
-                  {activityItems.length ? activityItems.map((item) => (
-                    <article key={`${item.title}-${item.meta}`}>
-                      <strong>{item.title}</strong>
-                      <p>{item.meta}</p>
-                    </article>
-                  )) : (
-                    <article>
-                      <strong>No mailbox activity</strong>
-                      <p>Connect the mailbox again if Graph mailbox permissions were not granted earlier.</p>
-                    </article>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </PageSection>
+            {!detailLoading && !selectedMessage ? (
+              <div className="master-mail-connect-state">
+                <strong>No email selected</strong>
+                <p>Select a message from the list to read it here.</p>
+              </div>
+            ) : null}
+          </section>
+        </section>
 
-        <PageSection
-          title="Outlook Replies"
-          description="Recently received and sent Outlook mail previews from the connected mailbox."
-        >
-          <div className="mail-inbox-reply-list">
-            {outlookReplyItems.length ? outlookReplyItems.map((item) => (
-              <article key={item.id} className="mail-inbox-reply-card">
-                <div className="mail-inbox-reply-head">
-                  <strong>{item.subject}</strong>
-                  <Badge variant={badgeToneMap[item.folder] || 'default'}>{item.folder}</Badge>
-                </div>
-                <div className="mail-inbox-reply-meta">
-                  <span>From: {item.from}</span>
-                  <span>To: {item.to}</span>
-                  <span>{item.receivedAt}</span>
-                </div>
-                <p>{item.bodyPreview || 'No body preview available.'}</p>
-              </article>
-            )) : (
-              <article className="mail-inbox-reply-card">
-                <strong>No Outlook replies yet</strong>
-                <p>Received and sent messages will appear here once the mailbox sync loads them.</p>
-              </article>
-            )}
+        {composerOpen ? (
+          <div className="master-mail-compose-backdrop" onClick={() => setComposerOpen(false)}>
+            <section className="master-mail-compose" onClick={(event) => event.stopPropagation()}>
+              <div className="master-mail-compose-head">
+                <strong>New message</strong>
+                <button type="button" onClick={() => setComposerOpen(false)}>x</button>
+              </div>
+              <input value={composeDraft.to} onChange={(event) => setComposeDraft((draft) => ({ ...draft, to: event.target.value }))} placeholder="To" />
+              <input value={composeDraft.subject} onChange={(event) => setComposeDraft((draft) => ({ ...draft, subject: event.target.value }))} placeholder="Subject" />
+              <textarea value={composeDraft.body} onChange={(event) => setComposeDraft((draft) => ({ ...draft, body: event.target.value }))} placeholder="Write your message" rows={8} />
+              <div className="master-mail-compose-actions">
+                <Button type="button" loading={actionLoading === 'send'} onClick={handleSend}>Send</Button>
+                <Button type="button" variant="ghost" onClick={() => setComposerOpen(false)}>Cancel</Button>
+              </div>
+            </section>
           </div>
-        </PageSection>
-      </PageContainer>
+        ) : null}
+      </main>
     </AppLayout>
   );
 }

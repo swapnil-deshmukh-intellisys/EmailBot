@@ -1,6 +1,7 @@
 import connectDB from '../database-config/MongoDatabaseConnection.js';
 import SenderAccount from '../../database-models/SenderAccount.js';
 import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
+import { isGraphAppOnlyEnabled } from './MicrosoftGraphOAuthScopes.js';
 
 const DEFAULT_PROJECT_PRESET_SENDERS = {
   tec: [
@@ -109,7 +110,7 @@ export function getRuntimeSenderAccounts(project = '') {
   const accounts = [];
   const graphConfig = getProjectGraphConfig(project);
 
-  if (graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret) {
+  if (isGraphAppOnlyEnabled() && graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret) {
     const defaultFrom = String(graphConfig.defaultFrom || '').trim();
     if (defaultFrom) {
       accounts.push({
@@ -182,6 +183,8 @@ export async function resolveSenderAccountById(id, options = {}) {
   }
 
   if (raw.startsWith('graphapp:')) {
+    if (!isGraphAppOnlyEnabled()) return null;
+
     const email = raw.slice('graphapp:'.length).trim().toLowerCase();
     if (!email) return null;
     const graphConfig = getProjectGraphConfig(project || inferProjectFromEmail(email));

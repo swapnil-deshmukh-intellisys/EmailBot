@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { requireUser } from '@/lib/apiAuth';
+import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
@@ -34,7 +35,7 @@ export async function GET(req, { params }) {
       createdAt: list.createdAt || null,
       columns: list.columns || [],
       sheetStyle: list.sheetStyle || {},
-      leads: list.leads
+      leads: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData) : []
     });
   } catch (error) {
     if (String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true' && String(params?.id || '') === 'demo-list-1') {
@@ -98,7 +99,7 @@ export async function PATCH(req, { params }) {
     };
   }
   const seenEmails = new Set();
-  list.leads = rows.reduce((acc, row, index) => {
+  list.leads = rows.filter(hasMeaningfulLeadData).reduce((acc, row, index) => {
     const data = Object.fromEntries(
       Object.entries(row || {}).map(([key, value]) => [String(key || '').trim(), value ?? ''])
     );

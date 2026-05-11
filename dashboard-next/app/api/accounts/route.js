@@ -6,6 +6,7 @@ import SenderAccount from '@/models/SenderAccount';
 import { verifyAccountConnection } from '@/lib/emailSender';
 import { getProjectGraphConfig, getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { requireAuth, requireUser } from '@/lib/apiAuth';
+import { isGraphAppOnlyEnabled } from '@/core-lib/mail-engine/MicrosoftGraphOAuthScopes';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
 const DEFAULT_PROJECT_PRESET_SENDERS = {
@@ -158,17 +159,17 @@ export async function GET(req) {
   ]);
 
   const graphConfig = getProjectGraphConfig(project);
-  const graphAppReady = Boolean(graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret);
+  const graphAppReady = isGraphAppOnlyEnabled() && Boolean(graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret);
 
   const dbPresetPublic = dbPreset
     .filter((entry) => !seen.has(String(entry.email || "").toLowerCase()))
     .map((entry) => ({
       id: `graphapp:${String(entry.email || "").toLowerCase()}`,
-      provider: "graph",
-      label: "Outlook / Microsoft 365 (Graph App)",
+      provider: graphAppReady ? "graph" : "graph_oauth",
+      label: graphAppReady ? "Outlook / Microsoft 365 (Graph App)" : "Outlook / Microsoft 365",
       from: String(entry.email || "").toLowerCase(),
       project: entry.project,
-      status: graphAppReady ? "Connected" : "Not configured",
+      status: graphAppReady ? "Connected" : "Not connected",
       lastSync: graphAppReady ? new Date().toISOString() : null,
       dailyLimit: 250,
       sentToday: 18,
@@ -181,11 +182,11 @@ export async function GET(req) {
     .filter((email) => !dbPresetEmails.includes(email))
     .map((email) => ({
       id: `graphapp:${email}`,
-      provider: "graph",
-      label: "Outlook / Microsoft 365 (Graph App)",
+      provider: graphAppReady ? "graph" : "graph_oauth",
+      label: graphAppReady ? "Outlook / Microsoft 365 (Graph App)" : "Outlook / Microsoft 365",
       from: email,
       project,
-      status: graphAppReady ? "Connected" : "Not configured",
+      status: graphAppReady ? "Connected" : "Not connected",
       lastSync: graphAppReady ? new Date().toISOString() : null,
       dailyLimit: 250,
       sentToday: 18,

@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import connectDB from '../database-config/MongoDatabaseConnection.js';
 import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
 import { decryptString, encryptString } from '../auth-config/TokenCryptoService.js';
+import { DELEGATED_MAILBOX_SCOPE, isGraphAppOnlyEnabled } from './MicrosoftGraphOAuthScopes.js';
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,6 +21,10 @@ function buildDefaultAccount() {
 }
 
 function buildGraphAccount() {
+  if (!isGraphAppOnlyEnabled()) {
+    return null;
+  }
+
   const tenantId = process.env.TENANT_ID;
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
@@ -225,6 +230,10 @@ function getGraphTokenCacheKey(account = {}) {
 }
 
 async function getGraphAccessToken(account) {
+  if (!isGraphAppOnlyEnabled()) {
+    throw new Error('Graph app-only sending is disabled. Connect this mailbox with Microsoft OAuth instead.');
+  }
+
   const now = Date.now();
   const cacheKey = getGraphTokenCacheKey(account);
   const cached = tokenCache.get(cacheKey);
@@ -260,7 +269,7 @@ async function getGraphAccessToken(account) {
 export async function getDelegatedAccessToken(oauthAccountId) {
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
   const clientSecret = process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
-  const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
+  const tenant = process.env.MS_OAUTH_TENANT || process.env.MS_TENANT_ID || process.env.TENANT_ID || 'organizations';
 
   if (!clientId || !clientSecret) {
     throw new Error('MS_CLIENT_ID/MS_CLIENT_SECRET (or MS_OAUTH_CLIENT_ID/MS_OAUTH_CLIENT_SECRET or CLIENT_ID/CLIENT_SECRET) are not set');
@@ -281,7 +290,7 @@ export async function getDelegatedAccessToken(oauthAccountId) {
   const refreshToken = decryptString(doc.refreshTokenEnc);
   const scope = (doc.scopes && doc.scopes.length)
     ? doc.scopes.join(' ')
-    : ['offline_access', 'User.Read', 'Mail.Send', 'Mail.Read', 'Mail.ReadWrite'].join(' ');
+    : DELEGATED_MAILBOX_SCOPE;
 
   const tokenUrl = `https://login.microsoftonline.com/${doc.tenantId || tenant}/oauth2/v2.0/token`;
   const params = new URLSearchParams();
@@ -466,8 +475,9 @@ async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inRepl
   return { messageId: String(info?.messageId || '').trim() };
 }
 
-export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null }) {
-  const { subject, body } = renderTemplate(template, lead);
+export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null, trackingPixelHtml = '' }) {
+  const { subject, body: renderedBody } = renderTemplate(template, lead);
+  const body = trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody;
   const to = normalizeRecipient(lead.Email || lead.email);
 
   if (!to || !isValidEmailAddress(to)) {

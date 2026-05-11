@@ -95,10 +95,11 @@ Outlook SMTP values:
 - `SMTP_SECURE=false`
 
 Graph API notes:
-- App must have `Mail.Send` application permission in Azure AD.
-- Admin consent is required for that permission.
+- For delegated OAuth mailbox access, use delegated `User.Read`, `Mail.Read`, `Mail.ReadWrite`, `Mail.Send`, and `MailboxSettings.Read` permissions.
+- Do not add Microsoft Graph application permissions for the delegated mailbox flow.
 - `GRAPH_SENDER_EMAIL` must be a mailbox user allowed to send.
 - For delegated OAuth mailbox access, set `MS_REDIRECT_URI` to your real deployed callback URL, for example `https://yourdomain.com/api/graph-oauth/callback`.
+- Legacy app-only Graph sending is disabled by default. Only set `ENABLE_GRAPH_APP_ONLY=true` if you intentionally want the app-only client credentials flow and have granted/admin-consented application permissions.
 
 4. Run app:
 ```bash

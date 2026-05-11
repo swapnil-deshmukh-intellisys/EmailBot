@@ -93,6 +93,21 @@ function normalizeDraftBody(value = '') {
   return `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${html}</div>`;
 }
 
+function normalizeEmailDraftHtml(value = '') {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  const html = /<[a-z][\s\S]*>/i.test(input) ? input : normalizeDraftBody(input);
+  const cleaned = html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<meta[\s\S]*?>/gi, '')
+    .replace(/<link[\s\S]*?>/gi, '')
+    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+    .replace(/<p>\s*<\/p>/gi, '<p><br></p>')
+    .trim();
+  return `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.55;color:#111827;">${cleaned}</div>`;
+}
+
 function normalizeDraft(draft = {}) {
   return {
     ...draft,
@@ -354,18 +369,34 @@ export default function DashboardPage() {
   const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
   const [profileCredits, setProfileCredits] = useState({
       planName: 'Basic',
-      upgradeTargetPlan: 'Pro',
-      upgradeTargetCredits: 12000,
-      totalCredits: 6000,
+      upgradeTargetPlan: 'Starter',
+      upgradeTargetCredits: 2000,
+      monthlyLimit: 300,
+      totalCredits: 300,
       usedCredits: 0,
-      remainingCredits: 6000,
+      remainingCredits: 300,
+      usagePercentage: 0,
       creditUsagePercent: 0,
+      dailyLimit: 500,
+      dailyUsedCredits: 0,
+      dailyRemainingCredits: 500,
+      dailyUsagePercentage: 0,
+      upgradeTargetDailyLimit: 1000,
+      upgradeRequestPending: false,
+      requestedUpgradePlan: null,
+      status: 'active',
+      warningLevel: 'healthy',
+      dailyWarningLevel: 'healthy',
+      sendingDisabled: false,
       targetApprovalStatus: 'approved',
       targetApprovalRequestedAt: null,
       targetApprovalReviewedAt: null,
       targetApprovalReviewer: '',
       targetApprovalRequestNote: ''
     });
+  const [creditTransactions, setCreditTransactions] = useState([]);
+  const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
+  const [subscriptionDetailsLoading, setSubscriptionDetailsLoading] = useState(false);
   const [profileTimelineTasks, setProfileTimelineTasks] = useState({});
   const [profileTimelineCustomTasks, setProfileTimelineCustomTasks] = useState([]);
   const projectAccounts = useMemo(() => accounts, [accounts]);
@@ -432,12 +463,14 @@ export default function DashboardPage() {
   const campaignCreateLockRef = useRef(false);
   const lastCampaignCreateSignatureRef = useRef('');
   const lastCreatedCampaignIdRef = useRef('');
+  const lastAutoAppliedDraftTypeRef = useRef('');
   const requestedListIdRef = useRef('');
   const requestedAutoUploadRef = useRef(false);
   useEffect(() => {
     requestedListIdRef.current = String(searchParams?.get('listId') || '').trim();
     requestedAutoUploadRef.current = String(searchParams?.get('autoUpload') || '').trim() === '1';
   }, [searchParams]);
+  const requestedWorkflowStep = Math.max(0, Math.min(7, Number(searchParams?.get('workflowStep') || 0)));
   const notify = (message, tone = 'info') => {
     if (!message) return;
     if (toastTimeoutRef.current) {
@@ -448,6 +481,65 @@ export default function DashboardPage() {
       setToast(null);
       toastTimeoutRef.current = null;
     }, 3200);
+  };
+  const handleUpgradePlan = async () => {
+    try {
+      const targetPlan = profileCredits.upgradeTargetPlan || 'Starter';
+      const response = await fetch('/api/subscription/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planName: targetPlan })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to upgrade subscription');
+      }
+      const summary = data.summary || {};
+      const usage = Number(summary.usagePercentage ?? summary.creditUsagePercent ?? 0);
+      setProfileCredits((current) => ({
+        ...current,
+        ...summary,
+        planName: summary.planName || targetPlan,
+        monthlyLimit: Number(summary.monthlyLimit || summary.totalCredits || current.monthlyLimit || 300),
+        totalCredits: Number(summary.totalCredits || summary.monthlyLimit || current.totalCredits || 300),
+        usagePercentage: usage,
+        creditUsagePercent: usage,
+        upgradeTargetPlan: summary.upgradeTargetPlan || summary.nextPlan || targetPlan
+      }));
+      notify(data.message || `Upgraded to ${summary.planName || targetPlan}.`, 'success');
+    } catch (error) {
+      notify(error.message || 'Failed to upgrade subscription', 'error');
+    }
+  };
+  const openSubscriptionDetails = async () => {
+    setShowSubscriptionDetails(true);
+    setSubscriptionDetailsLoading(true);
+    try {
+      const response = await fetch('/api/credits', { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to load credit details');
+      }
+      const summary = data.summary || {};
+      const usage = Number(summary.usagePercentage ?? summary.creditUsagePercent ?? 0);
+      setProfileCredits((current) => ({
+        ...current,
+        ...summary,
+        planName: summary.planName || current.planName || 'Basic',
+        monthlyLimit: Number(summary.monthlyLimit || summary.totalCredits || current.monthlyLimit || 300),
+        totalCredits: Number(summary.totalCredits || summary.monthlyLimit || current.totalCredits || 300),
+        usedCredits: Number(summary.usedCredits || 0),
+        remainingCredits: Number(summary.remainingCredits || 0),
+        usagePercentage: usage,
+        creditUsagePercent: usage,
+        upgradeTargetPlan: summary.upgradeTargetPlan || summary.nextPlan || current.upgradeTargetPlan || 'Starter'
+      }));
+      setCreditTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+    } catch (error) {
+      notify(error.message || 'Failed to load credit details', 'error');
+    } finally {
+      setSubscriptionDetailsLoading(false);
+    }
   };
   const selectedAccountLabel =
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
@@ -725,6 +817,7 @@ export default function DashboardPage() {
         if (!profileRes.ok) return;
         const data = await profileRes.json().catch(() => null);
         const creditsData = creditsRes.ok ? await creditsRes.json().catch(() => null) : null;
+        setCreditTransactions(Array.isArray(creditsData?.transactions) ? creditsData.transactions : []);
         const user = data?.user || {};
         const profile = data?.profile || {};
         setProfileUser({
@@ -733,18 +826,38 @@ export default function DashboardPage() {
           displayName: String(profile.displayName || '').trim()
         });
         setProfileAvatarDataUrl(String(profile.avatarDataUrl || '').trim());
-        const totalCredits = Math.max(0, Number(profile.totalCredits || 6000));
-        const usedCredits = Math.max(0, Number(profile.usedCredits || 0));
-        const remainingCredits = Math.max(0, Number(profile.remainingCredits || Math.max(totalCredits - usedCredits, 0)));
-        const creditUsagePercent = Math.max(0, Math.min(100, Number(profile.creditUsagePercent || (totalCredits ? (usedCredits / totalCredits) * 100 : 0))));
+        const creditSummary = creditsData?.summary || {};
+        const totalCredits = Math.max(0, Number(creditSummary.monthlyLimit || creditSummary.totalCredits || profile.totalCredits || 300));
+        const usedCredits = Math.max(0, Number(creditSummary.usedCredits || profile.usedCredits || 0));
+        const remainingCredits = Math.max(0, Number(creditSummary.remainingCredits ?? profile.remainingCredits ?? Math.max(totalCredits - usedCredits, 0)));
+        const creditUsagePercent = Math.max(0, Math.min(100, Number(creditSummary.usagePercentage ?? creditSummary.creditUsagePercent ?? profile.creditUsagePercent ?? (totalCredits ? (usedCredits / totalCredits) * 100 : 0))));
+        const dailyLimit = Math.max(1, Number(creditSummary.dailyLimit || 500));
+        const dailyUsedCredits = Math.max(0, Number(creditSummary.usedToday ?? creditSummary.dailyUsedCredits ?? 0));
+        const dailyRemainingCredits = Math.max(0, Number(creditSummary.remainingToday ?? creditSummary.dailyRemainingCredits ?? Math.max(dailyLimit - dailyUsedCredits, 0)));
+        const dailyUsagePercentage = Math.max(0, Math.min(100, Number(creditSummary.dailyUsagePercentage ?? (dailyLimit ? (dailyUsedCredits / dailyLimit) * 100 : 0))));
           setProfileCredits({
-            planName: String(profile.planName || 'Basic').trim() || 'Basic',
-            upgradeTargetPlan: String(creditsData?.summary?.upgradeTargetPlan || (profile.planName === 'Basic' ? 'Pro' : 'Enterprise')).trim() || 'Pro',
-            upgradeTargetCredits: Number(creditsData?.summary?.upgradeTargetCredits || (profile.planName === 'Basic' ? 12000 : 30000)),
+            planName: String(creditSummary.planName || profile.planName || 'Basic').trim() || 'Basic',
+            upgradeTargetPlan: String(creditSummary.upgradeTargetPlan || creditSummary.nextPlan || 'Starter').trim() || 'Starter',
+            upgradeTargetCredits: Number(creditSummary.upgradeTargetCredits || 2000),
+            monthlyLimit: totalCredits,
             totalCredits,
             usedCredits,
             remainingCredits,
+            usagePercentage: creditUsagePercent,
             creditUsagePercent,
+            dailyLimit,
+            dailyUsedCredits,
+            dailyRemainingCredits,
+            dailyUsagePercentage,
+            upgradeRequestPending: Boolean(creditSummary.upgradeRequestPending),
+            requestedUpgradePlan: creditSummary.requestedUpgradePlan || null,
+            pendingUpgradeRequestId: creditSummary.pendingUpgradeRequestId || null,
+            upgradeTargetDailyLimit: Number(creditSummary.upgradeTargetDailyLimit || dailyLimit),
+            renewalDate: creditSummary.renewalDate || null,
+            status: String(creditSummary.status || 'active').trim() || 'active',
+            warningLevel: String(creditSummary.warningLevel || 'healthy').trim() || 'healthy',
+            dailyWarningLevel: String(creditSummary.dailyWarningLevel || 'healthy').trim() || 'healthy',
+            sendingDisabled: Boolean(creditSummary.sendingDisabled),
             targetApprovalStatus: String(profile.targetApprovalStatus || 'approved').trim() || 'approved',
             targetApprovalRequestedAt: profile.targetApprovalRequestedAt || null,
             targetApprovalReviewedAt: profile.targetApprovalReviewedAt || null,
@@ -991,7 +1104,7 @@ const handleDeleteDraft = async (draft) => {
         category: newDraftCategory,
         title: baseTitle,
         subject: newDraftSubject,
-        body: newDraftBody
+        body: normalizeEmailDraftHtml(newDraftBody)
       };
       const isEditing = Boolean(editingDraftId);
       const url = isEditing ? `/api/drafts/${editingDraftId}` : '/api/drafts';
@@ -1050,7 +1163,7 @@ const handleDeleteDraft = async (draft) => {
           category,
           title: baseTitle,
           subject: draftSubject,
-          body: draftBody
+          body: normalizeEmailDraftHtml(draftBody)
         })
       });
 
@@ -1907,11 +2020,14 @@ const handleDeleteDraft = async (draft) => {
     if (!selectedDraft) return;
     const tpl = draftTemplates[selectedDraft];
     if (tpl) {
+      if (lastAutoAppliedDraftTypeRef.current === selectedDraft) return;
+      if (String(draftSubject || '').trim() || String(draftBody || '').trim()) return;
       const normalized = normalizeDraft(tpl);
       setDraftSubject(normalized.subject || "");
       setDraftBody(normalized.body || "");
+      lastAutoAppliedDraftTypeRef.current = selectedDraft;
     }
-  }, [selectedDraft]);
+  }, [selectedDraft, draftSubject, draftBody]);
 
   const safeFetchJson = async (url, options = {}) => {
     const controller = new AbortController();
@@ -1949,10 +2065,12 @@ const handleDeleteDraft = async (draft) => {
     }
 
     if (!res.ok) {
-      if (res.status === 401) {
-        throw new Error('Unauthorized');
-      }
-      throw new Error(data.error || `Request failed: ${url}`);
+      const message = data.message || data.error || `Request failed: ${url}`;
+      const error = new Error(message);
+      error.status = res.status;
+      error.code = data.code || '';
+      error.details = data;
+      throw error;
     }
 
     return data;
@@ -2288,6 +2406,36 @@ const handleDeleteDraft = async (draft) => {
       notify('Select Mail ID before creating a campaign.', 'info');
       return null;
     }
+    const selectedAccountRecord = accounts.find((account) => account.id === selectedAccount);
+    const selectedAccountStatus = String(selectedAccountRecord?.status || '').trim().toLowerCase();
+    if (!selectedAccountRecord) {
+      notify('Selected Mail ID was not found. Refresh accounts and select a sender again.', 'error');
+      return null;
+    }
+    if (selectedAccountStatus && !['connected', 'active', 'good', 'verified'].includes(selectedAccountStatus)) {
+      notify(`${selectedAccountRecord.from || 'Selected Mail ID'} is not connected. Connect this sender before creating a campaign.`, 'error');
+      return null;
+    }
+    if (!selectedListId) {
+      notify('Select a client list before creating a campaign.', 'info');
+      return null;
+    }
+    if (!lists.some((list) => String(list._id || '') === String(selectedListId))) {
+      notify('Selected client list was not found. Refresh and select the uploaded list again.', 'error');
+      return null;
+    }
+    if (!String(campaignName || '').trim()) {
+      notify('Enter campaign name before creating a campaign.', 'info');
+      return null;
+    }
+    if (!String(draftSubject || '').trim()) {
+      notify('Enter draft subject before creating a campaign.', 'info');
+      return null;
+    }
+    if (!String(normalizeEmailDraftHtml(draftBody) || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()) {
+      notify('Enter draft message before creating a campaign.', 'info');
+      return null;
+    }
     if (campaignCreateLockRef.current) {
       notify('Campaign creation is already in progress.', 'info');
       return null;
@@ -2300,7 +2448,7 @@ const handleDeleteDraft = async (draft) => {
       selectedAccount,
         selectedDraft,
         draftSubject: String(draftSubject || '').trim(),
-        draftBody: String(draftBody || '').trim(),
+        draftBody: normalizeEmailDraftHtml(draftBody),
         batchSize: String(batchSize || ''),
         delaySeconds: String(delaySeconds || ''),
         scheduleConfig: JSON.stringify(scheduleConfig || {}),
@@ -2326,6 +2474,16 @@ const handleDeleteDraft = async (draft) => {
     try {
       campaignCreateLockRef.current = true;
       const effectiveSchedule = scheduleConfig || prepareScheduleConfig();
+      console.debug('[campaign:create] request', {
+        url: '/api/campaigns',
+        project,
+        listId: selectedListId,
+        senderAccountId: selectedAccount || null,
+        senderFrom: selectedSenderEmail,
+        workflowStep,
+        workflowStepLabel,
+        scheduleMode: effectiveSchedule.scheduleMode
+      });
       const data = await safeFetchJson('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2337,7 +2495,7 @@ const handleDeleteDraft = async (draft) => {
           templateId: null,
           type: selectedDraft,
           draftType: selectedDraft,
-          inlineTemplate: { subject: draftSubject, body: draftBody },
+          inlineTemplate: { subject: draftSubject, body: normalizeEmailDraftHtml(draftBody) },
           senderAccountId: selectedAccount || null,
           scheduleMode: effectiveSchedule.scheduleMode,
           scheduledAt: effectiveSchedule.scheduledAt ? effectiveSchedule.scheduledAt.toISOString() : null,
@@ -2419,6 +2577,15 @@ const handleDeleteDraft = async (draft) => {
     }
 
     try {
+      console.debug('[campaign:schedule] request', {
+        url: `/api/campaigns/${pendingCampaignId}/schedule`,
+        campaignId: pendingCampaignId,
+        scheduleMode: config.scheduleMode,
+        scheduledAt: config.scheduledAt ? config.scheduledAt.toISOString() : null,
+        batchSize: config.batchSize,
+        delayInterval: config.delayInterval,
+        durationUnit: config.durationUnit
+      });
       await safeFetchJson(`/api/campaigns/${pendingCampaignId}/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2508,26 +2675,66 @@ const handleDeleteDraft = async (draft) => {
   };
 
 
-  const sendTestEmail = async () => {
+  const sendTestEmail = async (recipientOverride = '') => {
   const acc = accounts.find((a) => a.id === selectedAccount);
-  if (!acc) return notify('Select Mail ID.', 'info');
-  if (!testEmailTo) return notify('Enter test recipient email.', 'info');
+  const recipient = String(recipientOverride || testEmailTo || '').trim();
+  const normalizedBody = normalizeEmailDraftHtml(draftBody);
+  const accountStatus = String(acc?.status || '').trim().toLowerCase();
+  if (!acc) {
+    const message = 'Select Mail ID.';
+    notify(message, 'info');
+    return { ok: false, error: message };
+  }
+  if (accountStatus && !['connected', 'active', 'good', 'verified'].includes(accountStatus)) {
+    const message = `${acc.from || 'Selected sender'} is not connected. Connect this Mail ID before sending a test email.`;
+    notify(message, 'error');
+    return { ok: false, error: message };
+  }
+  if (!recipient) {
+    const message = 'Enter test recipient email.';
+    notify(message, 'info');
+    return { ok: false, error: message };
+  }
+  if (!String(draftSubject || '').trim()) {
+    const message = 'Enter test email subject.';
+    notify(message, 'info');
+    return { ok: false, error: message };
+  }
+  if (!String(normalizedBody || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()) {
+    const message = 'Enter test email body.';
+    notify(message, 'info');
+    return { ok: false, error: message };
+  }
   try {
-    await safeFetchJson('/api/send-test', {
+    const data = await safeFetchJson('/api/send-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accountId: acc.id,
-        to: testEmailTo,
+        project,
+        to: recipient,
         subject: draftSubject,
-        body: draftBody
+        body: normalizedBody
       })
     });
+    if (data?.ok === false || data?.success === false) {
+      throw new Error(data?.message || data?.error || 'Test email failed');
+    }
     notify('Test email sent successfully.', 'success');
+    return { ok: true };
   } catch (e) {
-    notify(e.message || 'Test email failed', 'error');
+    const message = e.message || 'Test email failed';
+    notify(message, 'error');
+    return { ok: false, error: message };
   }
 };
+
+  const refreshDashboardWorkflow = useCallback(async (scope = 'dashboard') => {
+    await loadAll();
+    router.refresh();
+    notify(scope === 'all' ? 'Dashboard refreshed.' : 'Workflow step refreshed.', 'success');
+    return true;
+  }, [loadAll, notify, router]);
 
 const normalizeSelectedListEmails = async () => {
     if (!selectedListId) {
@@ -2548,6 +2755,15 @@ const normalizeSelectedListEmails = async () => {
       setPreferredActiveCampaignId(campaignId);
       const scheduleConfig = prepareScheduleConfig(options.scheduleConfig || {});
       applyScheduleConfigState(scheduleConfig);
+      console.debug('[campaign:start] prepare', {
+        campaignId,
+        startAfterSchedule: Boolean(options.startAfterSchedule),
+        scheduleMode: scheduleConfig.scheduleMode,
+        scheduledAt: scheduleConfig.scheduledAt ? scheduleConfig.scheduledAt.toISOString() : null,
+        batchSize: scheduleConfig.batchSize,
+        delayInterval: scheduleConfig.delayInterval,
+        durationUnit: scheduleConfig.durationUnit
+      });
       if (scheduleConfig.scheduleMode === 'scheduled') {
         if (!scheduleConfig.scheduledDate || !scheduleConfig.scheduledTime) {
           notify('Please select scheduled date and time', 'warning');
@@ -2593,6 +2809,7 @@ const normalizeSelectedListEmails = async () => {
           })
         });
       }
+      console.debug('[campaign:start] request', { url: `/api/campaigns/${campaignId}/start`, campaignId });
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
       setPendingCampaignId('');
       if (data.scheduled) {
@@ -2978,33 +3195,71 @@ const normalizeSelectedListEmails = async () => {
             <nav className="dashboard-sidebar-menu">
               {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
             </nav>
-            <div className="dashboard-upgrade-card">
+            <div
+              className={`dashboard-upgrade-card dashboard-subscription-card usage-${profileCredits.warningLevel || 'healthy'}`}
+              role="button"
+              tabIndex={0}
+              onClick={openSubscriptionDetails}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openSubscriptionDetails();
+                }
+              }}
+              aria-label="Open subscription and credit details"
+            >
               <div className="dashboard-upgrade-head">
-                <strong>Upgrade</strong>
-                <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
+                <strong>Subscription</strong>
+                <span className="dashboard-upgrade-badge" aria-hidden="true">✦</span>
               </div>
               <p className="dashboard-upgrade-summary">
                 <span className="dashboard-upgrade-plan">{profileCredits.planName || 'Basic'}</span>
-                <span className="dashboard-upgrade-credits">{profileCredits.remainingCredits} Credits Left</span>
+                <span className="dashboard-upgrade-credits">{Number(profileCredits.remainingCredits || 0).toLocaleString()} mails left</span>
               </p>
               <div className="dashboard-upgrade-meta">
                 <span>
-                  <small>Current</small>
-                  <strong>{profileCredits.planName || 'Basic'}</strong>
+                  <small>Monthly Limit</small>
+                  <strong>{Number(profileCredits.monthlyLimit || profileCredits.totalCredits || 0).toLocaleString()}</strong>
+                </span>
+                <span>
+                  <small>Used</small>
+                  <strong>{Number(profileCredits.usedCredits || 0).toLocaleString()}</strong>
+                </span>
+                <span>
+                  <small>Today</small>
+                  <strong>{Number(profileCredits.dailyRemainingCredits ?? 500).toLocaleString()} left</strong>
                 </span>
                 <span>
                   <small>Next Plan</small>
-                  <strong>{profileCredits.upgradeTargetPlan || 'Pro'}</strong>
+                  <strong>{profileCredits.upgradeTargetPlan || 'Starter'}</strong>
                 </span>
               </div>
               <div className="dashboard-upgrade-meter">
                 <span style={{ width: `${Math.max(0, Math.min(100, profileCredits.creditUsagePercent || 0))}%` }} />
               </div>
-              <button type="button" className="dashboard-upgrade-button">
-                {profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
-                  ? `Upgrade to ${profileCredits.upgradeTargetPlan}`
+              <small className="dashboard-subscription-usage">
+                {Math.round(profileCredits.creditUsagePercent || 0)}% used this month
+              </small>
+              {profileCredits.warningLevel === 'warning' ? <small className="dashboard-subscription-warning">Usage above 80%.</small> : null}
+              {profileCredits.warningLevel === 'danger' ? <small className="dashboard-subscription-warning danger">Usage above 95%.</small> : null}
+              {profileCredits.dailyRemainingCredits <= 0 ? <small className="dashboard-subscription-warning danger">Daily limit reached. Admin approval is required to increase it.</small> : null}
+              {profileCredits.sendingDisabled && profileCredits.dailyRemainingCredits > 0 ? <small className="dashboard-subscription-warning danger">Sending disabled until upgrade or renewal.</small> : null}
+              {profileCredits.upgradeRequestPending ? <small className="dashboard-subscription-warning">Daily limit upgrade pending admin approval</small> : null}
+              <button
+                type="button"
+                className="dashboard-upgrade-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleUpgradePlan();
+                }}
+              >
+                {profileCredits.upgradeRequestPending
+                  ? `Pending ${profileCredits.requestedUpgradePlan || profileCredits.upgradeTargetPlan}`
+                  : profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
+                  ? 'Upgrade Daily Limit'
                   : 'Manage Plan'}
               </button>
+              <small className="dashboard-subscription-open-hint">Click card for credit details</small>
             </div>
 
             <button type="button" className="dashboard-logout-link" onClick={logout}>
@@ -3369,15 +3624,158 @@ const normalizeSelectedListEmails = async () => {
         </div>
       ) : null}
 
+      {showSubscriptionDetails && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="dashboard-subscription-modal-backdrop" onClick={() => setShowSubscriptionDetails(false)}>
+              <section className="dashboard-subscription-modal" onClick={(event) => event.stopPropagation()} aria-modal="true" role="dialog">
+                <div className="dashboard-subscription-modal-head">
+                  <div>
+                    <span>Subscription</span>
+                    <h2>{profileCredits.planName || 'Basic'} Plan</h2>
+                    <p>{profileUser.email || 'Current user'} has a separate monthly mail credit balance.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowSubscriptionDetails(false)} aria-label="Close subscription details">
+                    ×
+                  </button>
+                </div>
+
+                <div className="dashboard-subscription-modal-grid">
+                  <article>
+                    <span>Monthly Mail Limit</span>
+                    <strong>{Number(profileCredits.monthlyLimit || profileCredits.totalCredits || 0).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Used Credits</span>
+                    <strong>{Number(profileCredits.usedCredits || 0).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Remaining Credits</span>
+                    <strong>{Number(profileCredits.remainingCredits || 0).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Daily Mail Limit</span>
+                    <strong>{Number(profileCredits.dailyLimit || 500).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Used Today</span>
+                    <strong>{Number(profileCredits.dailyUsedCredits || 0).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Remaining Today</span>
+                    <strong>{Number(profileCredits.dailyRemainingCredits ?? profileCredits.dailyLimit ?? 500).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Usage</span>
+                    <strong>{Math.round(profileCredits.creditUsagePercent || profileCredits.usagePercentage || 0)}%</strong>
+                  </article>
+                  <article>
+                    <span>Status</span>
+                    <strong>{String(profileCredits.status || 'active').replace(/_/g, ' ')}</strong>
+                  </article>
+                  <article>
+                    <span>Next Plan</span>
+                    <strong>{profileCredits.upgradeTargetPlan || profileCredits.nextPlan || 'Starter'}</strong>
+                  </article>
+                  <article>
+                    <span>Next Daily Limit</span>
+                    <strong>{Number(profileCredits.upgradeTargetDailyLimit || profileCredits.dailyLimit || 500).toLocaleString()}</strong>
+                  </article>
+                  <article>
+                    <span>Renewal Date</span>
+                    <strong>{profileCredits.renewalDate ? new Date(profileCredits.renewalDate).toLocaleDateString() : 'Next month'}</strong>
+                  </article>
+                  <article>
+                    <span>Upgrade Request</span>
+                    <strong>{profileCredits.upgradeRequestPending ? `Pending ${profileCredits.requestedUpgradePlan || ''}` : 'None'}</strong>
+                  </article>
+                </div>
+
+                <div className="dashboard-subscription-modal-progress">
+                  <div>
+                    <span>Credit usage this month</span>
+                    <strong>{Number(profileCredits.usedCredits || 0).toLocaleString()} / {Number(profileCredits.monthlyLimit || profileCredits.totalCredits || 0).toLocaleString()}</strong>
+                  </div>
+                  <i>
+                    <b style={{ width: `${Math.max(0, Math.min(100, profileCredits.creditUsagePercent || profileCredits.usagePercentage || 0))}%` }} />
+                  </i>
+                </div>
+
+                <div className="dashboard-subscription-modal-progress">
+                  <div>
+                    <span>Daily usage</span>
+                    <strong>{Number(profileCredits.dailyUsedCredits || 0).toLocaleString()} / {Number(profileCredits.dailyLimit || 500).toLocaleString()}</strong>
+                  </div>
+                  <i>
+                    <b style={{ width: `${Math.max(0, Math.min(100, profileCredits.dailyUsagePercentage || 0))}%` }} />
+                  </i>
+                </div>
+
+                {profileCredits.creditUsagePercent >= 80 || profileCredits.sendingDisabled ? (
+                  <p className={`dashboard-subscription-modal-warning ${profileCredits.creditUsagePercent >= 95 || profileCredits.sendingDisabled ? 'danger' : ''}`}>
+                    {profileCredits.dailyRemainingCredits <= 0
+                      ? 'Daily limit reached. Ask admin to approve an upgrade or wait until tomorrow.'
+                      : profileCredits.sendingDisabled
+                      ? 'Monthly limit reached. Sending is disabled until renewal or upgrade.'
+                      : profileCredits.creditUsagePercent >= 95
+                        ? 'Usage is above 95%. Upgrade soon to avoid blocked sending.'
+                        : 'Usage is above 80%. Keep an eye on remaining credits.'}
+                  </p>
+                ) : null}
+
+                <div className="dashboard-subscription-modal-actions">
+                  <button type="button" className="ghost subtle" onClick={() => setShowSubscriptionDetails(false)}>Close</button>
+                  <button
+                    type="button"
+                    className="dashboard-upgrade-button"
+                    onClick={() => {
+                      setShowSubscriptionDetails(false);
+                      handleUpgradePlan();
+                    }}
+                  >
+                    {profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
+                      ? 'Upgrade Daily Limit'
+                      : 'Manage Plan'}
+                  </button>
+                </div>
+
+                <div className="dashboard-subscription-transactions">
+                  <div>
+                    <h3>Recent Credit Activity</h3>
+                    {subscriptionDetailsLoading ? <span>Loading...</span> : <span>{creditTransactions.length} records</span>}
+                  </div>
+                  <div className="dashboard-subscription-transaction-list">
+                    {creditTransactions.length ? creditTransactions.map((item) => (
+                      <article key={item._id || `${item.reason}-${item.createdAt}`}>
+                        <div>
+                          <strong>{String(item.reason || 'Credit update').replace(/_/g, ' ')}</strong>
+                          <span>{item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Recent'}</span>
+                        </div>
+                        <b className={item.type === 'credit' ? 'positive' : 'negative'}>
+                          {item.type === 'credit' ? '+' : '-'}{Math.abs(Number(item.credits || 0))}
+                        </b>
+                      </article>
+                    )) : (
+                      <p>No credit transactions yet.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>,
+            document.body
+          )
+        : null}
+
       {error && error !== 'Request timeout: /api/stats' ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
       <PremiumDashboardShell
         reportDateLabel={reportDateLabel}
         reportRangeLabel={reportRangeLabel}
-          reportMetricCards={reportMetricCards}
-          dailyMailCounts={stats.dailyMailCounts}
-          workflowSteps={workflowSteps}
-          completionRate={completionRate}
+        reportMetricCards={reportMetricCards}
+        dailyMailCounts={stats.dailyMailCounts}
+        workflowSteps={workflowSteps}
+        onRefreshWorkflow={refreshDashboardWorkflow}
+        initialWorkflowStep={requestedWorkflowStep}
+        completionRate={completionRate}
         totalTrackedMails={totalTrackedMails}
         notificationCards={notificationCards}
         timelineCards={timelineCards}

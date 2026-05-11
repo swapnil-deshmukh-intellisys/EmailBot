@@ -1,32 +1,86 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/Card';
-import PageSection from '@/app/components/ui/PageSection';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
-const badgeToneMap = {
-  Draft: 'default',
-  Scheduled: 'warning',
-  Running: 'success',
-  Paused: 'warning',
-  Completed: 'success',
-  Failed: 'danger'
+const EMPTY_COUNTS = {
+  total: 0,
+  running: 0,
+  paused: 0,
+  failed: 0,
+  incomplete: 0,
+  completed: 0,
+  scheduled: 0
 };
 
-const CAMPAIGNS_PAGE_WORKFLOW_STEPS = [
-  { index: 1, icon: '^', title: 'Upload List', label: 'Upload List', action: 'Next', chip: 'upload' },
-  { index: 2, icon: '[]', title: 'Review List', label: 'Review List', action: 'Review', chip: 'review' },
-  { index: 3, icon: '*', title: 'Campaign', label: 'Campaign', action: 'Next', chip: 'campaign' },
-  { index: 4, icon: '[]', title: 'Select Draft', label: 'Select Draft', action: 'Drafts', chip: 'draft' },
-  { index: 5, icon: '#', title: 'Draft Summary', label: 'Summary', action: 'Next', chip: 'summary' },
-  { index: 6, icon: '@', title: 'Test Email', label: 'Test', action: 'Next', chip: 'test' },
-  { index: 7, icon: 'T', title: 'Schedule Sending', label: 'Schedule', action: 'Schedule', chip: 'schedule' }
+const COUNT_CARDS = [
+  { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', description: 'All campaigns created by this user.', tone: 'total' },
+  { key: 'running', label: 'Running Campaigns', shortLabel: 'Running', icon: 'R', description: 'Actively sending or worker-owned.', tone: 'running' },
+  { key: 'paused', label: 'Paused Campaigns', shortLabel: 'Paused', icon: 'P', description: 'Temporarily held campaigns.', tone: 'paused' },
+  { key: 'failed', label: 'Failed Campaigns', shortLabel: 'Failed', icon: '!', description: 'Campaigns that ended with errors.', tone: 'failed' },
+  { key: 'incomplete', label: 'Incomplete / Draft', shortLabel: 'Incomplete', icon: 'D', description: 'Drafts or campaigns missing launch data.', tone: 'incomplete' },
+  { key: 'completed', label: 'Completed Campaigns', shortLabel: 'Completed', icon: 'C', description: 'Finished campaigns.', tone: 'completed' },
+  { key: 'scheduled', label: 'Scheduled Campaigns', shortLabel: 'Scheduled', icon: 'S', description: 'Scheduled or queued for launch.', tone: 'scheduled' }
 ];
+
+const STATUS_TABS = [
+  { value: 'all', label: 'All' },
+  { value: 'running', label: 'Running' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'incomplete', label: 'Incomplete' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'scheduled', label: 'Scheduled' }
+];
+
+const STATUS_BADGE_VARIANTS = {
+  running: 'success',
+  paused: 'warning',
+  failed: 'danger',
+  incomplete: 'warning',
+  completed: 'success',
+  scheduled: 'info'
+};
+
+const ACTION_LABELS = {
+  start: 'Start',
+  pause: 'Pause',
+  resume: 'Resume',
+  stop: 'Stop'
+};
+
+function normalizeText(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function hasRequiredCampaignData(campaign = {}) {
+  const hasList = Boolean(campaign.listId);
+  const hasTemplate = Boolean(campaign.templateId || (campaign.inlineTemplate?.subject && campaign.inlineTemplate?.body));
+  const hasSender = Boolean(campaign.senderAccountId || campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user);
+  const total = Number(campaign.stats?.total || 0);
+  return hasList && hasTemplate && hasSender && total > 0;
+}
+
+function normalizeCampaignStatusBucket(campaign = {}) {
+  const status = normalizeText(campaign?.status || 'Draft');
+  if (status === 'running') return 'running';
+  if (status === 'paused') return 'paused';
+  if (status === 'failed') return 'failed';
+  if (status === 'completed') return 'completed';
+  if (status === 'scheduled') return 'scheduled';
+  if (status === 'queued') return hasRequiredCampaignData(campaign) ? 'scheduled' : 'incomplete';
+  return 'incomplete';
+}
+
+function getDisplayStatus(campaign = {}) {
+  const status = String(campaign?.status || '').trim();
+  if (status) return status;
+  return 'Draft';
+}
 
 function formatDateTime(value) {
   if (!value) return '-';
@@ -35,76 +89,540 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
-function getCampaignWindow(campaign) {
+function getScheduledDate(campaign = {}) {
+  return campaign?.scheduledAt || campaign?.scheduledStart?.at || null;
+}
+
+function getSenderEmail(campaign = {}) {
+  return campaign?.senderFrom || campaign?.senderAccount?.from || campaign?.senderAccount?.user || '-';
+}
+
+function getStats(campaign = {}) {
+  const total = Number(campaign?.stats?.total || 0);
+  const sent = Number(campaign?.stats?.sent || 0);
+  const failed = Number(campaign?.stats?.failed || 0);
+  const pendingFromStats = campaign?.stats?.pending;
+  const pending = Number.isFinite(Number(pendingFromStats))
+    ? Number(pendingFromStats || 0)
+    : Math.max(total - sent - failed, 0);
+
+  return {
+    total,
+    sent,
+    pending,
+    failed,
+    opens: Number(campaign?.openCount ?? campaign?.trackingStats?.openCount ?? 0),
+    replies: Number(campaign?.replyCount ?? campaign?.trackingStats?.replyCount ?? 0)
+  };
+}
+
+function getProjectLabel(campaign = {}) {
+  return campaign.projectName || String(campaign.project || '-').toUpperCase();
+}
+
+function getCampaignName(value = {}, fallback = 'Untitled campaign') {
+  return value.campaignName || value.name || fallback;
+}
+
+function getFailureReason(campaign = {}) {
+  return campaign.failureReason || campaign.lastError || '-';
+}
+
+function getLastActivity(campaign = {}) {
+  return campaign.lastActivityAt || campaign.updatedAt || campaign.createdAt || null;
+}
+
+function getActionDisabled(action, campaign = {}) {
+  const safeActions = campaign?.safeActions || {};
+  if (action === 'start' && typeof safeActions.canStart === 'boolean') return !safeActions.canStart;
+  if (action === 'pause' && typeof safeActions.canPause === 'boolean') return !safeActions.canPause;
+  if (action === 'resume' && typeof safeActions.canResume === 'boolean') return !safeActions.canResume;
+  if (action === 'stop' && typeof safeActions.canStop === 'boolean') return !safeActions.canStop;
+  const bucket = normalizeCampaignStatusBucket(campaign);
+  const status = normalizeText(campaign?.status);
+  if (action === 'start') return bucket === 'running' || bucket === 'completed' || status === 'paused';
+  if (action === 'pause') return bucket !== 'running' && bucket !== 'scheduled';
+  if (action === 'resume') return bucket !== 'paused';
+  if (action === 'stop') return bucket === 'completed' || bucket === 'failed' || normalizeText(campaign?.status) === 'stopped';
+  return false;
+}
+
+function getActionLabel(action, campaign = {}) {
+  if (action === 'start' && campaign?.safeActions?.actionLabel === 'Retry/Fix Issue') return 'Retry/Fix Issue';
+  if (action === 'start' && normalizeCampaignStatusBucket(campaign) === 'failed') return 'Retry/Fix Issue';
+  return ACTION_LABELS[action] || action;
+}
+
+function getApiMessage(data, fallback) {
+  return data?.message || data?.error || data?.code || fallback;
+}
+
+function getStepStatus(step = {}) {
+  return String(step.status || 'Pending').trim();
+}
+
+function isMailSent(step = {}) {
+  const status = getStepStatus(step).toLowerCase();
+  return Boolean(step.sentAt) || ['sent', 'opened', 'replied', 'delivered', 'auto reply'].includes(status);
+}
+
+function isUnsentMailStep(step = {}) {
+  return !isMailSent(step);
+}
+
+function getMailStatusClass(step = {}) {
+  const status = getStepStatus(step).toLowerCase();
+  if (['failed', 'bounced', 'spam', 'pending', 'skipped'].includes(status) || isUnsentMailStep(step)) {
+    return 'campaign-mail-cell campaign-mail-cell-red';
+  }
+  return 'campaign-mail-cell campaign-mail-cell-ok';
+}
+
+function CountCard({ card, count, loading }) {
   return (
-    campaign?.scheduledStart?.label ||
-    formatDateTime(campaign?.scheduledAt) ||
-    formatDateTime(campaign?.createdAt)
+    <article className={`campaign-count-card campaign-count-card-${card.tone}`}>
+      <div className="campaign-count-card-glow" />
+      <div className="campaign-count-card-head">
+        <span className="campaign-count-icon" aria-hidden="true">{card.icon}</span>
+        <span className="campaign-count-label">{card.shortLabel}</span>
+      </div>
+      {loading ? <div className="campaign-count-skeleton" /> : <strong>{Number(count || 0).toLocaleString()}</strong>}
+      <p>{card.description}</p>
+    </article>
   );
 }
 
-function getCampaignAudience(campaign) {
-  return `${Number(campaign?.stats?.total || 0)} contacts`;
+function ActionButton({ action, campaign, loadingKey, onAction }) {
+  const campaignId = String(campaign?._id || '');
+  const key = `${campaignId}:${action}`;
+  const loading = loadingKey === key;
+  const disabled = getActionDisabled(action, campaign);
+
+  return (
+    <Button
+      size="sm"
+      variant={action === 'stop' ? 'danger' : action === 'start' ? 'primary' : 'secondary'}
+      loading={loading}
+      disabled={disabled}
+      onClick={() => onAction(campaign, action)}
+    >
+      {getActionLabel(action, campaign)}
+    </Button>
+  );
 }
 
-function getWorkflowStepLabel(campaign) {
-  const step = Number(campaign?.workflowStep || 1);
-  const savedLabel = String(campaign?.workflowStepLabel || '').trim();
-  if (savedLabel) return savedLabel;
-  if (step === 2) return 'Overview';
-  if (step === 3) return 'Campaign';
-  if (step === 4) return 'Draft';
-  if (step === 5) return 'Summary';
-  if (step === 6) return 'Test';
-  if (step >= 7) return 'Schedule';
-  return `Step ${step}`;
+function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleView }) {
+  return (
+    <div className="campaign-table-wrap">
+      <table className="campaign-table">
+        <thead>
+          <tr>
+            <th>Campaign Name</th>
+            <th>Project</th>
+            <th>Status</th>
+            <th>Recipients</th>
+            <th>Sent</th>
+            <th>Pending</th>
+            <th>Failed</th>
+            <th>Open Count</th>
+            <th>Response Count</th>
+            <th>Failure Reason</th>
+            <th>Last Activity</th>
+            <th>Created</th>
+            <th>Scheduled</th>
+            <th>Sender</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {campaigns.map((campaign) => {
+            const stats = getStats(campaign);
+            const bucket = normalizeCampaignStatusBucket(campaign);
+
+            return (
+              <tr key={campaign._id}>
+                <td>
+                  <div className="campaign-name-cell">
+                    <button
+                      type="button"
+                      className="campaign-name-link"
+                      onClick={() => onToggleView(campaign._id)}
+                    >
+                      {campaign.name || 'Untitled campaign'}
+                    </button>
+                    <small>{campaign.type || campaign.draftType || '-'}</small>
+                  </div>
+                </td>
+                <td>{getProjectLabel(campaign)}</td>
+                <td>
+                  <Badge variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
+                    {getDisplayStatus(campaign)}
+                  </Badge>
+                </td>
+                <td>{stats.total.toLocaleString()}</td>
+                <td>{stats.sent.toLocaleString()}</td>
+                <td>{stats.pending.toLocaleString()}</td>
+                <td>{stats.failed.toLocaleString()}</td>
+                <td>{stats.opens.toLocaleString()}</td>
+                <td>{stats.replies.toLocaleString()} Replies</td>
+                <td>{getFailureReason(campaign)}</td>
+                <td>{formatDateTime(getLastActivity(campaign))}</td>
+                <td>{formatDateTime(campaign.createdAt)}</td>
+                <td>{formatDateTime(getScheduledDate(campaign))}</td>
+                <td className="campaign-sender-cell">{getSenderEmail(campaign)}</td>
+                <td>
+                  <div className="campaign-action-row">
+                    <Button size="sm" variant="secondary" onClick={() => onToggleView(campaign._id)}>
+                      View
+                    </Button>
+                    <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+                    <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+                    <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+                    <ActionButton action="stop" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CampaignMobileCards({ campaigns, actionLoadingKey, onAction, onToggleView }) {
+  return (
+    <div className="campaign-mobile-list">
+      {campaigns.map((campaign) => {
+        const stats = getStats(campaign);
+        const bucket = normalizeCampaignStatusBucket(campaign);
+
+        return (
+          <article key={`mobile-${campaign._id}`} className="campaign-mobile-card">
+            <div className="campaign-mobile-card-head">
+              <div>
+                <button
+                  type="button"
+                  className="campaign-name-link"
+                  onClick={() => onToggleView(campaign._id)}
+                >
+                  {campaign.name || 'Untitled campaign'}
+                </button>
+                <small>{getProjectLabel(campaign)} | {getSenderEmail(campaign)}</small>
+              </div>
+              <Badge variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
+                {getDisplayStatus(campaign)}
+              </Badge>
+            </div>
+            <div className="campaign-mobile-metrics">
+              <span><b>{stats.total}</b>Total</span>
+              <span><b>{stats.sent}</b>Sent</span>
+              <span><b>{stats.pending}</b>Pending</span>
+              <span><b>{stats.failed}</b>Failed</span>
+              <span><b>{stats.opens}</b>Opens</span>
+              <span><b>{stats.replies}</b>Replies</span>
+            </div>
+            <div className="campaign-mobile-meta">
+              <span>Failure: {getFailureReason(campaign)}</span>
+              <span>Last activity: {formatDateTime(getLastActivity(campaign))}</span>
+              <span>Created: {formatDateTime(campaign.createdAt)}</span>
+              <span>Scheduled: {formatDateTime(getScheduledDate(campaign))}</span>
+            </div>
+            <div className="campaign-action-row">
+              <Button size="sm" variant="secondary" onClick={() => onToggleView(campaign._id)}>
+                View
+              </Button>
+              <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+              <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+              <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+              <ActionButton action="stop" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function getStep(log = {}, number) {
+  return Array.isArray(log.stepLogs) ? log.stepLogs.find((item) => Number(item.stepNumber) === number) || {} : {};
+}
+
+function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const loadDetail = useCallback(async ({ silent = false } = {}) => {
+    if (!campaignId) return;
+    try {
+      if (silent) setRefreshing(true);
+      if (!silent) setLoading(true);
+      const response = await fetch(`/api/campaigns/${campaignId}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success === false) throw new Error(getApiMessage(data, 'Unable to load campaign details'));
+      setDetail(data);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Unable to load campaign details');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    void loadDetail();
+    const id = window.setInterval(() => void loadDetail({ silent: true }), 12000);
+    return () => window.clearInterval(id);
+  }, [loadDetail]);
+
+  const syncReplies = async () => {
+    setNotice('');
+    setError('');
+    const response = await fetch(`/api/campaigns/${campaignId}/sync-replies`, { method: 'POST' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      setError(getApiMessage(data, 'Reply sync failed'));
+      return;
+    }
+    setNotice(data.message || 'Replies synced.');
+    await loadDetail({ silent: true });
+    onActionCompleted?.();
+  };
+
+  const copyTable = async () => {
+    const rows = detail?.recipients || [];
+    const headers = ['Client Name', 'Email', 'Company', 'Designation', 'Status', 'Open Count', 'Reply Count', 'Failure Reason', 'Last Activity'];
+    const text = [
+      ['Campaign Name', ...headers].join('\t'),
+      ...rows.map((row) => [
+        row.campaignName || campaign.name,
+        row.clientName,
+        row.email,
+        row.company,
+        row.designation,
+        row.status,
+        row.openCount,
+        row.replyCount,
+        row.failureReason,
+        formatDateTime(row.lastActivityAt)
+      ].map((value) => String(value || '')).join('\t'))
+    ].join('\n');
+    await navigator.clipboard?.writeText(text);
+    setNotice('Campaign table copied.');
+  };
+
+  const campaign = detail?.summary || detail?.campaign || {};
+  const recipients = detail?.recipients || [];
+  const timeline = detail?.timeline || [];
+
+  return (
+    <div className="dashboard-subscription-modal-backdrop" onClick={onClose}>
+      <section className="dashboard-subscription-modal campaign-detail-drawer" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="dashboard-subscription-modal-head">
+          <div>
+            <span>Campaign Details</span>
+            <h2>{campaign.name || 'Campaign'}</h2>
+            <p>{getProjectLabel(campaign)} | {getSenderEmail(campaign)}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close campaign details">x</button>
+        </div>
+
+        {loading ? <p>Loading campaign details...</p> : null}
+        {error ? <div className="campaign-alert campaign-alert-error">{error}</div> : null}
+        {notice ? <div className="campaign-alert campaign-alert-success">{notice}</div> : null}
+
+        {!loading ? (
+          <>
+            <div className="dashboard-subscription-modal-grid">
+              <article><span>Status</span><strong>{campaign.status || '-'}</strong></article>
+              <article><span>Total recipients</span><strong>{Number(campaign.stats?.total || campaign.totalRecipients || recipients.length || 0).toLocaleString()}</strong></article>
+              <article><span>Sent</span><strong>{Number(campaign.stats?.sent || campaign.sentCount || 0).toLocaleString()}</strong></article>
+              <article><span>Pending</span><strong>{Number(campaign.stats?.pending || campaign.pendingCount || 0).toLocaleString()}</strong></article>
+              <article><span>Failed</span><strong>{Number(campaign.stats?.failed || campaign.failedCount || 0).toLocaleString()}</strong></article>
+              <article><span>Open count</span><strong>{Number(campaign.openCount || 0).toLocaleString()}</strong></article>
+              <article><span>Reply count</span><strong>{Number(campaign.replyCount || 0).toLocaleString()}</strong></article>
+              <article><span>Positive replies</span><strong>{Number(campaign.positiveReplyCount || 0).toLocaleString()}</strong></article>
+              <article><span>Negative replies</span><strong>{Number(campaign.negativeReplyCount || 0).toLocaleString()}</strong></article>
+              <article><span>Follow-up stopped</span><strong>{Number(campaign.followUpStoppedCount || 0).toLocaleString()}</strong></article>
+              <article><span>Created</span><strong>{formatDateTime(campaign.createdAt)}</strong></article>
+              <article><span>Scheduled</span><strong>{formatDateTime(getScheduledDate(campaign))}</strong></article>
+              <article><span>Started</span><strong>{formatDateTime(campaign.startedAt)}</strong></article>
+              <article><span>Completed</span><strong>{formatDateTime(campaign.finishedAt)}</strong></article>
+              <article><span>Reason</span><strong>{campaign.failureReason || campaign.pauseReason || campaign.stopReason || campaign.lastError || '-'}</strong></article>
+              <article><span>Last activity</span><strong>{formatDateTime(getLastActivity(campaign))}</strong></article>
+            </div>
+
+            <div className="dashboard-subscription-modal-actions">
+              <Button variant="secondary" size="sm" loading={refreshing} onClick={() => loadDetail({ silent: true })}>Refresh</Button>
+              <Button variant="secondary" size="sm" onClick={syncReplies}>Sync Replies</Button>
+              <Button as="a" href={`/api/campaigns/${campaignId}/export?format=csv`} variant="secondary" size="sm">Export CSV</Button>
+              <Button as="a" href={`/api/campaigns/${campaignId}/export?format=xlsx`} variant="secondary" size="sm">Export Excel</Button>
+              <Button variant="secondary" size="sm" onClick={copyTable}>Copy Table</Button>
+              <span>Last updated at {formatDateTime(detail?.lastUpdatedAt || new Date())}</span>
+            </div>
+
+            <div className="dashboard-subscription-transactions">
+              <div>
+                <h3>Status Timeline</h3>
+                <span>{timeline.length} events</span>
+              </div>
+              <div className="dashboard-subscription-transaction-list">
+                {timeline.slice(0, 12).map((item, index) => (
+                  <article key={`${item.at}-${index}`}>
+                    <div>
+                      <strong>{item.type || 'Activity'}</strong>
+                      <span>{item.message || '-'}</span>
+                    </div>
+                    <b>{formatDateTime(item.at)}</b>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="campaign-table-wrap">
+              <table className="campaign-table">
+                <thead>
+                  <tr>
+                    <th>Campaign Name</th>
+                    <th>Client Name</th>
+                    <th>Email</th>
+                    <th>Company</th>
+                    <th>Designation</th>
+                    <th>Project</th>
+                    <th>Campaign Step</th>
+                    {[1, 2, 3, 4, 5].map((step) => <th key={`sent-${step}`}>Mail {step} Sent</th>)}
+                    {[1, 2, 3, 4, 5].map((step) => <th key={`status-${step}`}>Mail {step} Status</th>)}
+                    <th>Opened</th>
+                    <th>Open Count</th>
+                    <th>Last Opened At</th>
+                    <th>Replied</th>
+                    <th>Reply Count</th>
+                    <th>Last Reply At</th>
+                    <th>Reply Type</th>
+                    <th>Reply Preview</th>
+                    <th>Follow-up Stopped</th>
+                    <th>Failure Reason</th>
+                    <th>Last Activity</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recipients.map((row) => {
+                    const hasAnySentMail = [1, 2, 3, 4, 5].some((step) => isMailSent(getStep(row, step)));
+                    return (
+                    <tr key={row._id || row.email} className={hasAnySentMail ? '' : 'campaign-recipient-unsent-row'}>
+                      <td>{getCampaignName(row, campaign.name || 'Untitled campaign')}</td>
+                      <td>{row.clientName || '-'}</td>
+                      <td>{row.email || '-'}</td>
+                      <td>{row.company || '-'}</td>
+                      <td>{row.designation || '-'}</td>
+                      <td>{row.projectName || getProjectLabel(campaign)}</td>
+                      <td>{row.currentStep || '-'}</td>
+                      {[1, 2, 3, 4, 5].map((step) => {
+                        const stepLog = getStep(row, step);
+                        return (
+                          <td key={`${row.email}-sent-${step}`} className={isUnsentMailStep(stepLog) ? 'campaign-mail-cell campaign-mail-cell-red' : 'campaign-mail-cell campaign-mail-cell-ok'}>
+                            {formatDateTime(stepLog.sentAt)}
+                          </td>
+                        );
+                      })}
+                      {[1, 2, 3, 4, 5].map((step) => {
+                        const stepLog = getStep(row, step);
+                        return (
+                          <td key={`${row.email}-status-${step}`} className={getMailStatusClass(stepLog)}>
+                            {getStepStatus(stepLog) || 'Pending'}
+                          </td>
+                        );
+                      })}
+                      <td>{row.openCount > 0 ? 'Yes' : 'No'}</td>
+                      <td>{Number(row.openCount || 0).toLocaleString()}</td>
+                      <td>{formatDateTime(row.lastOpenedAt)}</td>
+                      <td>{row.replyReceived ? 'Yes' : 'No'}</td>
+                      <td>{Number(row.replyCount || 0).toLocaleString()}</td>
+                      <td>{formatDateTime(row.lastReplyAt)}</td>
+                      <td>{row.replyType || '-'}</td>
+                      <td>{row.replyPreview || '-'}</td>
+                      <td>{row.followUpStopped ? 'Yes' : 'No'}</td>
+                      <td>{row.failureReason || row.followUpStopReason || '-'}</td>
+                      <td>{formatDateTime(row.lastActivityAt)}</td>
+                      <td>{row.notes || '-'}</td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+      </section>
+    </div>
+  );
 }
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
+  const [counts, setCounts] = useState(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [campaignsWorkflowCurrentStep, setCampaignsWorkflowCurrentStep] = useState(1);
-  const [libraryFilter, setLibraryFilter] = useState('all');
+  const [notice, setNotice] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [actionLoadingKey, setActionLoadingKey] = useState('');
+
+  const loadCampaigns = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (silent) setRefreshing(true);
+      if (!silent) setLoading(true);
+
+      const response = await fetch('/api/campaigns', { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data?.success === false) {
+        throw new Error(getApiMessage(data, 'Unable to fetch campaigns'));
+      }
+
+      setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
+      setCounts({ ...EMPTY_COUNTS, ...(data?.counts || {}) });
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Unable to fetch campaigns');
+      if (!silent) {
+        setCampaigns([]);
+        setCounts(EMPTY_COUNTS);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
     let intervalId = null;
 
-    const loadCampaigns = async ({ silent = false } = {}) => {
-      try {
-        if (!silent) setLoading(true);
-        const response = await fetch('/api/campaigns', { cache: 'no-store' });
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.error || 'Failed to fetch campaigns');
-        }
-
-        if (!active) return;
-        setError('');
-        setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
-      } catch (err) {
-        if (!active) return;
-        setError(err.message || 'Failed to fetch campaigns');
-        if (!silent) {
-          setCampaigns([]);
-        }
-      } finally {
-        if (active && !silent) setLoading(false);
-      }
+    const safeLoad = async (options) => {
+      if (!active) return;
+      await loadCampaigns(options);
     };
+
+    void safeLoad();
+    intervalId = window.setInterval(() => {
+      void safeLoad({ silent: true });
+    }, 8000);
 
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') {
-        void loadCampaigns({ silent: true });
+        void safeLoad({ silent: true });
       }
     };
 
-    void loadCampaigns();
-    intervalId = window.setInterval(() => {
-      void loadCampaigns({ silent: true });
-    }, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
@@ -114,235 +632,199 @@ export default function CampaignsPage() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, []);
+  }, [loadCampaigns]);
 
-  const liveCampaigns = useMemo(
-    () => campaigns.filter((item) => ['running', 'scheduled'].includes(String(item?.status || '').toLowerCase())),
-    [campaigns]
-  );
-  const completedCampaigns = useMemo(
-    () => campaigns.filter((item) => String(item?.status || '').toLowerCase() === 'completed'),
-    [campaigns]
-  );
-  const pausedCampaigns = useMemo(
-    () => campaigns.filter((item) => String(item?.status || '').toLowerCase() === 'paused'),
-    [campaigns]
-  );
-  const draftIncompleteCampaigns = useMemo(
-    () => campaigns.filter((item) => ['draft', 'failed'].includes(String(item?.status || '').toLowerCase())),
-    [campaigns]
-  );
-  const totalCampaigns = useMemo(() => campaigns, [campaigns]);
+  const filteredCampaigns = useMemo(() => {
+    const query = normalizeText(searchQuery);
+    return campaigns
+      .filter((campaign) => {
+        const bucket = normalizeCampaignStatusBucket(campaign);
+        const matchesStatus = statusFilter === 'all' || bucket === statusFilter;
+        const matchesSearch = !query || normalizeText(campaign.name).includes(query);
+        return matchesStatus && matchesSearch;
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return sortOrder === 'oldest' ? aTime - bTime : bTime - aTime;
+      });
+  }, [campaigns, searchQuery, statusFilter, sortOrder]);
 
-  const campaignBuckets = useMemo(
-    () => [
-      {
-        key: 'live',
-        label: 'Live',
-        description: 'Running and scheduled campaigns.',
-        tone: 'live',
-        items: liveCampaigns
-      },
-      {
-        key: 'complete',
-        label: 'Complete',
-        description: 'Campaigns that finished successfully.',
-        tone: 'complete',
-        items: completedCampaigns
-      },
-      {
-        key: 'draft-incomplete',
-        label: 'Draft/Incomplete',
-        description: 'Draft and failed campaigns that still need action.',
-        tone: 'draft',
-        items: draftIncompleteCampaigns
-      },
-      {
-        key: 'paused',
-        label: 'Paused',
-        description: 'Campaigns paused by user or system.',
-        tone: 'paused',
-        items: pausedCampaigns
-      },
-      {
-        key: 'total',
-        label: 'Total',
-        description: 'All campaigns from workflow and database.',
-        tone: 'total',
-        items: totalCampaigns
+  const handleRefresh = useCallback(() => {
+    setNotice('');
+    void loadCampaigns({ silent: true });
+  }, [loadCampaigns]);
+
+  const handleAction = useCallback(async (campaign, action) => {
+    const campaignId = String(campaign?._id || '');
+    if (!campaignId) return;
+
+    const nextStatus = {
+      start: 'Queued',
+      pause: 'Paused',
+      resume: 'Queued',
+      stop: 'Stopped'
+    }[action];
+
+    const key = `${campaignId}:${action}`;
+    setActionLoadingKey(key);
+    setError('');
+    setNotice('');
+
+    if (nextStatus) {
+      setCampaigns((items) =>
+        items.map((item) => (item._id === campaignId ? { ...item, status: nextStatus } : item))
+      );
+    }
+
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data?.success === false || data?.ok === false) {
+        throw new Error(getApiMessage(data, `${ACTION_LABELS[action]} campaign failed.`));
       }
-    ],
-    [liveCampaigns, completedCampaigns, draftIncompleteCampaigns, pausedCampaigns, totalCampaigns]
-  );
 
-  const libraryFilterOptions = useMemo(
-    () => [
-      { value: 'all', label: 'All' },
-      { value: 'live', label: 'Live' },
-      { value: 'complete', label: 'Complete' },
-      { value: 'draft-incomplete', label: 'Draft/Incomplete' },
-      { value: 'paused', label: 'Paused' }
-    ],
-    []
-  );
+      setNotice(getApiMessage(data, `${ACTION_LABELS[action]} request completed.`));
+      await loadCampaigns({ silent: true });
+    } catch (err) {
+      setError(err.message || `${ACTION_LABELS[action]} campaign failed.`);
+      await loadCampaigns({ silent: true });
+    } finally {
+      setActionLoadingKey('');
+    }
+  }, [loadCampaigns]);
 
-  const filteredLibraryCampaigns = useMemo(() => {
-    if (libraryFilter === 'live') return liveCampaigns;
-    if (libraryFilter === 'complete') return completedCampaigns;
-    if (libraryFilter === 'draft-incomplete') return draftIncompleteCampaigns;
-    if (libraryFilter === 'paused') return pausedCampaigns;
-    return campaigns;
-  }, [libraryFilter, liveCampaigns, completedCampaigns, draftIncompleteCampaigns, pausedCampaigns, campaigns]);
+  const openCampaignDetails = useCallback((campaignId) => {
+    setSelectedCampaignId(campaignId);
+  }, []);
 
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <PageContainer>
-        <div className="campaigns-page-shell">
-          <div className="campaigns-page-hero">
-            <span className="campaigns-page-kicker">Live database view</span>
-            <h2>Campaign Overview</h2>
-            <p>Track launch timing, delivery status, draft resumes, and campaign health from one place.</p>
-          </div>
-          <PageSection
-            title="Overview"
-            description="See all campaigns from the database with live status and delivery counts."
-          >
-            <div className="client-data-stats">
-              {campaignBuckets.map((bucket) => (
-                <Card key={bucket.key} className="client-data-stat-card">
-                  <CardContent>
-                    <div className={`campaigns-bucket-jump campaigns-bucket-jump-${bucket.tone}`}>
-                      <span>{bucket.label}</span>
-                      <strong>{loading ? '...' : String(bucket.items.length)}</strong>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+        <main className="campaigns-page-shell campaigns-modern-page">
+          <section className="campaigns-modern-hero">
+            <div>
+              <span className="campaigns-page-kicker">Live campaign operations</span>
+              <h1>Campaigns</h1>
+              <p>Manage, monitor, pause, resume and track all email campaigns.</p>
             </div>
-          </PageSection>
-
-          <section className="premium-stepper-shell">
-            <div
-              className="premium-stepper-row"
-              style={{
-                color: 'var(--text-primary)',
-                '--workflow-progress': Math.max(campaignsWorkflowCurrentStep - 1, 0)
-              }}
-            >
-              <div className="premium-workflow-title">
-                <h3>Campaign Workflow</h3>
-              </div>
-              {CAMPAIGNS_PAGE_WORKFLOW_STEPS.map((step) => {
-                const isCurrent = campaignsWorkflowCurrentStep === step.index;
-                const isCompleted = campaignsWorkflowCurrentStep > step.index;
-                return (
-                  <article
-                    key={`campaigns-workflow-step-${step.index}`}
-                    className={[
-                      'premium-step-card',
-                      `premium-step-tone-${step.index}`,
-                      `premium-step-action-${step.index}`,
-                      isCurrent ? 'is-current' : '',
-                      isCompleted ? 'is-completed' : ''
-                    ].join(' ').trim()}
-                  >
-                    <div className="premium-step-track">
-                      <span className="premium-step-index">{step.index}</span>
-                    </div>
-                    <strong>
-                      <span className="premium-step-title-icon">{step.icon}</span>
-                      <span>{step.title}</span>
-                    </strong>
-                    <span className={`premium-step-chip premium-step-chip-${step.chip}`}>{step.label}</span>
-                    <button type="button" onClick={() => setCampaignsWorkflowCurrentStep(step.index)}>
-                      {step.action}
-                    </button>
-                  </article>
-                );
-              })}
-              <button
-                type="button"
-                className="premium-stepper-start"
-                onClick={() => setCampaignsWorkflowCurrentStep(1)}
-                style={{
-                  color: '#ffffff',
-                  background: 'linear-gradient(180deg, #22c55e, #15803d)',
-                  border: '1px solid #166534'
-                }}
-              >
-                START
-              </button>
+            <div className="campaigns-hero-actions">
+              <Button as="a" href="/dashboard?workflowStep=1" size="md">
+                Create Campaign
+              </Button>
+              <Button variant="secondary" size="md" loading={refreshing} onClick={handleRefresh}>
+                Refresh
+              </Button>
             </div>
           </section>
 
-          <PageSection
-            title="Campaign Library"
-            description="All campaigns in one clean place with filters and basic details."
-          >
-            <Card className="client-data-panel client-data-panel-large">
-              <CardHeader className="client-data-panel-head">
-                <div>
-                  <span className="campaigns-page-section-kicker campaigns-page-section-kicker-total">Campaign Files</span>
-                  <CardTitle>Combined Campaign List</CardTitle>
-                  <CardDescription>Includes workflow-created campaigns with status, owner, audience, and step info.</CardDescription>
-                </div>
-                <div className="campaign-library-filters">
-                  {libraryFilterOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`campaign-library-filter ${libraryFilter === option.value ? 'active' : ''}`}
-                      onClick={() => setLibraryFilter(option.value)}
-                    >
-                      {option.label}
-                    </button>
+          <section className="campaign-count-grid" aria-label="Campaign counts">
+            {COUNT_CARDS.map((card) => (
+              <CountCard
+                key={card.key}
+                card={card}
+                count={counts[card.key]}
+                loading={loading}
+              />
+            ))}
+          </section>
+
+          <section className="campaign-panel">
+            <div className="campaign-panel-head">
+              <div>
+                <span className="campaigns-page-kicker">Campaign library</span>
+                <h2>All Campaigns</h2>
+                <p>Live database records for the current logged-in user.</p>
+              </div>
+              <div className="campaign-panel-total">
+                Showing {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}
+              </div>
+            </div>
+
+            <div className="campaign-toolbar">
+              <label className="campaign-search-field">
+                <span>Search</span>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by campaign name"
+                />
+              </label>
+              <label className="campaign-select-field">
+                <span>Status</span>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  {STATUS_TABS.map((tab) => (
+                    <option key={tab.value} value={tab.value}>{tab.label}</option>
                   ))}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="campaign-library-list">
-                  {!loading && !error && !filteredLibraryCampaigns.length ? (
-                    <article className="campaign-library-item campaign-library-empty">
-                      <div className="campaign-library-file-icon">F</div>
-                      <div className="campaign-library-main">
-                        <strong>No campaigns found for this filter.</strong>
-                        <p>Try switching filter to see more campaign records.</p>
-                      </div>
-                    </article>
-                  ) : null}
+                </select>
+              </label>
+              <label className="campaign-select-field">
+                <span>Sort</span>
+                <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </label>
+            </div>
 
-                  {!loading && !error
-                    ? filteredLibraryCampaigns.map((campaign) => (
-                        <article key={`library-${campaign._id || campaign.id}`} className="campaign-library-item">
-                          <div className="campaign-library-file-icon">F</div>
-                          <div className="campaign-library-main">
-                            <div className="campaign-library-title-row">
-                              <strong>{campaign?.name || '-'}</strong>
-                              <div className="campaign-library-tags">
-                                <Badge variant={badgeToneMap[campaign?.status] || 'default'}>
-                                  {campaign?.status || 'Draft'}
-                                </Badge>
-                                <Badge variant="warning">{getWorkflowStepLabel(campaign)}</Badge>
-                              </div>
-                            </div>
-                            <p>
-                              Audience: {getCampaignAudience(campaign)} | Owner: {campaign?.senderFrom || campaign?.senderAccount?.from || '-'}
-                            </p>
-                            <small>
-                              Window: {getCampaignWindow(campaign)} | Updated: {formatDateTime(campaign?.updatedAt || campaign?.createdAt)}
-                            </small>
-                          </div>
-                        </article>
-                      ))
-                    : null}
-                </div>
-              </CardContent>
-            </Card>
-          </PageSection>
+            <div className="campaign-status-tabs">
+              {STATUS_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={statusFilter === tab.value ? 'active' : ''}
+                  onClick={() => setStatusFilter(tab.value)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-        </div>
+            {error ? <div className="campaign-alert campaign-alert-error">{error}</div> : null}
+            {notice ? <div className="campaign-alert campaign-alert-success">{notice}</div> : null}
+
+            {loading ? (
+              <div className="campaign-table-loading">
+                <div />
+                <div />
+                <div />
+                <div />
+              </div>
+            ) : !filteredCampaigns.length ? (
+              <div className="campaign-empty-state">
+                <strong>No campaigns found.</strong>
+                <p>Adjust your filters or create a new campaign.</p>
+              </div>
+            ) : (
+              <>
+                <CampaignDesktopTable
+                  campaigns={filteredCampaigns}
+                  actionLoadingKey={actionLoadingKey}
+                  onAction={handleAction}
+                  onToggleView={openCampaignDetails}
+                />
+                <CampaignMobileCards
+                  campaigns={filteredCampaigns}
+                  actionLoadingKey={actionLoadingKey}
+                  onAction={handleAction}
+                  onToggleView={openCampaignDetails}
+                />
+              </>
+            )}
+          </section>
+          {selectedCampaignId ? (
+            <CampaignDetailsDrawer
+              campaignId={selectedCampaignId}
+              onClose={() => setSelectedCampaignId('')}
+              onActionCompleted={() => loadCampaigns({ silent: true })}
+            />
+          ) : null}
+        </main>
       </PageContainer>
     </AppLayout>
   );
 }
-

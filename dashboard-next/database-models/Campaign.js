@@ -6,6 +6,8 @@ const CampaignSchema = new mongoose.Schema(
     userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
     project: { type: String, default: '' },
+    projectId: { type: String, default: '' },
+    projectName: { type: String, default: '' },
     senderFrom: { type: String, default: '' },
     type: { type: String, default: '' },
     listId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadList', required: true },
@@ -80,6 +82,21 @@ const CampaignSchema = new mongoose.Schema(
       spam: { type: Number, default: 0 },
       pending: { type: Number, default: 0 }
     },
+    totalRecipients: { type: Number, default: 0 },
+    sentCount: { type: Number, default: 0 },
+    pendingCount: { type: Number, default: 0 },
+    failedCount: { type: Number, default: 0 },
+    openCount: { type: Number, default: 0 },
+    replyCount: { type: Number, default: 0 },
+    positiveReplyCount: { type: Number, default: 0 },
+    negativeReplyCount: { type: Number, default: 0 },
+    followUpStoppedCount: { type: Number, default: 0 },
+    failureReason: { type: String, default: '' },
+    pauseReason: { type: String, default: '' },
+    stopReason: { type: String, default: '' },
+    lastError: { type: String, default: '' },
+    lastErrorAt: { type: Date, default: null },
+    lastActivityAt: { type: Date, default: null },
     options: {
       batchSize: { type: Number, default: 1 },
       delayInterval: { type: Number, default: 1 },
@@ -113,5 +130,6 @@ const CampaignSchema = new mongoose.Schema(
 CampaignSchema.index({ userId: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
+CampaignSchema.index({ userEmail: 1, lastActivityAt: -1 });
 
 export default mongoose.models.Campaign || mongoose.model('Campaign', CampaignSchema);

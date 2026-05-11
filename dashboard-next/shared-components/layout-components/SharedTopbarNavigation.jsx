@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Button from '../ui-components/UiActionButton';
 import Input from '../ui-components/UiTextInputField';
@@ -63,13 +63,35 @@ export function Topbar({
   const pathname = usePathname();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
-  const profileName = profile?.name || displayNameFromEmail(profile?.email || '');
+  const [loadedProfile, setLoadedProfile] = useState(null);
+  const resolvedProfile = profile || loadedProfile;
+  const profileName =
+    resolvedProfile?.name ||
+    resolvedProfile?.displayName ||
+    displayNameFromEmail(resolvedProfile?.email || resolvedProfile?.identifier || '');
   const profileInitials = profile?.initials || initialsFromName(profileName);
-  const profileEmail = profile?.email || '';
-  const profileRole = profile?.role ? String(profile.role).replace(/_/g, ' ') : '';
-  const profileAvatarDataUrl = profile?.avatarDataUrl || '';
-  const profileActions = useMemo(() => profile?.actions || [], [profile]);
-  const showProfileMenu = Boolean(profile && (profileActions.length || profileEmail || profileRole));
+  const profileEmail = resolvedProfile?.email || resolvedProfile?.identifier || '';
+  const profileRole = resolvedProfile?.role ? String(resolvedProfile.role).replace(/_/g, ' ') : '';
+  const profileAvatarDataUrl = resolvedProfile?.avatarDataUrl || '';
+  const profileActions = useMemo(() => resolvedProfile?.actions || [], [resolvedProfile]);
+  const showProfileMenu = Boolean(resolvedProfile && (profileActions.length || profileEmail || profileRole));
+
+  useEffect(() => {
+    if (profile) return;
+    let active = true;
+    fetch('/api/profile', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!active || !data?.profile) return;
+        setLoadedProfile(data.profile);
+      })
+      .catch(() => {
+        if (active) setLoadedProfile(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile]);
 
   return (
     <section className={cn('dashboard-topbar dashboard-topbar-rich', className)}>
@@ -154,8 +176,8 @@ export function Topbar({
               </div>
             ) : (
               <Button variant="ghost" className="dashboard-topbar-profile">
-                <span className="dashboard-topbar-avatar">AK</span>
-                <span>Akshay</span>
+                <span className="dashboard-topbar-avatar">{profileInitials}</span>
+                <span>{profileName}</span>
               </Button>
             )}
           </>

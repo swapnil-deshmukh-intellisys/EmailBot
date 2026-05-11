@@ -1,17 +1,96 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { stopCampaignRunner } from '@/lib/campaignRunner';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth } from '@/lib/apiAuth';
+import CampaignRecipientLog from '@/models/CampaignRecipientLog';
+import {
+  buildTimeline,
+  ensureRecipientLogsForCampaign,
+  serializeCampaignForList
+} from '@/core-lib/campaign-engine/CampaignAnalyticsService';
+
+function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.', campaignId = '', userEmail = '' }) {
+  console.error(`[api/campaigns/[id]] ${code}: ${message}`, { campaignId, userEmail });
+  return NextResponse.json({ success: false, code, message, error: message }, { status });
+}
+
+async function getCampaignForCurrentUser(req, params) {
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return { errorResponse: auth.errorResponse };
+  const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
+  const campaignId = String(params?.id || '').trim();
+  if (!mongoose.isValidObjectId(campaignId)) {
+    return {
+      errorResponse: jsonError({
+        status: 400,
+        code: 'INVALID_CAMPAIGN_ID',
+        message: 'Invalid campaign id.',
+        campaignId,
+        userEmail
+      })
+    };
+  }
+  await connectDB();
+  const campaign = await Campaign.findOne({ _id: campaignId, userEmail });
+  return { campaign, campaignId, userEmail };
+}
+
+export async function GET(req, { params }) {
+  let campaignId = String(params?.id || '').trim();
+  let userEmail = '';
+  try {
+    const result = await getCampaignForCurrentUser(req, params);
+    const { campaign, errorResponse } = result;
+    campaignId = result.campaignId || campaignId;
+    userEmail = result.userEmail || '';
+    if (errorResponse) return errorResponse;
+    if (!campaign) {
+      return jsonError({
+        status: 404,
+        code: 'CAMPAIGN_NOT_FOUND',
+        message: 'Campaign not found for current user.',
+        campaignId,
+        userEmail
+      });
+    }
+
+    const rawCampaign = campaign.toObject ? campaign.toObject() : campaign;
+    const recipientLogs = await ensureRecipientLogsForCampaign(rawCampaign);
+    const summary = serializeCampaignForList(rawCampaign, recipientLogs);
+    const timeline = buildTimeline(rawCampaign, recipientLogs);
+
+    return NextResponse.json({
+      success: true,
+      campaign: summary,
+      summary,
+      recipients: recipientLogs,
+      timeline,
+      lastUpdatedAt: new Date()
+    });
+  } catch (error) {
+    return jsonError({
+      status: 500,
+      code: 'CAMPAIGN_DETAIL_LOAD_FAILED',
+      message: error.message || 'Unable to load campaign details.',
+      campaignId,
+      userEmail
+    });
+  }
+}
 
 export async function DELETE(req, { params }) {
-  const { userEmail, errorResponse } = requireUser(req);
+  const { campaign, campaignId, userEmail, errorResponse } = await getCampaignForCurrentUser(req, params);
   if (errorResponse) return errorResponse;
-  await connectDB();
-
-  const campaign = await Campaign.findOne({ _id: params.id, userEmail });
   if (!campaign) {
-    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    return jsonError({
+      status: 404,
+      code: 'CAMPAIGN_NOT_FOUND',
+      message: 'Campaign not found for current user.',
+      campaignId,
+      userEmail
+    });
   }
 
   if (campaign.status === 'Running' || campaign.status === 'Paused') {
@@ -19,5 +98,5 @@ export async function DELETE(req, { params }) {
   }
 
   await Campaign.deleteOne({ _id: campaign._id });
-  return NextResponse.json({ ok: true, deletedId: String(campaign._id) });
+  return NextResponse.json({ success: true, ok: true, deletedId: String(campaign._id) });
 }

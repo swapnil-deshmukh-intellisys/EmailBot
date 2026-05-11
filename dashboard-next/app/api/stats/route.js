@@ -4,6 +4,7 @@ import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { requireUser } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
+import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 const STATS_CACHE_TTL_MS = 10000;
 function shouldUseDemoData() {
@@ -129,14 +130,15 @@ export async function GET(req) {
     }
 
     const normalizedLists = lists.map((list) => {
-      const leadCount = list.leads.length;
+      const meaningfulLeads = Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData) : [];
+      const leadCount = meaningfulLeads.length;
       const listUploadedAt = list.uploadedAt ? new Date(list.uploadedAt) : null;
 
       if (!selectedDayEnd || (listUploadedAt && listUploadedAt <= selectedDayEnd)) {
         totalUploaded += leadCount;
       }
 
-      for (const lead of list.leads) {
+      for (const lead of meaningfulLeads) {
         const sentAt = lead.sentAt ? new Date(lead.sentAt) : null;
         const failedAt = lead.failedAt ? new Date(lead.failedAt) : null;
 

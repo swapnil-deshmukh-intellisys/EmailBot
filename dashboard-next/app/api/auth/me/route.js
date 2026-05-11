@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import { getAuthCookieName, getBlockedStatusMessage, verifyAuthToken } from '@/lib/auth';
+import { requireAuth } from '@/lib/apiAuth';
 import { getDashboardPathForRole } from '@/app/lib/roleRouting';
 import UserProfile from '@/models/UserProfile';
 
@@ -13,9 +14,9 @@ function getDefaultProfile(identifier = '', role = 'user') {
     avatarName: '',
     avatarDataUrl: '',
     planName: 'Basic',
-    totalCredits: 6000,
+    totalCredits: 300,
     usedCredits: 0,
-    remainingCredits: 6000,
+    remainingCredits: 300,
     creditUsagePercent: 0,
     targetApprovalStatus: 'approved',
     targetApprovalRequestedAt: null,
@@ -35,10 +36,21 @@ function getDefaultProfile(identifier = '', role = 'user') {
 export async function GET(req) {
   try {
     const token = req.cookies.get(getAuthCookieName())?.value;
-    const session = token ? verifyAuthToken(token) : null;
+    const auth = token ? null : await requireAuth(req, { allowPending: true });
+    if (auth?.errorResponse) return auth.errorResponse;
+    const session = token ? verifyAuthToken(token) : auth?.session;
 
     if (!session) {
-      return NextResponse.json({ authenticated: false }, { status: 401 });
+      return NextResponse.json(
+        {
+          authenticated: false,
+          success: false,
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required.',
+          error: 'Authentication is required.'
+        },
+        { status: 401 }
+      );
     }
 
     await connectDB();

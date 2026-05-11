@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth } from '@/lib/apiAuth';
 import {
   buildScheduledDateTimeInZone,
   buildScheduledLabel,
@@ -11,18 +11,33 @@ import {
   normalizeDurationUnit
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 
+const ROUTE_NAME = 'POST /api/campaigns/[id]/schedule';
+
+function jsonError({ status = 400, code = 'CAMPAIGN_SCHEDULE_FAILED', message = 'Failed to schedule campaign.', campaignId = '', userEmail = '' }) {
+  console.error(`[${ROUTE_NAME}] ${code}: ${message}`, { campaignId, userEmail });
+  return NextResponse.json({ success: false, code, message, error: message }, { status });
+}
+
 export async function POST(req, { params }) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
-  if (!mongoose.isValidObjectId(params?.id)) {
-    return NextResponse.json({ error: 'Invalid campaign id' }, { status: 400 });
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
+  const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
+  const campaignId = String(params?.id || '').trim();
+  if (!mongoose.isValidObjectId(campaignId)) {
+    return jsonError({ status: 400, code: 'INVALID_CAMPAIGN_ID', message: 'Invalid campaign id.', campaignId, userEmail });
   }
 
   await connectDB();
 
-  const existing = await Campaign.findOne({ _id: params.id, userEmail }).select('_id').lean();
+  const existing = await Campaign.findOne({ _id: campaignId, userEmail }).select('_id').lean();
   if (!existing) {
-    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    return jsonError({
+      status: 404,
+      code: 'CAMPAIGN_NOT_FOUND',
+      message: 'Campaign not found for current user.',
+      campaignId,
+      userEmail
+    });
   }
 
   try {
@@ -62,16 +77,22 @@ export async function POST(req, { params }) {
 
     if (normalizedScheduleMode === 'scheduled') {
       if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
-        return NextResponse.json(
-          { error: 'Please select scheduled date and time.' },
-          { status: 400 }
-        );
+        return jsonError({
+          status: 400,
+          code: 'INVALID_SCHEDULE_TIME',
+          message: 'Please select scheduled date and time.',
+          campaignId,
+          userEmail
+        });
       }
       if (!isFutureScheduledDate(scheduledAt)) {
-        return NextResponse.json(
-          { error: 'Scheduled time must be in future.' },
-          { status: 400 }
-        );
+        return jsonError({
+          status: 400,
+          code: 'SCHEDULE_TIME_NOT_FUTURE',
+          message: 'Scheduled time must be in future.',
+          campaignId,
+          userEmail
+        });
       }
     }
 
@@ -88,7 +109,7 @@ export async function POST(req, { params }) {
       : 'Draft';
 
     await Campaign.updateOne(
-      { _id: params.id, userEmail },
+      { _id: campaignId, userEmail },
       {
         $set: {
           scheduleMode: normalizedScheduleMode,
@@ -127,13 +148,16 @@ export async function POST(req, { params }) {
       }
     );
 
-    const campaign = await Campaign.findOne({ _id: params.id, userEmail }).lean();
+    const campaign = await Campaign.findOne({ _id: campaignId, userEmail }).lean();
 
-    return NextResponse.json({ ok: true, campaign });
+    return NextResponse.json({ success: true, ok: true, campaign });
   } catch (error) {
-    return NextResponse.json(
-      { error: error.message || 'Failed to schedule campaign' },
-      { status: 400 }
-    );
+    return jsonError({
+      status: 400,
+      code: 'CAMPAIGN_SCHEDULE_FAILED',
+      message: error.message || 'Failed to schedule campaign.',
+      campaignId,
+      userEmail
+    });
   }
 }

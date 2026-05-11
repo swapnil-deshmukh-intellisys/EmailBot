@@ -128,24 +128,56 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
     runCommand(command, val);
   };
 
+  const sanitizePastedHtml = (html = '') => {
+    if (typeof window === 'undefined') return '';
+    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+    doc.querySelectorAll('script, style, meta, link, iframe, object, embed').forEach((node) => node.remove());
+    doc.body.querySelectorAll('*').forEach((node) => {
+      const tag = node.tagName.toLowerCase();
+      const allowed = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a']);
+      if (!allowed.has(tag)) {
+        node.replaceWith(...Array.from(node.childNodes));
+        return;
+      }
+      Array.from(node.attributes).forEach((attribute) => {
+        if (attribute.name === 'href' && tag === 'a') return;
+        node.removeAttribute(attribute.name);
+      });
+      if (tag === 'div') {
+        const paragraph = document.createElement('p');
+        paragraph.innerHTML = node.innerHTML || '<br>';
+        node.replaceWith(paragraph);
+      }
+    });
+    return doc.body.innerHTML
+      .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+      .replace(/<p>\s*<\/p>/gi, '<p><br></p>');
+  };
+
+  const textToDraftHtml = (text = '') => {
+    const normalized = String(text || '').replace(/\r\n/g, '\n').trimEnd();
+    const escaped = normalized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped
+      .split(/\n{2,}/)
+      .map((block) => `<p>${block.replace(/\n/g, '<br>') || '<br>'}</p>`)
+      .join('');
+  };
+
   const onPaste = (e) => {
     const html = e.clipboardData?.getData('text/html');
     if (html) {
       e.preventDefault();
-      runCommand('insertHTML', html);
+      runCommand('insertHTML', sanitizePastedHtml(html));
       return;
     }
 
     const text = e.clipboardData?.getData('text/plain');
     if (text) {
       e.preventDefault();
-      const normalized = String(text).replace(/\r\n/g, '\n');
-      const escaped = normalized
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      const wrapped = `<div style="white-space:pre-wrap;font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${escaped}</div>`;
-      runCommand('insertHTML', wrapped);
+      runCommand('insertHTML', textToDraftHtml(text));
     }
   };
 

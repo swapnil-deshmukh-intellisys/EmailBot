@@ -1,5 +1,5 @@
-import MailInboxPage from '@/app/mail-inbox/page';
+import { redirect } from 'next/navigation';
 
 export default function MasterInboxPage() {
-  return <MailInboxPage />;
+  redirect('/mail-inbox');
 }

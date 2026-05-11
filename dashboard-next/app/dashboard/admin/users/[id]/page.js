@@ -5,11 +5,26 @@ import { useEffect, useState } from 'react';
 export default function AdminUserDetailPage({ params }) {
   const [data, setData] = useState(null);
   const [message, setMessage] = useState('');
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    planName: 'Basic',
+    monthlyLimit: '300',
+    dailyLimit: '500',
+    extraCredits: '0'
+  });
 
   const load = async () => {
     const res = await fetch(`/api/admin/users/${params.id}`);
     const payload = await res.json().catch(() => ({}));
-    if (res.ok) setData(payload);
+    if (res.ok) {
+      setData(payload);
+      const summary = payload.subscriptionSummary || {};
+      setSubscriptionForm({
+        planName: String(summary.planName || 'Basic'),
+        monthlyLimit: String(summary.monthlyLimit || 300),
+        dailyLimit: String(summary.dailyLimit || 500),
+        extraCredits: '0'
+      });
+    }
   };
 
   useEffect(() => {
@@ -34,11 +49,28 @@ export default function AdminUserDetailPage({ params }) {
     if (res.ok) load();
   };
 
+  const updateSubscription = async (event) => {
+    event.preventDefault();
+    const res = await fetch(`/api/admin/users/${params.id}/subscription`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        planName: subscriptionForm.planName,
+        monthlyLimit: Number(subscriptionForm.monthlyLimit),
+        dailyLimit: Number(subscriptionForm.dailyLimit),
+        extraCredits: Number(subscriptionForm.extraCredits || 0)
+      })
+    });
+    const payload = await res.json().catch(() => ({}));
+    setMessage(res.ok ? (payload.message || 'Subscription updated.') : (payload.error || 'Unable to update subscription'));
+    if (res.ok) load();
+  };
+
   if (!data) {
     return <main className="dashboard-content-shell" style={{ padding: 24 }}><p>Loading user details...</p></main>;
   }
 
-  const { user, campaigns, drafts, clientLists, senderAccounts, activityLogs } = data;
+  const { user, subscriptionSummary = {}, campaigns, drafts, clientLists, senderAccounts, activityLogs } = data;
 
   return (
     <main className="dashboard-content-shell" style={{ padding: 24 }}>
@@ -61,6 +93,30 @@ export default function AdminUserDetailPage({ params }) {
           <button className="button secondary" onClick={resetPassword}>Reset to Temporary Password</button>
         </div>
         {message ? <p>{message}</p> : null}
+      </section>
+
+      <section className="premium-panel" style={{ marginBottom: 24 }}>
+        <div className="premium-panel-head">
+          <div>
+            <span className="premium-section-kicker">Admin only</span>
+            <h3>Subscription Limits</h3>
+          </div>
+        </div>
+        <p>Daily Mail Limit: {Number(subscriptionSummary.dailyLimit || 500).toLocaleString()}</p>
+        <p>Used Today: {Number(subscriptionSummary.usedToday ?? subscriptionSummary.dailyUsedCredits ?? 0).toLocaleString()}</p>
+        <p>Remaining Today: {Number(subscriptionSummary.remainingToday ?? subscriptionSummary.dailyRemainingCredits ?? 500).toLocaleString()}</p>
+        <form onSubmit={updateSubscription} className="admin-form-grid" style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+          <select className="input" value={subscriptionForm.planName} onChange={(e) => setSubscriptionForm((current) => ({ ...current, planName: e.target.value }))}>
+            <option value="Basic">Basic</option>
+            <option value="Starter">Starter</option>
+            <option value="Professional">Professional</option>
+            <option value="Enterprise">Enterprise</option>
+          </select>
+          <input className="input" type="number" min="0" value={subscriptionForm.monthlyLimit} onChange={(e) => setSubscriptionForm((current) => ({ ...current, monthlyLimit: e.target.value }))} placeholder="Monthly mail limit" />
+          <input className="input" type="number" min="500" value={subscriptionForm.dailyLimit} onChange={(e) => setSubscriptionForm((current) => ({ ...current, dailyLimit: e.target.value }))} placeholder="Daily mail limit" />
+          <input className="input" type="number" min="0" value={subscriptionForm.extraCredits} onChange={(e) => setSubscriptionForm((current) => ({ ...current, extraCredits: e.target.value }))} placeholder="Extra credits" />
+          <button className="button" type="submit">Save Subscription Limits</button>
+        </form>
       </section>
 
       <section className="premium-panel" style={{ marginBottom: 24 }}>

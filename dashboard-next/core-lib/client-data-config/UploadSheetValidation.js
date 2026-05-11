@@ -4,6 +4,74 @@ function normalizeText(value = '') {
   return String(value ?? '').trim();
 }
 
+const MEANINGFUL_LEAD_FIELDS = [
+  'Name',
+  'name',
+  'Surname',
+  'surname',
+  'Last Name',
+  'lastName',
+  'First Name',
+  'firstName',
+  'Full Name',
+  'fullName',
+  'Contact Name',
+  'contactName',
+  'Company',
+  'company',
+  'Company Name',
+  'companyName',
+  'Designation',
+  'designation',
+  'Title',
+  'title',
+  'Email',
+  'email',
+  'Phone',
+  'phone',
+  'Mobile',
+  'mobile',
+  'Domain',
+  'domain',
+  'Website',
+  'website',
+  'Sector',
+  'sector',
+  'Industry',
+  'industry',
+  'Country',
+  'country',
+  'City',
+  'city',
+  'Location',
+  'location',
+  'Lead Type',
+  'LeadType',
+  'leadType',
+  'Sourcer',
+  'sourcer',
+  'Source By',
+  'sourceBy',
+  'User ID',
+  'UserId',
+  'userId',
+  'Project Approach',
+  'projectApproach',
+  'Approach',
+  'approach',
+  'Used In Project',
+  'UsedInProject',
+  'usedInProject',
+  'Sender ID',
+  'SenderId',
+  'senderId'
+];
+
+export function hasMeaningfulLeadData(row = {}) {
+  const data = row?.data && typeof row.data === 'object' ? row.data : {};
+  return MEANINGFUL_LEAD_FIELDS.some((field) => normalizeText(row?.[field] ?? data?.[field]));
+}
+
 function toTitleCase(value = '') {
   return normalizeText(value)
     .toLowerCase()
@@ -265,19 +333,7 @@ export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), ph
 
   const mappedRows = (rawRows || [])
     .map((rawRow) => mapRawRowToLead(rawRow))
-    .filter((mapped) =>
-      [
-        mapped.Name,
-        mapped.Surname,
-        mapped.Company,
-        mapped.Designation,
-        mapped.Email,
-        mapped.Phone,
-        mapped.Domain,
-        mapped.Sector,
-        mapped.Country
-      ].some((value) => normalizeText(value))
-    );
+    .filter(hasMeaningfulLeadData);
 
   const previewRows = mappedRows.map((mapped, index) => {
     const duplicateReasons = [];

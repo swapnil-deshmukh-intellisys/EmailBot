@@ -38,6 +38,35 @@ function getLeadSource(list) {
   return source || 'Uploaded List';
 }
 
+function hasVisibleLeadData(lead = {}) {
+  const data = lead?.data || {};
+  return [
+    lead?.Name,
+    data?.Name,
+    data?.name,
+    lead?.Email,
+    data?.Email,
+    data?.email,
+    lead?.Company,
+    data?.Company,
+    data?.company,
+    lead?.Designation,
+    data?.Designation,
+    data?.designation,
+    lead?.Surname,
+    data?.Surname,
+    data?.surname,
+    data?.Phone,
+    data?.phone,
+    data?.Sector,
+    data?.sector,
+    data?.Country,
+    data?.country,
+    data?.City,
+    data?.city
+  ].some((value) => String(value || '').trim());
+}
+
 function formatUploadedAt(value) {
   if (!value) return '-';
   const date = new Date(value);
@@ -188,15 +217,17 @@ export default function ClientDataPage() {
 
   const clientRows = useMemo(() => {
     if (!selectedList?.leads?.length) return [];
-    return selectedList.leads.map((lead, index) => ({
-      id: `${selectedList._id || 'list'}-${index}`,
-      name: lead?.Name || lead?.data?.Name || lead?.data?.name || '-',
-      email: lead?.Email || lead?.data?.Email || lead?.data?.email || '-',
-      company: lead?.Company || lead?.data?.Company || lead?.data?.company || '-',
-      city: getLeadCity(lead),
-      status: getLeadStatus(lead),
-      source: getLeadSource(selectedList)
-    }));
+    return selectedList.leads
+      .filter(hasVisibleLeadData)
+      .map((lead, index) => ({
+        id: `${selectedList._id || 'list'}-${index}`,
+        name: lead?.Name || lead?.data?.Name || lead?.data?.name || '-',
+        email: lead?.Email || lead?.data?.Email || lead?.data?.email || '-',
+        company: lead?.Company || lead?.data?.Company || lead?.data?.company || '-',
+        city: getLeadCity(lead),
+        status: getLeadStatus(lead),
+        source: getLeadSource(selectedList)
+      }));
   }, [selectedList]);
 
   const totalClients = useMemo(
@@ -570,10 +601,17 @@ export default function ClientDataPage() {
   return (
     <AppLayout
       topbarProps={{
-        title: 'Client Data',
-        subtitle: 'Upload, manage, and review client files and records.',
-        copyFooter: (
-          <div className="client-data-section-switcher client-data-section-switcher-top" aria-label="Client data section controls">
+        title: '',
+        subtitle: ''
+      }}
+    >
+      <div className="client-data-page">
+        <section className="client-data-page-header">
+          <div className="client-data-page-header-copy">
+            <h1>Client Data</h1>
+            <p>Upload, manage, and review client files and records.</p>
+          </div>
+          <div className="client-data-section-switcher" aria-label="Client data section controls">
             <button
               type="button"
               className="client-data-section-switcher-button active"
@@ -588,18 +626,10 @@ export default function ClientDataPage() {
             >
               Client List
             </button>
-            <UploadSheetWorkflow buttonClassName="client-data-section-switcher-button" />
+            <UploadSheetWorkflow buttonClassName="client-data-section-switcher-button client-data-upload-sheet-button" />
           </div>
-        ),
-        actions: (
-          <>
-            <Button variant="secondary">Create Sheet</Button>
-            <Button>Upload File</Button>
-          </>
-        )
-      }}
-    >
-      <div className="client-data-page">
+        </section>
+
         <section className="ui-page-section">
           <div className="ui-page-section-header">
             <div className="ui-page-section-copy">

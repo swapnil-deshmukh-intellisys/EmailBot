@@ -11,6 +11,34 @@ function statusClassName(status) {
   return 'client-upload-preview-row valid';
 }
 
+function compactUploadRow(row = {}) {
+  const compact = {
+    rowId: String(row?.rowId || ''),
+    rowNumber: Number(row?.rowNumber || 0),
+    validationStatus: String(row?.validationStatus || row?.status || 'Valid'),
+    status: String(row?.validationStatus || row?.status || 'Valid'),
+    reasons: Array.isArray(row?.reasons) ? row.reasons.map((item) => String(item || '')) : []
+  };
+
+  SHEET_FIELDS.forEach((field) => {
+    compact[field] = String(row?.[field] || '');
+  });
+
+  compact.data = {
+    Name: compact.Name,
+    Surname: compact.Surname,
+    Company: compact.Company,
+    Designation: compact.Designation,
+    Email: compact.Email,
+    Phone: compact.Phone,
+    Domain: compact.Domain,
+    Sector: compact.Sector,
+    Country: compact.Country
+  };
+
+  return compact;
+}
+
 export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSaved = null }) {
   const fileInputRef = useRef(null);
   const spreadsheetRefs = useRef({});
@@ -172,7 +200,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
       const response = await fetch('/api/uploads/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, columns, rows: previewRows, summary })
+        body: JSON.stringify({ fileName, columns: SHEET_FIELDS, rows: previewRows.map(compactUploadRow), summary })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -382,7 +410,8 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
           setMessage('');
         }}
       >
-        Upload Sheet
+        <span className="client-data-upload-sheet-icon" aria-hidden="true">↑</span>
+        <span>Upload Sheet</span>
       </button>
 
       <input

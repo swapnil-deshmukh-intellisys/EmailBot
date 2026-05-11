@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import { encryptString } from '@/lib/tokenCrypto';
-import { requireUser } from '@/lib/apiAuth';
+import { requireAuth } from '@/lib/apiAuth';
+import { DELEGATED_MAILBOX_SCOPE } from '@/core-lib/mail-engine/MicrosoftGraphOAuthScopes';
 
 function base64UrlDecodeToJson(part) {
   const pad = '='.repeat((4 - (part.length % 4)) % 4);
@@ -12,13 +13,14 @@ function base64UrlDecodeToJson(part) {
 }
 
 export async function GET(req) {
-  const { userEmail, errorResponse } = requireUser(req);
-  if (errorResponse) return errorResponse;
+  const auth = await requireAuth(req);
+  if (auth.errorResponse) return auth.errorResponse;
+  const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').trim().toLowerCase();
 
   const isSecure = process.env.NODE_ENV === 'production';
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
   const clientSecret = process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
-  const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
+  const tenant = process.env.MS_OAUTH_TENANT || process.env.MS_TENANT_ID || process.env.TENANT_ID || 'organizations';
 
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: 'MS_CLIENT_ID/MS_CLIENT_SECRET (or MS_OAUTH_CLIENT_ID/MS_OAUTH_CLIENT_SECRET or CLIENT_ID/CLIENT_SECRET) are not set' }, { status: 500 });
@@ -30,30 +32,21 @@ export async function GET(req) {
   const err = url.searchParams.get('error');
   const errDesc = url.searchParams.get('error_description');
 
-  if (err) {
-    return NextResponse.redirect(new URL(`/dashboard?oauth=error&message=${encodeURIComponent(errDesc || err)}`, url.origin));
-  }
-
   const cookieState = req.cookies.get('ms_oauth_state')?.value || '';
   const verifier = req.cookies.get('ms_oauth_verifier')?.value || '';
   const returnTo = req.cookies.get('ms_oauth_return')?.value || '/dashboard';
   const expectedEmail = (req.cookies.get('ms_oauth_expected')?.value || '').trim().toLowerCase();
 
+  if (err) {
+    return NextResponse.redirect(new URL(`${returnTo}?oauth=error&message=${encodeURIComponent(errDesc || err)}`, url.origin));
+  }
+
   if (!code || !state || !cookieState || state !== cookieState || !verifier) {
-    return NextResponse.redirect(new URL('/dashboard?oauth=error&message=Invalid%20OAuth%20state', url.origin));
+    return NextResponse.redirect(new URL(`${returnTo}?oauth=error&message=Invalid%20OAuth%20state`, url.origin));
   }
 
   const redirectUri = process.env.MS_REDIRECT_URI || `${url.origin}/api/graph-oauth/callback`;
-  const scope = [
-    'openid',
-    'profile',
-    'email',
-    'offline_access',
-    'User.Read',
-    'Mail.Send',
-    'Mail.Read',
-    'Mail.ReadWrite'
-  ].join(' ');
+  const scope = DELEGATED_MAILBOX_SCOPE;
 
   const tokenUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
   const params = new URLSearchParams();
@@ -73,7 +66,7 @@ export async function GET(req) {
   const tokenData = await tokenResp.json();
   if (!tokenResp.ok || !tokenData.access_token || !tokenData.refresh_token) {
     const msg = tokenData.error_description || tokenData.error || 'Token exchange failed';
-    return NextResponse.redirect(new URL(`/dashboard?oauth=error&message=${encodeURIComponent(msg)}`, url.origin));
+    return NextResponse.redirect(new URL(`${returnTo}?oauth=error&message=${encodeURIComponent(msg)}`, url.origin));
   }
 
   let tokenClaims = {};
@@ -95,13 +88,13 @@ export async function GET(req) {
   const me = await meResp.json();
   if (!meResp.ok) {
     const msg = me?.error?.message || 'Failed to fetch /me';
-    return NextResponse.redirect(new URL(`/dashboard?oauth=error&message=${encodeURIComponent(msg)}`, url.origin));
+    return NextResponse.redirect(new URL(`${returnTo}?oauth=error&message=${encodeURIComponent(msg)}`, url.origin));
   }
 
   const email = (me.mail || me.userPrincipalName || tokenClaims.preferred_username || '').toLowerCase();
 
   if (expectedEmail && email && expectedEmail !== email) {
-    const res = NextResponse.redirect(new URL(`/dashboard?oauth=error&message=${encodeURIComponent(`Signed in as ${email} but expected ${expectedEmail}`)}`, url.origin));
+    const res = NextResponse.redirect(new URL(`${returnTo}?oauth=error&message=${encodeURIComponent(`Signed in as ${email} but expected ${expectedEmail}`)}`, url.origin));
     const opts = { httpOnly: true, sameSite: 'lax', path: '/', secure: isSecure, maxAge: 0 };
     res.cookies.set('ms_oauth_state', '', opts);
     res.cookies.set('ms_oauth_verifier', '', opts);
@@ -119,7 +112,9 @@ export async function GET(req) {
     { email, tenantId: tid, userEmail },
     {
       $set: {
+        userId: auth.currentUser?._id || null,
         userEmail,
+        provider: 'microsoft',
         displayName,
         scopes: String(tokenData.scope || '').split(' ').filter(Boolean),
         accessTokenEnc: encryptString(accessToken),

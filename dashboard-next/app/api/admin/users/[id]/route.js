@@ -8,6 +8,7 @@ import LeadList from '@/models/LeadList';
 import SenderAccount from '@/models/SenderAccount';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import UserProfile from '@/models/UserProfile';
+import { getOrCreateSubscriptionSummary } from '@/core-lib/billing/SubscriptionCreditService';
 
 export async function GET(req, { params }) {
   const auth = await requireAdmin(req);
@@ -19,13 +20,14 @@ export async function GET(req, { params }) {
   }
 
   const identifier = String(user.email || user.identifier || '').trim().toLowerCase();
-  const [campaigns, drafts, clientLists, senderAccounts, oauthAccounts, activityLogs] = await Promise.all([
+  const [campaigns, drafts, clientLists, senderAccounts, oauthAccounts, activityLogs, subscriptionData] = await Promise.all([
     Campaign.find({ userEmail: identifier }).sort({ updatedAt: -1 }).limit(20).lean(),
     EmailDraft.find({ userEmail: identifier }).sort({ updatedAt: -1 }).limit(20).lean(),
     LeadList.find({ userEmail: identifier }).sort({ updatedAt: -1 }).limit(20).lean(),
     SenderAccount.find({ userEmail: identifier }).sort({ updatedAt: -1 }).lean(),
     GraphOAuthAccount.find({ userEmail: identifier }).sort({ updatedAt: -1 }).lean(),
-    ActivityLog.find({ userEmail: identifier }).sort({ createdAt: -1 }).limit(50).lean()
+    ActivityLog.find({ userEmail: identifier }).sort({ createdAt: -1 }).limit(50).lean(),
+    getOrCreateSubscriptionSummary(identifier, user)
   ]);
 
   return NextResponse.json({
@@ -51,6 +53,8 @@ export async function GET(req, { params }) {
       createdAt: user.createdAt || null,
       updatedAt: user.updatedAt || null
     },
+    subscription: subscriptionData.subscription,
+    subscriptionSummary: subscriptionData.summary,
     campaigns,
     drafts,
     clientLists,

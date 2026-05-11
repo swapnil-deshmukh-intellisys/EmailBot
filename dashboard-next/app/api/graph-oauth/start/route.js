@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { requireUser } from '@/lib/apiAuth';
+import { DELEGATED_MAILBOX_SCOPE } from '@/core-lib/mail-engine/MicrosoftGraphOAuthScopes';
 
 function base64Url(buf) {
   return Buffer.from(buf)
@@ -11,18 +12,18 @@ function base64Url(buf) {
 }
 
 export async function GET(req) {
-  const { userEmail, errorResponse } = requireUser(req);
+  const { errorResponse } = requireUser(req);
   if (errorResponse) return errorResponse;
 
   const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
-  const tenant = process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || process.env.TENANT_ID || 'common';
+  const tenant = process.env.MS_OAUTH_TENANT || process.env.MS_TENANT_ID || process.env.TENANT_ID || 'organizations';
   if (!clientId) {
     return NextResponse.json({ error: 'MS_CLIENT_ID (or MS_OAUTH_CLIENT_ID/CLIENT_ID) is not set' }, { status: 500 });
   }
 
   const url = new URL(req.url);
   const returnTo = url.searchParams.get('returnTo') || '/dashboard';
-  const expectedEmail = (url.searchParams.get('expectedEmail') || userEmail).trim().toLowerCase();
+  const expectedEmail = (url.searchParams.get('expectedEmail') || '').trim().toLowerCase();
   const loginHint = (url.searchParams.get('loginHint') || expectedEmail).trim();
 
   const state = base64Url(crypto.randomBytes(24));
@@ -30,16 +31,7 @@ export async function GET(req) {
   const challenge = base64Url(crypto.createHash('sha256').update(verifier).digest());
 
   const redirectUri = process.env.MS_REDIRECT_URI || `${url.origin}/api/graph-oauth/callback`;
-  const scope = [
-    'openid',
-    'profile',
-    'email',
-    'offline_access',
-    'User.Read',
-    'Mail.Send',
-    'Mail.Read',
-    'Mail.ReadWrite'
-  ].join(' ');
+  const scope = DELEGATED_MAILBOX_SCOPE;
 
   const authUrl = new URL(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize`);
   authUrl.searchParams.set('client_id', clientId);
@@ -50,9 +42,21 @@ export async function GET(req) {
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('code_challenge', challenge);
   authUrl.searchParams.set('code_challenge_method', 'S256');
-  authUrl.searchParams.set('prompt', 'select_account');
   if (loginHint) {
     authUrl.searchParams.set('login_hint', loginHint);
+  }
+
+  if (url.searchParams.get('debug') === '1') {
+    return NextResponse.json({
+      success: true,
+      tenant,
+      clientId,
+      redirectUri,
+      scope,
+      prompt: authUrl.searchParams.get('prompt') || '',
+      hasDefaultScope: scope.includes('.default'),
+      authorizeUrl: authUrl.toString()
+    });
   }
 
   const res = NextResponse.redirect(authUrl);

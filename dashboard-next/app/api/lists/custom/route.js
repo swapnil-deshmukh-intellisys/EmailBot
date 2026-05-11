@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { requireUser } from '@/lib/apiAuth';
+import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeLeadRow(row = {}) {
   const data = Object.fromEntries(
@@ -33,8 +34,8 @@ export async function POST(req) {
   const sourceList = sourceListId ? await LeadList.findOne({ _id: sourceListId, userEmail }).lean() : null;
   const sourceFile = String(body.sourceFile || sourceList?.sourceFile || `${name}.csv`).trim() || `${name}.csv`;
   const leadRows = rows.length
-    ? rows.map(normalizeLeadRow).filter((row) => row.Email)
-    : (sourceList?.leads || []).map((lead) => ({
+    ? rows.map(normalizeLeadRow).filter(hasMeaningfulLeadData)
+    : (sourceList?.leads || []).filter(hasMeaningfulLeadData).map((lead) => ({
         Name: lead.Name || lead.data?.Name || '',
         Email: String(lead.Email || lead.data?.Email || '').trim().toLowerCase(),
         Company: lead.Company || lead.data?.Company || '',

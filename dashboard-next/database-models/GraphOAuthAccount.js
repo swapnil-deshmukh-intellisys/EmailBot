@@ -4,6 +4,7 @@ const GraphOAuthAccountSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', default: null, index: true },
     userEmail: { type: String, default: '', index: true },
+    provider: { type: String, default: 'microsoft', index: true },
     email: { type: String, required: true, index: true },
     displayName: { type: String, default: '' },
     tenantId: { type: String, default: 'organizations' },

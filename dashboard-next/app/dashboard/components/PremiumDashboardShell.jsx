@@ -38,7 +38,7 @@ function MetricCard({ item }) {
   );
 }
 
-function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraftType, onSelectedDraftTypeChange }) {
+function WorkflowStep({ step, isLast, status = 'pending', onAction, onRefresh, selectedDraftType, onSelectedDraftTypeChange }) {
   const isDraftStep = Number(step?.index) === 4;
   const isOverviewStep = Number(step?.index) === 2;
   const stepLabels = {
@@ -110,6 +110,19 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
           {step.action}
         </button>
       )}
+      <button
+        type="button"
+        className="premium-step-refresh"
+        title={`Refresh ${step.title}`}
+        aria-label={`Refresh ${step.title}`}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onRefresh?.(step);
+        }}
+      >
+        ↻
+      </button>
     </article>
   );
 }
@@ -315,6 +328,54 @@ function sameDay(a, b) {
   );
 }
 
+const CALENDAR_EVENT_TYPES = [
+  'Campaign Launch',
+  'Follow-up',
+  'Meeting',
+  'Reminder',
+  'Task',
+  'Client Call',
+  'Team Activity',
+  'Deadline',
+  'Custom'
+];
+const CALENDAR_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
+const CALENDAR_REMINDERS = ['None', '5 minutes before', '15 minutes before', '30 minutes before', '1 hour before', '1 day before'];
+const CALENDAR_REPEATS = ['None', 'Daily', 'Weekly', 'Monthly', 'Yearly'];
+const CALENDAR_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#16a34a', '#f59e0b', '#ef4444', '#db2777'];
+
+function formatDateInput(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildCalendarEventDraft(date = new Date()) {
+  const day = formatDateInput(date);
+  const now = new Date();
+  const start = new Date(now);
+  start.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  return {
+    id: '',
+    title: '',
+    description: '',
+    startDate: day,
+    endDate: day,
+    startTime: start.toTimeString().slice(0, 5),
+    endTime: end.toTimeString().slice(0, 5),
+    type: 'Reminder',
+    priority: 'Medium',
+    reminder: 'None',
+    repeat: 'None',
+    notes: '',
+    color: CALENDAR_COLORS[0]
+  };
+}
+
 function formatLogTime(value) {
   if (!value) return '';
   const date = value instanceof Date ? value : new Date(value);
@@ -328,6 +389,8 @@ export default function PremiumDashboardShell({
   reportMetricCards,
   dailyMailCounts = [],
   workflowSteps,
+  onRefreshWorkflow,
+  initialWorkflowStep = 0,
   totalTrackedMails,
   notificationCards,
   timelineCards,
@@ -410,6 +473,7 @@ export default function PremiumDashboardShell({
   targetApprovalRequestNote = ''
 }) {
   const router = useRouter();
+  const lastOpenedInitialWorkflowStepRef = useRef('');
   const scheduleCountries = {
     USA: ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'],
     UK: ['Europe/London'],
@@ -518,7 +582,13 @@ export default function PremiumDashboardShell({
       }),
     [notificationCards]
   );
-  const [customCalendarEvents, setCustomCalendarEvents] = useState([]);
+  const [userCalendarEvents, setUserCalendarEvents] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarSaving, setCalendarSaving] = useState(false);
+  const [calendarViewMode, setCalendarViewMode] = useState('month');
+  const [showEventFormPopup, setShowEventFormPopup] = useState(false);
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState(null);
+  const [calendarEventDraft, setCalendarEventDraft] = useState(() => buildCalendarEventDraft(new Date()));
   const calendarEvents = useMemo(() => {
     const notificationEvents = notificationCards.map((item, index) => ({
       id: `notification-${index}`,
@@ -544,8 +614,8 @@ export default function PremiumDashboardShell({
     return [...notificationEvents, ...timelineEvents, ...performanceEvents].filter((item) => item.date);
   }, [notificationCards, timelineCards, performanceCampaigns]);
   const allCalendarEvents = useMemo(
-    () => [...calendarEvents, ...customCalendarEvents].filter((item) => item.date),
-    [calendarEvents, customCalendarEvents]
+    () => [...calendarEvents, ...userCalendarEvents].filter((item) => item.date),
+    [calendarEvents, userCalendarEvents]
   );
   const [timelineCompletionMap, setTimelineCompletionMap] = useState(() =>
     Object.fromEntries((timelineCards || []).map((item, index) => {
@@ -670,10 +740,6 @@ export default function PremiumDashboardShell({
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [showDraftContinueWarning, setShowDraftContinueWarning] = useState(false);
   const [popupAnchors, setPopupAnchors] = useState({});
-  const [dayEventDraft, setDayEventDraft] = useState('');
-  const [dayEventTitleDraft, setDayEventTitleDraft] = useState('');
-  const [dayEventDetailDraft, setDayEventDetailDraft] = useState('');
-  const [dayEventTypeDraft, setDayEventTypeDraft] = useState('Reminder');
   const [tableSearch, setTableSearch] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
   const [selectedRows, setSelectedRows] = useState([]);
@@ -733,6 +799,8 @@ export default function PremiumDashboardShell({
   const [testPreviewMode, setTestPreviewMode] = useState('desktop');
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [testEmailSent, setTestEmailSent] = useState(false);
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailError, setTestEmailError] = useState('');
   const [includeTracking, setIncludeTracking] = useState(false);
   const workflowShellRef = useRef(null);
   const draftTypeItems = [
@@ -1009,6 +1077,47 @@ export default function PremiumDashboardShell({
     };
   });
   const today = useMemo(() => new Date(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const from = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+    const to = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 2, 0);
+
+    const loadCalendarEvents = async () => {
+      setCalendarLoading(true);
+      try {
+        const params = new URLSearchParams({
+          from: formatDateInput(from),
+          to: formatDateInput(to)
+        });
+        const response = await fetch(`/api/calendar/events?${params.toString()}`, {
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) {
+          throw new Error(data?.error || 'Failed to load calendar events');
+        }
+        setUserCalendarEvents((data.events || []).map((item) => ({
+          ...item,
+          id: item._id || item.id,
+          date: parseEventDate(item.startDate),
+          title: item.title,
+          detail: item.description || item.notes || item.type,
+          type: item.type || 'Reminder'
+        })));
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          onShowMessage?.(error.message || 'Failed to load calendar events', 'error');
+        }
+      } finally {
+        if (!controller.signal.aborted) setCalendarLoading(false);
+      }
+    };
+
+    loadCalendarEvents();
+    return () => controller.abort();
+  }, [calendarCursor]);
+
   const getCalendarEventTone = (type) => {
     const normalized = String(type || '').toLowerCase();
     if (normalized.includes('mail')) return 'mail';
@@ -1016,7 +1125,111 @@ export default function PremiumDashboardShell({
     if (normalized.includes('campaign')) return 'campaign';
     return 'default';
   };
+  const openEventForm = (date = selectedDate, eventItem = null) => {
+    const itemId = String(eventItem?.id || eventItem?._id || '');
+    if (eventItem && /^(notification|timeline|campaign)-/.test(itemId)) {
+      onShowMessage?.('Open Add Event to create a saved calendar item from this dashboard activity.', 'info');
+      return;
+    }
+    setEditingCalendarEvent(eventItem);
+    setCalendarEventDraft(eventItem ? {
+      id: eventItem.id || eventItem._id || '',
+      title: eventItem.title || '',
+      description: eventItem.description || eventItem.detail || '',
+      startDate: formatDateInput(eventItem.startDate || eventItem.date || date),
+      endDate: formatDateInput(eventItem.endDate || eventItem.startDate || eventItem.date || date),
+      startTime: eventItem.startTime || '09:00',
+      endTime: eventItem.endTime || '09:30',
+      type: eventItem.type || 'Reminder',
+      priority: eventItem.priority || 'Medium',
+      reminder: eventItem.reminder || 'None',
+      repeat: eventItem.repeat || 'None',
+      notes: eventItem.notes || '',
+      color: eventItem.color || CALENDAR_COLORS[0]
+    } : buildCalendarEventDraft(date));
+    setShowEventFormPopup(true);
+  };
+  const saveCalendarEvent = async () => {
+    const title = String(calendarEventDraft.title || '').trim();
+    if (!title) {
+      onShowMessage?.('Add an event title before saving.', 'info');
+      return;
+    }
+    if (
+      calendarEventDraft.startDate &&
+      calendarEventDraft.endDate &&
+      calendarEventDraft.startDate === calendarEventDraft.endDate &&
+      calendarEventDraft.startTime &&
+      calendarEventDraft.endTime &&
+      calendarEventDraft.endTime <= calendarEventDraft.startTime
+    ) {
+      onShowMessage?.('End time must be after start time for same-day events.', 'error');
+      return;
+    }
+    setCalendarSaving(true);
+    try {
+      const eventId = editingCalendarEvent?.id || editingCalendarEvent?._id || calendarEventDraft.id;
+      const response = await fetch(eventId ? `/api/calendar/events/${eventId}` : '/api/calendar/events', {
+        method: eventId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(calendarEventDraft)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to save event');
+      }
+      const saved = data.event;
+      const normalized = {
+        ...saved,
+        id: saved._id || saved.id,
+        date: parseEventDate(saved.startDate),
+        detail: saved.description || saved.notes || saved.type
+      };
+      setUserCalendarEvents((current) => {
+        const withoutCurrent = current.filter((item) => String(item.id || item._id) !== String(normalized.id));
+        return [normalized, ...withoutCurrent].sort((a, b) => (a.date?.getTime?.() || 0) - (b.date?.getTime?.() || 0));
+      });
+      setSelectedDate(parseEventDate(saved.startDate) || selectedDate);
+      setShowEventFormPopup(false);
+      setShowDayPopup(false);
+      onShowMessage?.(eventId ? 'Calendar event updated.' : 'Calendar event saved.', 'success');
+    } catch (error) {
+      onShowMessage?.(error.message || 'Failed to save event', 'error');
+    } finally {
+      setCalendarSaving(false);
+    }
+  };
+  const deleteCalendarEvent = async (eventItem) => {
+    const eventId = eventItem?.id || eventItem?._id;
+    if (!eventId || String(eventId).startsWith('notification-') || String(eventId).startsWith('timeline-') || String(eventId).startsWith('campaign-')) {
+      onShowMessage?.('Only saved calendar events can be deleted here.', 'info');
+      return;
+    }
+    setCalendarSaving(true);
+    try {
+      const response = await fetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to delete event');
+      }
+      setUserCalendarEvents((current) => current.filter((item) => String(item.id || item._id) !== String(eventId)));
+      setShowEventFormPopup(false);
+      onShowMessage?.('Calendar event deleted.', 'success');
+    } catch (error) {
+      onShowMessage?.(error.message || 'Failed to delete event', 'error');
+    } finally {
+      setCalendarSaving(false);
+    }
+  };
   const selectedEvents = allCalendarEvents.filter((item) => sameDay(item.date, selectedDate));
+  const todayCalendarEvents = allCalendarEvents.filter((item) => sameDay(item.date, today));
+  const upcomingCalendarEvents = allCalendarEvents
+    .filter((item) => item.date && item.date >= new Date(today.getFullYear(), today.getMonth(), today.getDate()))
+    .sort((a, b) => a.date - b.date)
+    .slice(0, 4);
+  const upcomingTaskCount = upcomingCalendarEvents.filter((item) => /task|deadline|follow-up/i.test(String(item.type || ''))).length;
+  const upcomingMeetingCount = upcomingCalendarEvents.filter((item) => /meeting|client call/i.test(String(item.type || ''))).length;
+  const upcomingCampaignCount = upcomingCalendarEvents.filter((item) => /campaign/i.test(String(item.type || ''))).length;
   const selectedDateLabel = selectedDate.toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
@@ -1683,7 +1896,10 @@ export default function PremiumDashboardShell({
   const openWorkflowStep = (stepValue) => {
     closeWorkflowPopups();
     const step = Number(stepValue || 0);
-    if (step <= 1) return;
+    if (step <= 1) {
+      setShowClientListPopup(true);
+      return;
+    }
     if (step === 2) {
       setShowOverviewPopup(true);
       return;
@@ -1707,6 +1923,23 @@ export default function PremiumDashboardShell({
     }
     setShowSchedulePopup(true);
   };
+
+  useEffect(() => {
+    const requestedStep = Number(initialWorkflowStep || 0);
+    if (!requestedStep) return;
+    const step = Math.max(1, Math.min(7, requestedStep));
+
+    const key = String(step);
+    if (lastOpenedInitialWorkflowStepRef.current === key) return;
+    lastOpenedInitialWorkflowStepRef.current = key;
+
+    const timer = window.setTimeout(() => {
+      openWorkflowStep(step);
+      onShowMessage?.(`Opened campaign workflow step ${step}.`, 'info');
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [initialWorkflowStep]);
 
   const resumeCampaignDraft = (campaign) => {
     if (!campaign) return;
@@ -1807,6 +2040,14 @@ export default function PremiumDashboardShell({
     onShowMessage?.(`Added ${label} filter option.`, 'success');
   };
 
+  const handleWorkflowRefresh = async (step = null) => {
+    const stepLabel = step?.title ? ` ${step.title}` : '';
+    const refreshed = await onRefreshWorkflow?.(step ? `step-${step.index}` : 'all');
+    if (refreshed !== false) {
+      onShowMessage?.(`Refreshed${stepLabel || ' dashboard'}.`, 'success');
+    }
+  };
+
   return (
     <section className="premium-dashboard-shell">
       <div className="premium-kpi-row">
@@ -1823,6 +2064,15 @@ export default function PremiumDashboardShell({
         >
           <div className="premium-workflow-title">
             <h3>Campaign Workflow</h3>
+            <button
+              type="button"
+              className="premium-workflow-refresh"
+              onClick={() => handleWorkflowRefresh(null)}
+              title="Refresh campaign workflow"
+              aria-label="Refresh campaign workflow"
+            >
+              ↻ Refresh
+            </button>
           </div>
           {workflowSteps.map((step, index) => (
             (() => {
@@ -1836,6 +2086,7 @@ export default function PremiumDashboardShell({
                   isLast={index === workflowSteps.length - 1}
                   status={status}
                   onAction={handleWorkflowAction}
+                  onRefresh={handleWorkflowRefresh}
                   selectedDraftType={selectedDraftType}
                   onSelectedDraftTypeChange={onSelectedDraftTypeChange}
                 />
@@ -2002,7 +2253,33 @@ export default function PremiumDashboardShell({
               <span className="premium-section-kicker">Calendar</span>
               <h3>{monthLabel}</h3>
             </div>
-            <div className="premium-calendar-nav">
+            <div className="premium-calendar-nav premium-calendar-nav-wide">
+              <button type="button" className="ghost subtle premium-calendar-add" onClick={() => openEventForm(selectedDate)}>
+                Add Event
+              </button>
+              <button
+                type="button"
+                className="ghost subtle"
+                onClick={() => {
+                  const nextToday = new Date();
+                  setSelectedDate(nextToday);
+                  setCalendarCursor(new Date(nextToday.getFullYear(), nextToday.getMonth(), 1));
+                }}
+              >
+                Today
+              </button>
+              <div className="premium-calendar-view-toggle" aria-label="Calendar view">
+                {['month', 'week', 'day'].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={calendarViewMode === mode ? 'active' : ''}
+                    onClick={() => setCalendarViewMode(mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 className="ghost subtle"
@@ -2019,7 +2296,7 @@ export default function PremiumDashboardShell({
               </button>
             </div>
           </div>
-          <div className="premium-calendar-grid">
+          <div className={`premium-calendar-grid view-${calendarViewMode}`}>
             {weekdayLabels.map((label) => (
               <span key={label} className="premium-calendar-weekday">
                 {label}
@@ -2034,14 +2311,21 @@ export default function PremiumDashboardShell({
                 key={day.key}
                 type="button"
                 className={`premium-calendar-day ${day.inMonth ? 'current' : 'adjacent'} ${sameDay(day.date, selectedDate) ? 'selected' : ''} ${sameDay(day.date, today) ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}`}
-                onClick={() => {
+                onClick={(event) => {
                   setSelectedDate(day.date);
                   openAnchoredPopup('day', setShowDayPopup)(event);
                 }}
                 data-tone={dotTone}
+                title={dayEvents.length ? dayEvents.map((item) => `${item.type}: ${item.title}`).slice(0, 3).join('\n') : ''}
               >
                 <span>{day.label}</span>
-                {dayEvents.length ? <i aria-hidden="true" /> : null}
+                {dayEvents.length ? (
+                  <span className="premium-calendar-dots" aria-hidden="true">
+                    {dayEvents.slice(0, 3).map((item) => (
+                      <i key={`${day.key}-${item.id || item.title}`} style={{ background: item.color || undefined }} />
+                    ))}
+                  </span>
+                ) : null}
               </button>
                 );
               })()
@@ -2050,6 +2334,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-events">
             <div className="premium-calendar-events-head">
               <strong>{selectedDate.toLocaleDateString('en-GB')}</strong>
+              <span className="premium-calendar-loading">{calendarLoading ? 'Loading...' : `${selectedEvents.length} events`}</span>
               {selectedEvents.length ? (
                 <button
                   type="button"
@@ -2061,10 +2346,46 @@ export default function PremiumDashboardShell({
               ) : null}
             </div>
             {selectedEvents.length ? (
-              null
+              selectedEvents.slice(0, 3).map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className="premium-calendar-event premium-calendar-event-button"
+                  onClick={() => openEventForm(selectedDate, item)}
+                  style={{ '--event-color': item.color || '#2563eb' }}
+                >
+                  <span>{item.type}</span>
+                  <p>{item.title}</p>
+                  <small>{item.startTime || 'All day'}{item.priority ? ` • ${item.priority}` : ''}</small>
+                </button>
+              ))
             ) : (
               <p>No events for this date.</p>
             )}
+            <div className="premium-calendar-dashboard-summary">
+              <span><strong>{todayCalendarEvents.length}</strong> Today</span>
+              <span><strong>{upcomingTaskCount}</strong> Tasks</span>
+              <span><strong>{upcomingCampaignCount}</strong> Campaigns</span>
+              <span><strong>{upcomingMeetingCount}</strong> Meetings</span>
+            </div>
+            {upcomingCalendarEvents.length ? (
+              <div className="premium-calendar-upcoming-list">
+                {upcomingCalendarEvents.slice(0, 2).map((item) => (
+                  <button
+                    type="button"
+                    key={`upcoming-${item.id}`}
+                    onClick={() => {
+                      setSelectedDate(item.date);
+                      if (item.date) setCalendarCursor(new Date(item.date.getFullYear(), item.date.getMonth(), 1));
+                    }}
+                  >
+                    <span style={{ background: item.color || '#2563eb' }} />
+                    <strong>{item.title}</strong>
+                    <small>{item.date.toLocaleDateString('en-GB')}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -2426,10 +2747,15 @@ export default function PremiumDashboardShell({
             </div>
             <div className="premium-calendar-modal-list">
               {selectedEvents.map((item) => (
-                <div key={item.id} className="premium-calendar-event">
+                <div key={item.id} className="premium-calendar-event" style={{ '--event-color': item.color || '#2563eb' }}>
                   <span>{item.type}</span>
                   <p>{item.title}</p>
-                  <small>{item.detail}</small>
+                  <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} • {item.priority || 'Medium'}</small>
+                  {item.detail ? <small>{item.detail}</small> : null}
+                  <div className="premium-calendar-event-actions">
+                    <button type="button" className="ghost subtle" onClick={() => openEventForm(selectedDate, item)}>Edit</button>
+                    <button type="button" className="ghost subtle danger" onClick={() => deleteCalendarEvent(item)}>Delete</button>
+                  </div>
                 </div>
               ))}
               {!selectedEvents.length ? <div className="premium-empty-state">No events for this date.</div> : null}
@@ -2464,10 +2790,15 @@ export default function PremiumDashboardShell({
             <div className="premium-calendar-modal-list">
               {selectedEvents.length ? (
                 selectedEvents.map((item) => (
-                  <div key={item.id} className="premium-calendar-event">
+                  <div key={item.id} className="premium-calendar-event" style={{ '--event-color': item.color || '#2563eb' }}>
                     <span>{item.type}</span>
                     <p>{item.title}</p>
-                    <small>{item.detail}</small>
+                    <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} • {item.priority || 'Medium'}</small>
+                    {item.detail ? <small>{item.detail}</small> : null}
+                    <div className="premium-calendar-event-actions">
+                      <button type="button" className="ghost subtle" onClick={() => openEventForm(selectedDate, item)}>Edit</button>
+                      <button type="button" className="ghost subtle danger" onClick={() => deleteCalendarEvent(item)}>Delete</button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -2475,62 +2806,118 @@ export default function PremiumDashboardShell({
               )}
             </div>
             <div className="premium-day-modal-actions">
-              <input
-                type="text"
-                value={dayEventTitleDraft}
-                onChange={(event) => setDayEventTitleDraft(event.target.value)}
-                placeholder="Event title"
-              />
-              <textarea
-                value={dayEventDetailDraft}
-                onChange={(event) => setDayEventDetailDraft(event.target.value)}
-                placeholder="About this event"
-                rows={3}
-              />
-              <div className="premium-day-modal-row">
-                <select value={dayEventTypeDraft} onChange={(event) => setDayEventTypeDraft(event.target.value)}>
-                  <option value="Reminder">Reminder</option>
-                  <option value="Note">Note</option>
-                  <option value="Meeting">Meeting</option>
-                  <option value="Campaign">Campaign</option>
-                </select>
-                <input
-                  type="text"
-                  value={dayEventDraft}
-                  onChange={(event) => setDayEventDraft(event.target.value)}
-                  placeholder="Reminder note"
-                />
-              </div>
               <div className="premium-day-modal-footer">
-                <small>You can use this for notes, reminders, or a quick plan for the day.</small>
+                <small>Add structured events with reminders, repeat settings, priority, and color tags.</small>
                 <button
                   type="button"
-                  onClick={() => {
-                    const title = dayEventTitleDraft.trim();
-                    const detail = dayEventDetailDraft.trim();
-                    const note = dayEventDraft.trim();
-                    if (!title && !detail && !note) {
-                      onShowMessage?.('Add an event title or note before saving it.', 'info');
-                      return;
-                    }
-                    setCustomCalendarEvents((current) => [
-                      {
-                        id: `custom-${Date.now()}`,
-                        date: new Date(selectedDate),
-                        title: title || 'Custom event',
-                        detail: detail || note || 'Planned for this day',
-                        type: dayEventTypeDraft || 'Reminder'
-                      },
-                      ...current
-                    ]);
-                    onShowMessage?.(`Saved event for ${selectedDateLabel}.`, 'success');
-                    setDayEventTitleDraft('');
-                    setDayEventDetailDraft('');
-                    setDayEventDraft('');
-                    setShowDayPopup(false);
-                  }}
+                  onClick={() => openEventForm(selectedDate)}
                 >
-                  Save Event
+                  Add Event
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renderPortalPopup(
+        showEventFormPopup,
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowEventFormPopup(false)}>
+          <div className="premium-calendar-modal premium-event-form-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="premium-panel-head">
+              <div>
+                <h3>{editingCalendarEvent ? 'Edit Event' : 'Add Event'}</h3>
+                <p>Plan campaigns, calls, tasks, and reminders in your dashboard calendar.</p>
+              </div>
+              <div className="premium-event-form-head-actions">
+                <button type="button" className="ghost subtle" disabled={calendarSaving} onClick={() => setShowEventFormPopup(false)}>Cancel</button>
+                <button type="button" disabled={calendarSaving} onClick={saveCalendarEvent}>
+                  {calendarSaving ? 'Saving...' : 'Save Event'}
+                </button>
+                <button type="button" className="ghost subtle" onClick={() => setShowEventFormPopup(false)} aria-label="Close event modal">
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="premium-event-form-grid">
+              <label>
+                <span>Event title</span>
+                <input value={calendarEventDraft.title} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, title: event.target.value }))} />
+              </label>
+              <label>
+                <span>Event type</span>
+                <select value={calendarEventDraft.type} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, type: event.target.value }))}>
+                  {CALENDAR_EVENT_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="wide">
+                <span>Description</span>
+                <textarea rows={3} value={calendarEventDraft.description} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, description: event.target.value }))} />
+              </label>
+              <label>
+                <span>Start date</span>
+                <input type="date" value={calendarEventDraft.startDate} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, startDate: event.target.value, endDate: current.endDate || event.target.value }))} />
+              </label>
+              <label>
+                <span>End date</span>
+                <input type="date" value={calendarEventDraft.endDate} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, endDate: event.target.value }))} />
+              </label>
+              <label>
+                <span>Start time</span>
+                <input type="time" value={calendarEventDraft.startTime} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, startTime: event.target.value }))} />
+              </label>
+              <label>
+                <span>End time</span>
+                <input type="time" value={calendarEventDraft.endTime} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, endTime: event.target.value }))} />
+              </label>
+              <label>
+                <span>Priority</span>
+                <select value={calendarEventDraft.priority} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, priority: event.target.value }))}>
+                  {CALENDAR_PRIORITIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Reminder</span>
+                <select value={calendarEventDraft.reminder} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, reminder: event.target.value }))}>
+                  {CALENDAR_REMINDERS.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Repeat event</span>
+                <select value={calendarEventDraft.repeat} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, repeat: event.target.value }))}>
+                  {CALENDAR_REPEATS.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Color</span>
+                <div className="premium-event-color-row">
+                  {CALENDAR_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={calendarEventDraft.color === color ? 'active' : ''}
+                      style={{ background: color }}
+                      onClick={() => setCalendarEventDraft((current) => ({ ...current, color }))}
+                      aria-label={`Use color ${color}`}
+                    />
+                  ))}
+                </div>
+              </label>
+              <label className="wide">
+                <span>Notes</span>
+                <textarea rows={3} value={calendarEventDraft.notes} onChange={(event) => setCalendarEventDraft((current) => ({ ...current, notes: event.target.value }))} />
+              </label>
+            </div>
+            <div className="premium-event-form-actions">
+              {editingCalendarEvent ? (
+                <button type="button" className="ghost subtle danger" disabled={calendarSaving} onClick={() => deleteCalendarEvent(editingCalendarEvent)}>
+                  Delete
+                </button>
+              ) : <span />}
+              <div>
+                <button type="button" className="ghost subtle" disabled={calendarSaving} onClick={() => setShowEventFormPopup(false)}>Cancel</button>
+                <button type="button" disabled={calendarSaving} onClick={saveCalendarEvent}>
+                  {calendarSaving ? 'Saving...' : 'Save Event'}
                 </button>
               </div>
             </div>
@@ -3799,14 +4186,31 @@ export default function PremiumDashboardShell({
                 <button
                   type="button"
                   className="premium-test-email-send"
+                  disabled={testEmailSending}
                   onClick={async () => {
-                    await onSendTestEmail?.();
-                    setTestEmailSent(true);
+                    const recipient = String(testEmailTo || testEmailAddress || '').trim();
+                    setTestEmailSent(false);
+                    setTestEmailError('');
+                    setTestEmailSending(true);
+                    const result = await onSendTestEmail?.(recipient);
+                    const sent = typeof result === 'boolean' ? result : Boolean(result?.ok);
+                    setTestEmailSending(false);
+                    setTestEmailSent(sent);
+                    if (!sent) {
+                      setTestEmailError(result?.error || 'Test email was not sent. Check sender, recipient, subject, and body.');
+                    }
                   }}
                 >
-                  Send Test Email
+                  {testEmailSending ? 'Sending...' : 'Send Test Email'}
                 </button>
               </div>
+
+              {testEmailError ? (
+                <div className="premium-test-email-error">
+                  <span>!</span>
+                  <p>{testEmailError}</p>
+                </div>
+              ) : null}
 
               {testEmailSent ? (
                 <div className="premium-test-email-success">

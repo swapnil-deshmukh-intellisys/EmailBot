@@ -36,9 +36,9 @@ const UserProfileSchema = new mongoose.Schema(
       replyAlerts: { type: Boolean, default: true },
       weeklyReports: { type: Boolean, default: true }
     },
-    totalCredits: { type: Number, default: 6000 },
+    totalCredits: { type: Number, default: 300 },
     usedCredits: { type: Number, default: 0 },
-    remainingCredits: { type: Number, default: 6000 },
+    remainingCredits: { type: Number, default: 300 },
     creditUsagePercent: { type: Number, default: 0 },
     targetApprovalStatus: { type: String, default: 'approved' },
     targetApprovalRequestedAt: { type: Date, default: null },

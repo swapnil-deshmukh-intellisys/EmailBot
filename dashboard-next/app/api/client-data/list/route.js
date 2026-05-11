@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { requireAuth } from '@/lib/apiAuth';
+import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function normalizeText(value = '') {
   return String(value ?? '').trim();
@@ -80,7 +81,11 @@ export async function GET(req) {
     const rows = [];
     for (const list of lists) {
       const leads = Array.isArray(list?.leads) ? list.leads : [];
-      leads.forEach((lead, index) => rows.push(buildClientRow(list, lead, index)));
+      leads.forEach((lead, index) => {
+        if (hasMeaningfulLeadData(lead)) {
+          rows.push(buildClientRow(list, lead, index));
+        }
+      });
     }
 
     return NextResponse.json({
@@ -93,7 +98,7 @@ export async function GET(req) {
         kind: list.kind || 'uploaded',
         uploadedAt: list.uploadedAt || null,
         createdAt: list.createdAt || null,
-        leadCount: Array.isArray(list.leads) ? list.leads.length : 0
+        leadCount: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData).length : 0
       }))
     });
   } catch (error) {

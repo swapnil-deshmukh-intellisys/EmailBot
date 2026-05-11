@@ -17,6 +17,16 @@ import {
   isFutureScheduledDate,
   normalizeDurationUnit
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
+import {
+  buildCampaignCounts,
+  buildLegacyCampaignSummary,
+  getEmptyCampaignCounts
+} from '@/core-lib/campaign-engine/CampaignStatusSummary';
+import CampaignRecipientLog from '@/models/CampaignRecipientLog';
+import {
+  ensureRecipientLogsForCampaign,
+  serializeCampaignForList
+} from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 
 const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
 function normalizeCampaignType(value = '') {
@@ -29,6 +39,11 @@ function escapeRegex(value = '') {
 
 function shouldUseDemoData() {
   return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+}
+
+function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.' }) {
+  console.error(`[api/campaigns] ${code}: ${message}`);
+  return NextResponse.json({ success: false, code, message, error: message }, { status });
 }
 
 export async function GET(req) {
@@ -55,15 +70,26 @@ export async function GET(req) {
       ];
     }
 
-    const campaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
+    const rawCampaigns = await Campaign.find(query).sort({ createdAt: -1 }).lean();
+    await Promise.all(rawCampaigns.slice(0, 50).map((campaign) => ensureRecipientLogsForCampaign(campaign).catch(() => [])));
+    const campaignIds = rawCampaigns.map((campaign) => campaign._id);
+    const recipientLogs = await CampaignRecipientLog.find({ campaignId: { $in: campaignIds } }).lean();
+    const logsByCampaign = recipientLogs.reduce((map, item) => {
+      const key = String(item.campaignId);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(item);
+      return map;
+    }, new Map());
+    const campaigns = rawCampaigns.map((campaign) => serializeCampaignForList(campaign, logsByCampaign.get(String(campaign._id)) || []));
+    const counts = buildCampaignCounts(campaigns);
+    const summary = buildLegacyCampaignSummary(counts);
 
-    return NextResponse.json({ campaigns });
+    return NextResponse.json({ success: true, counts, campaigns, summary });
 
   } catch (error) {
     const errorMessage = error.message || 'Failed to load campaigns';
     if (shouldUseDemoData()) {
-      return NextResponse.json({
-        campaigns: [
+      const demoCampaigns = [
           {
             _id: 'demo-campaign-1',
             name: 'Demo Outreach Campaign',
@@ -73,11 +99,17 @@ export async function GET(req) {
             stats: { total: 50, sent: 22, failed: 1, bounced: 0, spam: 0, pending: 27 },
             createdAt: new Date().toISOString()
           }
-        ],
+        ];
+      return NextResponse.json({
+        success: true,
+        campaigns: demoCampaigns,
+        counts: buildCampaignCounts(demoCampaigns),
+        summary: buildLegacyCampaignSummary(buildCampaignCounts(demoCampaigns)),
         error: errorMessage
       });
     }
-    return NextResponse.json({ campaigns: [], error: errorMessage });
+    const emptyCounts = getEmptyCampaignCounts();
+    return NextResponse.json({ success: false, counts: emptyCounts, campaigns: [], summary: buildLegacyCampaignSummary(emptyCounts), code: 'CAMPAIGNS_LOAD_FAILED', message: errorMessage, error: errorMessage });
 
   }
 
@@ -122,7 +154,7 @@ export async function POST(req) {
 
     if (!name || !listId) {
 
-      return NextResponse.json({ error: 'name and listId are required' }, { status: 400 });
+      return jsonError({ status: 400, code: 'CAMPAIGN_REQUIRED_FIELDS_MISSING', message: 'Campaign name and lead list are required.' });
 
     }
 
@@ -132,7 +164,7 @@ export async function POST(req) {
 
     if (!list) {
 
-      return NextResponse.json({ error: 'Lead list not found' }, { status: 404 });
+      return jsonError({ status: 404, code: 'LEAD_LIST_NOT_FOUND', message: 'Lead list not found for current user.' });
 
     }
 
@@ -159,7 +191,14 @@ export async function POST(req) {
 
     if (senderAccountId && !senderAccount) {
 
-      return NextResponse.json({ error: 'Sender account not found' }, { status: 404 });
+      const isPresetGraphAccount = String(senderAccountId || '').startsWith('graphapp:');
+      return jsonError({
+        status: isPresetGraphAccount ? 400 : 404,
+        code: isPresetGraphAccount ? 'SENDER_ACCOUNT_NOT_CONNECTED' : 'SENDER_ACCOUNT_NOT_FOUND',
+        message: isPresetGraphAccount
+          ? 'Selected sender is not connected. Connect this Mail ID or configure Microsoft Graph app credentials before creating a campaign.'
+          : 'Sender account not found or not connected for current user.'
+      });
 
     }
 
@@ -170,13 +209,13 @@ export async function POST(req) {
 
     if (!Number.isFinite(parsedBatchSize) || parsedBatchSize < 1) {
 
-      return NextResponse.json({ error: 'Batch size must be a number greater than or equal to 1.' }, { status: 400 });
+      return jsonError({ status: 400, code: 'INVALID_BATCH_SIZE', message: 'Batch size must be a number greater than or equal to 1.' });
 
     }
 
     const parsedDelayInterval = Number(String(options?.delayInterval ?? options?.delaySeconds ?? '').trim() || 1);
     if (!Number.isFinite(parsedDelayInterval) || parsedDelayInterval < 1) {
-      return NextResponse.json({ error: 'Delay interval must be a number greater than or equal to 1.' }, { status: 400 });
+      return jsonError({ status: 400, code: 'INVALID_DELAY_INTERVAL', message: 'Delay interval must be a number greater than or equal to 1.' });
     }
 
     const normalizedDurationUnit = normalizeDurationUnit(options?.durationUnit || 'seconds');
@@ -190,10 +229,10 @@ export async function POST(req) {
 
     if (normalizedScheduleMode === 'scheduled') {
       if (!(computedScheduledAt instanceof Date) || Number.isNaN(computedScheduledAt.getTime())) {
-        return NextResponse.json({ error: 'Valid scheduled date and time are required.' }, { status: 400 });
+        return jsonError({ status: 400, code: 'INVALID_SCHEDULE_TIME', message: 'Valid scheduled date and time are required.' });
       }
       if (!isFutureScheduledDate(computedScheduledAt)) {
-        return NextResponse.json({ error: 'Scheduled time must be in the future.' }, { status: 400 });
+        return jsonError({ status: 400, code: 'SCHEDULE_TIME_NOT_FUTURE', message: 'Scheduled time must be in the future.' });
       }
     }
 
@@ -210,7 +249,7 @@ export async function POST(req) {
       type: campaignType,
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
       'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
-      'options.batchSize': 1,
+      'options.batchSize': batchSize,
       'options.delayInterval': parsedDelayInterval,
       'options.durationUnit': normalizedDurationUnit,
       'options.delaySeconds': convertedDelaySeconds,
@@ -218,7 +257,7 @@ export async function POST(req) {
     }).lean();
 
     if (duplicateCampaign) {
-      return NextResponse.json({ campaign: duplicateCampaign, duplicate: true });
+      return NextResponse.json({ success: true, campaign: duplicateCampaign, duplicate: true });
     }
 
     const campaign = await Campaign.create({
@@ -227,6 +266,8 @@ export async function POST(req) {
       userEmail,
       name,
       project: String(project || '').trim().toLowerCase(),
+      projectId: String(project || '').trim().toLowerCase(),
+      projectName: String(project || '').trim().toUpperCase(),
       senderFrom: String(senderFrom || senderAccount?.from || '').trim().toLowerCase(),
       type: campaignType,
 
@@ -294,6 +335,13 @@ export async function POST(req) {
         pending: total
 
       },
+      totalRecipients: total,
+      sentCount: 0,
+      pendingCount: total,
+      failedCount: 0,
+      openCount: 0,
+      replyCount: 0,
+      lastActivityAt: new Date(),
 
       logs: [{ level: 'info', message: 'Campaign created', at: new Date() }]
 
@@ -301,11 +349,11 @@ export async function POST(req) {
 
 
 
-    return NextResponse.json({ campaign });
+    return NextResponse.json({ success: true, campaign });
 
   } catch (error) {
 
-    return NextResponse.json({ error: error.message || 'Failed to create campaign' }, { status: 500 });
+    return jsonError({ status: 500, code: 'CAMPAIGN_CREATE_FAILED', message: error.message || 'Failed to create campaign.' });
 
   }
 

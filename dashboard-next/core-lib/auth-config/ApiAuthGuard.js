@@ -71,25 +71,54 @@ export async function requireAuth(req, options = {}) {
   const { allowPending = false } = options;
   const session = getSessionFromRequest(req) || getDevBypassSession();
   const identifier = normalizeUserEmail(session?.identifier || session?.email || '');
+  const sessionId = String(session?.id || '').trim();
+  const sessionEmail = normalizeUserEmail(session?.email || '');
+  const sessionIntellisysUserId = normalizeUserEmail(session?.intellisysUserId || '');
   if (!session || !identifier) {
     return {
       session: null,
       currentUser: null,
       ownerFilter: null,
-      errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      errorResponse: NextResponse.json(
+        {
+          success: false,
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required.',
+          error: 'Authentication is required.'
+        },
+        { status: 401 }
+      )
     };
   }
 
   await connectDB();
   const seededCurrentUser = buildSeededCurrentUser(session);
-  const currentUser = await UserProfile.findOne({ identifier });
+  const currentUser = await UserProfile.findOne({
+    $or: [
+      { identifier },
+      { email: identifier },
+      { username: identifier },
+      { employeeId: sessionIntellisysUserId || identifier },
+      { intellisysUserId: sessionIntellisysUserId || identifier },
+      ...(sessionEmail && sessionEmail !== identifier ? [{ identifier: sessionEmail }, { email: sessionEmail }] : []),
+      ...(sessionId ? [{ intellisysUserId: sessionId }, { employeeId: sessionId }] : [])
+    ]
+  });
   const resolvedCurrentUser = seededCurrentUser || currentUser;
   if (!resolvedCurrentUser) {
     return {
       session,
       currentUser: null,
       ownerFilter: null,
-      errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      errorResponse: NextResponse.json(
+        {
+          success: false,
+          code: 'USER_PROFILE_NOT_FOUND',
+          message: 'User profile not found for current session.',
+          error: 'User profile not found for current session.'
+        },
+        { status: 404 }
+      )
     };
   }
 
@@ -100,7 +129,13 @@ export async function requireAuth(req, options = {}) {
       currentUser: resolvedCurrentUser,
       ownerFilter: null,
       errorResponse: NextResponse.json(
-        { error: getBlockedStatusMessage(status), status },
+        {
+          success: false,
+          code: 'USER_ACCOUNT_BLOCKED',
+          message: getBlockedStatusMessage(status),
+          error: getBlockedStatusMessage(status),
+          status
+        },
         { status: status === 'pending' ? 403 : 403 }
       )
     };

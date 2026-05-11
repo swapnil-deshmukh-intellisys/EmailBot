@@ -3,25 +3,12 @@ import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import UploadFile from '@/models/UploadFile';
 import { requireAuth } from '@/lib/apiAuth';
+import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 function inferUploadStatus(summary = {}) {
   if (Number(summary.invalidRecords || 0) > 0) return 'Invalid';
   if (Number(summary.duplicateRecords || 0) > 0) return 'Duplicate';
   return 'Valid';
-}
-
-function hasClientData(row = {}) {
-  return [
-    row.Name,
-    row.Surname,
-    row.Company,
-    row.Designation,
-    row.Email,
-    row.Phone,
-    row.Domain,
-    row.Sector,
-    row.Country
-  ].some((value) => String(value || '').trim());
 }
 
 export async function POST(req) {
@@ -33,7 +20,7 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     const fileName = String(body.fileName || '').trim();
     const columns = Array.isArray(body.columns) ? body.columns.map((item) => String(item || '').trim()).filter(Boolean) : [];
-    const rows = Array.isArray(body.rows) ? body.rows.filter(hasClientData) : [];
+    const rows = Array.isArray(body.rows) ? body.rows.filter(hasMeaningfulLeadData) : [];
     const summary = body.summary && typeof body.summary === 'object' ? body.summary : {};
     const validRows = rows.filter((row) => String(row?.validationStatus || row?.status || '') === 'Valid');
 
