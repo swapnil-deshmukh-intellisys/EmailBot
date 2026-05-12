@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import EmailDraft from '@/models/EmailDraft';
 import LeadList from '@/models/LeadList';
@@ -11,6 +12,7 @@ export async function GET(req) {
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
 
+  await connectDB();
   const ownerQuery = buildAuthOwnerFilter(auth);
   const [campaigns, drafts, clientLists, templates, senderAccounts] = await Promise.all([
     Campaign.countDocuments(ownerQuery),

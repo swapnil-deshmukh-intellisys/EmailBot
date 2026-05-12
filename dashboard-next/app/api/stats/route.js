@@ -71,8 +71,34 @@ export async function GET(req) {
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
     const ownerQuery = buildAuthOwnerFilter(auth);
     const [lists, campaigns] = await Promise.all([
-      LeadList.find(ownerQuery).sort({ createdAt: -1 }).lean(),
-      Campaign.find(ownerQuery).sort({ createdAt: -1 }).lean()
+      LeadList.find(ownerQuery)
+        .select({
+          name: 1,
+          sourceFile: 1,
+          kind: 1,
+          uploadedAt: 1,
+          uploadDate: 1,
+          createdAt: 1,
+          'leads.Email': 1,
+          'leads.status': 1,
+          'leads.sentAt': 1,
+          'leads.failedAt': 1,
+          'leads.data': 1
+        })
+        .sort({ createdAt: -1 })
+        .lean(),
+      Campaign.find(ownerQuery)
+        .select({
+          status: 1,
+          stats: 1,
+          startedAt: 1,
+          scheduledAt: 1,
+          finishedAt: 1,
+          updatedAt: 1,
+          createdAt: 1
+        })
+        .sort({ createdAt: -1 })
+        .lean()
     ]);
 
     let total = 0;

@@ -65,5 +65,9 @@ const LeadListSchema = new mongoose.Schema(
 
 LeadListSchema.index({ userId: 1, createdAt: -1 });
 LeadListSchema.index({ userEmail: 1, createdAt: -1 });
+LeadListSchema.index({ userId: 1, uploadedAt: -1 });
+LeadListSchema.index({ userEmail: 1, uploadedAt: -1 });
+LeadListSchema.index({ userId: 1, kind: 1, createdAt: -1 });
+LeadListSchema.index({ userEmail: 1, kind: 1, createdAt: -1 });
 
 export default mongoose.models.LeadList || mongoose.model('LeadList', LeadListSchema);

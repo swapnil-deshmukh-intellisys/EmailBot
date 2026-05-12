@@ -135,10 +135,25 @@ const CampaignSchema = new mongoose.Schema(
 
 CampaignSchema.index({ userId: 1, createdAt: -1 });
 CampaignSchema.index({ userId: 1, status: 1 });
+CampaignSchema.index({ userId: 1, projectId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, senderAccountId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, listId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, scheduledAt: 1 });
+CampaignSchema.index({ userId: 1, workerLockedAt: 1 });
 CampaignSchema.index({ status: 1 });
 CampaignSchema.index({ createdAt: -1 });
+CampaignSchema.index({ status: 1, scheduledAt: 1 });
+CampaignSchema.index({ status: 1, workerHeartbeatAt: 1 });
+CampaignSchema.index({ workerLockedAt: 1 });
+CampaignSchema.index({ senderAccountId: 1 });
+CampaignSchema.index({ listId: 1 });
 CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
 CampaignSchema.index({ userEmail: 1, lastActivityAt: -1 });
+CampaignSchema.index({ userEmail: 1, projectId: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, senderAccountId: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, listId: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, scheduledAt: 1 });
+CampaignSchema.index({ userEmail: 1, workerLockedAt: 1 });
 
 export default mongoose.models.Campaign || mongoose.model('Campaign', CampaignSchema);

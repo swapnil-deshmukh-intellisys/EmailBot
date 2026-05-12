@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
 import { getCampaignSchedulerState } from '@/lib/campaignScheduler';
+import { validateEnvironment } from '@/core-lib/env-config/EnvironmentSafety';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export async function GET() {
       })
     ]);
 
+    const env = validateEnvironment({ nodeEnv: process.env.NODE_ENV || 'production' });
+
     return NextResponse.json({
       status: 'healthy',
       service: 'intellimailpilot-web',
@@ -33,6 +36,13 @@ export async function GET() {
         queued,
         running,
         failedLast24h: failedToday
+      },
+      env: {
+        ok: env.ok,
+        errors: env.errors,
+        warnings: env.warnings,
+        checkedAt: env.checkedAt,
+        masked: env.masked
       }
     });
   } catch (error) {

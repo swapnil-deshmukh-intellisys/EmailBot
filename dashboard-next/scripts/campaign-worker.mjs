@@ -62,11 +62,13 @@ process.env.CAMPAIGN_WORKER_ID =
   String(process.env.CAMPAIGN_WORKER_ID || `aws-worker-${process.pid}`).trim() || `aws-worker-${process.pid}`;
 
 async function main() {
-  const [{ default: connectDB }, { initCampaignScheduler, triggerCampaignSchedulerTick }] = await Promise.all([
+  const [{ default: connectDB }, { initCampaignScheduler, triggerCampaignSchedulerTick }, { assertValidEnvironment }] = await Promise.all([
     import('../core-lib/database-config/MongoDatabaseConnection.js'),
-    import('../core-lib/campaign-engine/CampaignQueueScheduler.js')
+    import('../core-lib/campaign-engine/CampaignQueueScheduler.js'),
+    import('../core-lib/env-config/EnvironmentSafety.js')
   ]);
 
+  assertValidEnvironment({ nodeEnv: process.env.NODE_ENV || 'production' });
   await connectDB();
   initCampaignScheduler();
   await triggerCampaignSchedulerTick();

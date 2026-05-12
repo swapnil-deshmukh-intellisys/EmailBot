@@ -600,7 +600,7 @@ export default function CampaignsPage() {
       if (silent) setRefreshing(true);
       if (!silent) setLoading(true);
 
-      const data = await apiFetchJson('/api/campaigns');
+      const data = await apiFetchJson('/api/campaigns?limit=100');
 
       setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
       setCounts({ ...EMPTY_COUNTS, ...(data?.counts || {}) });

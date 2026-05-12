@@ -57,6 +57,8 @@ export async function GET(req) {
     const url = new URL(req.url);
     const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
     const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') || 80) || 80));
+    const skip = Math.max(0, Number(url.searchParams.get('skip') || 0) || 0);
 
     if (project) {
       filters.project = project;
@@ -71,7 +73,28 @@ export async function GET(req) {
     }
     const query = buildAuthOwnerFilter(auth, filters);
 
-    const rawCampaigns = await Campaign.find(query)
+    const [totalCount, countSourceCampaigns, rawCampaigns] = await Promise.all([
+      Campaign.countDocuments(query),
+      Campaign.find(query)
+        .select({
+          status: 1,
+          displayStatus: 1,
+          workerStatus: 1,
+          sentCount: 1,
+          pendingCount: 1,
+          failedCount: 1,
+          stats: 1,
+          listId: 1,
+          templateId: 1,
+          senderAccountId: 1,
+          senderFrom: 1,
+          'senderAccount.from': 1,
+          'senderAccount.user': 1,
+          'inlineTemplate.subject': 1,
+          'inlineTemplate.body': 1
+        })
+        .lean(),
+      Campaign.find(query)
       .select({
         userId: 1,
         userEmail: 1,
@@ -133,7 +156,10 @@ export async function GET(req) {
         updatedAt: 1
       })
       .sort({ createdAt: -1 })
-      .lean();
+        .skip(skip)
+        .limit(limit)
+        .lean()
+    ]);
     const campaignIds = rawCampaigns.map((campaign) => campaign._id);
     const recipientLogSummaries = campaignIds.length
       ? await CampaignRecipientLog.aggregate([
@@ -156,10 +182,10 @@ export async function GET(req) {
       return map;
     }, new Map());
     const campaigns = rawCampaigns.map((campaign) => serializeCampaignForList(campaign, logsByCampaign.get(String(campaign._id)) || []));
-    const counts = buildCampaignCounts(campaigns);
+    const counts = buildCampaignCounts(countSourceCampaigns);
     const summary = buildLegacyCampaignSummary(counts);
 
-    return NextResponse.json({ success: true, counts, campaigns, summary });
+    return NextResponse.json({ success: true, counts, campaigns, summary, pagination: { total: totalCount, limit, skip, hasMore: skip + campaigns.length < totalCount } });
 
   } catch (error) {
     const errorMessage = error.message || 'Failed to load campaigns';

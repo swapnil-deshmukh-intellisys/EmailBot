@@ -18,6 +18,7 @@
     "start:next": "next start",
     "deploy:ecs": "node scripts/deploy-ecs-immutable.mjs",
     "worker:campaigns": "node scripts/campaign-worker.mjs",
+    "check:env": "node scripts/check-env.mjs",
     "check:mail": "node scripts/check-mail-config.mjs",
     "cleanup:legacy": "node scripts/cleanup-legacy-data.mjs",
     "lint": "next lint"

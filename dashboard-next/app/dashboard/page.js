@@ -2111,8 +2111,12 @@ const handleDeleteDraft = async (draft) => {
   };
 
   const buildCampaignsUrl = () => {
+    const appendLimit = (url) => {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}limit=80`;
+    };
     if (showAllUserActivity) {
-      return '/api/campaigns';
+      return appendLimit('/api/campaigns');
     }
     const params = new URLSearchParams();
     if (project) {
@@ -2122,7 +2126,7 @@ const handleDeleteDraft = async (draft) => {
       params.set('sender', selectedSenderEmail);
     }
     const qs = params.toString();
-    return qs ? `/api/campaigns?${qs}` : '/api/campaigns';
+    return appendLimit(qs ? `/api/campaigns?${qs}` : '/api/campaigns');
   };
 
   const fetchCampaignsWithFallback = async () => {
@@ -2130,8 +2134,8 @@ const handleDeleteDraft = async (draft) => {
     const primary = await safeFetchJson(primaryUrl);
     const primaryCampaigns = primary?.campaigns || [];
 
-    if (primaryUrl !== '/api/campaigns' && primaryCampaigns.length === 0) {
-      const fallback = await safeFetchJson('/api/campaigns');
+    if (!showAllUserActivity && primaryCampaigns.length === 0) {
+      const fallback = await safeFetchJson('/api/campaigns?limit=80');
       return fallback?.campaigns || [];
     }
 
@@ -2307,14 +2311,6 @@ const handleDeleteDraft = async (draft) => {
   useEffect(() => {
     loadAll();
   }, [showAllUserActivity, project, selectedAccount, activeAccount, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void loadAllRef.current?.();
-    }, 15000);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
 
   useEffect(() => {
     if (historyCampaigns.length > 0) {
