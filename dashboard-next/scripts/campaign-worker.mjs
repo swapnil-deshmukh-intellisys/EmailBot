@@ -2,6 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+function maskEnvValue(value = '') {
+  const text = String(value || '');
+  if (!text) return 'missing';
+  if (text.length <= 8) return 'set';
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
 function loadEnvFromFile() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const envPath = path.resolve(scriptDir, '../.env');
@@ -19,7 +26,7 @@ function loadEnvFromFile() {
     if (separatorIndex <= 0) continue;
 
     const key = line.slice(0, separatorIndex).trim();
-    if (!key || process.env[key]) continue;
+    if (!key) continue;
 
     let value = line.slice(separatorIndex + 1).trim();
     if (
@@ -66,7 +73,12 @@ async function main() {
 
   console.log('[CAMPAIGN_WORKER_READY]', {
     workerId: process.env.CAMPAIGN_WORKER_ID,
-    intervalMs: Number(process.env.CAMPAIGN_SCHEDULER_INTERVAL_MS || 5000)
+    intervalMs: Number(process.env.CAMPAIGN_SCHEDULER_INTERVAL_MS || 5000),
+    graphSecrets: {
+      tec: maskEnvValue(process.env.TEC_CLIENT_SECRET),
+      tut: maskEnvValue(process.env.TUT_CLIENT_SECRET),
+      default: maskEnvValue(process.env.CLIENT_SECRET)
+    }
   });
 }
 
