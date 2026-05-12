@@ -6,8 +6,10 @@ const LeadSchema = new mongoose.Schema(
     Surname: { type: String, default: '' },
     Email: String,
     Company: String,
+    companyName: { type: String, default: '' },
     Designation: { type: String, default: '' },
     Phone: { type: String, default: '' },
+    linkedinUrl: { type: String, default: '' },
     Domain: { type: String, default: '' },
     Sector: { type: String, default: '' },
     Country: { type: String, default: '' },
@@ -40,6 +42,8 @@ const LeadListSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserProfile', default: null, index: true },
     userEmail: { type: String, default: '', index: true },
     name: { type: String, required: true },
+    project: { type: String, default: '', index: true },
+    projectId: { type: String, default: '', index: true },
     sourceFile: { type: String, required: true },
     sourceFileId: { type: String, default: '' },
     sourceFileName: { type: String, default: '' },
@@ -69,5 +73,16 @@ LeadListSchema.index({ userId: 1, uploadedAt: -1 });
 LeadListSchema.index({ userEmail: 1, uploadedAt: -1 });
 LeadListSchema.index({ userId: 1, kind: 1, createdAt: -1 });
 LeadListSchema.index({ userEmail: 1, kind: 1, createdAt: -1 });
+LeadListSchema.index({ userId: 1, project: 1, createdAt: -1 });
+LeadListSchema.index({ userEmail: 1, project: 1, createdAt: -1 });
+LeadListSchema.index({ userId: 1, 'leads.Email': 1 });
+LeadListSchema.index({ userEmail: 1, 'leads.Email': 1 });
+LeadListSchema.index({ userId: 1, 'leads.Phone': 1 });
+LeadListSchema.index({ userEmail: 1, 'leads.Phone': 1 });
+LeadListSchema.index({ userId: 1, 'leads.linkedinUrl': 1 });
+LeadListSchema.index({ userEmail: 1, 'leads.linkedinUrl': 1 });
+LeadListSchema.index({ userId: 1, 'leads.Company': 1 });
+LeadListSchema.index({ userEmail: 1, 'leads.Company': 1 });
+LeadListSchema.index({ updatedAt: -1 });
 
 export default mongoose.models.LeadList || mongoose.model('LeadList', LeadListSchema);

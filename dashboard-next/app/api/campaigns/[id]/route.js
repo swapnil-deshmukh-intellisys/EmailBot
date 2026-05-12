@@ -11,9 +11,19 @@ import {
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.', campaignId = '', userEmail = '' }) {
   console.error(`[api/campaigns/[id]] ${code}: ${message}`, { campaignId, userEmail });
-  return NextResponse.json({ success: false, code, message, error: message }, { status });
+  return NextResponse.json({ success: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 async function getCampaignForCurrentUser(req, params) {
@@ -68,7 +78,7 @@ export async function GET(req, { params }) {
       recipients: recipientLogs,
       timeline,
       lastUpdatedAt: new Date()
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return jsonError({
       status: 500,
@@ -98,5 +108,5 @@ export async function DELETE(req, { params }) {
   }
 
   await Campaign.deleteOne({ _id: campaign._id });
-  return NextResponse.json({ success: true, ok: true, deletedId: String(campaign._id) });
+  return NextResponse.json({ success: true, ok: true, deletedId: String(campaign._id) }, { headers: NO_STORE_HEADERS });
 }

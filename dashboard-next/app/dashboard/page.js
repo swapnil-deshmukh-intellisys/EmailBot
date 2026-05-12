@@ -29,6 +29,7 @@ import { buildWordPadTableHtml } from '@/modules/draft-module/draft-utils/DraftW
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
 import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
+import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
@@ -71,6 +72,7 @@ function StatusBadgeLegacy({ status }) {
 }
 
 const ACTIVE_CAMPAIGN_STATUSES = new Set(['Queued', 'Running', 'Paused']);
+const LIVE_CAMPAIGN_STATUSES = new Set(['Queued', 'Running', 'Scheduled']);
 
 function escapeHtml(value = '') {
   return String(value || '')
@@ -109,8 +111,11 @@ function normalizeEmailDraftHtml(value = '') {
 }
 
 function normalizeDraft(draft = {}) {
+  const draftType = inferDraftTypeFromDraft(draft);
   return {
     ...draft,
+    category: draftType,
+    draftType,
     subject: String(draft?.subject || ''),
     body: normalizeDraftBody(draft?.body || '')
   };
@@ -350,6 +355,7 @@ export default function DashboardPage() {
   const [delaySeconds, setDelaySeconds] = useState(60);
   const [batchSize, setBatchSize] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [campaignRefreshing, setCampaignRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -412,12 +418,13 @@ export default function DashboardPage() {
   const [blankWordPad, setBlankWordPad] = useState('');
 
   const [showAddDraft, setShowAddDraft] = useState(false);
-  const [newDraftCategory, setNewDraftCategory] = useState("cover_story");
+  const [newDraftCategory, setNewDraftCategory] = useState("initial_outreach");
   const [newDraftSubject, setNewDraftSubject] = useState("");
   const [newDraftBody, setNewDraftBody] = useState("");
 
   const loadScript = (script) => {
     const normalized = normalizeDraft(script);
+    setSelectedDraft(normalized.draftType);
     setDraftSubject(normalized.subject);
     setDraftBody(normalized.body);
   };
@@ -571,6 +578,10 @@ export default function DashboardPage() {
   };
 
   const handleSavedDraftSelectById = (draftId) => {
+    if (!draftId) {
+      setActiveSavedDraftId(null);
+      return;
+    }
     const draft = savedDrafts.find((item) => (item._id || item.id) === draftId);
     if (draft) {
       handleSavedDraftSelect(draft);
@@ -1105,7 +1116,8 @@ const handleDeleteDraft = async (draft) => {
         ? newDraftTitle
         : `${DRAFT_CATEGORIES.find((c) => c.value === newDraftCategory)?.label || newDraftCategory} Draft ${count + 1}`;
       const payload = {
-        category: newDraftCategory,
+        category: normalizeDraftType(newDraftCategory),
+        draftType: normalizeDraftType(newDraftCategory),
         title: baseTitle,
         subject: newDraftSubject,
         body: normalizeEmailDraftHtml(newDraftBody)
@@ -1139,7 +1151,7 @@ const handleDeleteDraft = async (draft) => {
 
   const openCreateScriptForm = () => {
     setEditingDraftId(null);
-    const category = newDraftCategory || selectedDraft || 'cover_story';
+    const category = normalizeDraftType(newDraftCategory || selectedDraft || 'initial_outreach');
     setNewDraftCategory(category);
     setNewDraftTitle(changeInDraftValue || '');
     setNewDraftSubject('');
@@ -1150,11 +1162,15 @@ const handleDeleteDraft = async (draft) => {
   const saveCurrentDraftScript = async () => {
     if (!draftSubject || !draftBody) {
       notify('Please enter subject and draft body.', 'info');
-      return;
+      return { ok: false };
     }
 
     try {
-      const category = selectedDraft || 'cover_story';
+      if (!String(selectedDraft || '').trim()) {
+        notify('Select a draft type before saving.', 'info');
+        return { ok: false };
+      }
+      const category = normalizeDraftType(selectedDraft);
       const count = savedDrafts.filter((d) => d.category === category).length;
       const baseTitle = changeInDraftValue
         ? changeInDraftValue
@@ -1165,6 +1181,7 @@ const handleDeleteDraft = async (draft) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category,
+          draftType: category,
           title: baseTitle,
           subject: draftSubject,
           body: normalizeEmailDraftHtml(draftBody)
@@ -1174,8 +1191,10 @@ const handleDeleteDraft = async (draft) => {
       setSavedDraftFilterCategory(category);
       await loadSavedDrafts();
       notify('Draft script added successfully.', 'success');
+      return { ok: true };
     } catch (err) {
       notify(err.message || 'Failed to save draft', 'error');
+      throw err;
     }
   };
   const {
@@ -1487,18 +1506,25 @@ const handleDeleteDraft = async (draft) => {
       const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
     })
-    .slice(0, 6)
     .map((campaign, index) => {
     const total = Number(campaign?.stats?.total || 0);
-    const sent = Number(campaign?.stats?.sent || 0);
-    const failed = Number(campaign?.stats?.failed || 0);
-    const pending = Number(campaign?.stats?.pending || Math.max(total - sent - failed, 0));
+    const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+    const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
+    const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
     const opened = Number(campaign?.stats?.opened || campaign?.stats?.opens || campaign?.trackingStats?.openCount || 0);
     const bounced = Number(campaign?.stats?.bounced || campaign?.stats?.bounce || 0);
     const spam = Number(campaign?.stats?.spam || 0);
     const projectKey = String(project || 'tec').toUpperCase();
-    const senderEmail = String(campaign?.senderEmail || campaign?.sender || campaign?.from || '');
-    const senderName = senderEmail ? senderEmail.split('@')[0] : 'Unassigned';
+    const senderEmail = String(
+      campaign?.senderFrom ||
+      campaign?.senderAccount?.from ||
+      campaign?.senderAccount?.user ||
+      campaign?.senderEmail ||
+      campaign?.sender ||
+      campaign?.from ||
+      ''
+    ).trim();
+    const senderName = senderEmail ? senderEmail.split('@')[0] : '';
     const status = campaign?.status || 'Unknown';
     const country =
       campaign?.country ||
@@ -2044,7 +2070,16 @@ const handleDeleteDraft = async (draft) => {
 
     let res;
     try {
-      res = await fetch(url, { ...restOptions, signal: controller.signal, cache: 'no-store' });
+      res = await fetch(url, {
+        ...restOptions,
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store',
+          Pragma: 'no-cache',
+          ...(restOptions.headers || {})
+        }
+      });
     } catch (fetchError) {
       if (fetchError?.name === 'AbortError') {
         throw new Error(`Request timeout: ${url}`);
@@ -2131,15 +2166,45 @@ const handleDeleteDraft = async (draft) => {
 
   const fetchCampaignsWithFallback = async () => {
     const primaryUrl = buildCampaignsUrl();
+    console.debug('[campaign:refetch] request', { url: primaryUrl, at: new Date().toISOString() });
     const primary = await safeFetchJson(primaryUrl);
     const primaryCampaigns = primary?.campaigns || [];
 
     if (!showAllUserActivity && primaryCampaigns.length === 0) {
+      console.debug('[campaign:refetch] fallback', { url: '/api/campaigns?limit=80', at: new Date().toISOString() });
       const fallback = await safeFetchJson('/api/campaigns?limit=80');
       return fallback?.campaigns || [];
     }
 
     return primaryCampaigns;
+  };
+
+  const applyCampaignPatch = (campaignId, patch = {}) => {
+    if (!campaignId) return;
+    setCampaigns((items) =>
+      items.map((item) => {
+        if (String(item?._id || item?.id || '') !== String(campaignId)) return item;
+        return {
+          ...item,
+          ...patch,
+          stats: {
+            ...(item.stats || {}),
+            ...(patch.stats || {})
+          },
+          updatedAt: patch.updatedAt || new Date().toISOString()
+        };
+      })
+    );
+  };
+
+  const refreshCampaignData = async ({ silent = true, source = 'manual' } = {}) => {
+    try {
+      setCampaignRefreshing(true);
+      console.debug('[campaign:refetch]', { source, silent, at: new Date().toISOString() });
+      await loadLiveData();
+    } finally {
+      setCampaignRefreshing(false);
+    }
   };
 
   const loadAll = async (filterOverrides = {}) => {
@@ -2320,11 +2385,14 @@ const handleDeleteDraft = async (draft) => {
 
 
   useEffect(() => {
-    const refreshMs = String(activeCampaign?.status || '').toLowerCase() === 'running' ? 5000 : 30000;
-    const id = setInterval(() => loadLiveData(), refreshMs);
+    const hasLiveCampaign = campaigns.some((campaign) => LIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || campaign?.displayStatus || '')));
+    const refreshMs = hasLiveCampaign ? 4000 : 30000;
+    const id = setInterval(() => {
+      void refreshCampaignData({ source: hasLiveCampaign ? 'live-poll' : 'idle-poll' });
+    }, refreshMs);
     return () => clearInterval(id);
   }, [
-    activeCampaign?.status,
+    campaigns,
     showAllUserActivity,
     project,
     selectedAccount,
@@ -2428,6 +2496,14 @@ const handleDeleteDraft = async (draft) => {
       notify('Enter campaign name before creating a campaign.', 'info');
       return null;
     }
+    if (!String(selectedDraft || '').trim()) {
+      notify('Select a draft type before creating a campaign.', 'info');
+      return null;
+    }
+    if (!activeSavedDraftId) {
+      notify('Select a saved draft before creating a campaign.', 'info');
+      return null;
+    }
     if (!String(draftSubject || '').trim()) {
       notify('Enter draft subject before creating a campaign.', 'info');
       return null;
@@ -2447,6 +2523,7 @@ const handleDeleteDraft = async (draft) => {
       selectedListId,
       selectedAccount,
         selectedDraft,
+        activeSavedDraftId,
         draftSubject: String(draftSubject || '').trim(),
         draftBody: normalizeEmailDraftHtml(draftBody),
         batchSize: String(batchSize || ''),
@@ -2493,8 +2570,9 @@ const handleDeleteDraft = async (draft) => {
           senderFrom: selectedSenderEmail,
           listId: selectedListId,
           templateId: null,
-          type: selectedDraft,
-          draftType: selectedDraft,
+          type: normalizeDraftType(selectedDraft),
+          draftType: normalizeDraftType(selectedDraft),
+          draftId: activeSavedDraftId,
           inlineTemplate: { subject: draftSubject, body: normalizeEmailDraftHtml(draftBody) },
           senderAccountId: selectedAccount || null,
           scheduleMode: effectiveSchedule.scheduleMode,
@@ -2804,6 +2882,16 @@ const normalizeSelectedListEmails = async () => {
       }
       console.debug('[campaign:start] request', { url: `/api/campaigns/${campaignId}/start`, campaignId });
       const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
+      const optimisticStatus = data.scheduled ? 'Scheduled' : data.queued ? 'Queued' : 'Running';
+      applyCampaignPatch(campaignId, {
+        status: optimisticStatus,
+        displayStatus: data.displayStatus || optimisticStatus,
+        workerStatus: data.workerStatus || (optimisticStatus === 'Running' ? 'running' : ''),
+        queueReason: data.queueReason || '',
+        sentCount: data.sentCount,
+        pendingCount: data.pendingCount,
+        failedCount: data.failedCount
+      });
       setPendingCampaignId('');
       if (data.scheduled) {
         notify('Campaign scheduled successfully', 'success');
@@ -2812,39 +2900,46 @@ const normalizeSelectedListEmails = async () => {
       } else {
         notify('Campaign started now', 'success');
       }
-      await loadAll();
+      await refreshCampaignData({ source: 'start-campaign' });
     } catch (e) {
       notify(e.message || 'Failed to start campaign', 'error');
+      void refreshCampaignData({ source: 'start-campaign-error' });
     }
   };
 
   const pauseCampaign = async (campaignId) => {
     try {
+      applyCampaignPatch(campaignId, { status: 'Paused', displayStatus: 'Paused' });
       await safeFetchJson(`/api/campaigns/${campaignId}/pause`, { method: 'POST' });
       notify('Campaign paused successfully.', 'success');
-      void loadAll();
+      void refreshCampaignData({ source: 'pause-campaign' });
     } catch (e) {
       notify(e.message || 'Failed to pause campaign', 'error');
+      void refreshCampaignData({ source: 'pause-campaign-error' });
     }
   };
 
   const resumeCampaign = async (campaignId) => {
     try {
+      applyCampaignPatch(campaignId, { status: 'Queued', displayStatus: 'Queued' });
       await safeFetchJson(`/api/campaigns/${campaignId}/resume`, { method: 'POST' });
       notify('Campaign resumed successfully.', 'success');
-      void loadAll();
+      void refreshCampaignData({ source: 'resume-campaign' });
     } catch (e) {
       notify(e.message || 'Failed to resume campaign', 'error');
+      void refreshCampaignData({ source: 'resume-campaign-error' });
     }
   };
 
   const stopCampaign = async (campaignId) => {
     try {
+      applyCampaignPatch(campaignId, { status: 'Stopped', displayStatus: 'Stopped' });
       await safeFetchJson(`/api/campaigns/${campaignId}/stop`, { method: 'POST' });
       notify('Campaign stopped successfully.', 'success');
-      void loadAll();
+      void refreshCampaignData({ source: 'stop-campaign' });
     } catch (e) {
       notify(e.message || 'Failed to stop campaign', 'error');
+      void refreshCampaignData({ source: 'stop-campaign-error' });
     }
   };
 
@@ -2852,9 +2947,10 @@ const normalizeSelectedListEmails = async () => {
     try {
       await safeFetchJson(`/api/campaigns/${campaignId}/clear-logs`, { method: 'POST' });
       notify('Campaign logs cleared.', 'success');
-      void loadAll();
+      void refreshCampaignData({ source: 'clear-campaign-logs' });
     } catch (e) {
       notify(e.message || 'Failed to clear campaign logs', 'error');
+      void refreshCampaignData({ source: 'clear-campaign-logs-error' });
     }
   };
 
@@ -3796,6 +3892,8 @@ const normalizeSelectedListEmails = async () => {
         timelineCustomTasks={profileTimelineCustomTasks}
         onTimelineCustomTaskAdd={handleTimelineCustomTaskAdd}
         performanceCampaigns={performanceCampaigns}
+        campaignRefreshing={campaignRefreshing}
+        onRefreshCampaigns={() => refreshCampaignData({ source: 'manual-button' })}
         calendarDays={calendarDays}
         selectedAccountLabel={selectedAccountLabel}
         senderAccounts={projectAccounts}

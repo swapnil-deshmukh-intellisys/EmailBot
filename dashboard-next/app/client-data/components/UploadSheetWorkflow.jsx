@@ -35,6 +35,8 @@ function compactUploadRow(row = {}) {
     Sector: compact.Sector,
     Country: compact.Country
   };
+  compact.duplicateMatches = Array.isArray(row?.duplicateMatches) ? row.duplicateMatches : [];
+  compact.matchedSources = Array.isArray(row?.matchedSources) ? row.matchedSources : [];
 
   return compact;
 }
@@ -194,19 +196,19 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (duplicateAction = 'skip') => {
     try {
       setSavingUpload(true);
       const response = await fetch('/api/uploads/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, columns: SHEET_FIELDS, rows: previewRows.map(compactUploadRow), summary })
+        body: JSON.stringify({ fileName, columns: SHEET_FIELDS, rows: previewRows.map(compactUploadRow), summary, duplicateAction })
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.error || 'Failed to save upload');
       }
-      setMessage(`Saved ${data?.summary?.validRecords || validCount} valid rows from ${fileName}.`);
+      setMessage(`Saved ${data?.summary?.validRecords || validCount} valid rows from ${fileName}.${data?.summary?.updatedDuplicates ? ` Updated ${data.summary.updatedDuplicates} repeated clients.` : ''}`);
       setError('');
       setSavedSheets((current) => [
         {
@@ -450,8 +452,11 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                       Revalidate Data
                     </Button>
                   ) : null}
-                  <Button type="button" onClick={handleSave} disabled={savingUpload || !validCount}>
-                    {savingUpload ? 'Saving...' : 'Save All Valid'}
+                  <Button type="button" onClick={() => handleSave('skip')} disabled={savingUpload || !validCount}>
+                    {savingUpload ? 'Saving...' : 'Skip Duplicates & Save'}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => handleSave('update_existing')} disabled={savingUpload || !previewRows.length}>
+                    Update Existing Records
                   </Button>
                 </>
               ) : null}
@@ -469,6 +474,12 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
 
             {error ? <p className="client-data-custom-note error">{error}</p> : null}
             {message ? <p className="client-data-custom-note success">{message}</p> : null}
+            {repeatedRows.length ? (
+              <div className="client-duplicate-warning">
+                <strong>Duplicate warning: {repeatedRows.length} repeated client row(s) found.</strong>
+                <p>Matches are checked by email, phone, LinkedIn URL, and company name. Review the side-by-side rows below before saving.</p>
+              </div>
+            ) : null}
 
             <div className="client-upload-preview">
               <div className="client-upload-preview-head">
@@ -561,6 +572,11 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                           </span>
                           <span className="client-upload-cell-details">
                             {Array.isArray(row.reasons) && row.reasons.length ? row.reasons.join(', ') : 'Ready to save'}
+                            {Array.isArray(row.duplicateMatches) && row.duplicateMatches.length ? (
+                              <span className="client-upload-match-source">
+                                Matched: {row.duplicateMatches.map((match) => match?.existing?.sourceFile || match?.existing?.sourceListName).filter(Boolean).slice(0, 2).join(', ')}
+                              </span>
+                            ) : null}
                           </span>
                         </div>
                       ))}
@@ -574,6 +590,34 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                 </div>
               )}
             </div>
+
+            {repeatedRows.length ? (
+              <div className="client-duplicate-compare">
+                <div className="client-upload-preview-head">
+                  <span>Repeated Client Matches</span>
+                  <strong>{repeatedRows.length}</strong>
+                </div>
+                {repeatedRows.slice(0, 12).map((row) => (
+                  <article key={`duplicate-${row.rowId}`} className="client-duplicate-pair">
+                    <div>
+                      <strong>New row #{row.rowNumber}</strong>
+                      <p>{[row.Name, row.Surname].filter(Boolean).join(' ') || '-'}</p>
+                      <span>{row.Email || '-'} | {row.Phone || '-'}</span>
+                      <span>{row.Company || '-'}</span>
+                    </div>
+                    <div>
+                      <strong>Existing match</strong>
+                      {(row.duplicateMatches || []).slice(0, 2).map((match, index) => (
+                        <p key={`${row.rowId}-match-${index}`}>
+                          {(match.matchFields || []).join(', ')} in {match?.existing?.sourceFile || match?.existing?.sourceListName || 'old sheet'}:
+                          {' '}{match?.existing?.name || '-'} / {match?.existing?.email || '-'}
+                        </p>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
 
             <div className="client-upload-preview" style={{ marginTop: 10 }}>
               <div className="client-upload-preview-head">

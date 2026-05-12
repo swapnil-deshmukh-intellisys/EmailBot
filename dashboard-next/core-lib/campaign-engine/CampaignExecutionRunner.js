@@ -118,10 +118,62 @@ function isTransientInfrastructureError(error) {
 }
 
 function appendLog(campaign, message, level = 'info') {
+  campaign.logs = campaign.logs || [];
   campaign.logs.push({ message, level, at: new Date() });
   if (campaign.logs.length > 200) {
     campaign.logs = campaign.logs.slice(-200);
   }
+}
+
+function campaignCounterSnapshot(campaign) {
+  return {
+    status: campaign.status,
+    sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+    pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+    failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+    bounced: Number(campaign.stats?.bounced || 0),
+    spam: Number(campaign.stats?.spam || 0),
+    totalRecipients: Number(campaign.totalRecipients ?? campaign.stats?.total ?? 0),
+    workerHeartbeatAt: campaign.workerHeartbeatAt || null
+  };
+}
+
+async function persistCampaignCounters(campaign, reason = 'progress') {
+  const now = new Date();
+  campaign.updatedAt = now;
+  campaign.lastActivityAt = campaign.lastActivityAt || now;
+  if (campaign.status === 'Running') {
+    campaign.workerHeartbeatAt = now;
+  }
+
+  const snapshot = campaignCounterSnapshot(campaign);
+  await Campaign.updateOne(
+    { _id: campaign._id },
+    {
+      $set: {
+        status: campaign.status,
+        workerStatus: campaign.workerStatus || '',
+        workerHeartbeatAt: campaign.workerHeartbeatAt || null,
+        lastActivityAt: campaign.lastActivityAt || now,
+        updatedAt: now,
+        totalRecipients: snapshot.totalRecipients,
+        sentCount: snapshot.sentCount,
+        pendingCount: snapshot.pendingCount,
+        failedCount: snapshot.failedCount,
+        'stats.total': snapshot.totalRecipients,
+        'stats.sent': snapshot.sentCount,
+        'stats.pending': snapshot.pendingCount,
+        'stats.failed': snapshot.failedCount,
+        'stats.bounced': snapshot.bounced,
+        'stats.spam': snapshot.spam
+      }
+    }
+  );
+  console.info('[campaign:counter-update]', {
+    campaignId: String(campaign._id),
+    reason,
+    ...snapshot
+  });
 }
 
 function classifyDeliveryFailure(errorMessage = '') {
@@ -1109,8 +1161,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
         campaign.sentCount = campaign.stats.sent;
         campaign.pendingCount = campaign.stats.pending;
         campaign.failedCount = campaign.stats.failed;
-        lastHeartbeatAt = await syncCampaignHeartbeat(campaign, lastHeartbeatAt);
+        campaign.workerHeartbeatAt = new Date();
+        lastHeartbeatAt = Date.now();
         await persistLeadProgress(list._id, idx, lead);
+        await persistCampaignCounters(campaign, lead.status === 'Sent' ? 'send-success' : 'send-failure');
         if (state.stop || i === pendingIndexes.length - 1 || (i + 1) % 10 === 0) {
           await refreshCampaignRollups(campaign._id).catch(() => {});
         }
@@ -1189,6 +1243,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
         state.running = false;
         return;
       }
+      await persistCampaignCounters(campaign, `final-${String(campaign.status || '').toLowerCase()}`);
       state.running = false;
     } catch (error) {
       const transientFailure = isTransientInfrastructureError(error);

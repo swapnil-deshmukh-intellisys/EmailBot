@@ -3,11 +3,63 @@ import * as XLSX from 'xlsx';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { requireUser } from '@/lib/apiAuth';
-import { analyzeRows, collectExistingLeadKeys } from '@/core-lib/client-data-config/UploadSheetValidation';
+import { analyzeRows, collectExistingLeadKeys, mapRawRowToLead } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
 const MAX_COLUMNS = 200;
+
+function normalize(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizePhone(value = '') {
+  return String(value || '').replace(/[^\d+]/g, '');
+}
+
+function normalizeLinkedIn(value = '') {
+  return normalize(value).replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+}
+
+function buildExistingRows(lists = []) {
+  const rows = [];
+  for (const list of lists || []) {
+    (list.leads || []).forEach((lead, index) => {
+      const mapped = mapRawRowToLead({ ...(lead?.data || {}), ...lead });
+      rows.push({
+        sourceListId: String(list._id || ''),
+        sourceListName: String(list.name || ''),
+        sourceFile: String(list.sourceFile || list.name || ''),
+        uploadedAt: list.uploadedAt || list.createdAt || null,
+        leadIndex: index,
+        name: [mapped.Name, mapped.Surname].filter(Boolean).join(' '),
+        email: mapped.Email,
+        phone: mapped.Phone,
+        linkedinUrl: mapped.LinkedInUrl || mapped.linkedinUrl || '',
+        companyName: mapped.Company
+      });
+    });
+  }
+  return rows;
+}
+
+function findExistingMatches(row = {}, existingRows = []) {
+  const mapped = mapRawRowToLead(row);
+  const email = normalize(mapped.Email);
+  const phone = normalizePhone(mapped.Phone);
+  const linkedinUrl = normalizeLinkedIn(mapped.LinkedInUrl || mapped.linkedinUrl || '');
+  const companyName = normalize(mapped.Company);
+  return existingRows
+    .map((existing) => {
+      const matchFields = [];
+      if (email && normalize(existing.email) === email) matchFields.push('email');
+      if (phone && normalizePhone(existing.phone) === phone) matchFields.push('phone');
+      if (linkedinUrl && normalizeLinkedIn(existing.linkedinUrl) === linkedinUrl) matchFields.push('linkedinUrl');
+      if (companyName && normalize(existing.companyName) === companyName) matchFields.push('companyName');
+      return matchFields.length ? { matchFields, existing } : null;
+    })
+    .filter(Boolean);
+}
 
 function readRowsFromWorkbook(buffer) {
   const workbook = XLSX.read(buffer, {
@@ -67,18 +119,28 @@ export async function POST(req) {
     let existingLists = [];
     try {
       await connectDB();
-      existingLists = await LeadList.find({ userEmail }).select('leads').lean();
+      existingLists = await LeadList.find({ userEmail }).select('name sourceFile uploadedAt createdAt leads').lean();
     } catch {
       existingLists = [];
     }
     const existingKeys = collectExistingLeadKeys(existingLists);
+    const existingRows = buildExistingRows(existingLists);
     const result = analyzeRows(rawRows, existingKeys);
+    const rowsWithMatches = (result.rows || []).map((row) => {
+      const duplicateMatches = findExistingMatches(row, existingRows);
+      return {
+        ...row,
+        duplicateMatches,
+        matchedSources: duplicateMatches.map((item) => item.existing.sourceFile).filter(Boolean)
+      };
+    });
 
     return NextResponse.json({
       ok: true,
       fileName,
       columns,
-      ...result
+      ...result,
+      rows: rowsWithMatches
     });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to preview upload' }, { status: 400 });

@@ -6,7 +6,16 @@ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
-const STATS_CACHE_TTL_MS = 10000;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function shouldUseDemoData() {
   return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
 }
@@ -41,25 +50,12 @@ function shouldCountCampaignStats(campaign) {
   return total > 0 || ['scheduled', 'queued', 'running', 'paused', 'completed', 'failed', 'stopped'].includes(status);
 }
 
-function getStatsCache() {
-  if (!global.__dashboardStatsCache) {
-    global.__dashboardStatsCache = new Map();
-  }
-  return global.__dashboardStatsCache;
-}
-
 export async function GET(req) {
+  const startedAt = Date.now();
   try {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').toLowerCase();
-    const cache = getStatsCache();
-    const cacheKey = `${userEmail}::${req.url}`;
-    const now = Date.now();
-    const cached = cache.get(cacheKey);
-    if (cached && cached.expiresAt > now) {
-      return NextResponse.json(cached.payload);
-    }
 
     await connectDB();
     void processWarmupAutoReplies(userEmail).catch(() => {});
@@ -91,6 +87,10 @@ export async function GET(req) {
         .select({
           status: 1,
           stats: 1,
+          totalRecipients: 1,
+          sentCount: 1,
+          pendingCount: 1,
+          failedCount: 1,
           startedAt: 1,
           scheduledAt: 1,
           finishedAt: 1,
@@ -149,10 +149,10 @@ export async function GET(req) {
     ));
 
     for (const campaign of campaignSummaries) {
-      total += Math.max(0, Number(campaign?.stats?.total || 0));
-      sent += Math.max(0, Number(campaign?.stats?.sent || 0));
-      pending += Math.max(0, Number(campaign?.stats?.pending || 0));
-      failed += Math.max(0, Number(campaign?.stats?.failed || 0));
+      total += Math.max(0, Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0));
+      sent += Math.max(0, Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0));
+      pending += Math.max(0, Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? 0));
+      failed += Math.max(0, Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0));
       bounced += Math.max(0, Number(campaign?.stats?.bounced || 0));
       spam += Math.max(0, Number(campaign?.stats?.spam || 0));
     }
@@ -212,12 +212,14 @@ export async function GET(req) {
       lists: normalizedLists
     };
 
-    cache.set(cacheKey, {
-      payload,
-      expiresAt: now + STATS_CACHE_TTL_MS
+    console.info('[api/stats] response', {
+      ms: Date.now() - startedAt,
+      campaigns: campaigns.length,
+      lists: lists.length,
+      range: selectedRange || selectedDate || 'all'
     });
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers: NO_STORE_HEADERS });
   } catch (error) {
     if (shouldUseDemoData()) {
       const today = new Date().toISOString().slice(0, 10);
@@ -236,7 +238,7 @@ export async function GET(req) {
         customEndDate: '',
         lists: [{ _id: 'demo-list-1', name: 'Demo Leads', sourceFile: 'demo.xlsx', kind: 'uploaded', leadCount: 50, uploadedAt: new Date().toISOString() }],
         error: error.message || 'Failed to load stats'
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
     return NextResponse.json({
       total: 0,
@@ -253,6 +255,6 @@ export async function GET(req) {
       customEndDate: '',
       lists: [],
       error: error.message || 'Failed to load stats'
-    });
+    }, { headers: NO_STORE_HEADERS });
   }
 }

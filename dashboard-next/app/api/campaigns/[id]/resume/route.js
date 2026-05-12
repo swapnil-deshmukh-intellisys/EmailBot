@@ -6,8 +6,18 @@ import { resumeCampaignRunner, validateCampaignExecutionPreflight } from '@/lib/
 import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { requireUser } from '@/lib/apiAuth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function jsonError({ status = 400, code = 'CAMPAIGN_RESUME_FAILED', message = 'Unable to resume campaign.' }) {
-  return NextResponse.json({ success: false, ok: false, code, message, error: message }, { status });
+  return NextResponse.json({ success: false, ok: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 export async function POST(req, { params }) {
@@ -39,7 +49,7 @@ export async function POST(req, { params }) {
       campaign.logs.push({ level: 'info', message: 'Campaign re-queued for server worker', at: new Date() });
       await campaign.save();
       await triggerCampaignSchedulerTick();
-      return NextResponse.json({ success: true, ok: true, queued: true, message: 'Campaign resumed and queued.' });
+      return NextResponse.json({ success: true, ok: true, queued: true, message: 'Campaign resumed and queued.' }, { headers: NO_STORE_HEADERS });
     } catch (error) {
       return jsonError({
         status: 400,
@@ -55,5 +65,5 @@ export async function POST(req, { params }) {
   campaign.logs.push({ level: 'info', message: 'Campaign resumed', at: new Date() });
   await campaign.save();
 
-  return NextResponse.json({ success: true, ok: true, message: 'Campaign resumed.' });
+  return NextResponse.json({ success: true, ok: true, message: 'Campaign resumed.' }, { headers: NO_STORE_HEADERS });
 }

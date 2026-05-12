@@ -13,6 +13,7 @@ const CampaignSchema = new mongoose.Schema(
     listId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadList', required: true },
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate', required: false },
     draftType: { type: String, default: '' },
+    draftId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailDraft', default: null, index: true },
     inlineTemplate: {
       subject: { type: String, default: '' },
       body: { type: String, default: '' }
@@ -134,14 +135,20 @@ const CampaignSchema = new mongoose.Schema(
 );
 
 CampaignSchema.index({ userId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, updatedAt: -1 });
 CampaignSchema.index({ userId: 1, status: 1 });
+CampaignSchema.index({ userId: 1, status: 1, updatedAt: -1 });
 CampaignSchema.index({ userId: 1, projectId: 1, createdAt: -1 });
 CampaignSchema.index({ userId: 1, senderAccountId: 1, createdAt: -1 });
 CampaignSchema.index({ userId: 1, listId: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, draftType: 1, createdAt: -1 });
+CampaignSchema.index({ userId: 1, draftId: 1, createdAt: -1 });
 CampaignSchema.index({ userId: 1, scheduledAt: 1 });
 CampaignSchema.index({ userId: 1, workerLockedAt: 1 });
 CampaignSchema.index({ status: 1 });
 CampaignSchema.index({ createdAt: -1 });
+CampaignSchema.index({ updatedAt: -1 });
+CampaignSchema.index({ status: 1, updatedAt: -1 });
 CampaignSchema.index({ status: 1, scheduledAt: 1 });
 CampaignSchema.index({ status: 1, workerHeartbeatAt: 1 });
 CampaignSchema.index({ workerLockedAt: 1 });
@@ -150,9 +157,13 @@ CampaignSchema.index({ listId: 1 });
 CampaignSchema.index({ userEmail: 1, project: 1, senderFrom: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, status: 1, project: 1, senderFrom: 1 });
 CampaignSchema.index({ userEmail: 1, lastActivityAt: -1 });
+CampaignSchema.index({ userEmail: 1, updatedAt: -1 });
+CampaignSchema.index({ userEmail: 1, status: 1, updatedAt: -1 });
 CampaignSchema.index({ userEmail: 1, projectId: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, senderAccountId: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, listId: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, draftType: 1, createdAt: -1 });
+CampaignSchema.index({ userEmail: 1, draftId: 1, createdAt: -1 });
 CampaignSchema.index({ userEmail: 1, scheduledAt: 1 });
 CampaignSchema.index({ userEmail: 1, workerLockedAt: 1 });
 

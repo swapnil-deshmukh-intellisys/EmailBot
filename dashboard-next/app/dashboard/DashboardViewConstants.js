@@ -1,12 +1,8 @@
-export const DRAFT_CATEGORIES = [
-  { label: 'Cover Story', value: 'cover_story' },
-  { label: 'Reminder', value: 'reminder' },
-  { label: 'Follow Up', value: 'follow_up' },
-  { label: 'Updated Cost', value: 'updated_cost' },
-  { label: 'Final Cost', value: 'final_cost' }
-];
+import { DRAFT_TYPE_ITEMS } from '@/app/lib/draftTypes';
 
-export const REPLY_MODE_DRAFT_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost']);
+export const DRAFT_CATEGORIES = DRAFT_TYPE_ITEMS;
+
+export const REPLY_MODE_DRAFT_TYPES = new Set(['reminder', 'followup', 'open_followup', 'final_followup']);
 
 export const SUMMARY_RANGES = [
   { label: 'Today', value: 'today' },
@@ -26,11 +22,13 @@ export const COUNTRY_TIME_SLOTS = {
 };
 
 export const QUICK_DRAFT_PREFIX = {
+  initial_outreach: 'io',
   cover_story: 'cs',
   reminder: 'rem',
-  follow_up: 'fu',
-  updated_cost: 'uc',
-  final_cost: 'fc'
+  followup: 'fu',
+  open_followup: 'ofu',
+  final_followup: 'ffu',
+  custom: 'cus'
 };
 
 export const PREVIEW_ROWS_PER_PAGE = 50;

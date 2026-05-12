@@ -6,9 +6,19 @@ import { getRunnerState } from '@/lib/campaignRunner';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { computeCampaignDisplayStatus } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function jsonError({ status = 400, code = 'CAMPAIGN_STATUS_FAILED', message = 'Failed to load campaign status.', campaignId = '', userEmail = '' }) {
   console.error(`[GET /api/campaigns/[id]/status] ${code}: ${message}`, { campaignId, userEmail });
-  return NextResponse.json({ success: false, code, message, error: message }, { status });
+  return NextResponse.json({ success: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 export async function GET(req, { params }) {
@@ -59,7 +69,7 @@ export async function GET(req, { params }) {
         queueRequestedAt: campaign?.queueRequestedAt || null,
         queueReason: displayStatus === 'Queued' ? campaign?.queueReason || '' : ''
       }
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return jsonError({
       status: 500,

@@ -4,6 +4,8 @@ export async function apiFetchJson(path, options = {}) {
     cache: 'no-store',
     ...options,
     headers: {
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
       ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {})
     }

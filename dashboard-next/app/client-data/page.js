@@ -79,6 +79,8 @@ export default function ClientDataPage() {
   const [lists, setLists] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedList, setSelectedList] = useState(null);
+  const [allClientRows, setAllClientRows] = useState([]);
+  const [overview, setOverview] = useState(null);
   const [customListName, setCustomListName] = useState('');
   const [customListCloneName, setCustomListCloneName] = useState('');
   const [blankCustomListName, setBlankCustomListName] = useState('');
@@ -106,10 +108,16 @@ export default function ClientDataPage() {
     const loadLists = async ({ silent = false } = {}) => {
       try {
         if (!silent) setLoading(true);
-        const response = await fetch('/api/stats', { cache: 'no-store' });
-        const data = await response.json();
+        const [statsResponse, listResponse, overviewResponse] = await Promise.all([
+          fetch('/api/stats', { cache: 'no-store' }),
+          fetch('/api/client-data/list', { cache: 'no-store' }),
+          fetch('/api/client-data/overview', { cache: 'no-store' })
+        ]);
+        const data = await statsResponse.json();
+        const listData = await listResponse.json();
+        const overviewData = await overviewResponse.json();
 
-        if (!response.ok) {
+        if (!statsResponse.ok) {
           throw new Error(data?.error || 'Failed to fetch client data');
         }
 
@@ -118,11 +126,13 @@ export default function ClientDataPage() {
         const nextLists = Array.isArray(data?.lists) ? data.lists : [];
         setError('');
         setLists(nextLists);
+        setAllClientRows(Array.isArray(listData?.rows) ? listData.rows : []);
+        setOverview(overviewData?.ok === false ? null : overviewData);
 
         const nextSelectedId =
           nextLists.some((item) => item._id === selectedListId)
             ? selectedListId
-            : nextLists[0]?._id || '';
+            : '';
 
         setSelectedListId(nextSelectedId);
       } catch (err) {
@@ -216,6 +226,17 @@ export default function ClientDataPage() {
   }, [selectedListId]);
 
   const clientRows = useMemo(() => {
+    if (!selectedListId) {
+      return allClientRows.map((row, index) => ({
+        id: row.id || `all-${index}`,
+        name: row.name || '-',
+        email: row.email || '-',
+        company: row.cmpName || row.company || '-',
+        city: row.city || row.country || '-',
+        status: row.email && row.email !== '-' ? 'Verified' : 'Missing Email',
+        source: row.source || row.sourceFile || 'Uploaded List'
+      }));
+    }
     if (!selectedList?.leads?.length) return [];
     return selectedList.leads
       .filter(hasVisibleLeadData)
@@ -228,7 +249,7 @@ export default function ClientDataPage() {
         status: getLeadStatus(lead),
         source: getLeadSource(selectedList)
       }));
-  }, [selectedList]);
+  }, [allClientRows, selectedList, selectedListId]);
 
   const totalClients = useMemo(
     () => lists.reduce((sum, list) => sum + Number(list?.leadCount || 0), 0),
@@ -247,12 +268,14 @@ export default function ClientDataPage() {
 
   const sourceCards = useMemo(
     () => [
-      { label: 'Total Clients', value: loading ? '...' : String(totalClients) },
+      { label: 'Total Clients', value: loading ? '...' : String(overview?.projectCounts?.total ?? totalClients) },
+      { label: 'TEC Clients', value: loading ? '...' : String(overview?.projectCounts?.tec ?? 0) },
+      { label: 'TUT Clients', value: loading ? '...' : String(overview?.projectCounts?.tut ?? 0) },
       { label: 'Active Lists', value: loading ? '...' : String(lists.length) },
       { label: 'Verified Contacts', value: loadingList ? '...' : String(verifiedCount) },
       { label: 'Pending Review', value: loadingList ? '...' : String(missingEmailCount) }
     ],
-    [loading, totalClients, lists.length, loadingList, verifiedCount, missingEmailCount]
+    [loading, overview, totalClients, lists.length, loadingList, verifiedCount, missingEmailCount]
   );
 
   const sourceHealthItems = useMemo(
@@ -997,11 +1020,12 @@ export default function ClientDataPage() {
                 onChange={(event) => setSelectedListId(event.target.value)}
                 style={{ minWidth: 240 }}
               >
+                <option value="">Full client list ({allClientRows.length})</option>
                 {lists.length ? lists.map((list) => (
                   <option key={list._id} value={list._id}>
                     {list.name} ({list.leadCount || 0}){String(list?.kind || 'uploaded') === 'custom' ? ' [Custom]' : ''}
                   </option>
-                )) : <option value="">No uploaded lists</option>}
+                )) : null}
               </select>
               <Button variant="secondary">Import List</Button>
             </div>
@@ -1013,11 +1037,11 @@ export default function ClientDataPage() {
                 <div>
                   <h2 className="ui-card-title">Client Directory</h2>
                   <p className="ui-card-description">
-                    Live client rows from your selected uploaded list.
+                    {selectedListId ? 'Live client rows from your selected uploaded list.' : 'Full client list across all uploaded sheets.'}
                   </p>
                 </div>
                 <Button variant="ghost" size="sm">
-                  {selectedList ? `${clientRows.length} rows` : 'View All'}
+                  {clientRows.length} rows
                 </Button>
               </div>
 

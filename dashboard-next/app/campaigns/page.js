@@ -53,6 +53,7 @@ const ACTION_LABELS = {
   resume: 'Resume',
   stop: 'Stop'
 };
+const LIVE_CAMPAIGN_STATUSES = new Set(['running', 'queued', 'scheduled']);
 
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
@@ -600,6 +601,7 @@ export default function CampaignsPage() {
       if (silent) setRefreshing(true);
       if (!silent) setLoading(true);
 
+      console.debug('[campaigns-page:refetch]', { silent, at: new Date().toISOString() });
       const data = await apiFetchJson('/api/campaigns?limit=100');
 
       setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
@@ -617,6 +619,11 @@ export default function CampaignsPage() {
     }
   }, []);
 
+  const hasLiveCampaigns = useMemo(
+    () => campaigns.some((campaign) => LIVE_CAMPAIGN_STATUSES.has(normalizeText(getDisplayStatus(campaign)))),
+    [campaigns]
+  );
+
   useEffect(() => {
     let active = true;
     let intervalId = null;
@@ -629,7 +636,7 @@ export default function CampaignsPage() {
     void safeLoad();
     intervalId = window.setInterval(() => {
       void safeLoad({ silent: true });
-    }, 8000);
+    }, hasLiveCampaigns ? 4000 : 30000);
 
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') {
@@ -646,7 +653,7 @@ export default function CampaignsPage() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [loadCampaigns]);
+  }, [loadCampaigns, hasLiveCampaigns]);
 
   const filteredCampaigns = useMemo(() => {
     const query = normalizeText(searchQuery);
@@ -687,7 +694,7 @@ export default function CampaignsPage() {
 
     if (nextStatus) {
       setCampaigns((items) =>
-        items.map((item) => (item._id === campaignId ? { ...item, status: nextStatus, displayStatus: nextStatus } : item))
+        items.map((item) => (item._id === campaignId ? { ...item, status: nextStatus, displayStatus: nextStatus, updatedAt: new Date().toISOString() } : item))
       );
     }
 

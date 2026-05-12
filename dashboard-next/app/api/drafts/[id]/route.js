@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
-
-const ALLOWED_CATEGORIES = ['cover_story', 'reminder', 'follow_up', 'updated_cost', 'final_cost'];
+import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 
 export async function PATCH(req, { params }) {
   try {
@@ -11,17 +10,19 @@ export async function PATCH(req, { params }) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, title, subject, body, sector, domain } = await req.json();
-    if (!category || !title || !subject || !body) {
-      return NextResponse.json({ error: 'category, title, subject, and body are required' }, { status: 400 });
+    const { category, draftType, title, subject, body, sector, domain } = await req.json();
+    const normalizedDraftType = normalizeDraftType(draftType || category);
+    if (!normalizedDraftType || !title || !subject || !body) {
+      return NextResponse.json({ error: 'draftType, title, subject, and body are required' }, { status: 400 });
     }
-    if (!ALLOWED_CATEGORIES.includes(category)) {
-      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
+      return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
     }
     const draft = await EmailDraft.findOneAndUpdate(
       buildAuthOwnerFilter(auth, { _id: id }),
       {
-        category,
+        category: normalizedDraftType,
+        draftType: normalizedDraftType,
         title,
         sector: String(sector || '').trim(),
         domain: String(domain || '').trim().toLowerCase(),
@@ -33,7 +34,8 @@ export async function PATCH(req, { params }) {
     if (!draft) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
-    return NextResponse.json({ draft });
+    const resolvedDraftType = inferDraftTypeFromDraft(draft);
+    return NextResponse.json({ draft: { ...draft, draftType: resolvedDraftType, category: resolvedDraftType } });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to update draft' }, { status: 500 });
   }

@@ -6,6 +6,16 @@ import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import { requireAuth } from '@/lib/apiAuth';
 import { ensureRecipientLogsForCampaign } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function normalizeEmail(value = '') {
   return String(value || '').trim().toLowerCase();
 }
@@ -16,13 +26,13 @@ export async function GET(req, { params }) {
   const userEmail = normalizeEmail(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '');
   const campaignId = String(params?.id || '').trim();
   if (!mongoose.isValidObjectId(campaignId)) {
-    return NextResponse.json({ success: false, error: 'Invalid campaign id' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid campaign id' }, { status: 400, headers: NO_STORE_HEADERS });
   }
 
   await connectDB();
   const campaign = await Campaign.findOne({ _id: campaignId, userEmail }).lean();
   if (!campaign) {
-    return NextResponse.json({ success: false, error: 'Campaign not found for current user' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Campaign not found for current user' }, { status: 404, headers: NO_STORE_HEADERS });
   }
   await ensureRecipientLogsForCampaign(campaign);
 
@@ -47,5 +57,5 @@ export async function GET(req, { params }) {
     CampaignRecipientLog.find(query).sort({ lastActivityAt: -1, updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean()
   ]);
 
-  return NextResponse.json({ success: true, recipients, page, limit, total });
+  return NextResponse.json({ success: true, recipients, page, limit, total }, { headers: NO_STORE_HEADERS });
 }

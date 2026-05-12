@@ -67,7 +67,11 @@ const CampaignRecipientLogSchema = new mongoose.Schema(
 
 CampaignRecipientLogSchema.index({ campaignId: 1, email: 1 }, { unique: true });
 CampaignRecipientLogSchema.index({ userId: 1, campaignId: 1 });
+CampaignRecipientLogSchema.index({ userEmail: 1, campaignId: 1 });
 CampaignRecipientLogSchema.index({ campaignId: 1, status: 1, lastActivityAt: -1 });
+CampaignRecipientLogSchema.index({ campaignId: 1, updatedAt: -1 });
+CampaignRecipientLogSchema.index({ userId: 1, updatedAt: -1 });
+CampaignRecipientLogSchema.index({ userEmail: 1, updatedAt: -1 });
 CampaignRecipientLogSchema.index({ campaignId: 1, recipientEmail: 1 });
 CampaignRecipientLogSchema.index({ 'stepLogs.trackingId': 1 });
 CampaignRecipientLogSchema.index({ trackingId: 1 });

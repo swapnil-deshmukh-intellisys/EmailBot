@@ -26,10 +26,21 @@ import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import {
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
+import { normalizeDraftType } from '@/app/lib/draftTypes';
 
-const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'follow_up', 'updated_cost', 'final_cost', 'follow-up', 'updated cost', 'final cost']);
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
+const REPLY_CAMPAIGN_TYPES = new Set(['reminder', 'followup', 'open_followup', 'final_followup', 'follow_up', 'final_cost']);
 function normalizeCampaignType(value = '') {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  return normalizeDraftType(value);
 }
 
 function escapeRegex(value = '') {
@@ -42,10 +53,11 @@ function shouldUseDemoData() {
 
 function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.' }) {
   console.error(`[api/campaigns] ${code}: ${message}`);
-  return NextResponse.json({ success: false, code, message, error: message }, { status });
+  return NextResponse.json({ success: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 export async function GET(req) {
+  const startedAt = Date.now();
 
   try {
     const auth = await requireAuth(req);
@@ -86,6 +98,7 @@ export async function GET(req) {
           stats: 1,
           listId: 1,
           templateId: 1,
+          draftId: 1,
           senderAccountId: 1,
           senderFrom: 1,
           'senderAccount.from': 1,
@@ -106,6 +119,7 @@ export async function GET(req) {
         type: 1,
         listId: 1,
         templateId: 1,
+        draftId: 1,
         draftType: 1,
         'inlineTemplate.subject': 1,
         senderAccountId: 1,
@@ -184,8 +198,20 @@ export async function GET(req) {
     const campaigns = rawCampaigns.map((campaign) => serializeCampaignForList(campaign, logsByCampaign.get(String(campaign._id)) || []));
     const counts = buildCampaignCounts(countSourceCampaigns);
     const summary = buildLegacyCampaignSummary(counts);
+    console.info('[api/campaigns] response', {
+      ms: Date.now() - startedAt,
+      count: campaigns.length,
+      total: totalCount,
+      skip,
+      limit,
+      project,
+      sender
+    });
 
-    return NextResponse.json({ success: true, counts, campaigns, summary, pagination: { total: totalCount, limit, skip, hasMore: skip + campaigns.length < totalCount } });
+    return NextResponse.json(
+      { success: true, counts, campaigns, summary, pagination: { total: totalCount, limit, skip, hasMore: skip + campaigns.length < totalCount } },
+      { headers: NO_STORE_HEADERS }
+    );
 
   } catch (error) {
     const errorMessage = error.message || 'Failed to load campaigns';
@@ -207,10 +233,13 @@ export async function GET(req) {
         counts: buildCampaignCounts(demoCampaigns),
         summary: buildLegacyCampaignSummary(buildCampaignCounts(demoCampaigns)),
         error: errorMessage
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
     const emptyCounts = getEmptyCampaignCounts();
-    return NextResponse.json({ success: false, counts: emptyCounts, campaigns: [], summary: buildLegacyCampaignSummary(emptyCounts), code: 'CAMPAIGNS_LOAD_FAILED', message: errorMessage, error: errorMessage });
+    return NextResponse.json(
+      { success: false, counts: emptyCounts, campaigns: [], summary: buildLegacyCampaignSummary(emptyCounts), code: 'CAMPAIGNS_LOAD_FAILED', message: errorMessage, error: errorMessage },
+      { headers: NO_STORE_HEADERS }
+    );
 
   }
 
@@ -237,6 +266,7 @@ export async function POST(req) {
       templateId,
       options,
       draftType,
+      draftId,
       inlineTemplate,
       senderAccountId,
       type,
@@ -347,6 +377,7 @@ export async function POST(req) {
       name: String(name || '').trim(),
       listId,
       senderAccountId: senderAccountId || '',
+      draftId: draftId || null,
       type: campaignType,
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
       'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
@@ -358,7 +389,7 @@ export async function POST(req) {
     }).lean();
 
     if (duplicateCampaign) {
-      return NextResponse.json({ success: true, campaign: duplicateCampaign, duplicate: true });
+      return NextResponse.json({ success: true, campaign: duplicateCampaign, duplicate: true }, { headers: NO_STORE_HEADERS });
     }
 
     const campaign = await Campaign.create({
@@ -376,7 +407,8 @@ export async function POST(req) {
 
       templateId: resolvedTemplateId,
 
-      draftType: draftType || '',
+      draftType: campaignType,
+      draftId: draftId || null,
 
       inlineTemplate: {
 
@@ -450,7 +482,7 @@ export async function POST(req) {
 
 
 
-    return NextResponse.json({ success: true, campaign });
+    return NextResponse.json({ success: true, campaign }, { headers: NO_STORE_HEADERS });
 
   } catch (error) {
 

@@ -7,7 +7,16 @@ import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { computeCampaignDisplayStatus } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const ROUTE_NAME = 'POST /api/campaigns/[id]/start';
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
 
 function logStartFailure({ campaignId = '', userEmail = '', code = '', message = '' }) {
   console.error(`[${ROUTE_NAME}] ${code}: ${message}`, { campaignId, userEmail });
@@ -28,7 +37,7 @@ function jsonError({
       message,
       error: message
     },
-    { status }
+    { status, headers: NO_STORE_HEADERS }
   );
 }
 
@@ -92,7 +101,7 @@ export async function POST(req, { params }) {
           pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
           failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
           message: 'Campaign is already running.'
-        });
+        }, { headers: NO_STORE_HEADERS });
       }
 
       await validateCampaignExecutionPreflight(campaign, { userEmail });
@@ -115,7 +124,7 @@ export async function POST(req, { params }) {
         pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
         failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
         message: 'Campaign re-queued successfully.'
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
 
     const scheduleMode = String(campaign.scheduleMode || 'send_now').trim().toLowerCase();
@@ -147,7 +156,7 @@ export async function POST(req, { params }) {
         pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
         failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
         message: 'Campaign scheduled successfully.'
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
 
     campaign.status = 'Queued';
@@ -169,7 +178,7 @@ export async function POST(req, { params }) {
       pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
       failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
       message: 'Campaign queued successfully.'
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     const isValidationError = !error?.name || error.name === 'Error' || error.name === 'ValidationError';
     return jsonError({

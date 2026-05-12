@@ -144,6 +144,14 @@ function normalizePhone(value = '') {
   return normalizeText(value).replace(/[^\d+]/g, '');
 }
 
+function normalizeLinkedInUrl(value = '') {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/$/, '');
+}
+
 function normalizeDomain(value = '') {
   return normalizeText(value).toLowerCase().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '');
 }
@@ -253,6 +261,7 @@ export function mapRawRowToLead(rawRow = {}) {
   const designation = getFirstPresent(row, ['Designation', 'designation', 'Title', 'title']);
   const email = normalizeEmail(row.Email || row.email || '');
   const phone = normalizePhone(row.Phone || row.phone || row.Mobile || row.mobile || '');
+  const linkedinUrl = normalizeLinkedInUrl(row.LinkedIn || row.linkedin || row.LinkedInUrl || row.linkedinUrl || row['LinkedIn URL'] || row['Linkedin URL'] || '');
   const domain = normalizeDomain(row.Domain || row.domain || row.Website || row.website || '');
   const sector = getFirstPresent(row, ['Sector', 'sector', 'Industry', 'industry']);
   const country = getFirstPresent(row, ['Country', 'country']);
@@ -273,6 +282,7 @@ export function mapRawRowToLead(rawRow = {}) {
     Designation: designation,
     Email: email,
     Phone: phone,
+    LinkedInUrl: linkedinUrl,
     Domain: domain,
     Sector: sector,
     Country: country,
@@ -290,6 +300,8 @@ export function mapRawRowToLead(rawRow = {}) {
       Designation: designation,
       Email: email,
       Phone: phone,
+      LinkedInUrl: linkedinUrl,
+      linkedinUrl,
       Domain: domain,
       Sector: sector,
       Country: country,
@@ -303,6 +315,8 @@ export function mapRawRowToLead(rawRow = {}) {
     dedupe: {
       email,
       phone,
+      linkedinUrl,
+      companyName: companyNameKey,
       fullNameCompany: fullNameKey && companyNameKey ? `${fullNameKey}::${companyNameKey}` : ''
     }
   });
@@ -312,6 +326,8 @@ export function collectExistingLeadKeys(lists = []) {
   const existing = {
     emails: new Set(),
     phones: new Set(),
+    linkedinUrls: new Set(),
+    companyNames: new Set(),
     fullNameCompany: new Set()
   };
 
@@ -320,6 +336,8 @@ export function collectExistingLeadKeys(lists = []) {
       const mapped = mapRawRowToLead({ ...(lead?.data || {}), ...lead });
       if (mapped.dedupe.email) existing.emails.add(mapped.dedupe.email);
       if (mapped.dedupe.phone) existing.phones.add(mapped.dedupe.phone);
+      if (mapped.dedupe.linkedinUrl) existing.linkedinUrls.add(mapped.dedupe.linkedinUrl);
+      if (mapped.dedupe.companyName) existing.companyNames.add(mapped.dedupe.companyName);
       if (mapped.dedupe.fullNameCompany) existing.fullNameCompany.add(mapped.dedupe.fullNameCompany);
     }
   }
@@ -327,7 +345,7 @@ export function collectExistingLeadKeys(lists = []) {
   return existing;
 }
 
-export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), phones: new Set(), fullNameCompany: new Set() }) {
+export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), phones: new Set(), linkedinUrls: new Set(), companyNames: new Set(), fullNameCompany: new Set() }) {
   const seenEmails = new Set();
   const seenEmailRows = new Map();
 
@@ -340,6 +358,18 @@ export function analyzeRows(rawRows = [], existingKeys = { emails: new Set(), ph
     if (mapped.dedupe.email && seenEmails.has(mapped.dedupe.email)) {
       const firstRowNumber = seenEmailRows.get(mapped.dedupe.email);
       duplicateReasons.push(`Repeated client email from row ${firstRowNumber}`);
+    }
+    if (mapped.dedupe.email && existingKeys.emails?.has(mapped.dedupe.email)) {
+      duplicateReasons.push('Matched existing client by email');
+    }
+    if (mapped.dedupe.phone && existingKeys.phones?.has(mapped.dedupe.phone)) {
+      duplicateReasons.push('Matched existing client by phone');
+    }
+    if (mapped.dedupe.linkedinUrl && existingKeys.linkedinUrls?.has(mapped.dedupe.linkedinUrl)) {
+      duplicateReasons.push('Matched existing client by LinkedIn URL');
+    }
+    if (mapped.dedupe.companyName && existingKeys.companyNames?.has(mapped.dedupe.companyName)) {
+      duplicateReasons.push('Matched existing client by company name');
     }
 
     if (mapped.dedupe.email) {

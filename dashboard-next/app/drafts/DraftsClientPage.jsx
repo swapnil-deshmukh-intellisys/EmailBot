@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
 import Button from '@/shared-components/ui-components/UiActionButton';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
+import { DRAFT_TYPE_ITEMS, normalizeDraftType } from '@/app/lib/draftTypes';
 
 const STATUS_VARIANTS = {
   approved: 'success',
@@ -13,12 +14,14 @@ const STATUS_VARIANTS = {
   draft: 'info'
 };
 
-const CATEGORY_OPTIONS = [
+const CATEGORY_OPTIONS = [...DRAFT_TYPE_ITEMS, { value: 'custom', label: 'Custom' }];
+const DRAFT_LIBRARY_SECTIONS = [
   { value: 'cover_story', label: 'Cover Story' },
   { value: 'reminder', label: 'Reminder' },
-  { value: 'follow_up', label: 'Follow Up' },
-  { value: 'updated_cost', label: 'Updated Cost' },
-  { value: 'final_cost', label: 'Final Cost' }
+  { value: 'followup', label: 'Follow-up' },
+  { value: 'updated_cost', label: 'Upcost / Upsell' },
+  { value: 'final_cost', label: 'Final Call' },
+  { value: 'custom', label: 'Custom' }
 ];
 
 function formatRelativeDate(value) {
@@ -63,6 +66,11 @@ function getDraftOwner(draft) {
     draft?.userEmail ||
     'Team'
   );
+}
+
+function draftTypeLabel(value = '') {
+  const normalized = normalizeDraftType(value);
+  return DRAFT_LIBRARY_SECTIONS.find((item) => item.value === normalized)?.label || 'Custom';
 }
 
 function renderCell(cell, column) {
@@ -111,6 +119,7 @@ export default function DraftsPage() {
   const [saveMessage, setSaveMessage] = useState('');
   const [librarySectorFilter, setLibrarySectorFilter] = useState('');
   const [libraryDomainFilter, setLibraryDomainFilter] = useState('');
+  const [libraryTypeFilter, setLibraryTypeFilter] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -236,12 +245,21 @@ export default function DraftsPage() {
       drafts.filter((draft) => {
         const sector = String(draft?.sector || '').trim().toLowerCase();
         const domain = String(draft?.domain || '').trim().toLowerCase();
+        const draftType = normalizeDraftType(draft?.draftType || draft?.category || 'custom');
+        if (libraryTypeFilter && draftType !== libraryTypeFilter) return false;
         if (librarySectorFilter && sector !== librarySectorFilter.toLowerCase()) return false;
         if (libraryDomainFilter && domain !== libraryDomainFilter.toLowerCase()) return false;
         return true;
       }),
-    [drafts, libraryDomainFilter, librarySectorFilter]
+    [drafts, libraryDomainFilter, librarySectorFilter, libraryTypeFilter]
   );
+
+  const groupedDrafts = useMemo(() => {
+    return DRAFT_LIBRARY_SECTIONS.map((section) => ({
+      ...section,
+      drafts: filteredDrafts.filter((draft) => normalizeDraftType(draft?.draftType || draft?.category || 'custom') === section.value)
+    }));
+  }, [filteredDrafts]);
 
   const handleUploadClick = () => {
     setActiveWorkspaceMode('upload');
@@ -293,7 +311,7 @@ export default function DraftsPage() {
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
     setDraftDomain(String(draft?.domain || ''));
-    setDraftCategory(String(draft?.category || CATEGORY_OPTIONS[0].value));
+    setDraftCategory(normalizeDraftType(draft?.draftType || draft?.category || CATEGORY_OPTIONS[0].value));
     setEditorHtml(String(draft?.body || ''));
     setShowWorkspace(true);
     setActiveWorkspaceMode('customize');
@@ -309,7 +327,8 @@ export default function DraftsPage() {
     setSavingDraft(true);
     try {
       const payload = {
-        category: draftCategory,
+        category: normalizeDraftType(draftCategory),
+        draftType: normalizeDraftType(draftCategory),
         title: draftTitle.trim(),
         sector: draftSector.trim(),
         domain: draftDomain.trim().toLowerCase(),
@@ -416,6 +435,7 @@ export default function DraftsPage() {
                 <h2>Draft Workspace</h2>
                 <p>Review uploaded text on one side and write or paste the final draft on the other side.</p>
               </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowWorkspace(false)}>Back to Drafts</Button>
               <div className="draft-workspace-mode">
                 <span className={`draft-workspace-pill${activeWorkspaceMode === 'upload' ? ' is-active' : ''}`}>Upload File</span>
                 <span className={`draft-workspace-pill${activeWorkspaceMode === 'customize' ? ' is-active' : ''}`}>Customize Draft</span>
@@ -545,6 +565,16 @@ export default function DraftsPage() {
 
             <div className="draft-library-filters">
               <label className="draft-library-filter-field">
+                <span>Draft Type</span>
+                <select value={libraryTypeFilter} onChange={(event) => setLibraryTypeFilter(event.target.value)}>
+                  <option value="">All draft types</option>
+                  {DRAFT_LIBRARY_SECTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="draft-library-filter-field">
                 <span>Sector</span>
                 <select value={librarySectorFilter} onChange={(event) => setLibrarySectorFilter(event.target.value)}>
                   <option value="">All sectors</option>
@@ -565,64 +595,37 @@ export default function DraftsPage() {
               </label>
             </div>
 
-            <div className="workspace-table workspace-table-scroll">
-              <div className="workspace-table-head" style={{ gridTemplateColumns: '1.2fr 0.9fr 1fr 1.4fr 0.9fr 0.8fr' }}>
-                {['Draft', 'Sector', 'Domain', 'Subject', 'Updated', 'Action'].map((column) => (
-                  <span key={column}>{column}</span>
-                ))}
-              </div>
-
-              {loading ? (
-                <div className="workspace-table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 1fr 1.4fr 0.9fr 0.8fr' }}>
-                  <span>Loading drafts...</span>
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              ) : null}
-
-              {!loading && error ? (
-                <div className="workspace-table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 1fr 1.4fr 0.9fr 0.8fr' }}>
-                  <span>{error}</span>
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              ) : null}
-
-              {!loading && !error && !filteredDrafts.length ? (
-                <div className="workspace-table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 1fr 1.4fr 0.9fr 0.8fr' }}>
-                  <span>No drafts found in the database.</span>
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              ) : null}
-
-              {!loading && !error
-                ? filteredDrafts.map((draft, index) => (
-                    <div key={draft?._id || index} className="workspace-table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 1fr 1.4fr 0.9fr 0.8fr' }}>
-                      {[
-                        draft?.title || 'Untitled Draft',
-                        draft?.sector || '-',
-                        draft?.domain || '-',
-                        draft?.subject || '-',
-                        formatRelativeDate(draft?.updatedAt || draft?.createdAt)
-                      ].map((cell, cellIndex) => (
-                        <span key={cellIndex}>{renderCell(cell, ['Draft', 'Sector', 'Domain', 'Subject', 'Updated'][cellIndex])}</span>
-                      ))}
-                      <span>
+            <div className="draft-type-section-stack">
+              {loading ? <div className="draft-type-empty">Loading drafts...</div> : null}
+              {!loading && error ? <div className="draft-type-empty error">{error}</div> : null}
+              {!loading && !error && !filteredDrafts.length ? <div className="draft-type-empty">No drafts found in the database.</div> : null}
+              {!loading && !error ? groupedDrafts.map((section) => (
+                <section key={section.value} className="draft-type-section">
+                  <div className="draft-type-section-head">
+                    <h3>{section.label} ({section.drafts.length})</h3>
+                    <span>{section.drafts.length ? 'Saved drafts' : 'No drafts'}</span>
+                  </div>
+                  <div className="draft-card-grid">
+                    {section.drafts.length ? section.drafts.map((draft) => (
+                      <article key={draft?._id || draft?.id} className="draft-type-card">
+                        <div className="draft-type-card-head">
+                          <strong>{draft?.title || 'Untitled Draft'}</strong>
+                          <span>{draftTypeLabel(draft?.draftType || draft?.category)} Draft</span>
+                        </div>
+                        <p>{draft?.subject || '-'}</p>
+                        <div className="draft-type-card-meta">
+                          <small>{draft?.sector || 'No sector'}</small>
+                          <small>{draft?.domain || 'No domain'}</small>
+                          <small>{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</small>
+                        </div>
                         <Button variant="ghost" size="sm" onClick={() => handleEditDraft(draft)}>Edit</Button>
-                      </span>
-                    </div>
-                  ))
-                : null}
+                      </article>
+                    )) : (
+                      <div className="draft-type-empty">No {section.label} drafts yet.</div>
+                    )}
+                  </div>
+                </section>
+              )) : null}
             </div>
           </section>
 

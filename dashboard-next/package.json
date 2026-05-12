@@ -21,6 +21,7 @@
     "check:env": "node scripts/check-env.mjs",
     "check:mail": "node scripts/check-mail-config.mjs",
     "cleanup:legacy": "node scripts/cleanup-legacy-data.mjs",
+    "migrate:draft-types": "node scripts/migrate-draft-types.mjs",
     "lint": "next lint"
   },
   "dependencies": {

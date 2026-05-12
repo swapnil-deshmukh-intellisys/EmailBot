@@ -9,6 +9,7 @@ import {
   isFutureScheduledDate,
   normalizeDurationUnit
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
+import { DRAFT_TYPE_ITEMS, draftTypeLabel, normalizeDraftType } from '@/app/lib/draftTypes';
 
 function clampPercent(value) {
   const numeric = Number(value || 0);
@@ -384,6 +385,8 @@ export default function PremiumDashboardShell({
   timelineCustomTasks = [],
   onTimelineCustomTaskAdd,
   performanceCampaigns,
+  campaignRefreshing = false,
+  onRefreshCampaigns,
   calendarDays,
   selectedAccountLabel,
   senderAccounts = [],
@@ -723,6 +726,7 @@ export default function PremiumDashboardShell({
   const [showTestEmailPopup, setShowTestEmailPopup] = useState(false);
   const [showDayPopup, setShowDayPopup] = useState(false);
   const [showDraftContinueWarning, setShowDraftContinueWarning] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
   const [popupAnchors, setPopupAnchors] = useState({});
   const [tableSearch, setTableSearch] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
@@ -787,14 +791,8 @@ export default function PremiumDashboardShell({
   const [testEmailError, setTestEmailError] = useState('');
   const [includeTracking, setIncludeTracking] = useState(false);
   const workflowShellRef = useRef(null);
-  const draftTypeItems = [
-    { value: '', label: 'All Draft Types' },
-    { value: 'cover_story', label: 'Cover Story' },
-    { value: 'reminder', label: 'Reminder' },
-    { value: 'follow_up', label: 'Follow Up' },
-    { value: 'updated_cost', label: 'Updated Cost' },
-    { value: 'final_cost', label: 'Final Cost' }
-  ];
+  const draftTypeDropdownRef = useRef(null);
+  const draftTypeItems = DRAFT_TYPE_ITEMS;
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
@@ -863,6 +861,27 @@ export default function PremiumDashboardShell({
     setScheduledDateValue('');
     setScheduledTimeValue('');
   }, [sendMode, showSchedulePopup]);
+
+  useEffect(() => {
+    if (!showDraftTypeDropdown) return;
+
+    const closeOnOutsideClick = (event) => {
+      if (draftTypeDropdownRef.current?.contains(event.target)) return;
+      setShowDraftTypeDropdown(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowDraftTypeDropdown(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [showDraftTypeDropdown]);
 
   useEffect(() => {
     const allowedTimezones = scheduleCountries[scheduleCountryKey] || scheduleCountries.India;
@@ -1009,26 +1028,34 @@ export default function PremiumDashboardShell({
         title: draft.title,
         subject: draft.subject,
         body: draft.body || draft.message || draft.html || draft.content || '',
-        category: draft.category || '',
+        category: normalizeDraftType(draft.draftType || draft.category || ''),
+        draftType: normalizeDraftType(draft.draftType || draft.category || ''),
         updated: 'Saved draft'
       }))
     : savedDrafts;
   const filteredSavedDrafts = useMemo(() => {
-    const target = String(selectedDraftType || '').toLowerCase();
-    if (!target) return effectiveSavedDrafts;
-    return effectiveSavedDrafts.filter((item) => String(item.category || '').toLowerCase() === target);
+    const target = selectedDraftType ? normalizeDraftType(selectedDraftType) : '';
+    if (!target) return [];
+    return effectiveSavedDrafts.filter((item) => normalizeDraftType(item.draftType || item.category) === target);
   }, [effectiveSavedDrafts, selectedDraftType]);
+  const draftTypeCounts = useMemo(() => {
+    return draftTypeItems.reduce((counts, item) => {
+      counts[item.value] = effectiveSavedDrafts.filter((draft) => normalizeDraftType(draft.draftType || draft.category) === item.value).length;
+      return counts;
+    }, {});
+  }, [effectiveSavedDrafts]);
   const selectedSavedDraft = useMemo(() => {
     const currentDraftId = activeDraftId || selectedDraftId;
     if (!currentDraftId) return null;
-    return effectiveSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
-  }, [activeDraftId, effectiveSavedDrafts, selectedDraftId]);
+    return filteredSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
+  }, [activeDraftId, filteredSavedDrafts, selectedDraftId]);
   const selectedDraftPreviewSubject = String(
-    selectedSavedDraft?.subject || effectiveDraftSubject || ''
+    selectedSavedDraft?.subject || ''
   ).trim();
   const selectedDraftPreviewBody = String(
-    selectedSavedDraft?.body || effectiveDraftMessage || ''
+    selectedSavedDraft?.body || ''
   ).trim();
+  const selectedDraftTypeLabel = selectedDraftType ? draftTypeLabel(selectedDraftType) : 'Choose Draft Type';
   const monthLabel = calendarCursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
@@ -1470,6 +1497,60 @@ export default function PremiumDashboardShell({
   }, [activeDraftId, filteredSavedDrafts, selectDraftTab, selectedDraftId]);
 
   useEffect(() => {
+    if (activeDraftId) return;
+    if (!selectedDraftId) return;
+    const selected = effectiveSavedDrafts.find((draft) => draft.id === selectedDraftId);
+    if (!selected) return;
+    onSelectedDraftTypeChange?.(normalizeDraftType(selected.draftType || selected.category || selectedDraftType));
+    onSelectSavedDraft?.(selected.id);
+  }, [activeDraftId, effectiveSavedDrafts, onSelectSavedDraft, onSelectedDraftTypeChange, selectedDraftId, selectedDraftType]);
+
+  const handleDraftTypeSelect = (value = '') => {
+    const nextValue = normalizeDraftType(value);
+    const firstMatchingDraft = effectiveSavedDrafts.find((draft) => normalizeDraftType(draft.draftType || draft.category) === nextValue);
+    setSelectDraftTab('my-drafts');
+    setSelectedDraftId(firstMatchingDraft?.id || '');
+    onSelectedDraftTypeChange?.(nextValue);
+    onSelectSavedDraft?.(firstMatchingDraft?.id || '');
+    setShowDraftTypeDropdown(false);
+  };
+
+  const handleCreateDraftClick = () => {
+    if (!String(selectedDraftType || '').trim()) {
+      onShowMessage?.('Select a draft type before creating a new draft.', 'info');
+      setShowDraftTypeDropdown(true);
+      return;
+    }
+    setSelectDraftTab('create');
+  };
+
+  const handleSaveDraft = async () => {
+    const hasSummaryRequiredFields =
+      Boolean(String(effectiveDraftSubject || '').trim()) &&
+      Boolean(String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim()) &&
+      Boolean(String(selectedDraftType || '').trim());
+
+    if (!hasSummaryRequiredFields) {
+      onShowMessage?.('Choose a draft type, subject, and message before saving.', 'warning');
+      return false;
+    }
+
+    setDraftSaving(true);
+    try {
+      const result = await onSaveDraft?.();
+      if (result?.ok === false) return false;
+      setSelectDraftTab('my-drafts');
+      onShowMessage?.('Draft saved. It is now available in My Drafts.', 'success');
+      return true;
+    } catch (error) {
+      onShowMessage?.(error?.message || 'Failed to save draft.', 'error');
+      return false;
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  useEffect(() => {
     if (!selectedListId) return;
     setSelectedUploadedList(selectedListId);
     setSelectedCustomList(selectedListId);
@@ -1789,10 +1870,12 @@ export default function PremiumDashboardShell({
     ].filter(Boolean);
     const hasSavedDraftSelected = Boolean(activeDraftId || selectedDraftId);
     const hasCreateDraftReady = draftMissingFields.length === 0;
-    const hasDraftRequiredFields = hasSavedDraftSelected || hasCreateDraftReady;
-    const draftContinueHint = hasSavedDraftSelected
-      ? ''
-      : 'Select required draft first.';
+    const hasDraftRequiredFields = selectDraftTab === 'create' ? hasCreateDraftReady : (hasSavedDraftSelected || hasCreateDraftReady);
+    const draftContinueHint = selectDraftTab === 'create'
+      ? `Please fill: ${draftMissingFields.join(', ')}`
+      : hasSavedDraftSelected
+        ? ''
+        : 'Select required draft first.';
   useEffect(() => {
     if (showDraftContinueWarning && hasDraftRequiredFields) {
       setShowDraftContinueWarning(false);
@@ -2403,6 +2486,9 @@ export default function PremiumDashboardShell({
             </div>
             <div className="premium-panel-head-actions">
               <button type="button" className="ghost" onClick={handleShowAllBroadcastPerformance}>Show</button>
+              <button type="button" className="ghost" onClick={() => onRefreshCampaigns?.()} disabled={campaignRefreshing}>
+                {campaignRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
               <button
                 type="button"
                 className="ghost"
@@ -2457,6 +2543,7 @@ export default function PremiumDashboardShell({
                         return (
                           <>
                       <strong>{campaign.name}</strong>
+                      <small>Status: {campaign.status || campaign.tag || 'Unknown'}</small>
                       {isDraftCampaign ? (
                         <button
                           type="button"
@@ -3886,39 +3973,40 @@ export default function PremiumDashboardShell({
               <button
                 type="button"
                 className={selectDraftTab === 'my-drafts' ? 'active' : ''}
-                onClick={() => setSelectDraftTab('my-drafts')}
+                onClick={() => {
+                  setSelectDraftTab('my-drafts');
+                  setShowDraftTypeDropdown(false);
+                }}
               >
                 My Drafts
               </button>
               <button
                 type="button"
                 className={selectDraftTab === 'create' ? 'active' : ''}
-                onClick={() => setSelectDraftTab('create')}
+                onClick={handleCreateDraftClick}
               >
                 Create New Draft
               </button>
-              <div className="premium-select-draft-dropdown-wrap">
+              <div className="premium-select-draft-dropdown-wrap" ref={draftTypeDropdownRef}>
                 <button
                   type="button"
                   className={showDraftTypeDropdown ? 'active' : ''}
                   onClick={() => setShowDraftTypeDropdown((current) => !current)}
                 >
                   Draft Types
+                  <span> ({selectedDraftType ? selectedDraftTypeLabel : effectiveSavedDrafts.length})</span>
                 </button>
                 {showDraftTypeDropdown ? (
                   <div className="premium-select-draft-dropdown">
                     {draftTypeItems.map((item) => (
                       <button
-                        key={item.value || 'all'}
+                        key={item.value}
                         type="button"
-                        className={selectedDraftType === item.value ? 'active' : ''}
-                        onClick={() => {
-                          setSelectDraftTab('my-drafts');
-                          onSelectedDraftTypeChange?.(item.value);
-                          setShowDraftTypeDropdown(false);
-                        }}
+                        className={normalizeDraftType(selectedDraftType) === item.value ? 'active' : ''}
+                        onClick={() => handleDraftTypeSelect(item.value)}
                       >
                         {item.label}
+                        <span> ({draftTypeCounts[item.value] || 0})</span>
                       </button>
                     ))}
                   </div>
@@ -3938,11 +4026,13 @@ export default function PremiumDashboardShell({
                           checked={activeDraftId === draft.id || selectedDraftId === draft.id}
                           onChange={() => {
                             setSelectedDraftId(draft.id);
+                            onSelectedDraftTypeChange?.(normalizeDraftType(draft.draftType || draft.category || selectedDraftType));
                             onSelectSavedDraft?.(draft.id);
                           }}
                         />
                         <div>
                           <strong>{draft.title}</strong>
+                          <small>{draftTypeLabel(draft.draftType || draft.category)} Draft</small>
                           <p>Subject: {draft.subject}</p>
                           <small>{draft.updated}</small>
                         </div>
@@ -3950,8 +4040,14 @@ export default function PremiumDashboardShell({
                     ))
                   ) : (
                     <div className="premium-select-draft-empty">
-                      <strong>No matching drafts</strong>
-                      <p>Choose another draft type or create a new draft for this category.</p>
+                      <strong>{selectedDraftType ? 'No matching drafts' : 'Choose a draft type'}</strong>
+                      <p>
+                        {!selectedDraftType
+                          ? 'Select Cover Story, Reminder, Follow-up, Updated Cost, or Final Cost from Draft Types.'
+                          : effectiveSavedDrafts.length
+                            ? `No saved drafts for ${selectedDraftTypeLabel}. Create one for this draft type.`
+                            : 'No saved drafts yet. Select a draft type, then create and save one for reuse.'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -3985,6 +4081,18 @@ export default function PremiumDashboardShell({
               </div>
             ) : (
               <div className="premium-select-draft-create">
+                <label className="premium-template-field">
+                  <span>Draft Type</span>
+                  <select
+                    value={selectedDraftType || ''}
+                    onChange={(event) => onSelectedDraftTypeChange?.(event.target.value)}
+                  >
+                    <option value="">Select draft type</option>
+                    {draftTypeItems.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <div className="premium-select-draft-upload">
                   <div className="premium-select-draft-uploadbox">
                     <span className="premium-clientlist-uploadicon">＋</span>
@@ -4041,6 +4149,16 @@ export default function PremiumDashboardShell({
               >
                 Back
               </button>
+              {selectDraftTab === 'create' ? (
+                <button
+                  type="button"
+                  className="ghost subtle"
+                  onClick={handleSaveDraft}
+                  disabled={draftSaving}
+                >
+                  {draftSaving ? 'Saving...' : 'Save Draft'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={`premium-template-next${hasDraftRequiredFields ? '' : ' is-disabled'}`}
@@ -4249,6 +4367,14 @@ export default function PremiumDashboardShell({
                 }}
               >
                 Back
+              </button>
+              <button
+                type="button"
+                className="ghost subtle"
+                onClick={handleSaveDraft}
+                disabled={draftSaving}
+              >
+                {draftSaving ? 'Saving...' : 'Save Draft'}
               </button>
               <button
                 type="button"
