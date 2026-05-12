@@ -322,6 +322,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultProjectOptions = ['tec', 'tut'];
+  const [isMounted, setIsMounted] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     totalUploaded: 0,
@@ -393,7 +394,11 @@ export default function DashboardPage() {
       targetApprovalReviewedAt: null,
       targetApprovalReviewer: '',
       targetApprovalRequestNote: ''
-    });
+  });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [creditTransactions, setCreditTransactions] = useState([]);
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
   const [subscriptionDetailsLoading, setSubscriptionDetailsLoading] = useState(false);
@@ -3147,6 +3152,27 @@ const normalizeSelectedListEmails = async () => {
   );
 
   const showSidebarBlankView = Boolean(activeSidebarView);
+
+  if (!isMounted) {
+    return (
+      <main className="dashboard-shell">
+        <section
+          className="card"
+          style={{
+            minHeight: 'calc(100vh - 48px)',
+            display: 'grid',
+            alignContent: 'center',
+            justifyItems: 'center',
+            gap: 12,
+            margin: 24
+          }}
+        >
+          <strong>Loading dashboard...</strong>
+          <span style={{ color: 'var(--text-muted)' }}>Preparing live campaign data</span>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="dashboard-shell">

@@ -578,6 +578,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
 }
 
 export default function CampaignsPage() {
+  const [isMounted, setIsMounted] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
   const [counts, setCounts] = useState(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
@@ -589,6 +590,10 @@ export default function CampaignsPage() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [actionLoadingKey, setActionLoadingKey] = useState('');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const loadCampaigns = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -702,6 +707,30 @@ export default function CampaignsPage() {
   const openCampaignDetails = useCallback((campaignId) => {
     setSelectedCampaignId(campaignId);
   }, []);
+
+  if (!isMounted) {
+    return (
+      <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+        <PageContainer>
+          <main className="campaigns-page-shell campaigns-modern-page">
+            <section className="campaigns-modern-hero">
+              <div>
+                <span className="campaigns-page-kicker">Live campaign operations</span>
+                <h1>Campaigns</h1>
+                <p>Manage, monitor, pause, resume and track all email campaigns.</p>
+              </div>
+            </section>
+            <div className="campaign-table-loading">
+              <div />
+              <div />
+              <div />
+              <div />
+            </div>
+          </main>
+        </PageContainer>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
