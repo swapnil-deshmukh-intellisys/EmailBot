@@ -1,8 +1,5 @@
 import './globals.css';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 const themeInitScript = `
   (function () {
     try {

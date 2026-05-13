@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
@@ -103,27 +102,24 @@ export default function ClientDataPage() {
 
   useEffect(() => {
     let active = true;
-    let intervalId = null;
 
     const loadLists = async ({ silent = false } = {}) => {
       try {
         if (!silent) setLoading(true);
-        const [statsResponse, listResponse, overviewResponse] = await Promise.all([
-          fetch('/api/stats', { cache: 'no-store' }),
+        const [listResponse, overviewResponse] = await Promise.all([
           fetch('/api/client-data/list', { cache: 'no-store' }),
           fetch('/api/client-data/overview', { cache: 'no-store' })
         ]);
-        const data = await statsResponse.json();
         const listData = await listResponse.json();
         const overviewData = await overviewResponse.json();
 
-        if (!statsResponse.ok) {
-          throw new Error(data?.error || 'Failed to fetch client data');
+        if (!listResponse.ok || listData?.ok === false) {
+          throw new Error(listData?.error || 'Failed to fetch client data');
         }
 
         if (!active) return;
 
-        const nextLists = Array.isArray(data?.lists) ? data.lists : [];
+        const nextLists = Array.isArray(listData?.lists) ? listData.lists : [];
         setError('');
         setLists(nextLists);
         setAllClientRows(Array.isArray(listData?.rows) ? listData.rows : []);
@@ -155,15 +151,11 @@ export default function ClientDataPage() {
     };
 
     void loadLists();
-    intervalId = window.setInterval(() => {
-      void loadLists({ silent: true });
-    }, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      if (intervalId) window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
@@ -211,15 +203,11 @@ export default function ClientDataPage() {
     };
 
     void loadSelectedList();
-    const intervalId = window.setInterval(() => {
-      void loadSelectedList({ silent: true });
-    }, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
@@ -564,7 +552,7 @@ export default function ClientDataPage() {
     }
   };
 
-  const handleExportCustomRows = () => {
+  const handleExportCustomRows = async () => {
     const rows = (blankCustomRows || [])
       .map((row) => [
         String(row?.Name || '').trim(),
@@ -575,6 +563,7 @@ export default function ClientDataPage() {
       ])
       .filter((row) => row.some(Boolean));
 
+    const XLSX = await import('xlsx');
     const worksheet = XLSX.utils.aoa_to_sheet([
       ['Name', 'Email', 'Company', 'City', 'Phone'],
       ...rows
@@ -597,6 +586,7 @@ export default function ClientDataPage() {
     try {
       setImportingCustomRows(true);
       setCustomListError('');
+      const XLSX = await import('xlsx');
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];

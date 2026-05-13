@@ -124,7 +124,6 @@ export default function DraftsPage() {
 
   useEffect(() => {
     let active = true;
-    let intervalId = null;
 
     const loadDrafts = async ({ silent = false } = {}) => {
       try {
@@ -163,17 +162,11 @@ export default function DraftsPage() {
     };
 
     void loadDrafts();
-    intervalId = window.setInterval(() => {
-      void loadDrafts({ silent: true });
-    }, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       active = false;
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };

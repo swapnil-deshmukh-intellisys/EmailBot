@@ -1,1 +1,1 @@
-export { default } from '@/app/dashboard/user/page';
+export { default, dynamic, revalidate } from '@/app/dashboard/user/page';
