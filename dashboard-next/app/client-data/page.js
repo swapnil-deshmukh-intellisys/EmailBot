@@ -259,12 +259,12 @@ export default function ClientDataPage() {
 
   const sourceCards = useMemo(
     () => [
-      { label: 'Total Clients', value: loading ? '...' : String(overview?.projectCounts?.total ?? totalClients) },
-      { label: 'TEC Clients', value: loading ? '...' : String(overview?.projectCounts?.tec ?? 0) },
-      { label: 'TUT Clients', value: loading ? '...' : String(overview?.projectCounts?.tut ?? 0) },
-      { label: 'Active Lists', value: loading ? '...' : String(lists.length) },
-      { label: 'Verified Contacts', value: loadingList ? '...' : String(verifiedCount) },
-      { label: 'Pending Review', value: loadingList ? '...' : String(missingEmailCount) }
+      { label: 'Total Clients', value: loading ? '...' : String(overview?.projectCounts?.total ?? totalClients), tone: 'total' },
+      { label: 'TEC Clients', value: loading ? '...' : String(overview?.projectCounts?.tec ?? 0), tone: 'tec' },
+      { label: 'TUT Clients', value: loading ? '...' : String(overview?.projectCounts?.tut ?? 0), tone: 'tut' },
+      { label: 'Active Lists', value: loading ? '...' : String(lists.length), tone: 'lists' },
+      { label: 'Verified Contacts', value: loadingList ? '...' : String(verifiedCount), tone: 'verified' },
+      { label: 'Pending Review', value: loadingList ? '...' : String(missingEmailCount), tone: 'pending' }
     ],
     [loading, overview, totalClients, lists.length, loadingList, verifiedCount, missingEmailCount]
   );
@@ -646,7 +646,7 @@ export default function ClientDataPage() {
           </div>
         </section>
 
-        <section className="ui-page-section">
+        <section className="ui-page-section client-data-overview-section">
           <div className="ui-page-section-header">
             <div className="ui-page-section-copy">
               <h2 className="ui-page-section-title">Overview</h2>
@@ -658,7 +658,7 @@ export default function ClientDataPage() {
 
           <div className="client-data-stats">
             {sourceCards.map((card) => (
-              <article key={card.label} className="client-data-stat-card">
+              <article key={card.label} className={`client-data-stat-card client-data-stat-card-${card.tone}`}>
                 <div className="ui-card-content">
                   <span>{card.label}</span>
                   <strong>{card.value}</strong>
