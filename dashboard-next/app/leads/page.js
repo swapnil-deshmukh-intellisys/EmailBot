@@ -64,10 +64,10 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        <div className="report-count-grid">
-          <article className="report-count-card"><span>Total responses</span><strong>{loading ? '...' : totalResponses}</strong><small>Received reply clients</small></article>
-          <article className="report-count-card"><span>Interested</span><strong>{loading ? '...' : interestedCount}</strong><small>Positive pipeline</small></article>
-          <article className="report-count-card"><span>Pipeline stages</span><strong>{pipeline.length || 8}</strong><small>CRM board</small></article>
+        <div className="report-count-grid lead-overview-grid">
+          <article className="report-count-card lead-overview-card lead-overview-card-total"><span>Total responses</span><strong>{loading ? '...' : totalResponses}</strong><small>Received reply clients</small></article>
+          <article className="report-count-card lead-overview-card lead-overview-card-interested"><span>Interested</span><strong>{loading ? '...' : interestedCount}</strong><small>Positive pipeline</small></article>
+          <article className="report-count-card lead-overview-card lead-overview-card-stages"><span>Pipeline stages</span><strong>{pipeline.length || 8}</strong><small>CRM board</small></article>
         </div>
 
         {error ? <div className="dashboard-error-state">{error}</div> : null}
