@@ -231,7 +231,7 @@ function isCriticalSendError(errorMessage = '') {
   );
 }
 
-async function reserveCampaignCredit(userEmail = '') {
+async function reserveCampaignCredit(userEmail = '', campaignMeta = {}) {
   const normalizedUserEmail = normalizeEmail(userEmail);
   if (!normalizedUserEmail) return { ok: true, skipped: true };
 
@@ -338,7 +338,10 @@ async function reserveCampaignCredit(userEmail = '') {
       reason: 'credit_reserved_for_send',
       credits: 1,
       balanceAfter: Math.max(0, Number(subscriptionReservation?.dailyRemainingCredits || 0)),
-      meta: { source: 'campaignRunner', profileCreated: true }
+      campaignId: campaignMeta.campaignId || null,
+      campaignName: campaignMeta.campaignName || '',
+      recipientEmail: campaignMeta.recipientEmail || '',
+      meta: { source: 'campaignRunner', profileCreated: true, project: campaignMeta.project || '', projectId: campaignMeta.projectId || '', projectName: campaignMeta.projectName || '' }
     });
 
     return { ok: true, profileCreated: true };
@@ -350,7 +353,10 @@ async function reserveCampaignCredit(userEmail = '') {
     reason: 'credit_reserved_for_send',
     credits: 1,
     balanceAfter: Math.max(0, Number(subscriptionReservation?.dailyRemainingCredits || 0)),
-    meta: { source: 'campaignRunner' }
+    campaignId: campaignMeta.campaignId || null,
+    campaignName: campaignMeta.campaignName || '',
+    recipientEmail: campaignMeta.recipientEmail || '',
+    meta: { source: 'campaignRunner', project: campaignMeta.project || '', projectId: campaignMeta.projectId || '', projectName: campaignMeta.projectName || '' }
   });
 
   return { ok: true };
@@ -1018,7 +1024,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
           trackingId
         });
 
-        const creditReservation = await reserveCampaignCredit(campaign.userEmail || '');
+        const creditReservation = await reserveCampaignCredit(campaign.userEmail || '', {
+          campaignId: campaign._id,
+          campaignName: campaign.name,
+          recipientEmail,
+          project: campaign.project,
+          projectId: campaign.projectId,
+          projectName: campaign.projectName
+        });
         if (!creditReservation.ok) {
           lead.status = 'Failed';
           lead.error = creditReservation.message || 'Credit limit reached';
