@@ -89,45 +89,45 @@ html[data-theme='light'] {
 }
 
 html[data-theme='dark'] {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --panel: #111827;
-  --panel-soft: rgba(17, 24, 39, 0.92);
-  --panel-strong: #111827;
-  --glass-bg-subtle: rgba(15, 23, 42, 0.18);
-  --glass-bg-medium: rgba(15, 23, 42, 0.28);
-  --glass-bg-strong: rgba(15, 23, 42, 0.42);
-  --glass-border-soft: rgba(148, 163, 184, 0.14);
-  --glass-border-medium: rgba(148, 163, 184, 0.22);
-  --glass-border-strong: rgba(148, 163, 184, 0.34);
-  --glass-shadow-soft: 0 8px 18px rgba(2, 6, 23, 0.18);
-  --glass-shadow-medium: 0 12px 24px rgba(2, 6, 23, 0.26);
-  --glass-shadow-strong: 0 20px 44px rgba(2, 6, 23, 0.36);
-  --glass-blur: 8px;
-  --glass-blur-strong: 12px;
-  --text-primary: #f8fafc;
-  --text-secondary: #e2e8f0;
-  --text-muted: #cbd5e1;
-  --border-color: rgba(71, 85, 105, 0.45);
-  --border-soft: rgba(71, 85, 105, 0.35);
-  --button-bg: linear-gradient(180deg, #1e293b, #111827);
-  --button-text: #f8fafc;
-  --button-border: rgba(71, 85, 105, 0.55);
-  --button-hover-bg: linear-gradient(180deg, #273449, #172033);
-  --input-bg: rgba(15, 23, 42, 0.92);
-  --input-text: #f8fafc;
-  --input-border: rgba(71, 85, 105, 0.55);
-  --accent: #38bdf8;
-  --accent-2: #6366f1;
-  --accent-strong: #0ea5e9;
+  --bg-primary: #080b12;
+  --bg-secondary: #101624;
+  --panel: #161b28;
+  --panel-soft: rgba(22, 27, 40, 0.88);
+  --panel-strong: #1c2232;
+  --glass-bg-subtle: rgba(20, 26, 40, 0.62);
+  --glass-bg-medium: rgba(28, 35, 52, 0.78);
+  --glass-bg-strong: rgba(34, 42, 62, 0.9);
+  --glass-border-soft: rgba(125, 211, 252, 0.12);
+  --glass-border-medium: rgba(125, 211, 252, 0.2);
+  --glass-border-strong: rgba(129, 140, 248, 0.32);
+  --glass-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.24);
+  --glass-shadow-medium: 0 18px 40px rgba(0, 0, 0, 0.34);
+  --glass-shadow-strong: 0 28px 70px rgba(0, 0, 0, 0.46);
+  --glass-blur: 14px;
+  --glass-blur-strong: 20px;
+  --text-primary: #f8fbff;
+  --text-secondary: #d7e2f3;
+  --text-muted: #a7b4c8;
+  --border-color: rgba(125, 211, 252, 0.16);
+  --border-soft: rgba(148, 163, 184, 0.18);
+  --button-bg: linear-gradient(180deg, rgba(37, 44, 63, 0.96), rgba(22, 27, 40, 0.96));
+  --button-text: #f8fbff;
+  --button-border: rgba(125, 211, 252, 0.2);
+  --button-hover-bg: linear-gradient(180deg, rgba(48, 57, 79, 0.98), rgba(28, 34, 49, 0.98));
+  --input-bg: rgba(12, 16, 25, 0.86);
+  --input-text: #f8fbff;
+  --input-border: rgba(125, 211, 252, 0.2);
+  --accent: #67e8f9;
+  --accent-2: #a78bfa;
+  --accent-strong: #38bdf8;
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --cta-bg: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(99, 102, 241, 0.28));
-  --cta-border: rgba(56, 189, 248, 0.3);
-  --badge-bg: rgba(15, 23, 42, 0.34);
-  --chip-bg: rgba(15, 23, 42, 0.26);
-  --shadow-color: rgba(2, 6, 23, 0.5);
+  --cta-bg: linear-gradient(135deg, rgba(103, 232, 249, 0.18), rgba(167, 139, 250, 0.22));
+  --cta-border: rgba(103, 232, 249, 0.28);
+  --badge-bg: rgba(30, 41, 59, 0.7);
+  --chip-bg: rgba(30, 41, 59, 0.58);
+  --shadow-color: rgba(0, 0, 0, 0.56);
 }
 
 html[data-theme='colorful'] {
@@ -19104,6 +19104,198 @@ iframe {
     width: 100%;
     min-width: 0;
   }
+}
+
+/* Premium dark polish: this sits at the true end of the file so older page rules cannot flatten dark mode. */
+html.theme-dark body,
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 8% -12%, rgba(103, 232, 249, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 4%, rgba(167, 139, 250, 0.14), transparent 32%),
+    radial-gradient(circle at 52% 104%, rgba(14, 165, 233, 0.08), transparent 36%),
+    linear-gradient(145deg, #080b12 0%, #101421 46%, #151821 100%) !important;
+}
+
+html.theme-dark :where(.dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) :where(
+  .dashboard-sidebar-card,
+  .dashboard-topbar,
+  .dashboard-topbar-rich,
+  .dashboard-popup-card,
+  .dashboard-topbar-dropdown-menu,
+  .client-data-stat-card,
+  .client-data-panel,
+  .client-data-overview-section,
+  .workspace-stat-card,
+  .workspace-panel,
+  .workspace-highlight-card,
+  .premium-toolbar,
+  .premium-kpi-card,
+  .premium-step-card,
+  .premium-stepper-row,
+  .premium-panel,
+  .premium-gauge-card,
+  .premium-calendar-card,
+  .premium-card-with-tabs,
+  .premium-select-draft-viewer,
+  .premium-select-draft-editor,
+  .premium-select-draft-modal,
+  .premium-clientlist-modal,
+  .premium-campaign-modal,
+  .premium-review-modal,
+  .premium-test-email-modal,
+  .premium-schedule-modal,
+  .premium-template-modal,
+  .premium-calendar-modal,
+  .campaigns-modern-hero,
+  .campaign-count-card,
+  .campaign-panel,
+  .campaign-mobile-card,
+  .report-card,
+  .report-panel,
+  .lead-card,
+  .lead-panel,
+  .mail-inbox-account-card,
+  .mail-inbox-stat-tile,
+  .mail-inbox-preview-card,
+  .mail-inbox-message-card,
+  .master-mail-list-pane,
+  .master-mail-reading-pane,
+  .master-mail-compose-card,
+  .card,
+  .panel
+),
+html[data-theme='dark'] :where(.dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) :where(
+  .dashboard-sidebar-card,
+  .dashboard-topbar,
+  .dashboard-topbar-rich,
+  .dashboard-popup-card,
+  .dashboard-topbar-dropdown-menu,
+  .client-data-stat-card,
+  .client-data-panel,
+  .client-data-overview-section,
+  .workspace-stat-card,
+  .workspace-panel,
+  .workspace-highlight-card,
+  .premium-toolbar,
+  .premium-kpi-card,
+  .premium-step-card,
+  .premium-stepper-row,
+  .premium-panel,
+  .premium-gauge-card,
+  .premium-calendar-card,
+  .premium-card-with-tabs,
+  .premium-select-draft-viewer,
+  .premium-select-draft-editor,
+  .premium-select-draft-modal,
+  .premium-clientlist-modal,
+  .premium-campaign-modal,
+  .premium-review-modal,
+  .premium-test-email-modal,
+  .premium-schedule-modal,
+  .premium-template-modal,
+  .premium-calendar-modal,
+  .campaigns-modern-hero,
+  .campaign-count-card,
+  .campaign-panel,
+  .campaign-mobile-card,
+  .report-card,
+  .report-panel,
+  .lead-card,
+  .lead-panel,
+  .mail-inbox-account-card,
+  .mail-inbox-stat-tile,
+  .mail-inbox-preview-card,
+  .mail-inbox-message-card,
+  .master-mail-list-pane,
+  .master-mail-reading-pane,
+  .master-mail-compose-card,
+  .card,
+  .panel
+) {
+  background:
+    linear-gradient(180deg, rgba(31, 38, 56, 0.92), rgba(20, 25, 38, 0.88)),
+    radial-gradient(circle at 12% 0%, rgba(103, 232, 249, 0.08), transparent 34%) !important;
+  border-color: rgba(125, 211, 252, 0.16) !important;
+  box-shadow:
+    0 20px 54px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+  color: #f8fbff !important;
+}
+
+html.theme-dark :where(.dashboard-sidebar-card, .dashboard-topbar-rich, .premium-toolbar, .campaigns-modern-hero),
+html[data-theme='dark'] :where(.dashboard-sidebar-card, .dashboard-topbar-rich, .premium-toolbar, .campaigns-modern-hero) {
+  background:
+    linear-gradient(145deg, rgba(35, 43, 64, 0.94), rgba(15, 20, 32, 0.9)),
+    radial-gradient(circle at 10% 0%, rgba(103, 232, 249, 0.12), transparent 38%),
+    radial-gradient(circle at 100% 20%, rgba(167, 139, 250, 0.1), transparent 34%) !important;
+  border-color: rgba(125, 211, 252, 0.22) !important;
+}
+
+html.theme-dark :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active),
+html[data-theme='dark'] :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active) {
+  background: linear-gradient(135deg, rgba(103, 232, 249, 0.22), rgba(167, 139, 250, 0.2)) !important;
+  border-color: rgba(103, 232, 249, 0.38) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 12px 28px rgba(14, 165, 233, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+html.theme-dark :where(button, .btn, .ui-button, .button, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-actions button, .premium-panel-tabs button, .premium-calendar-filters button, .premium-row-action, .theme-toggle-btn),
+html[data-theme='dark'] :where(button, .btn, .ui-button, .button, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-actions button, .premium-panel-tabs button, .premium-calendar-filters button, .premium-row-action, .theme-toggle-btn) {
+  background: linear-gradient(180deg, rgba(42, 50, 70, 0.92), rgba(24, 30, 45, 0.94)) !important;
+  border-color: rgba(125, 211, 252, 0.18) !important;
+  color: #f8fbff !important;
+}
+
+html.theme-dark :where(button:hover, .btn:hover, .ui-button:hover, .button:hover, .dashboard-topbar-tab:hover, .dashboard-sidebar-link:hover, .premium-row-action:hover),
+html[data-theme='dark'] :where(button:hover, .btn:hover, .ui-button:hover, .button:hover, .dashboard-topbar-tab:hover, .dashboard-sidebar-link:hover, .premium-row-action:hover) {
+  background: linear-gradient(180deg, rgba(55, 65, 90, 0.96), rgba(31, 38, 56, 0.96)) !important;
+  border-color: rgba(103, 232, 249, 0.34) !important;
+  transform: translateY(-1px);
+}
+
+html.theme-dark :where(input, textarea, select, option, .premium-template-field input, .premium-template-field textarea, .premium-template-field select),
+html[data-theme='dark'] :where(input, textarea, select, option, .premium-template-field input, .premium-template-field textarea, .premium-template-field select) {
+  background: rgba(9, 13, 22, 0.86) !important;
+  border-color: rgba(125, 211, 252, 0.18) !important;
+  color: #f8fbff !important;
+}
+
+html.theme-dark :where(input:focus, textarea:focus, select:focus),
+html[data-theme='dark'] :where(input:focus, textarea:focus, select:focus) {
+  border-color: rgba(103, 232, 249, 0.54) !important;
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.12) !important;
+  outline: none !important;
+}
+
+html.theme-dark :where(.theme-toggle-popover, .dashboard-topbar-dropdown-menu, .premium-progress-filter-menu, .premium-row-action-menu, .dropdown-menu, [role='menu']),
+html[data-theme='dark'] :where(.theme-toggle-popover, .dashboard-topbar-dropdown-menu, .premium-progress-filter-menu, .premium-row-action-menu, .dropdown-menu, [role='menu']) {
+  background:
+    linear-gradient(180deg, rgba(31, 38, 56, 0.98), rgba(17, 22, 35, 0.98)) !important;
+  border-color: rgba(125, 211, 252, 0.24) !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+html.theme-dark :where(.badge, .chip, .tag, .status-pill),
+html[data-theme='dark'] :where(.badge, .chip, .tag, .status-pill) {
+  background: rgba(30, 41, 59, 0.78) !important;
+  border-color: rgba(125, 211, 252, 0.16) !important;
+  color: #eaf2ff !important;
+}
+
+html.theme-dark :where(.premium-kpi-card strong, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong),
+html[data-theme='dark'] :where(.premium-kpi-card strong, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong) {
+  color: #ffffff !important;
+}
+
+html.theme-dark :where(.dashboard-brand-mark, .dashboard-link-icon, .theme-toggle-btn-icon, .theme-toggle-option-icon),
+html[data-theme='dark'] :where(.dashboard-brand-mark, .dashboard-link-icon, .theme-toggle-btn-icon, .theme-toggle-option-icon) {
+  background: linear-gradient(135deg, rgba(103, 232, 249, 0.2), rgba(167, 139, 250, 0.18)) !important;
+  border-color: rgba(103, 232, 249, 0.22) !important;
+  color: #cffafe !important;
 }
 
 /* Global theme enforcement layer. Keep this at the end so it wins over page-level glass/color overrides. */
