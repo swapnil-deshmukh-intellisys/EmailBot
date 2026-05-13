@@ -90,9 +90,9 @@ export default function ReportPage() {
 
         {error ? <div className="dashboard-error-state">{error}</div> : null}
 
-        <div className="report-count-grid">
+        <div className="report-count-grid report-overview-grid">
           {DELIVERY_CARDS.map(([key, label, caption, icon]) => (
-            <article key={key} className="report-count-card">
+            <article key={key} className={`report-count-card report-overview-card report-overview-card-${key}`}>
               <div><span>{label}</span><em>{icon}</em></div>
               <strong>{loading ? '...' : Number(delivery[key] || 0).toLocaleString()}</strong>
               <small>{caption} - {pct(delivery[key], delivery.total)}</small>
