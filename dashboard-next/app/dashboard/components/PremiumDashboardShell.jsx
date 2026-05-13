@@ -9,7 +9,24 @@ import {
   isFutureScheduledDate,
   normalizeDurationUnit
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
-import { DRAFT_TYPE_ITEMS, draftTypeLabel, normalizeDraftType } from '@/app/lib/draftTypes';
+import { DRAFT_TYPE_ITEMS, draftTypeLabel, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
+import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
+
+function getTemplateForDraftType(value = '') {
+  const draftType = normalizeDraftType(value);
+  const templateKey = draftType === 'followup' ? 'follow_up' : draftType;
+  const template = draftTemplates[templateKey] || draftTemplates[draftType] || null;
+  if (!template) return null;
+  return {
+    id: `template:${draftType}`,
+    title: `${template.label || draftTypeLabel(draftType)} Template`,
+    subject: template.subject || '',
+    body: template.body || '',
+    category: draftType,
+    draftType,
+    updated: 'Built-in template'
+  };
+}
 
 function clampPercent(value) {
   const numeric = Number(value || 0);
@@ -1028,19 +1045,19 @@ export default function PremiumDashboardShell({
         title: draft.title,
         subject: draft.subject,
         body: draft.body || draft.message || draft.html || draft.content || '',
-        category: normalizeDraftType(draft.draftType || draft.category || ''),
-        draftType: normalizeDraftType(draft.draftType || draft.category || ''),
+        category: inferDraftTypeFromDraft(draft),
+        draftType: inferDraftTypeFromDraft(draft),
         updated: 'Saved draft'
       }))
     : savedDrafts;
   const filteredSavedDrafts = useMemo(() => {
     const target = selectedDraftType ? normalizeDraftType(selectedDraftType) : '';
     if (!target) return [];
-    return effectiveSavedDrafts.filter((item) => normalizeDraftType(item.draftType || item.category) === target);
+    return effectiveSavedDrafts.filter((item) => inferDraftTypeFromDraft(item) === target);
   }, [effectiveSavedDrafts, selectedDraftType]);
   const draftTypeCounts = useMemo(() => {
     return draftTypeItems.reduce((counts, item) => {
-      counts[item.value] = effectiveSavedDrafts.filter((draft) => normalizeDraftType(draft.draftType || draft.category) === item.value).length;
+      counts[item.value] = effectiveSavedDrafts.filter((draft) => inferDraftTypeFromDraft(draft) === item.value).length;
       return counts;
     }, {});
   }, [effectiveSavedDrafts]);
@@ -1049,13 +1066,27 @@ export default function PremiumDashboardShell({
     if (!currentDraftId) return null;
     return filteredSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
   }, [activeDraftId, filteredSavedDrafts, selectedDraftId]);
+  const selectedDraftTypeLabel = selectedDraftType ? draftTypeLabel(selectedDraftType) : 'Choose Draft Type';
+  const templateDraftForSelectedType = useMemo(() => {
+    if (!selectedDraftType || filteredSavedDrafts.length) return null;
+    return getTemplateForDraftType(selectedDraftType);
+  }, [filteredSavedDrafts.length, selectedDraftType]);
+  const selectedPreviewDraft = selectedSavedDraft || templateDraftForSelectedType;
   const selectedDraftPreviewSubject = String(
-    selectedSavedDraft?.subject || ''
+    selectedPreviewDraft?.subject || ''
   ).trim();
   const selectedDraftPreviewBody = String(
-    selectedSavedDraft?.body || ''
+    selectedPreviewDraft?.body || ''
   ).trim();
-  const selectedDraftTypeLabel = selectedDraftType ? draftTypeLabel(selectedDraftType) : 'Choose Draft Type';
+  useEffect(() => {
+    if (!templateDraftForSelectedType) return;
+    const hasDraftContent =
+      Boolean(String(effectiveDraftSubject || '').trim()) ||
+      Boolean(String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim());
+    if (!hasDraftContent) {
+      applyTemplateDraft(templateDraftForSelectedType.draftType);
+    }
+  }, [effectiveDraftMessage, effectiveDraftSubject, templateDraftForSelectedType]);
   const monthLabel = calendarCursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
@@ -1505,13 +1536,24 @@ export default function PremiumDashboardShell({
     onSelectSavedDraft?.(selected.id);
   }, [activeDraftId, effectiveSavedDrafts, onSelectSavedDraft, onSelectedDraftTypeChange, selectedDraftId, selectedDraftType]);
 
+  const applyTemplateDraft = (draftType = '') => {
+    const templateDraft = getTemplateForDraftType(draftType);
+    if (!templateDraft) return false;
+    onDraftSubjectChange ? onDraftSubjectChange(templateDraft.subject) : setDraftSubject(templateDraft.subject);
+    onDraftBodyChange ? onDraftBodyChange(templateDraft.body) : setDraftMessage(templateDraft.body);
+    return true;
+  };
+
   const handleDraftTypeSelect = (value = '') => {
     const nextValue = normalizeDraftType(value);
-    const firstMatchingDraft = effectiveSavedDrafts.find((draft) => normalizeDraftType(draft.draftType || draft.category) === nextValue);
+    const firstMatchingDraft = effectiveSavedDrafts.find((draft) => inferDraftTypeFromDraft(draft) === nextValue);
     setSelectDraftTab('my-drafts');
     setSelectedDraftId(firstMatchingDraft?.id || '');
     onSelectedDraftTypeChange?.(nextValue);
     onSelectSavedDraft?.(firstMatchingDraft?.id || '');
+    if (!firstMatchingDraft) {
+      applyTemplateDraft(nextValue);
+    }
     setShowDraftTypeDropdown(false);
   };
 
@@ -4038,6 +4080,22 @@ export default function PremiumDashboardShell({
                         </div>
                       </label>
                     ))
+                  ) : templateDraftForSelectedType ? (
+                    <label className="premium-select-draft-item selected">
+                      <input
+                        type="radio"
+                        name="savedDraft"
+                        checked
+                        readOnly
+                        onChange={() => applyTemplateDraft(templateDraftForSelectedType.draftType)}
+                      />
+                      <div>
+                        <strong>{templateDraftForSelectedType.title}</strong>
+                        <small>{draftTypeLabel(templateDraftForSelectedType.draftType)} Draft</small>
+                        <p>Subject: {templateDraftForSelectedType.subject}</p>
+                        <small>{templateDraftForSelectedType.updated}</small>
+                      </div>
+                    </label>
                   ) : (
                     <div className="premium-select-draft-empty">
                       <strong>{selectedDraftType ? 'No matching drafts' : 'Choose a draft type'}</strong>
@@ -4054,7 +4112,7 @@ export default function PremiumDashboardShell({
                 <aside className="premium-select-draft-preview">
                   <div className="premium-select-draft-preview-head">
                     <strong>Selected Draft Preview</strong>
-                    <small>{selectedSavedDraft?.title || 'Choose a draft to preview it here'}</small>
+                    <small>{selectedPreviewDraft?.title || 'Choose a draft to preview it here'}</small>
                   </div>
                   <div className="premium-select-draft-preview-body">
                     {selectedDraftPreviewSubject || selectedDraftPreviewBody ? (
