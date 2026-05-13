@@ -458,6 +458,13 @@ a { color: inherit; text-decoration: none; }
   z-index: 80;
 }
 
+.theme-toggle-popover-floating {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: 1000;
+}
+
 .theme-toggle-option {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);

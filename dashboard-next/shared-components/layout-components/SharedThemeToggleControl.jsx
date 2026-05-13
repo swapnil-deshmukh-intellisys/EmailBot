@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const THEMES = ['light', 'dark', 'colorful'];
 
@@ -56,17 +57,34 @@ function applyTheme(theme) {
 export default function ThemeToggle({ className = '' }) {
   const [theme, setTheme] = useState('light');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef(null);
+  const buttonRef = useRef(null);
+  const popoverRef = useRef(null);
 
   useEffect(() => {
     const initialTheme = getPreferredTheme();
     setTheme(initialTheme);
     applyTheme(initialTheme);
+    setMounted(true);
   }, []);
+
+  const updateMenuPosition = () => {
+    if (!buttonRef.current) {
+      return;
+    }
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    setMenuPosition({
+      top: rect.bottom + 10,
+      right: Math.max(12, window.innerWidth - rect.right),
+    });
+  };
 
   useEffect(() => {
     const handlePointerDown = (event) => {
-      if (!menuRef.current?.contains(event.target)) {
+      if (!menuRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target)) {
         setMenuOpen(false);
       }
     };
@@ -85,6 +103,20 @@ export default function ThemeToggle({ className = '' }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [menuOpen]);
+
   const setActiveTheme = (nextTheme) => {
     setTheme(nextTheme);
     applyTheme(nextTheme);
@@ -94,6 +126,38 @@ export default function ThemeToggle({ className = '' }) {
 
   const isDark = theme === 'dark';
   const isColorful = theme === 'colorful';
+  const themeMenu = menuOpen && mounted && menuPosition ? createPortal(
+    <div
+      ref={popoverRef}
+      className="theme-toggle-popover theme-toggle-popover-floating"
+      role="menu"
+      aria-label="Theme options"
+      style={{ top: menuPosition.top, right: menuPosition.right }}
+    >
+      {THEMES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="menuitemradio"
+          aria-checked={theme === option}
+          className={`theme-toggle-option ${theme === option ? 'active' : ''}`}
+          onClick={() => setActiveTheme(option)}
+        >
+          <span className="theme-toggle-option-icon" aria-hidden="true"><ThemeIcon theme={option} /></span>
+          <span className="theme-toggle-option-text">
+            <span className="theme-toggle-option-title">
+              {themeLabel(option)}
+              {theme === option ? <span className="theme-toggle-current">Current</span> : null}
+            </span>
+            <span className="theme-toggle-option-copy">
+              {option === 'light' ? 'Clean default' : option === 'dark' ? 'Low-glare comfort' : 'Branded accent'}
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>,
+    document.body,
+  ) : null;
 
   return (
     <div
@@ -101,8 +165,12 @@ export default function ThemeToggle({ className = '' }) {
       className={`theme-toggle-menu ${className} ${isDark ? 'is-dark' : isColorful ? 'is-colorful' : 'is-light'}`.trim()}
     >
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setMenuOpen((open) => !open)}
+        onClick={() => {
+          updateMenuPosition();
+          setMenuOpen((open) => !open);
+        }}
         className="theme-toggle-btn"
         aria-label={`Current theme: ${themeLabel(theme)}. Open theme menu`}
         title={`Current theme: ${themeLabel(theme)}`}
@@ -115,31 +183,7 @@ export default function ThemeToggle({ className = '' }) {
         <span className="theme-toggle-btn-label">{themeLabel(theme)}</span>
       </button>
 
-      {menuOpen ? (
-        <div className="theme-toggle-popover" role="menu" aria-label="Theme options">
-          {THEMES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="menuitemradio"
-              aria-checked={theme === option}
-              className={`theme-toggle-option ${theme === option ? 'active' : ''}`}
-              onClick={() => setActiveTheme(option)}
-            >
-              <span className="theme-toggle-option-icon" aria-hidden="true"><ThemeIcon theme={option} /></span>
-              <span className="theme-toggle-option-text">
-                <span className="theme-toggle-option-title">
-                  {themeLabel(option)}
-                  {theme === option ? <span className="theme-toggle-current">Current</span> : null}
-                </span>
-                <span className="theme-toggle-option-copy">
-                  {option === 'light' ? 'Clean default' : option === 'dark' ? 'Low-glare comfort' : 'Branded accent'}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {themeMenu}
     </div>
   );
 }
