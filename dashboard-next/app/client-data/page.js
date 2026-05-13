@@ -8,7 +8,7 @@ import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
 
-const TABLE_COLUMNS = ['Name', 'Email', 'Company', 'City', 'Status', 'Source'];
+const TABLE_COLUMNS = ['Name', 'Email', 'Company', 'City', 'Project', 'Status', 'Source'];
 
 const badgeToneMap = {
   Verified: 'success',
@@ -226,6 +226,7 @@ export default function ClientDataPage() {
   }, [selectedListId]);
 
   const clientRows = useMemo(() => {
+    const selectedListMeta = lists.find((list) => String(list._id) === String(selectedListId));
     if (!selectedListId) {
       return allClientRows.map((row, index) => ({
         id: row.id || `all-${index}`,
@@ -233,6 +234,7 @@ export default function ClientDataPage() {
         email: row.email || '-',
         company: row.cmpName || row.company || '-',
         city: row.city || row.country || '-',
+        project: String(row.project || 'unassigned').toUpperCase(),
         status: row.email && row.email !== '-' ? 'Verified' : 'Missing Email',
         source: row.source || row.sourceFile || 'Uploaded List'
       }));
@@ -246,10 +248,11 @@ export default function ClientDataPage() {
         email: lead?.Email || lead?.data?.Email || lead?.data?.email || '-',
         company: lead?.Company || lead?.data?.Company || lead?.data?.company || '-',
         city: getLeadCity(lead),
+        project: String(selectedList?.project || selectedListMeta?.project || 'unassigned').toUpperCase(),
         status: getLeadStatus(lead),
         source: getLeadSource(selectedList)
       }));
-  }, [allClientRows, selectedList, selectedListId]);
+  }, [allClientRows, lists, selectedList, selectedListId]);
 
   const totalClients = useMemo(
     () => lists.reduce((sum, list) => sum + Number(list?.leadCount || 0), 0),
@@ -1061,12 +1064,14 @@ export default function ClientDataPage() {
                       <span />
                       <span />
                       <span />
+                      <span />
                     </div>
                   ) : null}
 
                   {!loading && !loadingList && error ? (
                     <div className="client-data-table-row">
                       <span>{error}</span>
+                      <span />
                       <span />
                       <span />
                       <span />
@@ -1083,6 +1088,7 @@ export default function ClientDataPage() {
                       <span />
                       <span />
                       <span />
+                      <span />
                     </div>
                   ) : null}
 
@@ -1092,6 +1098,7 @@ export default function ClientDataPage() {
                       <span>{row.email}</span>
                       <span>{row.company}</span>
                       <span>{row.city}</span>
+                      <span>{row.project}</span>
                       <span>
                         <Badge variant={badgeToneMap[row.status] || 'default'}>
                           {row.status}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import Campaign from '@/models/Campaign';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
@@ -19,7 +20,43 @@ function getLeadValue(lead = {}, ...keys) {
   return '';
 }
 
-function buildClientRow(list = {}, lead = {}, leadIndex = 0) {
+function normalizeProject(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw.includes('tut') || raw.includes('unicorn') || raw.includes('theunicorntimes.com')) return 'tut';
+  if (raw.includes('tec') || raw.includes('entrepreneurial') || raw.includes('theentrepreneurialchronicle.com')) return 'tec';
+  return raw || 'unassigned';
+}
+
+function campaignProjectKey(campaign = {}) {
+  return normalizeProject([
+    campaign.project,
+    campaign.projectId,
+    campaign.projectName,
+    campaign.senderFrom,
+    campaign.senderAccount?.from,
+    campaign.senderAccount?.user
+  ].filter(Boolean).join(' '));
+}
+
+function listProjectKey(list = {}, campaignsByListId = new Map()) {
+  const explicit = normalizeProject([list.project, list.projectId, list.projectName].filter(Boolean).join(' '));
+  if (explicit === 'tec' || explicit === 'tut') return explicit;
+
+  const campaigns = campaignsByListId.get(String(list._id)) || [];
+  const counts = campaigns.reduce((acc, campaign) => {
+    const key = campaignProjectKey(campaign);
+    if (key === 'tec' || key === 'tut') acc[key] = Number(acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  if (counts.tec || counts.tut) {
+    return Number(counts.tec || 0) >= Number(counts.tut || 0) ? 'tec' : 'tut';
+  }
+
+  const fromListText = normalizeProject(`${list.name || ''} ${list.sourceFile || ''} ${list.sourceFileName || ''}`);
+  return fromListText === 'tec' || fromListText === 'tut' ? fromListText : 'unassigned';
+}
+
+function buildClientRow(list = {}, lead = {}, leadIndex = 0, project = 'unassigned') {
   const email = getLeadValue(lead, 'Email', 'email');
   const leadSource = getLeadValue(lead, 'Source', 'source');
   const leadAddedDate = getLeadValue(lead, 'List Added Date', 'ListAddedDate', 'listAddedDate');
@@ -37,6 +74,7 @@ function buildClientRow(list = {}, lead = {}, leadIndex = 0) {
     email: email || '-',
     listAddedDateRaw: leadAddedDate || lead?.uploadDate || list?.uploadedAt || list?.uploadDate || list?.createdAt || null,
     source: leadSource || String(list?.sourceFile || list?.name || 'Uploaded File'),
+    project,
     leadType: getLeadValue(lead, 'Lead Type', 'LeadType', 'leadType') || '-',
     sourcer: getLeadValue(lead, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
     userId: getLeadValue(lead, 'User ID', 'UserId', 'userId') || '-',
@@ -58,6 +96,9 @@ export async function GET(req) {
       'name',
       'sourceFile',
       'kind',
+      'project',
+      'projectId',
+      'projectName',
       'uploadedAt',
       'createdAt',
       'uploadDate',
@@ -75,13 +116,27 @@ export async function GET(req) {
       'leads.data'
     ].join(' ');
 
-    const lists = await LeadList.find(query).select(projection).sort({ createdAt: -1 }).lean();
+    const [lists, campaignDocs] = await Promise.all([
+      LeadList.find(query).select(projection).sort({ createdAt: -1 }).lean(),
+      Campaign.find(buildAuthOwnerFilter(auth))
+        .select('listId project projectId projectName senderFrom senderAccount.from senderAccount.user createdAt')
+        .sort({ createdAt: -1 })
+        .lean()
+    ]);
+    const campaignsByListId = campaignDocs.reduce((map, campaign) => {
+      const listId = String(campaign?.listId || '');
+      if (!listId) return map;
+      if (!map.has(listId)) map.set(listId, []);
+      map.get(listId).push(campaign);
+      return map;
+    }, new Map());
     const rows = [];
     for (const list of lists) {
       const leads = Array.isArray(list?.leads) ? list.leads : [];
+      const project = listProjectKey(list, campaignsByListId);
       leads.forEach((lead, index) => {
         if (hasMeaningfulLeadData(lead)) {
-          rows.push(buildClientRow(list, lead, index));
+          rows.push(buildClientRow(list, lead, index, project));
         }
       });
     }
@@ -94,6 +149,7 @@ export async function GET(req) {
         name: list.name,
         sourceFile: list.sourceFile,
         kind: list.kind || 'uploaded',
+        project: listProjectKey(list, campaignsByListId),
         uploadedAt: list.uploadedAt || null,
         createdAt: list.createdAt || null,
         leadCount: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData).length : 0
