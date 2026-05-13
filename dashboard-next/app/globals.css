@@ -47,8 +47,8 @@
 }
 
 html[data-theme='light'] {
-  --bg-primary: #f3f5f9;
-  --bg-secondary: #e2e8f0;
+  --bg-primary: #f7f9fc;
+  --bg-secondary: #edf2f8;
   --panel: #ffffff;
   --panel-soft: rgba(255, 255, 255, 0.9);
   --panel-strong: #ffffff;
@@ -63,26 +63,26 @@ html[data-theme='light'] {
   --glass-shadow-strong: 0 20px 44px rgba(15, 23, 42, 0.06);
   --glass-blur: 8px;
   --glass-blur-strong: 12px;
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #475569;
-  --border-color: #d7e0ea;
-  --border-soft: #e2e8f0;
-  --button-bg: linear-gradient(180deg, #ffffff, #eef2ff);
-  --button-text: #0f172a;
-  --button-border: #cbd5e1;
-  --button-hover-bg: linear-gradient(180deg, #f8fbff, #e2e8f0);
+  --text-primary: #101827;
+  --text-secondary: #243449;
+  --text-muted: #5b6b82;
+  --border-color: #d8e1ed;
+  --border-soft: #e8eef6;
+  --button-bg: linear-gradient(180deg, #ffffff, #f1f5fb);
+  --button-text: #101827;
+  --button-border: #cdd8e6;
+  --button-hover-bg: linear-gradient(180deg, #ffffff, #e8eef8);
   --input-bg: #ffffff;
   --input-text: #0f172a;
   --input-border: #cbd5e1;
-  --accent: #0f766e;
-  --accent-2: #155e75;
-  --accent-strong: #0b5f59;
+  --accent: #0f6f8f;
+  --accent-2: #5b5bd6;
+  --accent-strong: #0b5f7a;
   --success: #15803d;
   --warning: #b45309;
   --danger: #b91c1c;
-  --cta-bg: linear-gradient(135deg, rgba(15, 118, 110, 0.22), rgba(21, 94, 117, 0.28));
-  --cta-border: rgba(15, 118, 110, 0.28);
+  --cta-bg: linear-gradient(135deg, rgba(15, 111, 143, 0.18), rgba(91, 91, 214, 0.16));
+  --cta-border: rgba(15, 111, 143, 0.24);
   --badge-bg: rgba(255, 255, 255, 0.14);
   --chip-bg: rgba(255, 255, 255, 0.1);
   --shadow-color: rgba(15, 23, 42, 0.08);
@@ -105,9 +105,9 @@ html[data-theme='dark'] {
   --glass-shadow-strong: 0 28px 70px rgba(0, 0, 0, 0.46);
   --glass-blur: 14px;
   --glass-blur-strong: 20px;
-  --text-primary: #f8fbff;
-  --text-secondary: #d7e2f3;
-  --text-muted: #a7b4c8;
+  --text-primary: #f7fbff;
+  --text-secondary: #dbe8f7;
+  --text-muted: #a9b8ce;
   --border-color: rgba(125, 211, 252, 0.16);
   --border-soft: rgba(148, 163, 184, 0.18);
   --button-bg: linear-gradient(180deg, rgba(37, 44, 63, 0.96), rgba(22, 27, 40, 0.96));
@@ -117,9 +117,9 @@ html[data-theme='dark'] {
   --input-bg: rgba(12, 16, 25, 0.86);
   --input-text: #f8fbff;
   --input-border: rgba(125, 211, 252, 0.2);
-  --accent: #67e8f9;
-  --accent-2: #a78bfa;
-  --accent-strong: #38bdf8;
+  --accent: #73e7ff;
+  --accent-2: #b69cff;
+  --accent-strong: #4fc3ff;
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
@@ -20998,22 +20998,28 @@ html[data-theme='dark'] .campaign-mail-cell-ok {
 /* Final theme text polish. This must remain last because several page sections define fixed text colors. */
 html.theme-light,
 html[data-theme='light'] {
-  --theme-heading-text: #0b1220;
-  --theme-body-text: #1f2937;
-  --theme-soft-text: #475569;
-  --theme-muted-text: #64748b;
-  --theme-link-text: #2563eb;
-  --theme-accent-text: #0f766e;
+  --theme-heading-text: #0a1020;
+  --theme-body-text: #243044;
+  --theme-soft-text: #42526a;
+  --theme-muted-text: #64758c;
+  --theme-link-text: #175cd3;
+  --theme-accent-text: #0f6f8f;
+  --theme-table-head-text: #344256;
+  --theme-nav-text: #243044;
+  --theme-stat-text: #07111f;
 }
 
 html.theme-dark,
 html[data-theme='dark'] {
-  --theme-heading-text: #ffffff;
-  --theme-body-text: #eef4ff;
-  --theme-soft-text: #c8d5e8;
-  --theme-muted-text: #9fb0c8;
-  --theme-link-text: #67e8f9;
-  --theme-accent-text: #a78bfa;
+  --theme-heading-text: #fbfdff;
+  --theme-body-text: #e7f0fb;
+  --theme-soft-text: #c5d4e8;
+  --theme-muted-text: #99abc3;
+  --theme-link-text: #73e7ff;
+  --theme-accent-text: #b69cff;
+  --theme-table-head-text: #b8c9df;
+  --theme-nav-text: #d8e7f8;
+  --theme-stat-text: #ffffff;
 }
 
 html.theme-colorful,
@@ -21024,6 +21030,9 @@ html[data-theme='colorful'] {
   --theme-muted-text: #64748b;
   --theme-link-text: #4f6fb3;
   --theme-accent-text: #6d5fa8;
+  --theme-table-head-text: #475569;
+  --theme-nav-text: #334155;
+  --theme-stat-text: #172033;
 }
 
 html.theme-light :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
@@ -21059,7 +21068,7 @@ html.theme-dark :where(strong, b, .metric-value, .dashboard-stat-value, .campaig
 html[data-theme='dark'] :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
 html.theme-colorful :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
 html[data-theme='colorful'] :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span) {
-  color: var(--theme-heading-text) !important;
+  color: var(--theme-stat-text) !important;
 }
 
 html.theme-light :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
@@ -21098,4 +21107,61 @@ html[data-theme='colorful'] :where(.danger, .failed, .error, .campaign-mail-cell
 html.theme-dark :where(.danger, .failed, .error, .campaign-mail-cell-red),
 html[data-theme='dark'] :where(.danger, .failed, .error, .campaign-mail-cell-red) {
   color: #fca5a5 !important;
+}
+
+html.theme-light :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button),
+html[data-theme='light'] :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button),
+html.theme-dark :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button),
+html[data-theme='dark'] :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button),
+html.theme-colorful :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button),
+html[data-theme='colorful'] :where(.dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .dashboard-topbar-tab, .dashboard-topbar-pill, .dashboard-topbar-profile, .theme-toggle-btn, .premium-toolbar-tabs button, .premium-panel-tabs button, .premium-calendar-filters button) {
+  color: var(--theme-nav-text) !important;
+}
+
+html.theme-light :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell),
+html[data-theme='light'] :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell),
+html.theme-dark :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell),
+html[data-theme='dark'] :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell),
+html.theme-colorful :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell),
+html[data-theme='colorful'] :where(th, .premium-table-head, .client-data-table-head, .workspace-table-head, .campaign-table th, .premium-review-head-cell) {
+  color: var(--theme-table-head-text) !important;
+}
+
+html.theme-light :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active),
+html[data-theme='light'] :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active) {
+  color: #0b5f7a !important;
+}
+
+html.theme-light :where(.badge.running, .badge.pending, .status-running, .status-pending),
+html[data-theme='light'] :where(.badge.running, .badge.pending, .status-running, .status-pending),
+html.theme-colorful :where(.badge.running, .badge.pending, .status-running, .status-pending),
+html[data-theme='colorful'] :where(.badge.running, .badge.pending, .status-running, .status-pending) {
+  color: #1d4ed8 !important;
+}
+
+html.theme-dark :where(.badge.running, .badge.pending, .status-running, .status-pending),
+html[data-theme='dark'] :where(.badge.running, .badge.pending, .status-running, .status-pending) {
+  color: #93c5fd !important;
+}
+
+html.theme-light :where(.warning, .warn, .paused, .stopped),
+html[data-theme='light'] :where(.warning, .warn, .paused, .stopped),
+html.theme-colorful :where(.warning, .warn, .paused, .stopped),
+html[data-theme='colorful'] :where(.warning, .warn, .paused, .stopped) {
+  color: #a16207 !important;
+}
+
+html.theme-dark :where(.warning, .warn, .paused, .stopped),
+html[data-theme='dark'] :where(.warning, .warn, .paused, .stopped) {
+  color: #fcd34d !important;
+}
+
+html.theme-light :where(input, textarea, select),
+html[data-theme='light'] :where(input, textarea, select) {
+  caret-color: #175cd3;
+}
+
+html.theme-dark :where(input, textarea, select),
+html[data-theme='dark'] :where(input, textarea, select) {
+  caret-color: #73e7ff;
 }
