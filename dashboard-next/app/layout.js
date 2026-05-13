@@ -1,23 +1,35 @@
 import './globals.css';
+import { ThemeProvider } from '@/shared-components/layout-components/ThemeProvider';
 
 const themeInitScript = `
   (function () {
+    var allowedThemes = { light: true, dark: true, colorful: true };
+    function applyTheme(theme) {
+      var safeTheme = allowedThemes[theme] ? theme : 'light';
+      var root = document.documentElement;
+      root.classList.remove('theme-light', 'theme-dark', 'theme-colorful', 'dark');
+      root.classList.add('theme-' + safeTheme);
+      root.classList.toggle('dark', safeTheme === 'dark');
+      root.setAttribute('data-theme', safeTheme);
+      root.style.colorScheme = safeTheme === 'dark' ? 'dark' : 'light';
+      if (document.body) {
+        document.body.classList.remove('theme-light', 'theme-dark', 'theme-colorful', 'dark');
+        document.body.classList.add('theme-' + safeTheme);
+        document.body.classList.toggle('dark', safeTheme === 'dark');
+      }
+      return safeTheme;
+    }
     try {
       var saved = localStorage.getItem('theme');
-      var theme = saved === 'light' || saved === 'dark' || saved === 'colorful'
-        ? saved
-        : 'light';
-      document.documentElement.classList.toggle('dark', theme === 'dark');
-      document.documentElement.setAttribute('data-theme', theme);
+      var theme = applyTheme(saved);
+      document.addEventListener('DOMContentLoaded', function () { applyTheme(theme); });
       window.changeTheme = function (nextTheme) {
-        var safeTheme = nextTheme === 'dark' || nextTheme === 'colorful' ? nextTheme : 'light';
-        document.documentElement.classList.toggle('dark', safeTheme === 'dark');
-        document.documentElement.setAttribute('data-theme', safeTheme);
+        var safeTheme = applyTheme(nextTheme);
         localStorage.setItem('theme', safeTheme);
+        window.dispatchEvent(new CustomEvent('intellimailpilot:theme-change', { detail: { theme: safeTheme } }));
       };
     } catch (error) {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.setAttribute('data-theme', 'light');
+      applyTheme('light');
     }
   })();
 `;
@@ -76,7 +88,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: chunkRecoveryScript }} />
       </head>
       <body>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

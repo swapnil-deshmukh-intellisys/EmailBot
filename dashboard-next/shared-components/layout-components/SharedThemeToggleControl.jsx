@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
-const THEMES = ['light', 'dark', 'colorful'];
+import { useTheme } from './ThemeProvider';
 
 function ThemeIcon({ theme }) {
   if (theme === 'dark') {
@@ -35,27 +34,8 @@ function themeLabel(theme) {
   return theme.charAt(0).toUpperCase() + theme.slice(1);
 }
 
-function getPreferredTheme() {
-  if (typeof window === 'undefined') {
-    return 'light';
-  }
-
-  const savedTheme = window.localStorage.getItem('theme');
-  if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'colorful') {
-    return savedTheme;
-  }
-
-  return 'light';
-}
-
-function applyTheme(theme) {
-  const root = document.documentElement;
-  root.classList.toggle('dark', theme === 'dark');
-  root.setAttribute('data-theme', theme);
-}
-
 export default function ThemeToggle({ className = '' }) {
-  const [theme, setTheme] = useState('light');
+  const { theme, setTheme, themes } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -64,9 +44,6 @@ export default function ThemeToggle({ className = '' }) {
   const popoverRef = useRef(null);
 
   useEffect(() => {
-    const initialTheme = getPreferredTheme();
-    setTheme(initialTheme);
-    applyTheme(initialTheme);
     setMounted(true);
   }, []);
 
@@ -119,8 +96,6 @@ export default function ThemeToggle({ className = '' }) {
 
   const setActiveTheme = (nextTheme) => {
     setTheme(nextTheme);
-    applyTheme(nextTheme);
-    window.localStorage.setItem('theme', nextTheme);
     setMenuOpen(false);
   };
 
@@ -134,7 +109,7 @@ export default function ThemeToggle({ className = '' }) {
       aria-label="Theme options"
       style={{ top: menuPosition.top, right: menuPosition.right }}
     >
-      {THEMES.map((option) => (
+      {themes.map((option) => (
         <button
           key={option}
           type="button"
