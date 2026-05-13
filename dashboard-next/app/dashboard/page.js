@@ -286,7 +286,20 @@ const PROJECT_PRESET_SENDERS = {
     'kevin@theunicorntimes.com',
     'peter@theunicorntimes.com',
     'tyler@theunicorntimes.com',
-    'olivia@theunicorntimes.com'
+    'olivia@theunicorntimes.com',
+    'allison@theunicorntimes.com',
+    'carmen@theunicorntimes.com',
+    'isla@theunicorntimes.com',
+    'jason@theunicorntimes.com',
+    'julia@theunicorntimes.com',
+    'juliana@theunicorntimes.com',
+    'lena@theunicorntimes.com',
+    'lisa@theunicorntimes.com',
+    'lucy@theunicorntimes.com',
+    'martina@theunicorntimes.com',
+    'mary@theunicorntimes.com',
+    'nora@theunicorntimes.com',
+    'valeria@theunicorntimes.com'
   ]
 };
 

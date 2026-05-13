@@ -9,6 +9,11 @@ import { requireAuth, requireUser } from '@/lib/apiAuth';
 import { isGraphAppOnlyEnabled } from '@/core-lib/mail-engine/MicrosoftGraphOAuthScopes';
 
 const ACCOUNTS_CACHE_TTL_MS = 15000;
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0'
+};
 const DEFAULT_PROJECT_PRESET_SENDERS = {
   tec: [
     'lily@theentrepreneurialchronicle.com',
@@ -45,7 +50,20 @@ const DEFAULT_PROJECT_PRESET_SENDERS = {
     'kevin@theunicorntimes.com',
     'peter@theunicorntimes.com',
     'tyler@theunicorntimes.com',
-    'olivia@theunicorntimes.com'
+    'olivia@theunicorntimes.com',
+    'allison@theunicorntimes.com',
+    'carmen@theunicorntimes.com',
+    'isla@theunicorntimes.com',
+    'jason@theunicorntimes.com',
+    'julia@theunicorntimes.com',
+    'juliana@theunicorntimes.com',
+    'lena@theunicorntimes.com',
+    'lisa@theunicorntimes.com',
+    'lucy@theunicorntimes.com',
+    'martina@theunicorntimes.com',
+    'mary@theunicorntimes.com',
+    'nora@theunicorntimes.com',
+    'valeria@theunicorntimes.com'
   ]
 };
 
@@ -88,8 +106,9 @@ function getPresetSenderEmails(project = "") {
     .map((s) => String(s || "").trim().toLowerCase())
     .filter(Boolean)
     .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
-  if (parsed.length) return parsed;
-  return DEFAULT_PROJECT_PRESET_SENDERS[p] || [];
+  const defaults = DEFAULT_PROJECT_PRESET_SENDERS[p] || [];
+  if (defaults.length) return Array.from(new Set([...parsed, ...defaults]));
+  return parsed;
 }
 
 
@@ -103,7 +122,7 @@ export async function GET(req) {
   const now = Date.now();
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
-    return NextResponse.json({ accounts: cached.accounts });
+    return NextResponse.json({ accounts: cached.accounts }, { headers: NO_STORE_HEADERS });
   }
 
   const envAccounts = getRuntimeSenderAccounts(project).map(toPublicAccount);
@@ -211,7 +230,7 @@ export async function GET(req) {
     expiresAt: now + ACCOUNTS_CACHE_TTL_MS
   });
 
-  return NextResponse.json({ accounts });
+  return NextResponse.json({ accounts }, { headers: NO_STORE_HEADERS });
 }
 
 export async function POST(req) {

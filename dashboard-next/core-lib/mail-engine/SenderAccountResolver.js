@@ -39,7 +39,20 @@ const DEFAULT_PROJECT_PRESET_SENDERS = {
     'kevin@theunicorntimes.com',
     'peter@theunicorntimes.com',
     'tyler@theunicorntimes.com',
-    'olivia@theunicorntimes.com'
+    'olivia@theunicorntimes.com',
+    'allison@theunicorntimes.com',
+    'carmen@theunicorntimes.com',
+    'isla@theunicorntimes.com',
+    'jason@theunicorntimes.com',
+    'julia@theunicorntimes.com',
+    'juliana@theunicorntimes.com',
+    'lena@theunicorntimes.com',
+    'lisa@theunicorntimes.com',
+    'lucy@theunicorntimes.com',
+    'martina@theunicorntimes.com',
+    'mary@theunicorntimes.com',
+    'nora@theunicorntimes.com',
+    'valeria@theunicorntimes.com'
   ]
 };
 
@@ -58,13 +71,13 @@ export function getPresetSenderEmails(project = '') {
     const configured = parsePresetSenderEmails(
       process.env.PRESET_SENDER_EMAILS_TUT || ''
     );
-    return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tut;
+    return Array.from(new Set([...configured, ...DEFAULT_PROJECT_PRESET_SENDERS.tut]));
   }
   if (normalizedProject === 'tec') {
     const configured = parsePresetSenderEmails(
       process.env.PRESET_SENDER_EMAILS_TEC || ''
     );
-    return configured.length ? configured : DEFAULT_PROJECT_PRESET_SENDERS.tec;
+    return Array.from(new Set([...configured, ...DEFAULT_PROJECT_PRESET_SENDERS.tec]));
   }
   return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
 }
@@ -83,10 +96,10 @@ export function getProjectGraphConfig(project = '') {
   if (normalizedProject === 'tec') {
     return {
       project: 'tec',
-      tenantId: process.env.TEC_TENANT_ID || '',
-      clientId: process.env.TEC_CLIENT_ID || '',
-      clientSecret: process.env.TEC_CLIENT_SECRET || '',
-      defaultFrom: process.env.TEC_GRAPH_SENDER_EMAIL || ''
+      tenantId: process.env.TEC_TENANT_ID || process.env.TENANT_ID || '',
+      clientId: process.env.TEC_CLIENT_ID || process.env.CLIENT_ID || '',
+      clientSecret: process.env.TEC_CLIENT_SECRET || process.env.CLIENT_SECRET || '',
+      defaultFrom: process.env.TEC_GRAPH_SENDER_EMAIL || process.env.GRAPH_SENDER_EMAIL || ''
     };
   }
   return {
