@@ -20994,3 +20994,108 @@ html[data-theme='dark'] .campaign-mail-cell-ok {
     padding: 10px;
   }
 }
+
+/* Final theme text polish. This must remain last because several page sections define fixed text colors. */
+html.theme-light,
+html[data-theme='light'] {
+  --theme-heading-text: #0b1220;
+  --theme-body-text: #1f2937;
+  --theme-soft-text: #475569;
+  --theme-muted-text: #64748b;
+  --theme-link-text: #2563eb;
+  --theme-accent-text: #0f766e;
+}
+
+html.theme-dark,
+html[data-theme='dark'] {
+  --theme-heading-text: #ffffff;
+  --theme-body-text: #eef4ff;
+  --theme-soft-text: #c8d5e8;
+  --theme-muted-text: #9fb0c8;
+  --theme-link-text: #67e8f9;
+  --theme-accent-text: #a78bfa;
+}
+
+html.theme-colorful,
+html[data-theme='colorful'] {
+  --theme-heading-text: #172033;
+  --theme-body-text: #2f3b52;
+  --theme-soft-text: #52627a;
+  --theme-muted-text: #64748b;
+  --theme-link-text: #4f6fb3;
+  --theme-accent-text: #6d5fa8;
+}
+
+html.theme-light :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
+html[data-theme='light'] :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
+html.theme-dark :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
+html[data-theme='dark'] :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
+html.theme-colorful :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2),
+html[data-theme='colorful'] :where(h1, h2, h3, h4, h5, h6, .dashboard-brand h2, .premium-report-heading h1, .premium-panel-head h3, .campaigns-modern-hero h1, .campaign-panel-head h2, .client-data-panel-head h2, .workspace-panel-head h2, .master-mail-list-header h1, .master-mail-reading-head h2) {
+  color: var(--theme-heading-text) !important;
+}
+
+html.theme-light :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page),
+html[data-theme='light'] :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page),
+html.theme-dark :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page),
+html[data-theme='dark'] :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page),
+html.theme-colorful :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page),
+html[data-theme='colorful'] :where(body, p, span, label, li, td, th, summary, .dashboard-shell, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) {
+  color: var(--theme-body-text);
+}
+
+html.theme-light :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html[data-theme='light'] :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html.theme-dark :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html[data-theme='dark'] :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html.theme-colorful :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html[data-theme='colorful'] :where(.muted, .text-muted, small, .dashboard-muted, .dashboard-subtitle, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p) {
+  color: var(--theme-muted-text) !important;
+}
+
+html.theme-light :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
+html[data-theme='light'] :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
+html.theme-dark :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
+html[data-theme='dark'] :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
+html.theme-colorful :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span),
+html[data-theme='colorful'] :where(strong, b, .metric-value, .dashboard-stat-value, .campaign-count-card strong, .client-data-stat-card strong, .workspace-stat-card strong, .premium-kpi-card strong, .master-mail-row-top strong, .master-mail-row-subject span) {
+  color: var(--theme-heading-text) !important;
+}
+
+html.theme-light :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html[data-theme='light'] :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html.theme-dark :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html[data-theme='dark'] :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html.theme-colorful :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html[data-theme='colorful'] :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span) {
+  color: var(--theme-link-text) !important;
+}
+
+html.theme-dark :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active, .theme-toggle-current),
+html[data-theme='dark'] :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active, .theme-toggle-current) {
+  color: #ffffff !important;
+}
+
+html.theme-light :where(.success, .sent, .completed, .campaign-mail-cell-ok),
+html[data-theme='light'] :where(.success, .sent, .completed, .campaign-mail-cell-ok),
+html.theme-colorful :where(.success, .sent, .completed, .campaign-mail-cell-ok),
+html[data-theme='colorful'] :where(.success, .sent, .completed, .campaign-mail-cell-ok) {
+  color: #047857 !important;
+}
+
+html.theme-dark :where(.success, .sent, .completed, .campaign-mail-cell-ok),
+html[data-theme='dark'] :where(.success, .sent, .completed, .campaign-mail-cell-ok) {
+  color: #86efac !important;
+}
+
+html.theme-light :where(.danger, .failed, .error, .campaign-mail-cell-red),
+html[data-theme='light'] :where(.danger, .failed, .error, .campaign-mail-cell-red),
+html.theme-colorful :where(.danger, .failed, .error, .campaign-mail-cell-red),
+html[data-theme='colorful'] :where(.danger, .failed, .error, .campaign-mail-cell-red) {
+  color: #b91c1c !important;
+}
+
+html.theme-dark :where(.danger, .failed, .error, .campaign-mail-cell-red),
+html[data-theme='dark'] :where(.danger, .failed, .error, .campaign-mail-cell-red) {
+  color: #fca5a5 !important;
+}
