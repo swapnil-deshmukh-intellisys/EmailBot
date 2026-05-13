@@ -30,6 +30,7 @@ import draftTemplates from '@/modules/template-module/template-services/Dashboar
 import PremiumDashboardShell from './components/PremiumDashboardShell';
 import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
+import ThemeToggle from '@/shared-components/layout-components/SharedThemeToggleControl';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
@@ -3467,6 +3468,7 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
+          <ThemeToggle className="dashboard-theme-toggle" />
           <button
             type="button"
             className="dashboard-topbar-pill dashboard-topbar-range-pill"

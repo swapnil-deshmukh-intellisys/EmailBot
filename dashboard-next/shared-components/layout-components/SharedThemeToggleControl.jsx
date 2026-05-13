@@ -4,6 +4,36 @@ import { useEffect, useRef, useState } from 'react';
 
 const THEMES = ['light', 'dark', 'colorful'];
 
+function ThemeIcon({ theme }) {
+  if (theme === 'dark') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.7 8.7 0 1 0 10.7 10.7Z" />
+      </svg>
+    );
+  }
+
+  if (theme === 'colorful') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v18M3 12h18" />
+        <circle cx="12" cy="12" r="7" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.93 4.93l1.56 1.56M17.51 17.51l1.56 1.56M2.5 12h2.2M19.3 12h2.2M4.93 19.07l1.56-1.56M17.51 6.49l1.56-1.56" />
+    </svg>
+  );
+}
+
+function themeLabel(theme) {
+  return theme.charAt(0).toUpperCase() + theme.slice(1);
+}
+
 function getPreferredTheme() {
   if (typeof window === 'undefined') {
     return 'light';
@@ -74,29 +104,15 @@ export default function ThemeToggle({ className = '' }) {
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
         className="theme-toggle-btn"
-        aria-label={`Current theme: ${theme}. Open theme menu`}
-        title={`Current theme: ${theme}`}
+        aria-label={`Current theme: ${themeLabel(theme)}. Open theme menu`}
+        title={`Current theme: ${themeLabel(theme)}`}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
       >
         <span className="theme-toggle-btn-icon" aria-hidden="true">
-          {isDark ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="4.2" />
-              <path d="M12 2.5v2.2M12 19.3v2.2M4.93 4.93l1.56 1.56M17.51 17.51l1.56 1.56M2.5 12h2.2M19.3 12h2.2M4.93 19.07l1.56-1.56M17.51 6.49l1.56-1.56" />
-            </svg>
-          ) : isColorful ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3v18M3 12h18" />
-              <circle cx="12" cy="12" r="7" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.7 8.7 0 1 0 10.7 10.7Z" />
-            </svg>
-          )}
+          <ThemeIcon theme={theme} />
         </span>
-        <span className="theme-toggle-btn-label">{theme}</span>
+        <span className="theme-toggle-btn-label">{themeLabel(theme)}</span>
       </button>
 
       {menuOpen ? (
@@ -110,9 +126,15 @@ export default function ThemeToggle({ className = '' }) {
               className={`theme-toggle-option ${theme === option ? 'active' : ''}`}
               onClick={() => setActiveTheme(option)}
             >
-              <span className="theme-toggle-option-title">{option}</span>
-              <span className="theme-toggle-option-copy">
-                {option === 'light' ? 'Clean default' : option === 'dark' ? 'Low-glare comfort' : 'Branded accent'}
+              <span className="theme-toggle-option-icon" aria-hidden="true"><ThemeIcon theme={option} /></span>
+              <span className="theme-toggle-option-text">
+                <span className="theme-toggle-option-title">
+                  {themeLabel(option)}
+                  {theme === option ? <span className="theme-toggle-current">Current</span> : null}
+                </span>
+                <span className="theme-toggle-option-copy">
+                  {option === 'light' ? 'Clean default' : option === 'dark' ? 'Low-glare comfort' : 'Branded accent'}
+                </span>
               </span>
             </button>
           ))}
