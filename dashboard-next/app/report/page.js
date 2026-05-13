@@ -101,20 +101,20 @@ export default function ReportPage() {
           ))}
         </div>
 
-        <div className="report-section-grid report-detail-grid">
-          <section className="report-panel report-detail-panel report-detail-panel-campaigns">
+        <div className="report-section-grid">
+          <section className="report-panel">
             <h2>Campaign Counts</h2>
             <div className="report-mini-grid">
               {['total', 'running', 'completed', 'failed', 'paused', 'stopped'].map((key) => (
-                <article key={key} className={`report-mini-card report-mini-card-${key}`}><span>{key.replace(/^\w/, (c) => c.toUpperCase())}</span><strong>{campaigns[key] || 0}</strong></article>
+                <article key={key}><span>{key.replace(/^\w/, (c) => c.toUpperCase())}</span><strong>{campaigns[key] || 0}</strong></article>
               ))}
             </div>
           </section>
 
-          <section className="report-panel report-detail-panel report-detail-panel-projects">
+          <section className="report-panel">
             <h2>Project Wise</h2>
             {['tec', 'tut'].map((key) => (
-              <div key={key} className={`report-project-row report-project-row-${key}`}>
+              <div key={key} className="report-project-row">
                 <strong>{key.toUpperCase()}</strong>
                 <span>{projects[key]?.campaigns || 0} campaigns</span>
                 <span>{projects[key]?.clients || 0} clients</span>
@@ -123,50 +123,50 @@ export default function ReportPage() {
             ))}
           </section>
 
-          <section className="report-panel report-detail-panel report-detail-panel-clients">
+          <section className="report-panel">
             <h2>Client Counts</h2>
             <div className="report-mini-grid">
-              <article className="report-mini-card report-mini-card-tec"><span>TEC clients</span><strong>{clientCounts.tec || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-tut"><span>TUT clients</span><strong>{clientCounts.tut || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-total"><span>Total clients</span><strong>{clientCounts.total || 0}</strong></article>
+              <article><span>TEC clients</span><strong>{clientCounts.tec || 0}</strong></article>
+              <article><span>TUT clients</span><strong>{clientCounts.tut || 0}</strong></article>
+              <article><span>Total clients</span><strong>{clientCounts.total || 0}</strong></article>
             </div>
           </section>
 
-          <section className="report-panel report-detail-panel report-detail-panel-senders">
+          <section className="report-panel">
             <h2>Sender ID Health</h2>
             <div className="report-mini-grid">
-              <article className="report-mini-card report-mini-card-total"><span>Total senders</span><strong>{senderHealth?.total || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-active"><span>Active</span><strong>{senderHealth?.active || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-failed"><span>Failed</span><strong>{senderHealth?.failed || 0}</strong></article>
+              <article><span>Total senders</span><strong>{senderHealth?.total || 0}</strong></article>
+              <article><span>Active</span><strong>{senderHealth?.active || 0}</strong></article>
+              <article><span>Failed</span><strong>{senderHealth?.failed || 0}</strong></article>
             </div>
-            <p className="report-panel-note">{senderProviderText}</p>
+            <p>{senderProviderText}</p>
           </section>
 
-          <section className="report-panel report-detail-panel report-detail-panel-warmup">
+          <section className="report-panel">
             <h2>Warmup</h2>
             <div className="report-mini-grid">
-              <article className="report-mini-card report-mini-card-active"><span>Active accounts</span><strong>{warmup?.activeAccounts || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-sent"><span>Sent</span><strong>{warmup?.sent || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-received"><span>Received</span><strong>{warmup?.received || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-failed"><span>Failed</span><strong>{warmup?.failed || 0}</strong></article>
+              <article><span>Active accounts</span><strong>{warmup?.activeAccounts || 0}</strong></article>
+              <article><span>Sent</span><strong>{warmup?.sent || 0}</strong></article>
+              <article><span>Received</span><strong>{warmup?.received || 0}</strong></article>
+              <article><span>Failed</span><strong>{warmup?.failed || 0}</strong></article>
             </div>
-            <p className="report-panel-note">Health: {warmup?.health || '-'}</p>
+            <p>Health: {warmup?.health || '-'}</p>
           </section>
 
-          <section className="report-panel report-detail-panel report-detail-panel-credits">
+          <section className="report-panel">
             <h2>Credits</h2>
             <div className="report-mini-grid">
-              <article className="report-mini-card report-mini-card-total"><span>Total</span><strong>{credits?.totalCredits || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-used"><span>Used</span><strong>{credits?.usedCredits || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-remaining"><span>Remaining</span><strong>{credits?.remainingCredits || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-today"><span>Used today</span><strong>{credits?.usedToday || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-tec"><span>TEC used</span><strong>{credits?.projectWise?.tec || 0}</strong></article>
-              <article className="report-mini-card report-mini-card-tut"><span>TUT used</span><strong>{credits?.projectWise?.tut || 0}</strong></article>
+              <article><span>Total</span><strong>{credits?.totalCredits || 0}</strong></article>
+              <article><span>Used</span><strong>{credits?.usedCredits || 0}</strong></article>
+              <article><span>Remaining</span><strong>{credits?.remainingCredits || 0}</strong></article>
+              <article><span>Used today</span><strong>{credits?.usedToday || 0}</strong></article>
+              <article><span>TEC used</span><strong>{credits?.projectWise?.tec || 0}</strong></article>
+              <article><span>TUT used</span><strong>{credits?.projectWise?.tut || 0}</strong></article>
             </div>
           </section>
         </div>
 
-        <section className="report-panel report-detail-panel report-alert-panel">
+        <section className="report-panel report-alert-panel">
           <h2>Alerts</h2>
           <div className="alert-list">
             {alerts.map((alert, index) => (
