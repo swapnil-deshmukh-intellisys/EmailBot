@@ -305,6 +305,53 @@ const PROJECT_PRESET_SENDERS = {
 
 const normalizeEmail = (value = '') => String(value || '').toLowerCase();
 
+const inferProjectKeyFromCampaign = (campaign = {}, fallbackProject = '') => {
+  const rawProject = String(
+    campaign?.project ||
+    campaign?.projectId ||
+    campaign?.projectName ||
+    campaign?.meta?.project ||
+    campaign?.meta?.projectId ||
+    campaign?.meta?.projectName ||
+    ''
+  ).trim().toLowerCase();
+
+  if (rawProject === 'tec' || rawProject.includes('entrepreneurial')) return 'TEC';
+  if (rawProject === 'tut' || rawProject.includes('unicorn')) return 'TUT';
+
+  const senderEmail = String(
+    campaign?.senderFrom ||
+    campaign?.senderAccount?.from ||
+    campaign?.senderAccount?.user ||
+    campaign?.senderEmail ||
+    campaign?.sender ||
+    campaign?.from ||
+    ''
+  ).trim().toLowerCase();
+
+  if (senderEmail.endsWith('@theentrepreneurialchronicle.com')) return 'TEC';
+  if (senderEmail.endsWith('@theunicorntimes.com')) return 'TUT';
+
+  const fallback = String(fallbackProject || '').trim().toLowerCase();
+  if (fallback === 'tec' || fallback.includes('entrepreneurial')) return 'TEC';
+  if (fallback === 'tut' || fallback.includes('unicorn')) return 'TUT';
+
+  return 'TEC';
+};
+
+const buildCampaignBroadcastCode = (campaign = {}, projectKey = 'TEC', index = 0) => {
+  const fallbackCode = `${projectKey}-${String(index + 1).padStart(2, '0')}`;
+  const rawCode = String(campaign?.broadcast || campaign?.code || '').trim();
+  if (!rawCode) return fallbackCode;
+
+  const existing = rawCode.match(/^(TEC|TUT)-(.+)$/i);
+  if (!existing) return rawCode;
+
+  const rawPrefix = existing[1].toUpperCase();
+  const suffix = existing[2];
+  return rawPrefix === projectKey ? `${rawPrefix}-${suffix}` : `${projectKey}-${suffix}`;
+};
+
 const filterAccountsByProject = (list = [], projectKey = '') => {
   const project = String(projectKey || '').toLowerCase();
   const allowedList = PROJECT_PRESET_SENDERS[project] || [];
@@ -1527,7 +1574,7 @@ const handleDeleteDraft = async (draft) => {
     const opened = Number(campaign?.stats?.opened || campaign?.stats?.opens || campaign?.trackingStats?.openCount || 0);
     const bounced = Number(campaign?.stats?.bounced || campaign?.stats?.bounce || 0);
     const spam = Number(campaign?.stats?.spam || 0);
-    const projectKey = String(project || 'tec').toUpperCase();
+    const campaignProjectKey = inferProjectKeyFromCampaign(campaign, project);
     const senderEmail = String(
       campaign?.senderFrom ||
       campaign?.senderAccount?.from ||
@@ -1549,10 +1596,7 @@ const handleDeleteDraft = async (draft) => {
       campaign?.industry ||
       campaign?.category ||
       '';
-    const broadcast =
-      campaign?.broadcast ||
-      campaign?.code ||
-      `${projectKey}-${String(index + 1).padStart(2, '0')}`;
+    const broadcast = buildCampaignBroadcastCode(campaign, campaignProjectKey, index);
     return {
       id: campaign?._id || index,
       srNo: index + 1,
@@ -1569,6 +1613,7 @@ const handleDeleteDraft = async (draft) => {
       tag: status,
       person: senderName,
       broadcast,
+      project: campaignProjectKey,
       country,
       sector,
       workerId: campaign?.workerId || '',
