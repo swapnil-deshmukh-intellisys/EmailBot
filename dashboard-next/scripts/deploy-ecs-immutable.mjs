@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,6 +15,35 @@ function run(command, { capture = false, quiet = false } = {}) {
   return '';
 }
 
+function loadDotenv(filePath) {
+  if (!existsSync(filePath)) return;
+
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/g);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const name = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (!process.env[name]) {
+      process.env[name] = value;
+    }
+  }
+}
+
+loadDotenv(path.join(process.cwd(), '.env'));
+
 function requireEnv(name) {
   const value = String(process.env[name] || '').trim();
   if (!value) {
@@ -22,6 +51,60 @@ function requireEnv(name) {
   }
   return value;
 }
+
+const defaultPresetSenderEmailsTec = [
+  'sam@theentrepreneurialchronicle.com',
+  'clara@theentrepreneurialchronicle.com',
+  'sophia@theentrepreneurialchronicle.com',
+  'jess@theentrepreneurialchronicle.com',
+  'diana@theentrepreneurialchronicle.com',
+  'victoria@theentrepreneurialchronicle.com',
+  'alina@theentrepreneurialchronicle.com',
+  'amelia@theentrepreneurialchronicle.com',
+  'grace@theentrepreneurialchronicle.com',
+  'eliana@theentrepreneurialchronicle.com',
+  'liam@theentrepreneurialchronicle.com',
+  'emma@theentrepreneurialchronicle.com',
+  'fiona@theentrepreneurialchronicle.com',
+  'daniel@theentrepreneurialchronicle.com',
+  'lacy@theentrepreneurialchronicle.com',
+  'robert@theentrepreneurialchronicle.com',
+  'mark@theentrepreneurialchronicle.com',
+  'charlie@theentrepreneurialchronicle.com',
+  'juan@theentrepreneurialchronicle.com',
+  'manuel@theentrepreneurialchronicle.com',
+  'antonio@theentrepreneurialchronicle.com',
+  'john@theentrepreneurialchronicle.com',
+  'lily@theentrepreneurialchronicle.com'
+].join(',');
+
+const defaultPresetSenderEmailsTut = [
+  'Matt@theunicorntimes.com',
+  'Jordan@theunicorntimes.com',
+  'Jessica@theunicorntimes.com',
+  'ethan@theunicorntimes.com',
+  'Lily@theunicorntimes.com',
+  'Jasmin@theunicorntimes.com',
+  'kevin@theunicorntimes.com',
+  'Peter@theunicorntimes.com',
+  'Tyler@theunicorntimes.com',
+  'Olivia@theunicorntimes.com',
+  'Allison@theunicorntimes.com',
+  'Carmen@theunicorntimes.com',
+  'Isla@theunicorntimes.com',
+  'Jasmin@theunicorntimes.com',
+  'Jason@theunicorntimes.com',
+  'Jessica@theunicorntimes.com',
+  'Julia@theunicorntimes.com',
+  'Juliana@theunicorntimes.com',
+  'Lena@theunicorntimes.com',
+  'Lisa@theunicorntimes.com',
+  'Lucy@theunicorntimes.com',
+  'Martina@theunicorntimes.com',
+  'Mary@theunicorntimes.com',
+  'Nora@theunicorntimes.com',
+  'Valeria@theunicorntimes.com'
+].join(',');
 
 function buildTag() {
   const explicit = String(process.env.DEPLOY_TAG || '').trim();
@@ -124,7 +207,9 @@ function main() {
     __SECRET_TUT_CLIENT_ID__: requireEnv('SECRET_TUT_CLIENT_ID'),
     __SECRET_TUT_CLIENT_SECRET__: requireEnv('SECRET_TUT_CLIENT_SECRET'),
     __SECRET_TUT_GRAPH_SENDER_EMAIL__: requireEnv('SECRET_TUT_GRAPH_SENDER_EMAIL'),
-    __SECRET_ALLOWED_ORIGINS__: requireEnv('SECRET_ALLOWED_ORIGINS')
+    __SECRET_ALLOWED_ORIGINS__: requireEnv('SECRET_ALLOWED_ORIGINS'),
+    __PRESET_SENDER_EMAILS_TEC__: process.env.PRESET_SENDER_EMAILS_TEC || defaultPresetSenderEmailsTec,
+    __PRESET_SENDER_EMAILS_TUT__: process.env.PRESET_SENDER_EMAILS_TUT || defaultPresetSenderEmailsTut
   };
 
   const root = process.cwd();

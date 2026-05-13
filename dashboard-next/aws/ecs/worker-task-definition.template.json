@@ -17,7 +17,9 @@
         { "name": "CAMPAIGN_WORKER_ID", "value": "aws-worker-1" },
         { "name": "CAMPAIGN_SCHEDULER_INTERVAL_MS", "value": "5000" },
         { "name": "CAMPAIGN_WORKER_HEARTBEAT_MS", "value": "15000" },
-        { "name": "CAMPAIGN_WORKER_LOCK_STALE_MS", "value": "120000" }
+        { "name": "CAMPAIGN_WORKER_LOCK_STALE_MS", "value": "120000" },
+        { "name": "PRESET_SENDER_EMAILS_TEC", "value": "__PRESET_SENDER_EMAILS_TEC__" },
+        { "name": "PRESET_SENDER_EMAILS_TUT", "value": "__PRESET_SENDER_EMAILS_TUT__" }
       ],
       "secrets": [
         { "name": "MONGODB_URI", "valueFrom": "__SECRET_MONGODB_URI__" },
