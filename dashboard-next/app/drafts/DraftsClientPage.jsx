@@ -15,6 +15,10 @@ const STATUS_VARIANTS = {
 };
 
 const CATEGORY_OPTIONS = [...DRAFT_TYPE_ITEMS, { value: 'custom', label: 'Custom' }];
+const PROJECT_OPTIONS = [
+  { value: 'tec', label: 'TEC' },
+  { value: 'tut', label: 'TUT' }
+];
 const DRAFT_LIBRARY_SECTIONS = [
   { value: 'cover_story', label: 'Cover Story' },
   { value: 'reminder', label: 'Reminder' },
@@ -109,7 +113,7 @@ export default function DraftsPage() {
   const [draftSubject, setDraftSubject] = useState('');
   const [draftCategory, setDraftCategory] = useState(CATEGORY_OPTIONS[0].value);
   const [draftSector, setDraftSector] = useState('');
-  const [draftDomain, setDraftDomain] = useState('');
+  const [draftProject, setDraftProject] = useState('tec');
   const [draftTitle, setDraftTitle] = useState('');
   const [editorHtml, setEditorHtml] = useState('');
   const [activeWorkspaceMode, setActiveWorkspaceMode] = useState('create');
@@ -118,7 +122,7 @@ export default function DraftsPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [librarySectorFilter, setLibrarySectorFilter] = useState('');
-  const [libraryDomainFilter, setLibraryDomainFilter] = useState('');
+  const [libraryProjectFilter, setLibraryProjectFilter] = useState('');
   const [libraryTypeFilter, setLibraryTypeFilter] = useState('');
   const fileInputRef = useRef(null);
 
@@ -221,30 +225,26 @@ export default function DraftsPage() {
     [drafts]
   );
 
-  const domainOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          drafts
-            .map((draft) => String(draft?.domain || '').trim().toLowerCase())
-            .filter(Boolean)
-        )
-      ).sort((a, b) => a.localeCompare(b)),
-    [drafts]
-  );
+  const getDraftProject = (draft = {}) => {
+    const project = String(draft?.project || '').trim().toLowerCase();
+    if (project === 'tec' || project === 'tut') return project;
+    const legacyDomain = String(draft?.domain || '').trim().toLowerCase();
+    if (legacyDomain === 'tec' || legacyDomain === 'tut') return legacyDomain;
+    return '';
+  };
 
   const filteredDrafts = useMemo(
     () =>
       drafts.filter((draft) => {
         const sector = String(draft?.sector || '').trim().toLowerCase();
-        const domain = String(draft?.domain || '').trim().toLowerCase();
+        const project = getDraftProject(draft);
         const draftType = normalizeDraftType(draft?.draftType || draft?.category || 'custom');
         if (libraryTypeFilter && draftType !== libraryTypeFilter) return false;
         if (librarySectorFilter && sector !== librarySectorFilter.toLowerCase()) return false;
-        if (libraryDomainFilter && domain !== libraryDomainFilter.toLowerCase()) return false;
+        if (libraryProjectFilter && project !== libraryProjectFilter.toLowerCase()) return false;
         return true;
       }),
-    [drafts, libraryDomainFilter, librarySectorFilter, libraryTypeFilter]
+    [drafts, libraryProjectFilter, librarySectorFilter, libraryTypeFilter]
   );
 
   const groupedDrafts = useMemo(() => {
@@ -268,7 +268,7 @@ export default function DraftsPage() {
     setDraftTitle('');
     setDraftSubject('');
     setDraftSector('');
-    setDraftDomain('');
+    setDraftProject('tec');
     setDraftCategory(CATEGORY_OPTIONS[0].value);
     setEditorHtml('');
     setSaveMessage('');
@@ -283,27 +283,12 @@ export default function DraftsPage() {
     }
   };
 
-  const handleCreateNew = () => {
-    setActiveWorkspaceMode('create');
-    setShowWorkspace(true);
-    setUploadedText('');
-    setUploadedFileName('');
-    setEditingDraftId('');
-    setDraftTitle('');
-    setDraftSubject('');
-    setDraftSector('');
-    setDraftDomain('');
-    setDraftCategory(CATEGORY_OPTIONS[0].value);
-    setEditorHtml('');
-    setSaveMessage('');
-  };
-
   const handleEditDraft = (draft) => {
     setEditingDraftId(String(draft?._id || ''));
     setDraftTitle(String(draft?.title || ''));
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
-    setDraftDomain(String(draft?.domain || ''));
+    setDraftProject(getDraftProject(draft) || 'tec');
     setDraftCategory(normalizeDraftType(draft?.draftType || draft?.category || CATEGORY_OPTIONS[0].value));
     setEditorHtml(String(draft?.body || ''));
     setShowWorkspace(true);
@@ -324,7 +309,7 @@ export default function DraftsPage() {
         draftType: normalizeDraftType(draftCategory),
         title: draftTitle.trim(),
         sector: draftSector.trim(),
-        domain: draftDomain.trim().toLowerCase(),
+        project: ['tec', 'tut'].includes(String(draftProject || '').trim().toLowerCase()) ? String(draftProject || '').trim().toLowerCase() : '',
         subject: draftSubject.trim(),
         body: editorHtml
       };
@@ -378,6 +363,9 @@ export default function DraftsPage() {
     }
   };
 
+  const isUploadWorkspace = showWorkspace && activeWorkspaceMode === 'upload';
+  const isSingleEditorWorkspace = showWorkspace && activeWorkspaceMode !== 'upload';
+
   return (
     <DashboardPlaceholderShell>
       <section className="workspace-page" style={{ '--workspace-accent': '#f97316' }}>
@@ -397,7 +385,6 @@ export default function DraftsPage() {
             />
             <Button variant="secondary" className="workspace-secondary" onClick={handleUploadClick}>Upload File</Button>
             <Button variant="secondary" className="workspace-secondary" onClick={handleCustomizeDraft}>Customize Draft</Button>
-            <Button variant="secondary" className="workspace-secondary" onClick={handleCreateNew}>Create New</Button>
             <Button className="workspace-primary" onClick={handleCreateDraft}>Create Draft</Button>
           </div>
         </div>
@@ -422,21 +409,28 @@ export default function DraftsPage() {
         </div>
 
         {showWorkspace ? (
-          <section className="workspace-panel draft-workspace-panel">
+          <section className={`workspace-panel draft-workspace-panel ${isSingleEditorWorkspace ? 'draft-workspace-panel-full' : ''}`}>
             <div className="workspace-panel-head">
               <div>
-                <h2>Draft Workspace</h2>
-                <p>Review uploaded text on one side and write or paste the final draft on the other side.</p>
+                <h2>{isUploadWorkspace ? 'Draft Workspace' : 'Create Draft'}</h2>
+                <p>
+                  {isUploadWorkspace
+                    ? 'Review uploaded text on one side and write or paste the final draft on the other side.'
+                    : 'Write, paste, and format the final campaign draft in a focused editor.'}
+                </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setShowWorkspace(false)}>Back to Drafts</Button>
               <div className="draft-workspace-mode">
-                <span className={`draft-workspace-pill${activeWorkspaceMode === 'upload' ? ' is-active' : ''}`}>Upload File</span>
-                <span className={`draft-workspace-pill${activeWorkspaceMode === 'customize' ? ' is-active' : ''}`}>Customize Draft</span>
-                <span className={`draft-workspace-pill${activeWorkspaceMode === 'create' ? ' is-active' : ''}`}>Create Draft</span>
+                {isUploadWorkspace ? (
+                  <span className="draft-workspace-pill is-active">Upload File</span>
+                ) : (
+                  <span className="draft-workspace-pill is-active">{activeWorkspaceMode === 'customize' ? 'Customize Draft' : 'Create Draft'}</span>
+                )}
               </div>
             </div>
 
-            <div className="draft-workspace-split">
+            <div className={isUploadWorkspace ? 'draft-workspace-split' : 'draft-workspace-single'}>
+              {isUploadWorkspace ? (
               <section className="draft-workspace-pane">
                 <div className="draft-workspace-pane-head">
                   <div>
@@ -461,6 +455,7 @@ export default function DraftsPage() {
                   )}
                 </div>
               </section>
+              ) : null}
 
               <section className="draft-workspace-pane">
                 <div className="draft-workspace-pane-head">
@@ -516,13 +511,12 @@ export default function DraftsPage() {
                   </label>
 
                   <label className="draft-workspace-title-field">
-                    <span>Domain</span>
-                    <input
-                      type="text"
-                      value={draftDomain}
-                      onChange={(event) => setDraftDomain(event.target.value)}
-                      placeholder="example.com"
-                    />
+                    <span>Project</span>
+                    <select value={draftProject} onChange={(event) => setDraftProject(event.target.value)}>
+                      {PROJECT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
@@ -546,6 +540,7 @@ export default function DraftsPage() {
           </section>
         ) : null}
 
+        {!showWorkspace ? (
         <div className="workspace-grid">
           <section className="workspace-panel workspace-panel-large">
             <div className="workspace-panel-head">
@@ -578,11 +573,11 @@ export default function DraftsPage() {
               </label>
 
               <label className="draft-library-filter-field">
-                <span>Domain</span>
-                <select value={libraryDomainFilter} onChange={(event) => setLibraryDomainFilter(event.target.value)}>
-                  <option value="">All domains</option>
-                  {domainOptions.map((option) => (
-                    <option key={option} value={option}>{option}</option>
+                <span>Project</span>
+                <select value={libraryProjectFilter} onChange={(event) => setLibraryProjectFilter(event.target.value)}>
+                  <option value="">All projects</option>
+                  {PROJECT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </label>
@@ -608,7 +603,7 @@ export default function DraftsPage() {
                         <p>{draft?.subject || '-'}</p>
                         <div className="draft-type-card-meta">
                           <small>{draft?.sector || 'No sector'}</small>
-                          <small>{draft?.domain || 'No domain'}</small>
+                          <small>{getDraftProject(draft) ? getDraftProject(draft).toUpperCase() : 'No project'}</small>
                           <small>{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</small>
                         </div>
                         <Button variant="ghost" size="sm" onClick={() => handleEditDraft(draft)}>Edit</Button>
@@ -667,6 +662,7 @@ export default function DraftsPage() {
             </div>
           </section>
         </div>
+        ) : null}
       </section>
     </DashboardPlaceholderShell>
   );

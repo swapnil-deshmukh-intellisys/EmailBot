@@ -19,6 +19,7 @@ const EmailDraftSchema = new mongoose.Schema(
     title: { type: String, required: true },
     category: { type: String, required: true },
     draftType: { type: String, enum: DRAFT_TYPES, default: 'initial_outreach', index: true },
+    project: { type: String, enum: ['', 'tec', 'tut'], default: '', index: true },
     sector: { type: String, default: '', index: true },
     domain: { type: String, default: '', index: true },
     subject: { type: String, required: true },

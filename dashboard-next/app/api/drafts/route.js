@@ -59,7 +59,7 @@ export async function POST(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-    const { category, draftType, title, subject, body, sector, domain } = await req.json();
+    const { category, draftType, title, subject, body, sector, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     if (!normalizedDraftType || !title || !subject || !body) {
       return NextResponse.json({ error: 'draftType, title, subject, and body are required' }, { status: 400 });
@@ -73,6 +73,7 @@ export async function POST(req) {
       category: normalizedDraftType,
       draftType: normalizedDraftType,
       title,
+      project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
       sector: String(sector || '').trim(),
       domain: String(domain || '').trim().toLowerCase(),
       subject,

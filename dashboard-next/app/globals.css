@@ -2568,6 +2568,20 @@ p { margin: 0; color: var(--muted); }
   gap: 18px;
 }
 
+.draft-workspace-panel-full {
+  min-height: calc(100vh - 210px);
+}
+
+.draft-workspace-single {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.draft-workspace-single .draft-workspace-pane {
+  min-height: calc(100vh - 330px);
+}
+
 .draft-workspace-pane {
   min-width: 0;
 }
