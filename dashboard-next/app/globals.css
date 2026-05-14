@@ -21012,13 +21012,13 @@ html[data-theme='light'] {
 html.theme-dark,
 html[data-theme='dark'] {
   --theme-heading-text: #fbfdff;
-  --theme-body-text: #e7f0fb;
-  --theme-soft-text: #c5d4e8;
-  --theme-muted-text: #99abc3;
+  --theme-body-text: #ffffff;
+  --theme-soft-text: #ffffff;
+  --theme-muted-text: #e5e7eb;
   --theme-link-text: #73e7ff;
   --theme-accent-text: #b69cff;
-  --theme-table-head-text: #b8c9df;
-  --theme-nav-text: #d8e7f8;
+  --theme-table-head-text: #ffffff;
+  --theme-nav-text: #ffffff;
   --theme-stat-text: #ffffff;
 }
 
@@ -21129,4 +21129,89 @@ html[data-theme='light'] :where(input, textarea, select) {
 html.theme-dark :where(input, textarea, select),
 html[data-theme='dark'] :where(input, textarea, select) {
   caret-color: #73e7ff;
+}
+
+html.theme-dark :where(p, span, label, li, td, th, summary, small, strong, b, em, button, input, textarea, select, option),
+html[data-theme='dark'] :where(p, span, label, li, td, th, summary, small, strong, b, em, button, input, textarea, select, option) {
+  color: #ffffff !important;
+}
+
+html.theme-dark :where(.muted, .text-muted, .dashboard-muted, .dashboard-subtitle, .theme-toggle-option-copy, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p),
+html[data-theme='dark'] :where(.muted, .text-muted, .dashboard-muted, .dashboard-subtitle, .theme-toggle-option-copy, .client-data-panel-head p, .workspace-panel-head p, .campaign-panel-head p, .campaign-count-card p, .campaign-name-cell small, .premium-kpi-card p, .premium-kpi-card span, .premium-list-item small, .premium-list-item p, .premium-timeline-item p, .premium-timeline-item small, .master-mail-account small, .master-mail-row-top span, .master-mail-row p) {
+  color: #e5e7eb !important;
+}
+
+html.theme-dark :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span),
+html[data-theme='dark'] :where(a, .campaign-name-link, .master-mail-folder strong, .master-mail-attachments span) {
+  color: #8beeff !important;
+}
+
+/* Global responsive safety layer for app pages. This adjusts layout only and does not change the Colorful theme styling. */
+@media (max-width: 1180px) {
+  :where(.dashboard-main, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) {
+    min-width: 0;
+    width: 100%;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar, .client-data-overview-section, .campaigns-modern-hero) {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  :where(.dashboard-shell) {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  :where(.dashboard-main, .container.grid.dashboard-main, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar, .client-data-panel, .workspace-panel, .campaign-panel, .premium-panel) {
+    border-radius: 18px;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .dashboard-topbar-actions, .premium-toolbar, .premium-toolbar-actions, .premium-toolbar-tabs) {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  :where(.dashboard-topbar-search, .dashboard-topbar-actions, .premium-toolbar-actions, .premium-toolbar-tabs) {
+    width: 100%;
+  }
+
+  :where(.table-wrap, .campaign-table-wrap, .client-data-table-wrap, .premium-table-wrap, .master-mail-message-list) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 640px) {
+  :where(.container, .dashboard-main, .container.grid.dashboard-main, .premium-dashboard-shell, .workspace-shell, .ui-page, .campaigns-modern-page, .master-mail-page) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar, .client-data-panel, .workspace-panel, .campaign-panel, .premium-panel, .mail-inbox-preview-card, .mail-inbox-message-card) {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  :where(.dashboard-topbar-tab, .dashboard-topbar-pill, .theme-toggle-btn, .dashboard-sidebar-link, .dashboard-primary-link, .premium-toolbar-tabs button, .premium-toolbar-actions button) {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  :where(.theme-toggle-popover, .dashboard-topbar-dropdown-menu, .premium-progress-filter-menu, .premium-row-action-menu) {
+    max-width: calc(100vw - 24px);
+  }
+
+  :where(.premium-clientlist-modal, .premium-campaign-modal, .premium-review-modal, .premium-select-draft-modal, .premium-test-email-modal, .premium-schedule-modal, .premium-template-modal, .premium-calendar-modal, .dashboard-popup-card) {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100vh - 20px);
+    overflow: auto;
+  }
 }
