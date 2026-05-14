@@ -411,6 +411,7 @@ export default function DashboardPage() {
   const [preview, setPreview] = useState([]);
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
+  const skipNextListPreviewLoadRef = useRef(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignName, setCampaignName] = useState('');
   const [delaySeconds, setDelaySeconds] = useState(60);
@@ -2473,6 +2474,11 @@ const handleDeleteDraft = async (draft) => {
         return;
       }
 
+      if (skipNextListPreviewLoadRef.current) {
+        skipNextListPreviewLoadRef.current = false;
+        return;
+      }
+
       try {
         const data = await safeFetchJson(`/api/lists/${selectedListId}`);
         const leads = data.leads || [];
@@ -2507,14 +2513,20 @@ const handleDeleteDraft = async (draft) => {
     try {
       const data = await safeFetchJson('/api/uploads', { method: 'POST', body: form });
       setLoading(false);
-      setPreviewColumns(data.previewColumns || []);
+      const duplicateCount = Number(data.duplicateCount || data.summary?.duplicateRecords || 0);
+      setPreviewColumns(data.previewColumns || data.columns || []);
       setPreview(data.previewRows || []);
       setPreviewPage(1);
       setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
       setPreviewDirty(false);
+      skipNextListPreviewLoadRef.current = true;
       setSelectedListId(data.listId);
       await loadAll();
-      notify('File uploaded successfully.', 'success');
+      if (duplicateCount > 0) {
+        notify(`${duplicateCount} repeated client(s) were removed from the sending list. Review them in red before continuing.`, 'warning');
+      } else {
+        notify('File uploaded successfully.', 'success');
+      }
     } catch (e) {
       setLoading(false);
       notify(e.message || 'Upload failed', 'error');

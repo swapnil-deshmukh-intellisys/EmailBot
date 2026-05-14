@@ -4,6 +4,7 @@ import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import UploadFile from '@/models/UploadFile';
 import { requireAuth } from '@/lib/apiAuth';
+import { analyzeRows, collectExistingLeadKeys } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -99,21 +100,73 @@ function extractColumns(rows) {
   return columns;
 }
 
-function dedupeLeadsByEmail(leads = []) {
-  const seen = new Set();
-  const deduped = [];
+const FALLBACK_PREVIEW_COLUMNS = ['Name', 'Surname', 'Email', 'Company', 'Designation', 'Phone', 'Domain', 'Sector', 'Country'];
 
-  for (const lead of leads) {
-    const email = normalizeEmail(lead?.Email || lead?.email || '');
-    if (!email || seen.has(email)) continue;
-    seen.add(email);
-    deduped.push({
-      ...lead,
-      Email: email
-    });
+function extractPreviewColumns(rows = [], fallback = []) {
+  const seen = new Set();
+  const columns = [];
+  const preferred = [...FALLBACK_PREVIEW_COLUMNS, ...fallback];
+
+  for (const column of preferred) {
+    const clean = String(column || '').trim();
+    if (!clean || seen.has(clean)) continue;
+    if (rows.some((row) => Object.prototype.hasOwnProperty.call(row || {}, clean))) {
+      seen.add(clean);
+      columns.push(clean);
+    }
   }
 
-  return deduped;
+  for (const row of rows) {
+    for (const key of Object.keys(row || {})) {
+      const clean = String(key || '').trim();
+      if (
+        !clean ||
+        seen.has(clean) ||
+        ['data', 'dedupe', 'reasons', 'rowId', 'rowNumber', 'status', 'validationStatus', 'duplicateMatches', 'matchedSources'].includes(clean)
+      ) continue;
+      seen.add(clean);
+      columns.push(clean);
+    }
+  }
+
+  return columns.length ? columns : fallback;
+}
+
+function leadFromPreviewRow(row = {}, fileName = '') {
+  const email = normalizeEmail(row.Email || row.email || row?.data?.Email || '');
+  const data = {
+    ...(row.data && typeof row.data === 'object' ? row.data : {}),
+    Name: row.Name || row?.data?.Name || '',
+    Surname: row.Surname || row?.data?.Surname || '',
+    Email: email,
+    Company: row.Company || row?.data?.Company || '',
+    Designation: row.Designation || row?.data?.Designation || '',
+    Phone: row.Phone || row?.data?.Phone || '',
+    LinkedInUrl: row.LinkedInUrl || row.linkedinUrl || row?.data?.LinkedInUrl || '',
+    linkedinUrl: row.linkedinUrl || row.LinkedInUrl || row?.data?.linkedinUrl || '',
+    Domain: row.Domain || row?.data?.Domain || '',
+    Sector: row.Sector || row?.data?.Sector || '',
+    Country: row.Country || row?.data?.Country || ''
+  };
+
+  return {
+    Name: data.Name,
+    Surname: data.Surname,
+    Email: email,
+    Company: data.Company,
+    companyName: data.Company,
+    Designation: data.Designation,
+    Phone: data.Phone,
+    linkedinUrl: data.linkedinUrl || data.LinkedInUrl,
+    Domain: data.Domain,
+    Sector: data.Sector,
+    Country: data.Country,
+    sourceFileName: fileName,
+    uploadDate: new Date(),
+    validationStatus: 'Valid',
+    data,
+    status: 'Pending'
+  };
 }
 
 export async function POST(req) {
@@ -193,12 +246,45 @@ export async function POST(req) {
     );
   }
 
-  const leads = dedupeLeadsByEmail(rows
-    .map(normalizeRow)
-    .filter((row) => row.Email && String(row.Email).includes('@')));
+  const existingLists = await LeadList.find({ userEmail })
+    .select('name sourceFile uploadedAt createdAt leads')
+    .lean();
+  const existingLeadKeys = collectExistingLeadKeys(existingLists);
+  const analysis = analyzeRows(rows, {
+    ...existingLeadKeys,
+    companyNames: new Set()
+  });
+  const previewRows = (Array.isArray(analysis.rows) ? analysis.rows : []).map((row) => {
+    const fullNameCompanyMatch = row?.dedupe?.fullNameCompany && existingLeadKeys.fullNameCompany?.has(row.dedupe.fullNameCompany);
+    if (!fullNameCompanyMatch) return row;
+    const reasons = Array.from(new Set([...(Array.isArray(row.reasons) ? row.reasons : []), 'Matched existing client by name and company']));
+    return {
+      ...row,
+      status: 'Duplicate',
+      validationStatus: 'Duplicate',
+      reasons
+    };
+  });
+  const validRows = previewRows.filter((row) => row.validationStatus === 'Valid');
+  const duplicateRows = previewRows.filter((row) => row.validationStatus === 'Duplicate');
+  const uploadSummary = {
+    totalRecords: previewRows.length,
+    validRecords: validRows.length,
+    duplicateRecords: duplicateRows.length,
+    repeatedRecords: duplicateRows.length,
+    repeatedClientCount: duplicateRows.length,
+    invalidRecords: 0
+  };
+  const previewColumns = extractPreviewColumns(previewRows, columns);
+  const leads = validRows
+    .filter((row) => normalizeEmail(row.Email || row?.data?.Email || '').includes('@'))
+    .map((row) => leadFromPreviewRow(row, fileName));
 
   if (!leads.length) {
-    return NextResponse.json({ error: 'No valid leads with Email found in file' }, { status: 400 });
+    const duplicateMessage = duplicateRows.length
+      ? `All ${duplicateRows.length} uploaded client(s) already exist or repeat in this sheet. No new clients were saved.`
+      : 'No valid leads with Email found in file';
+    return NextResponse.json({ error: duplicateMessage }, { status: 400 });
   }
 
   const list = await LeadList.create({
@@ -207,7 +293,7 @@ export async function POST(req) {
     name: `${fileName} - ${new Date().toLocaleString()}`,
     sourceFile: fileName,
     kind: 'uploaded',
-    columns,
+    columns: previewColumns,
     sheetStyle: {
       fontFamily: 'Segoe UI',
       fontSize: 14,
@@ -224,8 +310,10 @@ export async function POST(req) {
     ok: true,
     listId: String(list._id),
     count: leads.length,
-    previewColumns: columns,
-    previewRows: rows,
+    duplicateCount: duplicateRows.length,
+    summary: uploadSummary,
+    previewColumns,
+    previewRows,
     sheetStyle: list.sheetStyle,
     preview: leads
   });
