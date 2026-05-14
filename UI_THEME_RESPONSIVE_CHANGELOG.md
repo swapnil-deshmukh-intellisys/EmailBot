@@ -5,6 +5,7 @@
 - Preserved the existing ThemeProvider, localStorage persistence, and no-reload switching behavior.
 - Strengthened global iOS-style glass surfaces across shells, topbars, sidebars, cards, panels, buttons, forms, tables, modals, popovers, docks, and upload/review areas.
 - Added responsive safety rules for mobile, large mobile, tablet, iPad landscape, laptop, and desktop breakpoints.
+- Refined the dark dashboard view so sidebar, workflow, tables, activity panels, cards, filters, and buttons share one consistent premium dark palette.
 
 ## Files Changed
 - `UI_THEME_RESPONSIVE_PLAN.md`
@@ -50,6 +51,9 @@
 ## Bugs / UX Issues Addressed
 - Theme surfaces now share the same token system across more of the app.
 - Dark mode has stronger global contrast for cards, tables, forms, and modals.
+- Dark mode dashboard sections no longer inherit bright white/gray glass surfaces from the Colour theme.
+- Campaign workflow cards, chips, Start button, broadcast table controls, and activity panels now use matching dark surfaces.
+- Sidebar navigation and subscription/logout cards now match the dark theme instead of appearing washed out.
 - Light mode uses cleaner white/gray surfaces with soft blue accents.
 - Colour mode keeps the current premium branded style while using the same token names.
 - Modals now have stricter viewport sizing and internal scrolling.
