@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
 import {
@@ -1780,49 +1780,29 @@ export default function PremiumDashboardShell({
     () => columnMappings.find((item) => item.mappedField === 'Name') || null,
     [columnMappings]
   );
-  const getReviewRowEmail = useCallback((row = {}) =>
-    String(row?.[emailMapping?.sheetColumn] || row?.Email || row?.email || row?.data?.Email || '').trim(), [emailMapping]);
-  const getReviewRowName = useCallback((row = {}) =>
-    String(row?.[nameMapping?.sheetColumn] || row?.Name || row?.name || row?.data?.Name || '').trim(), [nameMapping]);
-  const getReviewDuplicateReasons = useCallback((row = {}) => {
-    const reasons = Array.isArray(row.reasons)
-      ? row.reasons.map((reason) => String(reason || '').trim()).filter(Boolean)
-      : [];
-    if (Array.isArray(row.duplicateMatches) && row.duplicateMatches.length) {
-      reasons.push('Matched previous uploaded client data');
-    }
-    return reasons;
-  }, []);
   const rowIssues = useMemo(() => {
     const emailCounts = overviewRows.reduce((acc, row) => {
-      const key = getReviewRowEmail(row).toLowerCase();
+      const key = String(row?.[emailMapping?.sheetColumn] || '').trim().toLowerCase();
       if (!key) return acc;
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
     return overviewRows.reduce((acc, row) => {
       const issues = [];
-      const emailValue = getReviewRowEmail(row);
-      const validationStatus = String(row?.validationStatus || row?.status || '').trim().toLowerCase();
-      const duplicateReasons = getReviewDuplicateReasons(row);
+      const emailValue = String(row?.[emailMapping?.sheetColumn] || '').trim();
       if (!emailValue) issues.push('missing');
       if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) issues.push('invalid');
       if (emailValue && emailCounts[emailValue.toLowerCase()] > 1) issues.push('duplicate');
-      if (validationStatus === 'duplicate' || duplicateReasons.length) issues.push('duplicate');
       if (activeOverviewColumns.some((item) => item.mappedField !== 'Ignore' && !String(row?.[item.sheetColumn] ?? '').trim())) {
         issues.push('missing-value');
       }
-      acc[row.id] = Array.from(new Set(issues));
+      acc[row.id] = issues;
       return acc;
     }, {});
-  }, [activeOverviewColumns, getReviewDuplicateReasons, getReviewRowEmail, overviewRows]);
-  const duplicateOverviewRows = useMemo(
-    () => overviewRows.filter((row) => rowIssues[row.id]?.includes('duplicate')),
-    [overviewRows, rowIssues]
-  );
+  }, [activeOverviewColumns, columnMappings, emailMapping, overviewRows]);
   const summaryStats = useMemo(() => {
     const validEmails = overviewRows.filter((row) => {
-      const emailValue = getReviewRowEmail(row);
+      const emailValue = String(row?.[emailMapping?.sheetColumn] || '').trim();
       return emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
     }).length;
     const missingValues = overviewRows.filter((row) => rowIssues[row.id]?.includes('missing') || rowIssues[row.id]?.includes('missing-value')).length;
@@ -1831,10 +1811,9 @@ export default function PremiumDashboardShell({
       { label: 'Total Records', value: String(overviewRows.length) },
       { label: 'Columns Detected', value: String(columnMappings.length) },
       { label: 'Valid Emails', value: String(validEmails) },
-      { label: 'Repeated Clients', value: String(duplicateOverviewRows.length) },
       { label: 'Missing Values', value: String(missingValues) }
     ];
-  }, [columnMappings.length, duplicateOverviewRows.length, getReviewRowEmail, overviewRows, rowIssues, selectedClientListSummary.title]);
+  }, [columnMappings.length, emailMapping, overviewRows, rowIssues, selectedClientListSummary.title]);
   const filteredOverviewRows = useMemo(() => {
     const query = overviewSearch.trim().toLowerCase();
     return overviewRows.filter((row) => {
@@ -3441,36 +3420,12 @@ export default function PremiumDashboardShell({
               ) : null}
               <div className="premium-review-summary">
                 {summaryStats.map((item) => (
-                  <article key={item.label} className={`premium-review-stat ${item.label === 'Missing Values' || item.label === 'Repeated Clients' ? 'alert' : ''}`}>
+                  <article key={item.label} className={`premium-review-stat ${item.label === 'Missing Values' ? 'alert' : ''}`}>
                     <span>{item.label}</span>
                     <strong>{item.value}</strong>
                   </article>
                 ))}
               </div>
-
-              {duplicateOverviewRows.length ? (
-                <section className="premium-review-duplicates" aria-live="polite">
-                  <div className="premium-review-duplicates-head">
-                    <div>
-                      <h4>Repeated clients removed from sending list</h4>
-                      <p>These contacts match previous data or repeat inside this sheet, so they will not receive mail again.</p>
-                    </div>
-                    <strong>{duplicateOverviewRows.length}</strong>
-                  </div>
-                  <div className="premium-review-duplicates-list">
-                    {duplicateOverviewRows.slice(0, 8).map((row) => {
-                      const reason = getReviewDuplicateReasons(row).join(', ') || 'Repeated client data found';
-                      return (
-                        <article key={`duplicate-${row.id}`}>
-                          <span>{getReviewRowEmail(row) || 'Missing email'}</span>
-                          <strong>{getReviewRowName(row) || row.Company || row?.data?.Company || 'Unnamed client'}</strong>
-                          <p>{reason}</p>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null}
 
               <section className="premium-review-block">
                 <div className="premium-review-block-head">
@@ -3566,9 +3521,8 @@ export default function PremiumDashboardShell({
                   <div className="premium-review-table-body">
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
-                      const isDuplicateRow = issues.includes('duplicate');
                       return (
-                        <div key={row.id} className={`premium-review-table premium-review-table-row ${isDuplicateRow ? 'duplicate-row' : ''}`}>
+                        <div key={row.id} className="premium-review-table premium-review-table-row">
                           <span>{index + 1}</span>
                           {activeOverviewColumns.map((mapping) => {
                             const field = mapping.sheetColumn;
@@ -3579,7 +3533,7 @@ export default function PremiumDashboardShell({
                               'premium-review-cell',
                               mapping.mappedField === 'Email' && issues.includes('invalid') ? 'invalid' : '',
                               !value ? 'missing' : '',
-                              isDuplicateRow ? 'duplicate' : ''
+                              mapping.mappedField === 'Email' && issues.includes('duplicate') ? 'duplicate' : ''
                             ].filter(Boolean).join(' ');
                             return (
                               <label
