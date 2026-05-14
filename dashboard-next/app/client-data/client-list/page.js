@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
+import ClientDataSectionNav from '@/app/client-data/components/ClientDataSectionNav';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
@@ -558,6 +559,7 @@ export default function ClientListPage() {
   const editedRowIds = useMemo(() => Object.keys(rowEdits), [rowEdits]);
   const hasEditedEmailErrors = useMemo(() => editedRowIds.some((rowId) => Boolean(rowEmailIssues[rowId])), [editedRowIds, rowEmailIssues]);
   const hasEditedDuplicateEmails = useMemo(() => editedRowIds.some((rowId) => duplicateEmailRowIds.has(rowId)), [editedRowIds, duplicateEmailRowIds]);
+  const repeatedClientCount = duplicateEmailRowIds.size;
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -916,6 +918,7 @@ export default function ClientListPage() {
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <div className="client-data-page">
+        <ClientDataSectionNav />
         <section className="ui-page-section">
           <div className="client-data-clientlist-stack">
             <section className="client-data-panel">
@@ -924,8 +927,13 @@ export default function ClientListPage() {
                   <h2 className="ui-card-title">Client Directory</h2>
                   <p className="ui-card-description">Live client rows from your stored sheets.</p>
                   <p className="ui-card-description client-directory-summary">
-                    {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {contactedCount} contacted
+                    {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {repeatedClientCount} repeated | {contactedCount} contacted
                   </p>
+                  {repeatedClientCount ? (
+                    <p className="client-directory-duplicate-summary">
+                      Repeated clients found: {repeatedClientCount}. Rows are highlighted in red.
+                    </p>
+                  ) : null}
                 </div>
                   <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
                     <div className="client-data-header-create">
@@ -1104,8 +1112,10 @@ export default function ClientListPage() {
                         <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>No client data found.</span>
                       </div>
                     ) : null}
-                    {!loading && !error ? paginatedClientRows.map((row, rowIndex) => (
-                      <div key={row.id} className="client-data-table-row client-directory-excel-row">
+                    {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
+                      const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
+                      return (
+                      <div key={row.id} className={`client-data-table-row client-directory-excel-row ${rowHasDuplicateEmail ? 'client-directory-duplicate-row' : ''}`}>
                         <span className="client-directory-excel-cell">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</span>
                         <span className="client-directory-excel-cell">
                           <input
@@ -1119,7 +1129,7 @@ export default function ClientListPage() {
                           const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
                           const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
                           const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
-                          const hasDuplicateEmail = field === 'email' && duplicateEmailRowIds.has(row.id);
+                          const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
                           return (
                             <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
                               <input
@@ -1140,7 +1150,8 @@ export default function ClientListPage() {
                           );
                         })}
                       </div>
-                    )) : null}
+                      );
+                    }) : null}
                   </div>
                   {hasEditedEmailErrors ? (
                     <div className="client-data-custom-note error">Invalid email format detected in edited rows. Fix before saving.</div>
@@ -1165,7 +1176,7 @@ export default function ClientListPage() {
                       </article>
                     ) : null}
                     {!loading && !error ? paginatedClientRows.map((row) => (
-                      <article key={`${row.id}-mobile`} className="client-data-mobile-card">
+                      <article key={`${row.id}-mobile`} className={`client-data-mobile-card ${duplicateEmailRowIds.has(row.id) ? 'client-directory-duplicate-card' : ''}`}>
                         <label className="client-data-mobile-select">
                           <input
                             type="checkbox"

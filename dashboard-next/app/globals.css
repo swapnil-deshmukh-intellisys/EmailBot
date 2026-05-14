@@ -7716,6 +7716,43 @@ p { margin: 0; color: var(--muted); }
   box-shadow: 0 14px 28px rgba(37, 99, 235, 0.14);
 }
 
+.client-data-upload-sheet-page {
+  display: grid;
+  gap: 14px;
+}
+
+.client-data-upload-sheet-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.client-data-upload-sheet-card strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.client-data-upload-sheet-card p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.client-directory-duplicate-summary {
+  margin: 7px 0 0;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @media (max-width: 760px) {
   .client-data-page-header {
     align-items: stretch;
@@ -18995,6 +19032,33 @@ b {
   background: #f5f9ff;
 }
 
+.client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell,
+.client-directory-excel-row.client-directory-duplicate-row:nth-child(even) .client-directory-excel-cell,
+.client-directory-excel-row.client-directory-duplicate-row:hover .client-directory-excel-cell {
+  background: #fff1f2;
+  color: #991b1b;
+  border-bottom-color: #fecaca;
+}
+
+.client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell {
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+.client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell.invalid {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+
+.client-directory-duplicate-card {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.client-directory-duplicate-card :where(strong, span) {
+  color: #991b1b;
+}
+
 .client-directory-excel-head-cell:last-child,
 .client-directory-excel-cell:last-child {
   border-right: 0;
@@ -21214,4 +21278,22 @@ html[data-theme='dark'] :where(a, .campaign-name-link, .master-mail-folder stron
     max-height: calc(100vh - 20px);
     overflow: auto;
   }
+}
+
+html.theme-light .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell,
+html[data-theme='light'] .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell,
+html.theme-dark .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell,
+html[data-theme='dark'] .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell {
+  background: #fff1f2 !important;
+  border-color: #fecaca !important;
+  color: #991b1b !important;
+}
+
+html.theme-light .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell,
+html[data-theme='light'] .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell,
+html.theme-dark .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell,
+html[data-theme='dark'] .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #991b1b !important;
 }

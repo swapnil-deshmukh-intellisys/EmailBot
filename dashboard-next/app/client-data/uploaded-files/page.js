@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Button from '@/app/components/ui/Button';
+import ClientDataSectionNav from '@/app/client-data/components/ClientDataSectionNav';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 function formatUploadedAt(value) {
@@ -248,6 +249,7 @@ export default function UploadedFilesPage() {
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <div className="client-data-page">
+        <ClientDataSectionNav />
         <section className="ui-page-section">
           <div className="ui-page-section-header">
             <div className="ui-page-section-copy">
