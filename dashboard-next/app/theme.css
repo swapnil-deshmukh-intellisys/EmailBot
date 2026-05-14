@@ -1,0 +1,322 @@
+/*
+  IntelliMailPilot global theme and responsive foundation.
+  This file intentionally layers on top of globals.css so existing page
+  behavior remains intact while the app gets one tokenized visual system.
+*/
+
+:root,
+html[data-theme='colorful'],
+html.theme-colorful {
+  --bg-main: #f7f8fc;
+  --bg-surface: rgba(255, 255, 255, 0.78);
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-glass: rgba(255, 255, 255, 0.62);
+  --bg-elevated: rgba(255, 255, 255, 0.96);
+  --text-main: #172033;
+  --text-muted: #64748b;
+  --text-soft: #334155;
+  --border-soft: rgba(148, 163, 184, 0.24);
+  --border-strong: rgba(79, 111, 179, 0.28);
+  --accent-primary: #4f6fb3;
+  --accent-secondary: #6d5fa8;
+  --button-bg: linear-gradient(180deg, #ffffff, #edf2ff);
+  --button-text: #24324a;
+  --button-border: #d6def2;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --shadow-card: 0 18px 48px rgba(71, 85, 105, 0.12);
+  --shadow-soft: 0 10px 28px rgba(71, 85, 105, 0.08);
+  --radius-card: 18px;
+  --radius-control: 12px;
+  --sidebar-bg: rgba(255, 255, 255, 0.76);
+  --topbar-bg: rgba(255, 255, 255, 0.72);
+  --dock-bg: rgba(255, 255, 255, 0.82);
+  --input-bg: rgba(255, 255, 255, 0.94);
+  --input-text: var(--text-main);
+  --input-border: rgba(148, 163, 184, 0.34);
+  --table-head-bg: rgba(248, 250, 252, 0.88);
+  --table-row-bg: rgba(255, 255, 255, 0.74);
+  --table-row-hover-bg: rgba(239, 246, 255, 0.72);
+  --modal-bg: rgba(255, 255, 255, 0.94);
+  --overlay-bg: rgba(15, 23, 42, 0.38);
+  --ios-blur: blur(22px) saturate(1.25);
+  color-scheme: light;
+}
+
+html[data-theme='light'],
+html.theme-light {
+  --bg-main: #f8fafc;
+  --bg-surface: rgba(255, 255, 255, 0.82);
+  --bg-card: rgba(255, 255, 255, 0.94);
+  --bg-glass: rgba(255, 255, 255, 0.68);
+  --bg-elevated: #ffffff;
+  --text-main: #101827;
+  --text-muted: #5b6b82;
+  --text-soft: #243449;
+  --border-soft: rgba(148, 163, 184, 0.26);
+  --border-strong: rgba(37, 99, 235, 0.28);
+  --accent-primary: #2563eb;
+  --accent-secondary: #0ea5e9;
+  --button-bg: linear-gradient(180deg, #ffffff, #f1f5fb);
+  --button-text: #101827;
+  --button-border: #cdd8e6;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --warning: #b45309;
+  --shadow-card: 0 18px 44px rgba(15, 23, 42, 0.09);
+  --shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.06);
+  --sidebar-bg: rgba(255, 255, 255, 0.78);
+  --topbar-bg: rgba(255, 255, 255, 0.76);
+  --dock-bg: rgba(255, 255, 255, 0.86);
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --table-head-bg: #f1f5f9;
+  --table-row-bg: #ffffff;
+  --table-row-hover-bg: #eff6ff;
+  --modal-bg: rgba(255, 255, 255, 0.96);
+  --overlay-bg: rgba(15, 23, 42, 0.36);
+  color-scheme: light;
+}
+
+html[data-theme='dark'],
+html.theme-dark {
+  --bg-main: #0b0f18;
+  --bg-surface: rgba(20, 25, 38, 0.82);
+  --bg-card: rgba(28, 33, 48, 0.92);
+  --bg-glass: rgba(28, 33, 48, 0.72);
+  --bg-elevated: #1c2130;
+  --text-main: #f7fbff;
+  --text-muted: #b7c4d8;
+  --text-soft: #dbe8f7;
+  --border-soft: rgba(148, 163, 184, 0.22);
+  --border-strong: rgba(125, 211, 252, 0.32);
+  --accent-primary: #73e7ff;
+  --accent-secondary: #b69cff;
+  --button-bg: linear-gradient(180deg, rgba(37, 44, 63, 0.98), rgba(22, 27, 40, 0.98));
+  --button-text: #f8fbff;
+  --button-border: rgba(125, 211, 252, 0.24);
+  --danger: #fb7185;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --shadow-card: 0 24px 58px rgba(0, 0, 0, 0.46);
+  --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.32);
+  --sidebar-bg: rgba(20, 25, 38, 0.84);
+  --topbar-bg: rgba(20, 25, 38, 0.78);
+  --dock-bg: rgba(20, 25, 38, 0.9);
+  --input-bg: rgba(12, 16, 25, 0.9);
+  --input-text: #f8fbff;
+  --input-border: rgba(125, 211, 252, 0.22);
+  --table-head-bg: rgba(30, 41, 59, 0.94);
+  --table-row-bg: rgba(15, 23, 42, 0.7);
+  --table-row-hover-bg: rgba(30, 41, 59, 0.88);
+  --modal-bg: rgba(21, 24, 33, 0.96);
+  --overlay-bg: rgba(0, 0, 0, 0.58);
+  color-scheme: dark;
+}
+
+html[data-theme] {
+  --bg-primary: var(--bg-main);
+  --panel: var(--bg-card);
+  --panel-soft: var(--bg-surface);
+  --panel-strong: var(--bg-elevated);
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-soft);
+  --border-color: var(--border-soft);
+  --accent: var(--accent-primary);
+  --accent-2: var(--accent-secondary);
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+body {
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+:where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .master-mail-page, .mail-inbox-page) {
+  background: transparent;
+  color: var(--text-main);
+}
+
+:where(.dashboard-sidebar-card, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .premium-toolbar, .premium-panel, .premium-card-with-tabs, .premium-kpi-card, .premium-stepper-row, .premium-gauge-card, .premium-calendar-card, .workspace-panel, .workspace-stat-card, .workspace-highlight-card, .client-data-panel, .client-data-stat-card, .client-data-page-header, .campaign-panel, .campaign-count-card, .report-card, .report-panel, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .card, .panel) {
+  background: var(--bg-glass);
+  border-color: var(--border-soft);
+  box-shadow: var(--shadow-card);
+  color: var(--text-main);
+  backdrop-filter: var(--ios-blur);
+  -webkit-backdrop-filter: var(--ios-blur);
+}
+
+:where(.dashboard-sidebar-card) {
+  background: var(--sidebar-bg);
+}
+
+:where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar) {
+  background: var(--topbar-bg);
+}
+
+:where(.dashboard-mobile-dock, .mobile-dock, .bottom-dock) {
+  background: var(--dock-bg);
+  border-color: var(--border-soft);
+  backdrop-filter: var(--ios-blur);
+  -webkit-backdrop-filter: var(--ios-blur);
+}
+
+:where(button, .btn, .button, .ui-button, .ghost, .workspace-primary, .workspace-secondary, .premium-template-next, .premium-campaign-next, .premium-clientlist-next, .premium-row-action, .theme-toggle-btn) {
+  border-color: var(--button-border);
+  color: var(--button-text);
+}
+
+:where(input, textarea, select, .input, [contenteditable='true']) {
+  background: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--input-text);
+}
+
+:where(input, textarea)::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+}
+
+:where(.table-wrap, .client-data-table-scroll, .workspace-table-scroll, .premium-table-wrap, .premium-review-tablewrap, .campaign-table-wrap, .master-mail-message-list) {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+:where(table, .client-data-table, .workspace-table, .premium-table, .campaign-table, .ui-table) {
+  background: transparent;
+  color: var(--text-main);
+}
+
+:where(th, .client-data-table-head, .workspace-table-head, .premium-table-head, .ui-table-head, .campaign-table th) {
+  background: var(--table-head-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+:where(td, .client-data-table-row, .workspace-table-row, .premium-table-row, .ui-table-row, .campaign-table td) {
+  background: var(--table-row-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+:where(.client-data-table-row:hover, .workspace-table-row:hover, .premium-table-row:hover, .ui-table-row:hover, .campaign-table tbody tr:hover td) {
+  background: var(--table-row-hover-bg);
+}
+
+:where(.premium-calendar-modal, .premium-clientlist-modal, .premium-review-modal, .premium-campaign-modal, .premium-select-draft-modal, .premium-test-email-modal, .premium-schedule-modal, .premium-template-modal, .client-upload-modal, .dashboard-popup-card, [role='dialog']) {
+  width: min(100%, calc(100vw - 24px));
+  max-height: min(92vh, 860px);
+  overflow: auto;
+  background: var(--modal-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: var(--ios-blur);
+  -webkit-backdrop-filter: var(--ios-blur);
+}
+
+:where(.premium-calendar-modal-backdrop, .client-upload-modal-backdrop, .modal-backdrop) {
+  background: var(--overlay-bg);
+}
+
+:where(.dashboard-topbar-tabs, .premium-toolbar-tabs, .premium-panel-tabs, .campaign-status-tabs, .client-data-section-switcher, .theme-toggle-popover) {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+:where(.dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-panel-tabs button, .campaign-status-tabs button, .client-data-section-switcher-button, .theme-toggle-option) {
+  min-height: 44px;
+}
+
+@media (max-width: 1199px) {
+  :where(.dashboard-shell, .workspace-shell, .premium-dashboard-shell) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.dashboard-sidebar, .dashboard-sidebar-card) {
+    position: static;
+    width: 100%;
+  }
+}
+
+@media (max-width: 1024px) {
+  :where(.dashboard-main, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .premium-dashboard-shell) {
+    padding-inline: clamp(10px, 2vw, 18px);
+  }
+
+  :where(.premium-summary-grid, .workspace-stats, .client-data-stats, .campaign-count-grid, .report-grid, .lead-grid, .dashboard-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :where(.premium-stepper-row, .campaign-workflow-stepper) {
+    overflow-x: auto;
+    grid-auto-flow: column;
+  }
+}
+
+@media (max-width: 767px) {
+  :where(.premium-summary-grid, .workspace-stats, .client-data-stats, .campaign-count-grid, .report-grid, .lead-grid, .dashboard-grid, .draft-workspace-split, .premium-review-validation, .premium-select-draft-split, .client-data-grid) {
+    grid-template-columns: 1fr;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .workspace-hero, .client-data-page-header, .premium-toolbar, .premium-panel-head, .campaign-panel-head, .report-panel-head) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.premium-table-actions, .dashboard-topbar-actions, .client-data-panel-head-actions, .workspace-hero-actions, .premium-toolbar-actions) {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  :where(.premium-table-actions > *, .dashboard-topbar-actions > *, .workspace-hero-actions > *, .client-data-panel-head-actions > *) {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  :where(.premium-calendar-modal, .premium-clientlist-modal, .premium-review-modal, .premium-campaign-modal, .premium-select-draft-modal, .premium-test-email-modal, .premium-schedule-modal, .premium-template-modal, .client-upload-modal, .dashboard-popup-card, [role='dialog']) {
+    width: calc(100vw - 18px);
+    max-height: calc(100dvh - 18px);
+    border-radius: 16px;
+  }
+
+  :where(button, .btn, .button, .ui-button, input, select, textarea) {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  :where(.dashboard-main, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .premium-dashboard-shell) {
+    padding-inline: 10px;
+  }
+
+  :where(.premium-kpi-card, .premium-panel, .workspace-panel, .client-data-panel, .campaign-panel, .report-panel, .lead-panel, .mail-inbox-message-card) {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  :where(.dashboard-topbar-tab, .premium-toolbar-tabs button, .client-data-section-switcher-button) {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

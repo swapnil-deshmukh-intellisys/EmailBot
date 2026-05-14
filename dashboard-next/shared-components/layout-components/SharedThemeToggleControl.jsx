@@ -31,6 +31,7 @@ function ThemeIcon({ theme }) {
 }
 
 function themeLabel(theme) {
+  if (theme === 'colorful') return 'Colour';
   return theme.charAt(0).toUpperCase() + theme.slice(1);
 }
 
@@ -125,7 +126,7 @@ export default function ThemeToggle({ className = '' }) {
               {theme === option ? <span className="theme-toggle-current">Current</span> : null}
             </span>
             <span className="theme-toggle-option-copy">
-              {option === 'light' ? 'Clean default' : option === 'dark' ? 'Low-glare comfort' : 'Branded accent'}
+              {option === 'light' ? 'Clean iOS light' : option === 'dark' ? 'Full dark comfort' : 'Premium colour'}
             </span>
           </span>
         </button>

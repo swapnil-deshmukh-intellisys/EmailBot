@@ -1,4 +1,5 @@
 import './globals.css';
+import './theme.css';
 import { ThemeProvider } from '@/shared-components/layout-components/ThemeProvider';
 
 const themeInitScript = `
