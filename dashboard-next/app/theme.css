@@ -1281,3 +1281,397 @@ html.theme-dark textarea::placeholder {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Final polish pass: content fitting, theme consistency, and responsive safety. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:where(main, section, article, aside, header, footer, nav, div, form, fieldset, label, p, span, strong, small, h1, h2, h3, h4, h5, h6, button, a, input, select, textarea) {
+  min-width: 0;
+}
+
+:where(p, span, strong, small, h1, h2, h3, h4, h5, h6, label, button, a, td, th, input, select, textarea) {
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+
+:where(h1) {
+  font-size: clamp(1.55rem, 2.2vw, 2.45rem);
+  letter-spacing: 0;
+}
+
+:where(h2) {
+  font-size: clamp(1.22rem, 1.7vw, 1.75rem);
+  letter-spacing: 0;
+}
+
+:where(h3) {
+  font-size: clamp(1rem, 1.25vw, 1.22rem);
+  letter-spacing: 0;
+}
+
+:where(p, label, input, select, textarea, button, td) {
+  font-size: clamp(0.82rem, 0.88vw, 0.94rem);
+}
+
+:where(small, th, .badge, .premium-section-kicker, .ui-eyebrow, .theme-toggle-option-copy) {
+  font-size: clamp(0.68rem, 0.74vw, 0.78rem);
+}
+
+:where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+:where(.dashboard-main, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page) {
+  padding-block: clamp(12px, 1.5vw, 24px);
+}
+
+:where(.premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page) > * + * {
+  margin-top: clamp(12px, 1.4vw, 24px);
+}
+
+:where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar, .workspace-hero, .client-data-page-header, .report-heading, .campaigns-page-header) {
+  min-height: auto !important;
+  height: auto !important;
+  align-items: center;
+  gap: 12px;
+  padding: clamp(10px, 1vw, 14px);
+}
+
+:where(.dashboard-topbar-tabs, .dashboard-topbar-actions, .premium-toolbar-tabs, .premium-toolbar-actions, .premium-panel-tabs, .premium-panel-head-actions, .client-data-section-switcher, .campaign-status-tabs) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+:where(.dashboard-topbar-tabs, .premium-toolbar-tabs, .premium-panel-tabs, .client-data-section-switcher, .campaign-status-tabs) {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+:where(.dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-toolbar-actions button, .premium-panel-tabs button, .premium-calendar-filters button, .premium-mini-grid button, .premium-table-actions button, .premium-panel-head .ghost, .theme-toggle-btn, .theme-toggle-option, .ui-primary-button, .ui-icon-button) {
+  min-height: 42px;
+  max-width: 100%;
+  white-space: normal;
+  text-wrap: balance;
+}
+
+:where(.premium-table-actions input, .premium-table-actions select, .dashboard-topbar-search input, .dashboard-sidebar-search input, .client-data-panel input, .client-data-panel select, .workspace-page input, .workspace-page select, .workspace-page textarea, .campaigns-modern-page input, .campaigns-modern-page select, .report-dashboard-page input, .report-dashboard-page select, .mail-inbox-page input, .mail-inbox-page select) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 42px;
+}
+
+:where(.premium-table-actions, .dashboard-topbar-actions, .premium-toolbar-actions, .client-data-panel-head-actions, .workspace-hero-actions, .campaign-panel-head-actions, .report-panel-head-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+:where(.dashboard-sidebar-card) {
+  overflow: auto !important;
+  scrollbar-width: thin;
+}
+
+:where(.dashboard-sidebar-nav) {
+  overflow-x: hidden;
+}
+
+:where(.dashboard-sidebar-link > span:last-of-type, .dashboard-primary-link > span:last-of-type, .dashboard-logout-text, .theme-toggle-btn-label, .premium-step-card strong > span:last-child) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:where(.dashboard-sidebar-link > span:last-of-type, .dashboard-primary-link > span:last-of-type) {
+  white-space: nowrap;
+}
+
+:where(.dashboard-upgrade-card, .dashboard-subscription-card, .dashboard-subscription-modal, .premium-panel, .premium-kpi-card, .premium-step-card, .premium-calendar-card, .premium-gauge-card, .premium-card-with-tabs, .workspace-panel, .workspace-stat-card, .client-data-panel, .client-data-stat-card, .campaign-panel, .report-panel, .report-card, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel) {
+  min-height: 0;
+  height: auto;
+  max-width: 100%;
+  overflow: visible;
+}
+
+:where(.premium-card-with-tabs, .premium-main-notification-panel, .premium-side-notification-panel, .mail-inbox-preview-card, .master-mail-reading-pane) {
+  overflow: hidden;
+}
+
+:where(.premium-panel-head, .workspace-panel-head, .client-data-panel-head, .campaign-panel-head, .report-panel-head, .ui-section-card-head) {
+  min-height: auto;
+  align-items: flex-start;
+}
+
+:where(.premium-panel-head > div, .workspace-panel-head > div, .client-data-panel-head > div, .campaign-panel-head > div, .report-panel-head > div, .ui-section-card-head > div) {
+  min-width: 0;
+}
+
+:where(.premium-kpi-row, .premium-summary-grid, .workspace-stats, .client-data-stats, .campaign-count-grid, .report-grid, .lead-grid, .dashboard-grid, .mail-inbox-stats, .admin-summary-grid) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: clamp(12px, 1.2vw, 20px);
+}
+
+:where(.premium-content-grid, .workspace-grid, .client-data-grid, .campaigns-grid, .report-dashboard-grid, .mail-inbox-grid, .master-mail-grid) {
+  max-width: 100%;
+  min-width: 0;
+  align-items: start;
+}
+
+:where(.premium-content-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+}
+
+:where(.premium-panel-span-2, .premium-panel-span-3) {
+  min-width: 0;
+}
+
+:where(.premium-stepper-row, .campaign-workflow-stepper) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+}
+
+:where(.premium-step-card) {
+  min-width: min(178px, calc(100vw - 48px));
+  min-height: 0;
+  grid-template-rows: auto auto auto minmax(42px, auto);
+  gap: 10px;
+  padding: clamp(12px, 1vw, 16px);
+}
+
+:where(.premium-step-card strong) {
+  min-height: 0 !important;
+  display: flex;
+  line-height: 1.25;
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+:where(.premium-step-chip) {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  min-height: 24px;
+}
+
+:where(.premium-stepper-start) {
+  min-width: 48px;
+  overflow-wrap: normal;
+}
+
+:where(.premium-health-summary-row, .premium-credit-summary-row, .premium-mini-grid, .dashboard-upgrade-meta) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
+}
+
+:where(.premium-health-metric, .premium-credit-metric, .dashboard-upgrade-meta span, .premium-progress-chip, .premium-target-approval-pill, .premium-credit-warning, .dashboard-profile-warning) {
+  min-width: 0;
+  white-space: normal;
+}
+
+:where(.premium-arc-wrap) {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  max-width: 100%;
+}
+
+:where(.premium-calendar-grid) {
+  min-width: 0;
+}
+
+:where(.premium-calendar-day) {
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  padding: 3px;
+}
+
+:where(.premium-table-wrap, .campaign-table-wrap, .client-data-table-scroll, .workspace-table-scroll, .mail-inbox-table-wrap, .admin-table-scroll, .master-mail-message-list) {
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+}
+
+:where(table, .premium-table, .campaign-table, .client-data-table, .workspace-table, .ui-table) {
+  width: 100%;
+  table-layout: auto;
+}
+
+:where(th, td, .premium-table th, .premium-table td, .campaign-table th, .campaign-table td, .client-data-table th, .client-data-table td, .workspace-table th, .workspace-table td) {
+  min-width: 0;
+  max-width: min(320px, 42vw);
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+:where(td, .premium-table td, .campaign-table td, .client-data-table td, .workspace-table td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:where(th, .premium-table th, .campaign-table th, .client-data-table th, .workspace-table th) {
+  white-space: normal;
+  text-wrap: balance;
+}
+
+:where(.premium-row-action, .campaign-row-action, .client-data-row-action, .action-menu-button) {
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+:where(.premium-list-item, .premium-note-item, .premium-log-item, .premium-timeline-item, .dashboard-activity-item, .workspace-activity article, .client-data-activity-list article) {
+  min-height: 0;
+  height: auto;
+  padding: 12px;
+  gap: 10px;
+  overflow: visible;
+}
+
+:where(.premium-list-item *, .premium-note-item *, .premium-log-item *, .premium-timeline-item *, .dashboard-activity-item *, .workspace-activity article *, .client-data-activity-list article *) {
+  min-width: 0;
+}
+
+:where(.premium-list-item p, .premium-note-item p, .premium-log-item p, .premium-timeline-item p, .dashboard-activity-copy p, .workspace-activity p) {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+:where(.premium-calendar-modal, .premium-clientlist-modal, .premium-review-modal, .premium-campaign-modal, .premium-select-draft-modal, .premium-test-email-modal, .premium-schedule-modal, .premium-template-modal, .client-upload-modal, .dashboard-popup-card, .dashboard-subscription-modal, [role='dialog']) {
+  max-width: min(1100px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+:where(.premium-select-draft-split, .premium-review-validation, .draft-workspace-split, .client-data-grid, .warmup-start-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+:where(.premium-template-modal textarea, .premium-campaign-modal textarea, .premium-select-draft-modal textarea, .client-upload-modal textarea, .draft-workspace-split textarea) {
+  resize: vertical;
+  min-height: 140px;
+}
+
+:where(.skeleton, .loading-card, .loading-row, [data-loading='true']) {
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-elevated) 58%, transparent), transparent),
+    color-mix(in srgb, var(--bg-card) 78%, transparent);
+  background-size: 220% 100%, 100% 100%;
+  animation: ui-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes ui-skeleton-sweep {
+  from { background-position: 120% 0, 0 0; }
+  to { background-position: -120% 0, 0 0; }
+}
+
+html[data-theme='dark'] :where(.premium-panel, .premium-kpi-card, .premium-step-card, .premium-calendar-card, .premium-gauge-card, .premium-card-with-tabs, .workspace-panel, .client-data-panel, .campaign-panel, .report-panel, .lead-panel, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel),
+html.theme-dark :where(.premium-panel, .premium-kpi-card, .premium-step-card, .premium-calendar-card, .premium-gauge-card, .premium-card-with-tabs, .workspace-panel, .client-data-panel, .campaign-panel, .report-panel, .lead-panel, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel) {
+  background:
+    linear-gradient(180deg, rgba(24, 31, 48, 0.94), rgba(12, 17, 29, 0.9)) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+html[data-theme='dark'] :where(.premium-table-wrap, .campaign-table-wrap, .client-data-table-scroll, .workspace-table-scroll, .admin-table-scroll),
+html.theme-dark :where(.premium-table-wrap, .campaign-table-wrap, .client-data-table-scroll, .workspace-table-scroll, .admin-table-scroll) {
+  background: rgba(8, 12, 21, 0.72) !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+html[data-theme='dark'] :where(.premium-toolbar, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .theme-toggle-popover),
+html.theme-dark :where(.premium-toolbar, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .theme-toggle-popover) {
+  background:
+    linear-gradient(180deg, rgba(20, 27, 43, 0.9), rgba(10, 15, 25, 0.86)) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+@media (max-width: 1024px) {
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar) {
+    top: 6px;
+    border-radius: 20px;
+  }
+
+  :where(.dashboard-sidebar-card) {
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  :where(.premium-content-grid, .workspace-grid, .client-data-grid, .campaigns-grid, .report-dashboard-grid, .mail-inbox-grid, .master-mail-grid) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  :where(.dashboard-main, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page) {
+    padding: 10px;
+  }
+
+  :where(.dashboard-topbar, .dashboard-topbar-rich, .premium-toolbar, .workspace-hero, .client-data-page-header) {
+    border-radius: 18px;
+    padding: 10px;
+  }
+
+  :where(.dashboard-topbar-actions, .premium-toolbar-actions, .premium-panel-head-actions, .client-data-panel-head-actions, .workspace-hero-actions) > * {
+    flex: 1 1 min(100%, 180px);
+  }
+
+  :where(.theme-toggle-btn, .dashboard-topbar-tab, .premium-toolbar-tabs button, .premium-toolbar-actions button, .premium-panel-tabs button, .premium-table-actions button) {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  :where(.premium-stepper-row, .campaign-workflow-stepper) {
+    grid-template-columns: repeat(7, minmax(176px, 78vw)) 54px;
+    padding: 12px;
+  }
+
+  :where(th, td, .premium-table th, .premium-table td, .campaign-table th, .campaign-table td, .client-data-table th, .client-data-table td, .workspace-table th, .workspace-table td) {
+    max-width: 100%;
+  }
+
+  :where(.premium-calendar-modal, .premium-clientlist-modal, .premium-review-modal, .premium-campaign-modal, .premium-select-draft-modal, .premium-test-email-modal, .premium-schedule-modal, .premium-template-modal, .client-upload-modal, .dashboard-popup-card, .dashboard-subscription-modal, [role='dialog']) {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 18px;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 430px) {
+  :where(.premium-stepper-row, .campaign-workflow-stepper) {
+    grid-template-columns: repeat(7, minmax(164px, 84vw)) 50px;
+  }
+
+  :where(.premium-stepper-start) {
+    min-width: 46px;
+    padding-inline: 4px;
+  }
+
+  :where(.premium-kpi-card, .premium-panel, .workspace-panel, .client-data-panel, .campaign-panel, .report-panel, .lead-panel, .ui-section-card, .ui-stat-card) {
+    padding: 12px;
+  }
+
+  :where(.premium-table tbody tr, .campaign-table tbody tr) {
+    padding: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.skeleton, .loading-card, .loading-row, [data-loading='true']) {
+    animation: none !important;
+  }
+}
