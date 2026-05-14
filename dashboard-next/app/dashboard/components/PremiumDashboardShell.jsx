@@ -761,6 +761,7 @@ export default function PremiumDashboardShell({
   const [clientListName, setClientListName] = useState('');
   const [selectedUploadedList, setSelectedUploadedList] = useState('');
   const [selectedCustomList, setSelectedCustomList] = useState('');
+  const [openReviewAfterUpload, setOpenReviewAfterUpload] = useState(false);
   const [overviewFilter, setOverviewFilter] = useState('all');
   const [overviewSearch, setOverviewSearch] = useState('');
   const [editingCell, setEditingCell] = useState(null);
@@ -772,6 +773,7 @@ export default function PremiumDashboardShell({
   const hasShownProceedWithoutListNoteRef = useRef(false);
   const hasShownCampaignMissingWarningRef = useRef(false);
   const hasShownOverviewWarningRef = useRef(false);
+  const pendingUploadPreviewRef = useRef(null);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [durationUnit, setDurationUnit] = useState(normalizeDurationUnit(initialDurationUnit || 'seconds'));
@@ -1507,6 +1509,17 @@ export default function PremiumDashboardShell({
     );
   }, [previewColumns, previewRows]);
 
+  useEffect(() => {
+    if (!openReviewAfterUpload || !selectedListId || !previewRows.length) return;
+    if (pendingUploadPreviewRef.current === previewRows) return;
+    pendingUploadPreviewRef.current = null;
+    setOpenReviewAfterUpload(false);
+    setShowClientListSelectionNote(false);
+    setShowOverviewNotice(false);
+    setShowClientListPopup(false);
+    setShowOverviewPopup(true);
+  }, [openReviewAfterUpload, previewRows, selectedListId]);
+
 
   useEffect(() => {
     if (!draftOptions.length) {
@@ -2100,6 +2113,8 @@ export default function PremiumDashboardShell({
     const file = event.target?.files?.[0];
     if (file) {
       setClientListName((current) => current || file.name);
+      pendingUploadPreviewRef.current = previewRows;
+      setOpenReviewAfterUpload(true);
       onShowMessage?.(`${file.name} selected.`, 'success');
     }
     onUploadFile?.(event);
