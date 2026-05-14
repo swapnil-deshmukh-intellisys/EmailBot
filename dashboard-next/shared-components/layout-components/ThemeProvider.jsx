@@ -12,6 +12,9 @@ const ThemeContext = createContext({
 });
 
 export function normalizeTheme(theme) {
+  if (theme === 'colour' || theme === 'aurora' || theme === 'aurora-colour') {
+    return 'colorful';
+  }
   return THEME_OPTIONS.includes(theme) ? theme : 'light';
 }
 

@@ -5,8 +5,10 @@ import { ThemeProvider } from '@/shared-components/layout-components/ThemeProvid
 const themeInitScript = `
   (function () {
     var allowedThemes = { light: true, dark: true, colorful: true };
+    var aliases = { colour: 'colorful', aurora: 'colorful', 'aurora-colour': 'colorful' };
     function applyTheme(theme) {
-      var safeTheme = allowedThemes[theme] ? theme : 'light';
+      var normalizedTheme = aliases[theme] || theme;
+      var safeTheme = allowedThemes[normalizedTheme] ? normalizedTheme : 'light';
       var root = document.documentElement;
       root.classList.remove('theme-light', 'theme-dark', 'theme-colorful', 'dark');
       root.classList.add('theme-' + safeTheme);
