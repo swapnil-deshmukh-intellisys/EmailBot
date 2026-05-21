@@ -25,7 +25,11 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const requestedDraftType = searchParams.get('draftType') || searchParams.get('category') || '';
     const normalizedDraftType = requestedDraftType ? normalizeDraftType(requestedDraftType) : '';
+    const requestedProject = String(searchParams.get('project') || '').trim().toLowerCase();
     const query = buildAuthOwnerFilter(auth);
+    if (['tec', 'tut'].includes(requestedProject)) {
+      query.project = { $in: [requestedProject, ''] };
+    }
     const drafts = (await EmailDraft.find(query).sort({ updatedAt: -1, createdAt: -1 }).lean())
       .map(withResolvedDraftType)
       .filter((draft) => !normalizedDraftType || draft.draftType === normalizedDraftType);

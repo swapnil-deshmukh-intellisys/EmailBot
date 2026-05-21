@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
 import Button from '@/shared-components/ui-components/UiActionButton';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
-import { DRAFT_TYPE_ITEMS, normalizeDraftType } from '@/app/lib/draftTypes';
+import { DRAFT_TYPE_ITEMS, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 
 const STATUS_VARIANTS = {
   approved: 'success',
@@ -14,7 +15,7 @@ const STATUS_VARIANTS = {
   draft: 'info'
 };
 
-const CATEGORY_OPTIONS = [...DRAFT_TYPE_ITEMS, { value: 'custom', label: 'Custom' }];
+const CATEGORY_OPTIONS = DRAFT_TYPE_ITEMS;
 const PROJECT_OPTIONS = [
   { value: 'tec', label: 'TEC' },
   { value: 'tut', label: 'TUT' }
@@ -23,9 +24,8 @@ const DRAFT_LIBRARY_SECTIONS = [
   { value: 'cover_story', label: 'Cover Story' },
   { value: 'reminder', label: 'Reminder' },
   { value: 'followup', label: 'Follow-up' },
-  { value: 'updated_cost', label: 'Upcost / Upsell' },
-  { value: 'final_cost', label: 'Final Call' },
-  { value: 'custom', label: 'Custom' }
+  { value: 'updated_cost', label: 'Updated Cost' },
+  { value: 'final_cost', label: 'Final Cost' }
 ];
 
 function formatRelativeDate(value) {
@@ -74,7 +74,31 @@ function getDraftOwner(draft) {
 
 function draftTypeLabel(value = '') {
   const normalized = normalizeDraftType(value);
-  return DRAFT_LIBRARY_SECTIONS.find((item) => item.value === normalized)?.label || 'Custom';
+  return DRAFT_LIBRARY_SECTIONS.find((item) => item.value === normalized)?.label || 'Cover Story';
+}
+
+function resolveDraftLibraryType(draft = {}) {
+  const rawType = normalizeDraftType(draft.draftType || draft.category || draft.type || '');
+  const text = `${draft.draftType || ''} ${draft.category || ''} ${draft.type || ''} ${draft.title || ''} ${draft.subject || ''} ${draft.body || ''}`.toLowerCase();
+  if (rawType === 'cover_story' || text.includes('cover story') || text.includes('coverstory')) return 'cover_story';
+  if (rawType === 'reminder' || text.includes('reminder')) return 'reminder';
+  if (rawType === 'followup' || rawType === 'open_followup' || text.includes('follow-up') || text.includes('follow up') || text.includes('followup') || text.includes('open follow')) return 'followup';
+  if (rawType === 'updated_cost' || text.includes('up cost') || text.includes('upcost') || text.includes('updated cost') || text.includes('upsell')) return 'updated_cost';
+  if (rawType === 'final_cost' || rawType === 'final_followup' || text.includes('final cost') || text.includes('final call') || text.includes('final follow')) return 'final_cost';
+  if (text.includes('cover story') || text.includes('coverstory')) return 'cover_story';
+  const inferred = inferDraftTypeFromDraft(draft);
+  if (inferred === 'open_followup') return 'followup';
+  if (inferred === 'final_followup') return 'final_cost';
+  if (inferred === 'initial_outreach') return 'cover_story';
+  if (DRAFT_LIBRARY_SECTIONS.some((section) => section.value === inferred)) return inferred;
+  return 'cover_story';
+}
+
+function resolveDraftProject(draft = {}) {
+  const text = `${draft.project || ''} ${draft.domain || ''} ${draft.senderFrom || ''} ${draft.title || ''} ${draft.subject || ''}`.toLowerCase();
+  if (text.includes('tut') || text.includes('unicorn') || text.includes('theunicorntimes')) return 'tut';
+  if (text.includes('tec') || text.includes('entrepreneurial') || text.includes('theentrepreneurialchronicle')) return 'tec';
+  return '';
 }
 
 function renderCell(cell, column) {
@@ -105,6 +129,7 @@ function textToEditorHtml(value) {
 }
 
 export default function DraftsPage() {
+  const router = useRouter();
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -124,7 +149,11 @@ export default function DraftsPage() {
   const [librarySectorFilter, setLibrarySectorFilter] = useState('');
   const [libraryProjectFilter, setLibraryProjectFilter] = useState('');
   const [libraryTypeFilter, setLibraryTypeFilter] = useState('');
+  const [libraryCampaignFilter, setLibraryCampaignFilter] = useState('');
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('');
   const fileInputRef = useRef(null);
+  const draftListRef = useRef(null);
+  const activeSection = showWorkspace ? 'draft-workspace' : 'draft-list';
 
   useEffect(() => {
     let active = true;
@@ -176,29 +205,21 @@ export default function DraftsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (showWorkspace) return undefined;
+
+    const timer = setTimeout(() => {
+      draftListRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [activeSection, showWorkspace]);
+
   const approvedCount = useMemo(
     () => drafts.filter((draft) => getDraftStatus(draft).toLowerCase() === 'approved').length,
-    [drafts]
-  );
-  const reviewCount = useMemo(
-    () =>
-      drafts.filter((draft) => {
-        const status = getDraftStatus(draft).toLowerCase();
-        return status === 'review' || status === 'in review';
-      }).length,
-    [drafts]
-  );
-  const archivedCount = useMemo(
-    () => drafts.filter((draft) => getDraftStatus(draft).toLowerCase() === 'archived').length,
-    [drafts]
-  );
-
-  const recentItems = useMemo(
-    () =>
-      drafts.slice(0, 3).map((draft) => ({
-        title: draft?.title || 'Draft updated',
-        meta: `${getDraftStatus(draft)} | ${formatRelativeDate(draft?.updatedAt || draft?.createdAt)}`
-      })),
     [drafts]
   );
 
@@ -225,33 +246,48 @@ export default function DraftsPage() {
     [drafts]
   );
 
-  const getDraftProject = (draft = {}) => {
-    const project = String(draft?.project || '').trim().toLowerCase();
-    if (project === 'tec' || project === 'tut') return project;
-    const legacyDomain = String(draft?.domain || '').trim().toLowerCase();
-    if (legacyDomain === 'tec' || legacyDomain === 'tut') return legacyDomain;
-    return '';
-  };
+  const campaignOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          drafts
+            .map((draft) => String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim())
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b)),
+    [drafts]
+  );
 
   const filteredDrafts = useMemo(
     () =>
       drafts.filter((draft) => {
         const sector = String(draft?.sector || '').trim().toLowerCase();
-        const project = getDraftProject(draft);
-        const draftType = normalizeDraftType(draft?.draftType || draft?.category || 'custom');
-        if (libraryTypeFilter && draftType !== libraryTypeFilter) return false;
-        if (librarySectorFilter && sector !== librarySectorFilter.toLowerCase()) return false;
-        if (libraryProjectFilter && project !== libraryProjectFilter.toLowerCase()) return false;
+        const project = resolveDraftProject(draft);
+        const draftType = resolveDraftLibraryType(draft);
+        const campaign = String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim().toLowerCase();
+        const searchBlob = `${draft?.title || ''} ${draft?.subject || ''} ${draft?.body || ''}`.toLowerCase();
+        const typeFilter = normalizeDraftType(libraryTypeFilter);
+        const sectorFilter = String(librarySectorFilter || '').trim().toLowerCase();
+        const projectFilter = String(libraryProjectFilter || '').trim().toLowerCase();
+        const campaignFilter = String(libraryCampaignFilter || '').trim().toLowerCase();
+        const searchQuery = String(librarySearchQuery || '').trim().toLowerCase();
+        if (libraryTypeFilter && draftType !== typeFilter) return false;
+        if (sectorFilter && !sector.includes(sectorFilter)) return false;
+        if (projectFilter && project !== projectFilter) return false;
+        if (campaignFilter && campaign !== campaignFilter) return false;
+        if (searchQuery && !searchBlob.includes(searchQuery)) return false;
         return true;
       }),
-    [drafts, libraryProjectFilter, librarySectorFilter, libraryTypeFilter]
+    [drafts, libraryCampaignFilter, libraryProjectFilter, librarySearchQuery, librarySectorFilter, libraryTypeFilter]
   );
+
+  const activeFilters = Boolean(libraryTypeFilter || librarySectorFilter || libraryProjectFilter || libraryCampaignFilter || librarySearchQuery);
 
   const groupedDrafts = useMemo(() => {
     return DRAFT_LIBRARY_SECTIONS.map((section) => ({
       ...section,
-      drafts: filteredDrafts.filter((draft) => normalizeDraftType(draft?.draftType || draft?.category || 'custom') === section.value)
-    }));
+      drafts: filteredDrafts.filter((draft) => resolveDraftLibraryType(draft) === section.value)
+    })).filter((section) => section.drafts.length > 0);
   }, [filteredDrafts]);
 
   const handleUploadClick = () => {
@@ -284,12 +320,17 @@ export default function DraftsPage() {
   };
 
   const handleEditDraft = (draft) => {
+    const draftId = String(draft?._id || draft?.id || '');
+    if (draftId) {
+      router.push(`/drafts/${encodeURIComponent(draftId)}`);
+      return;
+    }
     setEditingDraftId(String(draft?._id || ''));
     setDraftTitle(String(draft?.title || ''));
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
-    setDraftProject(getDraftProject(draft) || 'tec');
-    setDraftCategory(normalizeDraftType(draft?.draftType || draft?.category || CATEGORY_OPTIONS[0].value));
+    setDraftProject(resolveDraftProject(draft) || 'tec');
+    setDraftCategory(resolveDraftLibraryType(draft) || CATEGORY_OPTIONS[0].value);
     setEditorHtml(String(draft?.body || ''));
     setShowWorkspace(true);
     setActiveWorkspaceMode('customize');
@@ -372,102 +413,32 @@ export default function DraftsPage() {
         <div className="workspace-hero">
           <div>
             <span className="workspace-kicker">Drafts</span>
-            <h1>Manage campaign messaging with a cleaner editorial workflow.</h1>
-            <p>Keep approved copy, work-in-progress drafts, and archived variants visible to the whole team.</p>
+            <h1>Drafts</h1>
           </div>
           <div className="workspace-hero-actions">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.csv,.text,text/plain"
-              className="draft-workspace-file-input"
-              onChange={handleTextFileChange}
-            />
-            <Button variant="secondary" className="workspace-secondary" onClick={handleUploadClick}>Upload File</Button>
             <Button variant="secondary" className="workspace-secondary" onClick={handleCustomizeDraft}>Customize Draft</Button>
             <Button className="workspace-primary" onClick={handleCreateDraft}>Create Draft</Button>
           </div>
-        </div>
-
-        <div className="workspace-stats">
-          <article className="workspace-stat-card">
-            <span>Saved Drafts</span>
-            <strong>{loading ? '...' : drafts.length}</strong>
-          </article>
-          <article className="workspace-stat-card">
-            <span>Approved</span>
-            <strong>{loading ? '...' : approvedCount}</strong>
-          </article>
-          <article className="workspace-stat-card">
-            <span>In Review</span>
-            <strong>{loading ? '...' : reviewCount}</strong>
-          </article>
-          <article className="workspace-stat-card">
-            <span>Archived</span>
-            <strong>{loading ? '...' : archivedCount}</strong>
-          </article>
         </div>
 
         {showWorkspace ? (
           <section className={`workspace-panel draft-workspace-panel ${isSingleEditorWorkspace ? 'draft-workspace-panel-full' : ''}`}>
             <div className="workspace-panel-head">
               <div>
-                <h2>{isUploadWorkspace ? 'Draft Workspace' : 'Create Draft'}</h2>
-                <p>
-                  {isUploadWorkspace
-                    ? 'Review uploaded text on one side and write or paste the final draft on the other side.'
-                    : 'Write, paste, and format the final campaign draft in a focused editor.'}
-                </p>
+                <h2>{editingDraftId ? 'Edit Draft' : 'Create Draft'}</h2>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setShowWorkspace(false)}>Back to Drafts</Button>
               <div className="draft-workspace-mode">
-                {isUploadWorkspace ? (
-                  <span className="draft-workspace-pill is-active">Upload File</span>
-                ) : (
-                  <span className="draft-workspace-pill is-active">{activeWorkspaceMode === 'customize' ? 'Customize Draft' : 'Create Draft'}</span>
-                )}
+                <span className="draft-workspace-pill is-active">{activeWorkspaceMode === 'customize' ? 'Customize Draft' : 'Create Draft'}</span>
               </div>
             </div>
 
-            <div className={isUploadWorkspace ? 'draft-workspace-split' : 'draft-workspace-single'}>
-              {isUploadWorkspace ? (
-              <section className="draft-workspace-pane">
-                <div className="draft-workspace-pane-head">
-                  <div>
-                    <h3>Uploaded Text File</h3>
-                    <p>{uploadedFileName ? uploadedFileName : 'Upload a text file to review the source copy here.'}</p>
-                  </div>
-                  {uploadedText ? (
-                    <Button variant="ghost" size="sm" onClick={() => navigator.clipboard?.writeText(uploadedText)}>
-                      Copy Text
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="draft-workspace-document">
-                  {uploadedTextPreview ? (
-                    <pre>{uploadedTextPreview}</pre>
-                  ) : (
-                    <div className="draft-workspace-empty">
-                      <strong>No text file uploaded</strong>
-                      <p>Use Upload File to load text content into this preview area.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-              ) : null}
-
+            <div className="draft-workspace-single">
               <section className="draft-workspace-pane">
                 <div className="draft-workspace-pane-head">
                   <div>
                     <h3>Draft Editor</h3>
-                    <p>Paste, rewrite, and format the draft in a document-style editor.</p>
                   </div>
-                  {uploadedText ? (
-                    <Button variant="ghost" size="sm" onClick={() => setEditorHtml(textToEditorHtml(uploadedText))}>
-                      Load Source
-                    </Button>
-                  ) : null}
                 </div>
 
                 <label className="draft-workspace-title-field">
@@ -541,14 +512,12 @@ export default function DraftsPage() {
         ) : null}
 
         {!showWorkspace ? (
-        <div className="workspace-grid">
+        <div className="workspace-grid draft-library-grid" ref={draftListRef}>
           <section className="workspace-panel workspace-panel-large">
             <div className="workspace-panel-head">
               <div>
                 <h2>Draft Library</h2>
-                <p>Saved drafts from your database, including subject, status, owner, and last update.</p>
               </div>
-              <Button variant="ghost" size="sm">View All</Button>
             </div>
 
             <div className="draft-library-filters">
@@ -581,84 +550,75 @@ export default function DraftsPage() {
                   ))}
                 </select>
               </label>
+              <label className="draft-library-filter-field">
+                <span>Campaign</span>
+                <select value={libraryCampaignFilter} onChange={(event) => setLibraryCampaignFilter(event.target.value)}>
+                  <option value="">All campaigns</option>
+                  {campaignOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="draft-library-filter-field">
+                <span>Search</span>
+                <input
+                  type="search"
+                  value={librarySearchQuery}
+                  onChange={(event) => setLibrarySearchQuery(event.target.value)}
+                  placeholder="Name or subject"
+                />
+              </label>
+              <div className="draft-library-filter-actions">
+                <span>{filteredDrafts.length} drafts</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setLibraryTypeFilter('');
+                    setLibrarySectorFilter('');
+                    setLibraryProjectFilter('');
+                    setLibraryCampaignFilter('');
+                    setLibrarySearchQuery('');
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
 
             <div className="draft-type-section-stack">
               {loading ? <div className="draft-type-empty">Loading drafts...</div> : null}
               {!loading && error ? <div className="draft-type-empty error">{error}</div> : null}
-              {!loading && !error && !filteredDrafts.length ? <div className="draft-type-empty">No drafts found in the database.</div> : null}
-              {!loading && !error ? groupedDrafts.map((section) => (
+              {!loading && !error && !filteredDrafts.length ? (
+                <div className="draft-type-empty">
+                  {activeFilters ? 'No drafts match the selected filters.' : 'No drafts found in the database.'}
+                </div>
+              ) : null}
+              {!loading && !error && groupedDrafts.length ? groupedDrafts.map((section) => (
                 <section key={section.value} className="draft-type-section">
                   <div className="draft-type-section-head">
                     <h3>{section.label} ({section.drafts.length})</h3>
-                    <span>{section.drafts.length ? 'Saved drafts' : 'No drafts'}</span>
                   </div>
                   <div className="draft-card-grid">
-                    {section.drafts.length ? section.drafts.map((draft) => (
+                    {section.drafts.map((draft) => (
                       <article key={draft?._id || draft?.id} className="draft-type-card">
                         <div className="draft-type-card-head">
                           <strong>{draft?.title || 'Untitled Draft'}</strong>
-                          <span>{draftTypeLabel(draft?.draftType || draft?.category)} Draft</span>
+                          <span>{draftTypeLabel(resolveDraftLibraryType(draft))} Draft</span>
                         </div>
                         <p>{draft?.subject || '-'}</p>
                         <div className="draft-type-card-meta">
                           <small>{draft?.sector || 'No sector'}</small>
-                          <small>{getDraftProject(draft) ? getDraftProject(draft).toUpperCase() : 'No project'}</small>
+                          <small>{resolveDraftProject(draft) ? resolveDraftProject(draft).toUpperCase() : 'No project'}</small>
                           <small>{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</small>
+                          <small>{getDraftStatus(draft).toLowerCase() === 'approved' ? 'Approved by TL' : 'Not approved by TL'}</small>
                         </div>
                         <Button variant="ghost" size="sm" onClick={() => handleEditDraft(draft)}>Edit</Button>
                       </article>
-                    )) : (
-                      <div className="draft-type-empty">No {section.label} drafts yet.</div>
-                    )}
+                    ))}
                   </div>
                 </section>
               )) : null}
-            </div>
-          </section>
-
-          <section className="workspace-panel">
-            <div className="workspace-panel-head">
-              <div>
-                <h2>Editorial Status</h2>
-                <p>Live counts pulled from your saved drafts.</p>
-              </div>
-            </div>
-            <div className="workspace-list">
-              <div>
-                <strong>Ready to Send</strong>
-                <span>{approvedCount} approved drafts are campaign-ready</span>
-              </div>
-              <div>
-                <strong>Waiting for Review</strong>
-                <span>{reviewCount} drafts need approval before launch</span>
-              </div>
-              <div>
-                <strong>Archived</strong>
-                <span>{archivedCount} drafts are stored as archived variants</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="workspace-panel">
-            <div className="workspace-panel-head">
-              <div>
-                <h2>Editor Activity</h2>
-                <p>Recently updated drafts from the database.</p>
-              </div>
-            </div>
-            <div className="workspace-activity">
-              {recentItems.length ? recentItems.map((item) => (
-                <article key={`${item.title}-${item.meta}`}>
-                  <strong>{item.title}</strong>
-                  <p>{item.meta}</p>
-                </article>
-              )) : (
-                <article>
-                  <strong>No recent activity</strong>
-                  <p>Saved draft updates will appear here once drafts are available.</p>
-                </article>
-              )}
             </div>
           </section>
         </div>

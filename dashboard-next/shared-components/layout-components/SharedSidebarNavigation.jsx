@@ -12,7 +12,6 @@ const defaultNavItems = SIDEBAR_WORKSPACE_ITEMS.map((item) => ({ href: item.href
 
 function isActive(pathname, href) {
   if (!href) return false;
-  if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/dashboard/user';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -20,7 +19,7 @@ export function Sidebar({
   primaryItems = SIDEBAR_PRIMARY_ITEMS,
   navItems = defaultNavItems,
   brand = 'Intelli Mail Pilot',
-  brandHref = '/dashboard',
+  brandHref = '/dashboard/user',
   footer = null,
   mobileOpen = false,
   onMobileClose = null,
@@ -145,28 +144,31 @@ export function Sidebar({
             <div className="dashboard-sidebar-footer">
               <div className="dashboard-upgrade-card">
                 <div className="dashboard-upgrade-head">
-                  <strong>Upgrade</strong>
-                  <span className="dashboard-upgrade-badge" aria-hidden="true">↻</span>
+                  <span className="dashboard-upgrade-icon" aria-hidden="true">↯</span>
+                  <strong>Upgrade plan</strong>
+                  <span className="dashboard-upgrade-refresh" aria-hidden="true">↻</span>
                 </div>
-                <p className="dashboard-upgrade-summary">
-                  <span className="dashboard-upgrade-plan">{billingSummary.planName}</span>
-                  <span className="dashboard-upgrade-credits">{billingSummary.remainingCredits} Credits Left</span>
-                </p>
+                <div className="dashboard-upgrade-credit-strip">
+                  <span>
+                    <small>{billingSummary.planName} plan</small>
+                    <strong>{Number(billingSummary.remainingCredits || 0).toLocaleString()} credits left</strong>
+                  </span>
+                  <em>{Number(billingSummary.remainingCredits || 0) <= 0 ? 'Empty' : 'Active'}</em>
+                </div>
                 <div className="dashboard-upgrade-meta">
                   <span>
-                    <small>Current</small>
+                    <small>Current plan</small>
                     <strong>{billingSummary.planName}</strong>
+                    <b>Free forever</b>
                   </span>
                   <span>
-                    <small>Next Plan</small>
+                    <small>Next plan</small>
                     <strong>{billingSummary.upgradeTargetPlan}</strong>
+                    <b>{Number(billingSummary.totalCredits || 500).toLocaleString()} credits</b>
                   </span>
                 </div>
-                <div className="dashboard-upgrade-meter">
-                  <span style={{ width: `${Math.max(0, Math.min(100, billingSummary.creditUsagePercent))}%` }} />
-                </div>
                 <Button className="dashboard-upgrade-button" onClick={handleOpenBilling}>
-                  {billingHasUpgrade ? `Upgrade to ${billingSummary.upgradeTargetPlan}` : 'Manage Plan'}
+                  {billingHasUpgrade ? `Upgrade to ${billingSummary.upgradeTargetPlan}` : 'Manage Plan'} <span aria-hidden="true">→</span>
                 </Button>
               </div>
 

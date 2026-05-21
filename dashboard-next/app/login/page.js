@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
   getSeedEmailPlaceholder,
-  getSeedHeadingForRole,
   getSeedLoginPrefill,
   normalizeLoginType,
   TEMP_AUTH_ROLES
@@ -45,22 +44,40 @@ function EyeButton({ shown, onClick }) {
   return (
     <button
       type="button"
-      className="ghost subtle"
+      className="login-eye-button"
       onClick={onClick}
       aria-label={shown ? 'Hide password' : 'Show password'}
       title={shown ? 'Hide password' : 'Show password'}
-      style={{
-        position: 'absolute',
-        right: 10,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        lineHeight: 1,
-        padding: 4,
-        minWidth: 'auto'
-      }}
     >
       <EyeIcon shown={shown} />
     </button>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
   );
 }
 
@@ -107,7 +124,7 @@ export default function LoginPage() {
         setError(data.error || 'Invalid email or password.');
         return;
       }
-      router.push(data.redirectTo || data.dashboardPath || '/dashboard');
+      router.push(data.redirectTo || data.dashboardPath || '/dashboard/user');
       router.refresh();
     } catch {
       setError('Unable to reach login API. Check server logs.');
@@ -121,66 +138,57 @@ export default function LoginPage() {
       <section className="login-shell single-panel">
         <section className="card login-card dashboard-login-card">
           <div className="login-card-head">
-            <p className="login-card-kicker">IntelliMailPilot</p>
-            <h2>{getSeedHeadingForRole(selectedRole)}</h2>
-            <p aria-hidden="true" style={{ visibility: 'hidden' }}>
-              Role based sign-in
-            </p>
+            <div className="login-brand-icon" aria-hidden="true">
+              <MailIcon />
+            </div>
+            <div>
+              <p className="login-card-kicker">IntelliMailPilot</p>
+              <h2>Welcome back</h2>
+            </div>
           </div>
 
           <form onSubmit={onSubmit} className="login-form">
-            <div className="login-field" style={{ display: 'grid', gap: 10 }}>
-              <span>Login Type</span>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: 10
-                }}
-              >
+            <div className="login-role-toggle" data-role={selectedRole} aria-label="Login type">
                 <button
                   type="button"
-                  className="input login-input"
-                  onClick={() => setRole(TEMP_AUTH_ROLES.ADMIN)}
-                  aria-pressed={selectedRole === TEMP_AUTH_ROLES.ADMIN}
-                  style={{
-                    borderColor: selectedRole === TEMP_AUTH_ROLES.ADMIN ? 'var(--accent)' : undefined,
-                    boxShadow: selectedRole === TEMP_AUTH_ROLES.ADMIN ? '0 0 0 1px var(--accent)' : 'none',
-                    fontWeight: 600
-                  }}
-                >
-                  Admin Login
-                </button>
-                <button
-                  type="button"
-                  className="input login-input"
+                  className={selectedRole === TEMP_AUTH_ROLES.USER ? 'active' : ''}
                   onClick={() => setRole(TEMP_AUTH_ROLES.USER)}
                   aria-pressed={selectedRole === TEMP_AUTH_ROLES.USER}
-                  style={{
-                    borderColor: selectedRole === TEMP_AUTH_ROLES.USER ? 'var(--accent)' : undefined,
-                    boxShadow: selectedRole === TEMP_AUTH_ROLES.USER ? '0 0 0 1px var(--accent)' : 'none',
-                    fontWeight: 600
-                  }}
                 >
-                  User Login
+                  User
                 </button>
-              </div>
+                <button
+                  type="button"
+                  className={selectedRole === TEMP_AUTH_ROLES.ADMIN ? 'active' : ''}
+                  onClick={() => setRole(TEMP_AUTH_ROLES.ADMIN)}
+                  aria-pressed={selectedRole === TEMP_AUTH_ROLES.ADMIN}
+                >
+                  Admin
+                </button>
             </div>
 
             <label className="login-field">
               <span>Email</span>
-              <input
-                className="input login-input"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder={getSeedEmailPlaceholder(selectedRole)}
-                autoComplete="username"
-              />
+              <div className="login-input-wrap">
+                <span className="login-input-icon" aria-hidden="true">
+                  <MailIcon />
+                </span>
+                <input
+                  className="input login-input"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder={getSeedEmailPlaceholder(selectedRole)}
+                  autoComplete="username"
+                />
+              </div>
             </label>
 
             <label className="login-field">
               <span>Password</span>
-              <div style={{ position: 'relative' }}>
+              <div className="login-input-wrap">
+                <span className="login-input-icon" aria-hidden="true">
+                  <LockIcon />
+                </span>
                 <input
                   className="input login-input"
                   type={showPassword ? 'text' : 'password'}
@@ -188,21 +196,25 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
                   autoComplete="current-password"
-                  style={{ paddingRight: 44 }}
                 />
                 <EyeButton shown={showPassword} onClick={() => setShowPassword((current) => !current)} />
               </div>
             </label>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
-              <Link href="/forgot-password">Forgot Password?</Link>
+            <div className="login-forgot-row">
+              <Link href="/forgot-password">Forgot password?</Link>
             </div>
 
             <button className="button login-button" disabled={loading}>
-              {loading ? 'Signing in...' : 'Login'}
+              <span>{loading ? 'Signing in...' : 'Sign in'}</span>
+              <ArrowRightIcon />
             </button>
 
             {error ? <p className="login-error" role="alert">{error}</p> : null}
+
+            <p className="login-access-copy">
+              Need access? <Link href="/request-access">Contact your admin</Link>
+            </p>
           </form>
         </section>
       </section>

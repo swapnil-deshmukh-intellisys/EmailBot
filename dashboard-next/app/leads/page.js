@@ -14,13 +14,15 @@ export default function LeadsPage() {
   const [pipeline, setPipeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [creatingCampaignId, setCreatingCampaignId] = useState('');
 
   useEffect(() => {
     let active = true;
     const loadPipeline = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/leads/pipeline', { cache: 'no-store' });
+        const response = await fetch('/api/leads/pipeline?limit=5000', { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to load leads');
         if (!active) return;
@@ -50,6 +52,32 @@ export default function LeadsPage() {
     [pipeline]
   );
 
+  const createCampaignFromLead = async (card) => {
+    const leadResponseId = String(card?.id || '').trim();
+    if (!leadResponseId) return;
+    try {
+      setCreatingCampaignId(leadResponseId);
+      setMessage('');
+      setError('');
+      const response = await fetch('/api/leads/create-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadResponseId })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to create campaign');
+      const campaignId = data?.campaign?._id || data?.campaign?.id;
+      setMessage('Campaign draft created from client response.');
+      if (campaignId) {
+        window.location.href = `/campaigns?campaign=${encodeURIComponent(campaignId)}`;
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to create campaign');
+    } finally {
+      setCreatingCampaignId('');
+    }
+  };
+
   return (
     <AppLayout>
       <section className="user-dashboard-page lead-pipeline-page">
@@ -71,6 +99,7 @@ export default function LeadsPage() {
         </div>
 
         {error ? <div className="dashboard-error-state">{error}</div> : null}
+        {message ? <div className="dashboard-success-state">{message}</div> : null}
 
         <div className="lead-kanban">
           {loading ? Array.from({ length: 4 }).map((_, index) => (
@@ -97,6 +126,14 @@ export default function LeadsPage() {
                     </div>
                     {card.preview ? <p className="lead-card-preview">{card.preview}</p> : null}
                     <div className="lead-card-actions">
+                      <button
+                        type="button"
+                        className="lead-card-primary-action"
+                        disabled={creatingCampaignId === card.id}
+                        onClick={() => createCampaignFromLead(card)}
+                      >
+                        {creatingCampaignId === card.id ? 'Creating...' : 'Create Campaign'}
+                      </button>
                       <button type="button">Add Note</button>
                       <button type="button">Schedule Follow-up</button>
                       <button type="button">Move Stage</button>

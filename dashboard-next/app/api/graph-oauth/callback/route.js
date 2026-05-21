@@ -34,7 +34,7 @@ export async function GET(req) {
 
   const cookieState = req.cookies.get('ms_oauth_state')?.value || '';
   const verifier = req.cookies.get('ms_oauth_verifier')?.value || '';
-  const returnTo = req.cookies.get('ms_oauth_return')?.value || '/dashboard';
+  const returnTo = req.cookies.get('ms_oauth_return')?.value || '/dashboard/user';
   const expectedEmail = (req.cookies.get('ms_oauth_expected')?.value || '').trim().toLowerCase();
 
   if (err) {

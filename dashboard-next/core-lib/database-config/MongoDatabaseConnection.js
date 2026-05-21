@@ -11,7 +11,7 @@ function shouldAutoStartCampaignScheduler() {
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
   if (configured === 'true') return true;
   if (configured === 'false') return false;
-  return process.env.NODE_ENV !== 'production';
+  return true;
 }
 
 async function ensureSchedulerInitialized() {

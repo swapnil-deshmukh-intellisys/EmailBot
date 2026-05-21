@@ -38,6 +38,8 @@ const CampaignTable = dynamic(() => import('@/modules/campaign-module/campaign-c
 const LeadList = dynamic(() => import('@/modules/lead-module/lead-components/LeadUploadPreviewList'));
 const ActivityPanel = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardActivityPanel'));
 
+const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+
 function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
   const positive = trend >= 0;
@@ -93,7 +95,7 @@ function normalizeDraftBody(value = '') {
   const html = escapeHtml(input)
     .replace(/\r\n/g, '\n')
     .replace(/\n/g, '<br/>');
-  return `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${html}</div>`;
+  return `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">${html}</div>`;
 }
 
 function normalizeEmailDraftHtml(value = '') {
@@ -108,7 +110,7 @@ function normalizeEmailDraftHtml(value = '') {
     .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
     .replace(/<p>\s*<\/p>/gi, '<p><br></p>')
     .trim();
-  return `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.55;color:#111827;">${cleaned}</div>`;
+  return `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.55;color:#111827;">${cleaned}</div>`;
 }
 
 function normalizeDraft(draft = {}) {
@@ -205,7 +207,7 @@ function RichTextEditorLegacy({ value, onChange, placeholder }) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       // Preserve line breaks and spacing when clipboard has only plain text.
-      const wrapped = `<div style="white-space:pre-wrap;font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${escaped}</div>`;
+      const wrapped = `<div style="white-space:pre-wrap;font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">${escaped}</div>`;
       runCommand("insertHTML", wrapped);
     }
   };
@@ -215,8 +217,8 @@ function RichTextEditorLegacy({ value, onChange, placeholder }) {
       <div className="wysiwyg-toolbar row">
         <select className="select wysiwyg-select" defaultValue="" onChange={(e) => runCommand('fontName', e.target.value)}>
           <option value="" disabled>Font</option>
+          <option value="Inter">Inter</option>
           <option value="Arial">Arial</option>
-          <option value="'Times New Roman'">Times New Roman</option>
           <option value="Calibri">Calibri</option>
           <option value="Georgia">Georgia</option>
           <option value="Verdana">Verdana</option>
@@ -422,7 +424,7 @@ export default function DashboardPage() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeTopNav, setActiveTopNav] = useState('Dashboard');
   const [activeSidebarView, setActiveSidebarView] = useState('');
-  const [project, setProject] = useState('tec');
+  const [project, setProject] = useState('');
   const [projectOptions, setProjectOptions] = useState(defaultProjectOptions);
   const [showTopbarProjectDropdown, setShowTopbarProjectDropdown] = useState(false);
   const [showTopbarRangeDropdown, setShowTopbarRangeDropdown] = useState(false);
@@ -471,7 +473,10 @@ export default function DashboardPage() {
   const [subscriptionDetailsLoading, setSubscriptionDetailsLoading] = useState(false);
   const [profileTimelineTasks, setProfileTimelineTasks] = useState({});
   const [profileTimelineCustomTasks, setProfileTimelineCustomTasks] = useState([]);
-  const projectAccounts = useMemo(() => accounts, [accounts]);
+  const projectAccounts = useMemo(() => {
+    const filtered = filterAccountsByProject(accounts, project);
+    return project ? filtered : accounts;
+  }, [accounts, project]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('');
   const [draftSubject, setDraftSubject] = useState('');
@@ -531,6 +536,7 @@ export default function DashboardPage() {
   const topbarProjectDropdownRef = useRef(null);
   const topbarRangeDropdownRef = useRef(null);
   const topbarMailDropdownRef = useRef(null);
+  const topbarProfilePhotoInputRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const loadAllRef = useRef(null);
   const campaignCreateLockRef = useRef(false);
@@ -619,6 +625,38 @@ export default function DashboardPage() {
   const profileDisplayName = profileUser.displayName || displayNameFromEmail(profileUser.email);
   const profileInitials = initialsFromName(profileDisplayName);
   const profileRoleLabel = profileUser.role ? String(profileUser.role).replace(/_/g, ' ') : 'User';
+
+  const handleTopbarProfilePhotoUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      notify('Please select an image file.', 'warning');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      notify('Profile photo must be under 2 MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const avatarDataUrl = String(reader.result || '');
+      setProfileAvatarDataUrl(avatarDataUrl);
+      try {
+        await safeFetchJson('/api/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarName: file.name, avatarDataUrl })
+        });
+        notify('Profile photo saved.', 'success');
+      } catch (error) {
+        notify(error.message || 'Profile photo save failed.', 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const selectedAccountObj = useMemo(
     () => projectAccounts.find((account) => account.id === selectedAccount) || null,
     [projectAccounts, selectedAccount]
@@ -659,7 +697,12 @@ export default function DashboardPage() {
     setManualScheduledSlot(normalized);
   };
 
+  const normalizeScheduleConfigInput = (input = {}) => (
+    input && typeof input === 'object' && !('nativeEvent' in input) ? input : {}
+  );
+
   const prepareScheduleConfig = (input = {}) => {
+    input = normalizeScheduleConfigInput(input);
     const nextMode = String(input.scheduleMode || scheduleMode || 'send_now').trim().toLowerCase() === 'scheduled'
       ? 'scheduled'
       : 'send_now';
@@ -675,8 +718,14 @@ export default function DashboardPage() {
     const nextTimeValue = String(input.scheduledTime || scheduledTimeValue || '').trim();
     const nextDurationUnit = normalizeDurationUnit(input.durationUnit || durationUnit || 'seconds');
     const nextBatchSize = Math.max(1, Math.floor(Number(input.batchSize ?? batchSize ?? 1) || 1));
-    const nextDelayInterval = Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? 1) || 1));
-    const nextDelaySeconds = convertDelayIntervalToSeconds(nextDelayInterval, nextDurationUnit);
+    const parsedDelayInterval = Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS));
+    const nextDelaySeconds = Math.max(
+      MIN_CAMPAIGN_SEND_GAP_SECONDS,
+      convertDelayIntervalToSeconds(parsedDelayInterval, nextDurationUnit)
+    );
+    const nextDelayInterval = nextDurationUnit === 'seconds'
+      ? Math.max(MIN_CAMPAIGN_SEND_GAP_SECONDS, parsedDelayInterval)
+      : parsedDelayInterval;
     const normalizedSlot = nextTimeValue ? normalizeScheduledSlotInput(nextTimeValue) : '';
     const scheduledAt = nextMode === 'scheduled'
       ? buildScheduledDateTimeInZone(nextDateValue, nextTimeValue, nextTimezone)
@@ -755,9 +804,15 @@ export default function DashboardPage() {
     setShowDayCounts(Boolean(value));
   };
 
-  const selectTopbarRange = (value) => {
+  const selectTopbarRange = async (value) => {
     handleStatsRangeSelection(value);
     setShowTopbarRangeDropdown(false);
+    await loadAll({
+      selectedStatsDate: '',
+      selectedStatsRange: value,
+      customStatsStartDate: '',
+      customStatsEndDate: ''
+    });
   };
 
   const addRangeOption = () => {
@@ -772,8 +827,9 @@ export default function DashboardPage() {
     notify(`Added range option ${label}.`, 'success');
   };
 
-  const applyRangeSelection = (value) => {
+  const applyRangeSelection = async (value) => {
     if (value === 'customize') {
+      setShowTopbarRangeDropdown(false);
       setShowCustomRangePopup(true);
       return;
     }
@@ -782,10 +838,16 @@ export default function DashboardPage() {
       setSelectedStatsDate('');
       setShowDayCounts(true);
       setShowTopbarRangeDropdown(false);
+      await loadAll({
+        selectedStatsDate: '',
+        selectedStatsRange: value,
+        customStatsStartDate: '',
+        customStatsEndDate: ''
+      });
       notify(`Selected ${getRangeLabel(value)}.`, 'success');
       return;
     }
-    selectTopbarRange(value);
+    await selectTopbarRange(value);
     notify(`Selected ${getRangeLabel(value)}.`, 'success');
   };
 
@@ -1274,6 +1336,11 @@ const handleDeleteDraft = async (draft) => {
     () => lists.find((list) => list._id === selectedListId)?.name || '',
     [lists, selectedListId]
   );
+  useEffect(() => {
+    const sheetName = String(selectedListName || '').trim();
+    if (!sheetName || String(campaignName || '').trim()) return;
+    setCampaignName(`${sheetName} Campaign`);
+  }, [campaignName, selectedListName]);
   const selectedListLabel = useMemo(() => {
     const selectedList = lists.find((list) => list._id === selectedListId);
     if (!selectedList) return 'Select List';
@@ -1391,11 +1458,17 @@ const handleDeleteDraft = async (draft) => {
     getRangeLabel(selectedStatsRange);
   const reportDateLabel = selectedRangeLabel;
   const reportRangeLabel =
-    selectedStatsRange === 'custom' && customStatsStartDate && customStatsEndDate
+    selectedStatsRange === 'customize' && customStatsStartDate && customStatsEndDate
       ? `${customStatsStartDate} - ${customStatsEndDate}`
       : selectedStatsRange
         ? buildRangeDateLabel(selectedStatsRange)
-        : 'Sep 01 - Nov 30, 2025';
+        : 'Select Date';
+  const activeRangeSummary = useMemo(() => [
+    { label: 'Total', value: Number(stats?.total || 0).toLocaleString(), tone: 'total' },
+    { label: 'Sent', value: Number(stats?.sent || 0).toLocaleString(), tone: 'sent' },
+    { label: 'Pending', value: Number(stats?.pending || 0).toLocaleString(), tone: 'pending' },
+    { label: 'Failed', value: Number(stats?.failed || 0).toLocaleString(), tone: 'failed' }
+  ], [stats?.failed, stats?.pending, stats?.sent, stats?.total]);
   const rangeDayAnalytics = useMemo(() => {
     const counts = Array.isArray(stats?.dailyMailCounts) ? stats.dailyMailCounts : [];
     return counts
@@ -1525,38 +1598,73 @@ const handleDeleteDraft = async (draft) => {
     .filter((item) => item._reply)
     .slice(0, 3)
     .map(({ _reply, ...item }) => item);
-  const timelineCards = [
-    {
-      id: 'timeline-resumed',
-      date: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleDateString('en-GB') : '27/03/2026',
-      time: activeCampaign?.updatedAt ? new Date(activeCampaign.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:00 AM',
-      title: activeCampaign?.status ? `Campaign ${String(activeCampaign.status).toLowerCase()}` : 'Campaign resumed',
-      type: 'Reminder',
-      text: 'Review the running campaign and confirm next steps.',
-      status: 'done',
-      done: true
-    },
-    {
-      id: 'timeline-started',
-      date: activeCampaign?.createdAt ? new Date(activeCampaign.createdAt).toLocaleDateString('en-GB') : '27/03/2026',
-      time: activeCampaign?.createdAt ? new Date(activeCampaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:30 AM',
-      title: activeCampaign?.name || 'Campaign started',
-      type: 'Appointment',
-      text: 'Campaign setup has been completed and is ready for tracking.',
-      status: 'done',
-      done: true
-    },
-    {
-      id: 'timeline-pipeline',
-      date: '27/03/2026',
-      time: '12:00 PM',
-      title: 'Pipeline check',
-      type: 'Meeting',
-      text: `Campaign pipeline active: ${Number(campaigns?.filter((campaign) => ACTIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || ''))).length || 0)} active`,
+  const timelineCards = useMemo(() => {
+    const sourceCampaigns = Array.isArray(campaigns) ? campaigns : [];
+    const campaignActivityCards = sourceCampaigns
+      .slice()
+      .sort((a, b) => {
+        const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime() || 0;
+        const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime() || 0;
+        return bTime - aTime;
+      })
+      .flatMap((campaign, index) => {
+        const rawStatus = String(campaign?.status || campaign?.tag || 'Pending').trim() || 'Pending';
+        const normalizedStatus = rawStatus.toLowerCase();
+        const campaignName = String(campaign?.name || campaign?.campaignName || `Campaign ${index + 1}`).trim();
+        const eventDate = campaign?.updatedAt || campaign?.createdAt || new Date();
+        const date = new Date(eventDate);
+        const dateLabel = Number.isNaN(date.getTime()) ? new Date().toLocaleDateString('en-GB') : date.toLocaleDateString('en-GB');
+        const timeLabel = Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const total = Number(campaign?.stats?.total || campaign?.totalRecipients || campaign?.total || 0);
+        const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+        const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
+        const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
+        const statusType =
+          normalizedStatus === 'paused' ? 'Paused' :
+          normalizedStatus === 'completed' ? 'Completed' :
+          normalizedStatus === 'failed' ? 'Failed' :
+          normalizedStatus === 'draft' ? 'Draft' :
+          pending > 0 ? 'Pending' :
+          ACTIVE_CAMPAIGN_STATUSES.has(rawStatus) ? 'Active' :
+          rawStatus;
+        const cards = [{
+          id: `campaign-activity-${campaign?._id || campaign?.id || index}`,
+          date: dateLabel,
+          time: timeLabel,
+          title: `${statusType}: ${campaignName}`,
+          type: statusType,
+          text: `${sent} sent, ${pending} pending, ${failed} failed${total ? ` out of ${total}` : ''}.`,
+          status: normalizedStatus === 'completed' ? 'done' : normalizedStatus === 'failed' ? 'failed' : 'pending',
+          done: normalizedStatus === 'completed'
+        }];
+        if (pending > 0 && normalizedStatus !== 'completed') {
+          cards.push({
+            id: `campaign-pending-${campaign?._id || campaign?.id || index}`,
+            date: dateLabel,
+            time: timeLabel,
+            title: `Pending mails: ${campaignName}`,
+            type: 'Pending',
+            text: `${pending} mails pending. Use campaign actions to pause, resume, or stop sending.`,
+            status: 'pending',
+            done: false
+          });
+        }
+        return cards;
+      });
+
+    if (campaignActivityCards.length) return campaignActivityCards.slice(0, 16);
+
+    return [{
+      id: 'timeline-pipeline-empty',
+      date: new Date().toLocaleDateString('en-GB'),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      title: 'No campaign activity yet',
+      type: 'Pending',
+      text: 'Start or schedule a campaign to populate active, pending, paused, completed, and failed activity.',
       status: 'pending',
       done: false
-    }
-  ];
+    }];
+  }, [campaigns]);
   const performanceCampaigns = (campaigns || [])
     .slice()
     .sort((a, b) => {
@@ -2269,7 +2377,7 @@ const handleDeleteDraft = async (draft) => {
   const loadAll = async (filterOverrides = {}) => {
     try {
       const statsUrl = buildStatsUrl(filterOverrides);
-      const accountsPromise = safeFetchJson(`/api/accounts?project=${encodeURIComponent(project)}`)
+      const accountsPromise = safeFetchJson('/api/accounts')
         .then((accRes) => {
           setAccounts(accRes.accounts || []);
           return accRes;
@@ -2594,7 +2702,8 @@ const handleDeleteDraft = async (draft) => {
           enabled: Boolean(tracking?.enabled),
           opens: Boolean(tracking?.opens),
           clicks: Boolean(tracking?.clicks),
-          replies: Boolean(tracking?.replies)
+          replies: Boolean(tracking?.replies),
+          abTesting: Boolean(tracking?.abTesting)
         })
       });
 
@@ -2651,7 +2760,8 @@ const handleDeleteDraft = async (draft) => {
             enabled: Boolean(tracking?.enabled),
             opens: Boolean(tracking?.opens),
             clicks: Boolean(tracking?.clicks),
-            replies: Boolean(tracking?.replies)
+            replies: Boolean(tracking?.replies),
+            abTesting: Boolean(tracking?.abTesting)
           },
           workflowStep,
           workflowStepLabel
@@ -2682,8 +2792,10 @@ const handleDeleteDraft = async (draft) => {
   };
 
   const saveCampaignSchedule = async (rawConfig = {}) => {
+    rawConfig = normalizeScheduleConfigInput(rawConfig);
     const config = prepareScheduleConfig(rawConfig);
     applyScheduleConfigState(config);
+    notify('Saving campaign schedule...', 'info');
 
     if (config.batchSize < 1) {
       notify('Batch size must be greater than or equal to 1.', 'warning');
@@ -2703,27 +2815,36 @@ const handleDeleteDraft = async (draft) => {
         return { ok: false };
       }
       if (!isFutureScheduledDate(config.scheduledAt)) {
-        notify('Scheduled time must be in future', 'warning');
+        notify('Scheduled time must be in future. Choose a later date/time, or select Send now.', 'warning');
         return { ok: false };
       }
     }
 
-    if (!pendingCampaignId) {
-      notify('Schedule saved', 'success');
-      return { ok: true, config };
+    let campaignId = pendingCampaignId;
+    if (!campaignId) {
+      const campaign = await createCampaign({
+        skipReload: true,
+        scheduleConfig: config,
+        tracking: rawConfig?.tracking || { enabled: false, opens: false, clicks: false, replies: false, abTesting: false }
+      });
+      campaignId = campaign?._id || '';
+      if (!campaignId) {
+        notify('Schedule could not be saved because the campaign draft was not created. Please check list, sender, draft, subject, and message.', 'error');
+        return { ok: false };
+      }
     }
 
     try {
       console.debug('[campaign:schedule] request', {
-        url: `/api/campaigns/${pendingCampaignId}/schedule`,
-        campaignId: pendingCampaignId,
+        url: `/api/campaigns/${campaignId}/schedule`,
+        campaignId,
         scheduleMode: config.scheduleMode,
         scheduledAt: config.scheduledAt ? config.scheduledAt.toISOString() : null,
         batchSize: config.batchSize,
         delayInterval: config.delayInterval,
         durationUnit: config.durationUnit
       });
-      await safeFetchJson(`/api/campaigns/${pendingCampaignId}/schedule`, {
+      await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2741,9 +2862,10 @@ const handleDeleteDraft = async (draft) => {
           replyMode: isReplyModeCampaignType
         })
       });
-      notify('Schedule saved', 'success');
+      setPendingCampaignId(campaignId);
+      notify(config.scheduleMode === 'scheduled' ? 'Schedule saved to campaign draft.' : 'Send-now settings saved to campaign draft.', 'success');
       await loadAll();
-      return { ok: true, config };
+      return { ok: true, config, campaignId };
     } catch (e) {
       notify(e.message || 'Failed to save schedule', 'error');
       return { ok: false };
@@ -2751,22 +2873,28 @@ const handleDeleteDraft = async (draft) => {
   };
 
   const createAndStartCampaign = async (rawConfig = {}) => {
+    rawConfig = normalizeScheduleConfigInput(rawConfig);
     if (campaignCreateLockRef.current) {
       notify('Campaign creation is already in progress.', 'info');
-      return;
+      return { ok: false };
     }
     const scheduleConfig = prepareScheduleConfig(rawConfig);
     applyScheduleConfigState(scheduleConfig);
+    notify(scheduleConfig.scheduleMode === 'scheduled' ? 'Validating schedule before start...' : 'Starting campaign...', 'info');
     let campaignId = pendingCampaignId;
 
     if (!campaignId) {
-      const campaign = await createCampaign({ skipReload: true, scheduleConfig });
+      const campaign = await createCampaign({
+        skipReload: true,
+        scheduleConfig,
+        tracking: rawConfig?.tracking || { enabled: false, opens: false, clicks: false, replies: false, abTesting: false }
+      });
       campaignId = campaign?._id || '';
     }
 
-    if (!campaignId) return;
+    if (!campaignId) return { ok: false };
 
-    await startCampaign(campaignId, { scheduleConfig, startAfterSchedule: true });
+    return startCampaign(campaignId, { scheduleConfig, startAfterSchedule: true });
   };
 
   useEffect(() => {
@@ -2897,11 +3025,11 @@ const normalizeSelectedListEmails = async () => {
       if (scheduleConfig.scheduleMode === 'scheduled') {
         if (!scheduleConfig.scheduledDate || !scheduleConfig.scheduledTime) {
           notify('Please select scheduled date and time', 'warning');
-          return;
+          return { ok: false };
         }
         if (!isFutureScheduledDate(scheduleConfig.scheduledAt)) {
-          notify('Scheduled time must be in future', 'warning');
-          return;
+          notify('Scheduled time must be in future. Choose a later date/time, or select Send now.', 'warning');
+          return { ok: false };
         }
         await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
           method: 'POST',
@@ -2960,9 +3088,11 @@ const normalizeSelectedListEmails = async () => {
         notify('Campaign started now', 'success');
       }
       await refreshCampaignData({ source: 'start-campaign' });
+      return { ok: true, data };
     } catch (e) {
       notify(e.message || 'Failed to start campaign', 'error');
       void refreshCampaignData({ source: 'start-campaign-error' });
+      return { ok: false, error: e.message || 'Failed to start campaign' };
     }
   };
 
@@ -3235,6 +3365,12 @@ const normalizeSelectedListEmails = async () => {
     setSelectedStatsDate('');
     setShowDayCounts(true);
     setShowCustomRangePopup(false);
+    loadAll({
+      selectedStatsDate: '',
+      selectedStatsRange: 'customize',
+      customStatsStartDate,
+      customStatsEndDate
+    });
     notify('Custom date range selected.', 'success');
   };
 
@@ -3378,42 +3514,29 @@ const normalizeSelectedListEmails = async () => {
               aria-label="Open subscription and credit details"
             >
               <div className="dashboard-upgrade-head">
-                <strong>Subscription</strong>
-                <span className="dashboard-upgrade-badge" aria-hidden="true">✦</span>
+                <span className="dashboard-upgrade-icon" aria-hidden="true">↯</span>
+                <strong>Upgrade plan</strong>
+                <span className="dashboard-upgrade-refresh" aria-hidden="true">↻</span>
               </div>
-              <p className="dashboard-upgrade-summary">
-                <span className="dashboard-upgrade-plan">{profileCredits.planName || 'Basic'}</span>
-                <span className="dashboard-upgrade-credits">{Number(profileCredits.remainingCredits || 0).toLocaleString()} mails left</span>
-              </p>
+              <div className="dashboard-upgrade-credit-strip">
+                <span>
+                  <small>{profileCredits.planName || 'Basic'} plan</small>
+                  <strong>{Number(profileCredits.remainingCredits || 0).toLocaleString()} credits left</strong>
+                </span>
+                <em>{Number(profileCredits.remainingCredits || 0) <= 0 ? 'Empty' : 'Active'}</em>
+              </div>
               <div className="dashboard-upgrade-meta">
                 <span>
-                  <small>Monthly Limit</small>
-                  <strong>{Number(profileCredits.monthlyLimit || profileCredits.totalCredits || 0).toLocaleString()}</strong>
+                  <small>Current plan</small>
+                  <strong>{profileCredits.planName || 'Basic'}</strong>
+                  <b>Free forever</b>
                 </span>
                 <span>
-                  <small>Used</small>
-                  <strong>{Number(profileCredits.usedCredits || 0).toLocaleString()}</strong>
-                </span>
-                <span>
-                  <small>Today</small>
-                  <strong>{Number(profileCredits.dailyRemainingCredits ?? 500).toLocaleString()} left</strong>
-                </span>
-                <span>
-                  <small>Next Plan</small>
+                  <small>Next plan</small>
                   <strong>{profileCredits.upgradeTargetPlan || 'Starter'}</strong>
+                  <b>{Number(profileCredits.upgradeTargetDailyLimit || profileCredits.dailyLimit || 500).toLocaleString()} credits</b>
                 </span>
               </div>
-              <div className="dashboard-upgrade-meter">
-                <span style={{ width: `${Math.max(0, Math.min(100, profileCredits.creditUsagePercent || 0))}%` }} />
-              </div>
-              <small className="dashboard-subscription-usage">
-                {Math.round(profileCredits.creditUsagePercent || 0)}% used this month
-              </small>
-              {profileCredits.warningLevel === 'warning' ? <small className="dashboard-subscription-warning">Usage above 80%.</small> : null}
-              {profileCredits.warningLevel === 'danger' ? <small className="dashboard-subscription-warning danger">Usage above 95%.</small> : null}
-              {profileCredits.dailyRemainingCredits <= 0 ? <small className="dashboard-subscription-warning danger">Daily limit reached. Admin approval is required to increase it.</small> : null}
-              {profileCredits.sendingDisabled && profileCredits.dailyRemainingCredits > 0 ? <small className="dashboard-subscription-warning danger">Sending disabled until upgrade or renewal.</small> : null}
-              {profileCredits.upgradeRequestPending ? <small className="dashboard-subscription-warning">Daily limit upgrade pending admin approval</small> : null}
               <button
                 type="button"
                 className="dashboard-upgrade-button"
@@ -3425,10 +3548,9 @@ const normalizeSelectedListEmails = async () => {
                 {profileCredits.upgradeRequestPending
                   ? `Pending ${profileCredits.requestedUpgradePlan || profileCredits.upgradeTargetPlan}`
                   : profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
-                  ? 'Upgrade Daily Limit'
-                  : 'Manage Plan'}
+                  ? `Upgrade to ${profileCredits.upgradeTargetPlan || 'Starter'}`
+                  : 'Manage Plan'} <span aria-hidden="true">→</span>
               </button>
-              <small className="dashboard-subscription-open-hint">Click card for credit details</small>
             </div>
 
             <button type="button" className="dashboard-logout-link" onClick={logout}>
@@ -3468,7 +3590,7 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
-          <ThemeToggle className="dashboard-theme-toggle" />
+          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Select Theme" />
           <button
             type="button"
             className="dashboard-topbar-pill dashboard-topbar-range-pill"
@@ -3476,15 +3598,14 @@ const normalizeSelectedListEmails = async () => {
             aria-haspopup="dialog"
             aria-expanded={showTopbarRangeDropdown}
           >
-            <span className="dashboard-topbar-pill-label">{reportDateLabel}</span>
-            <span className="dashboard-topbar-pill-range">{reportRangeLabel}</span>
+            <span className="dashboard-topbar-pill-label">Select Date</span>
           </button>
           <div className="dashboard-topbar-dropdown" ref={topbarProjectDropdownRef}>
             <button
               type="button"
-              className={`badge ${project ? 'sent' : 'failed'}`}
+              className={`badge dashboard-topbar-select-trigger ${project ? 'sent' : 'failed'}`}
               onClick={() => setShowTopbarProjectDropdown((prev) => !prev)}
-              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.25, cursor: 'pointer' }}
             >
               <span>{project ? String(project).toUpperCase() : 'Select Project'}</span>
             </button>
@@ -3510,27 +3631,34 @@ const normalizeSelectedListEmails = async () => {
               </div>
             ) : null}
           </div>
-          <div className="dashboard-topbar-dropdown" ref={topbarMailDropdownRef}>
+          <div className="dashboard-topbar-dropdown dashboard-topbar-mail-dropdown" ref={topbarMailDropdownRef}>
             <button
               type="button"
-              className={`badge ${activeAccount ? 'sent' : 'failed'}`}
+              className={`badge dashboard-topbar-select-trigger dashboard-topbar-mail-trigger ${activeAccount ? 'sent' : 'failed'}`}
               onClick={() => setShowTopbarMailDropdown((prev) => !prev)}
-              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25, cursor: 'pointer' }}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.25, cursor: 'pointer' }}
             >
               <span>{selectedAccountLabel}</span>
             </button>
             {showTopbarMailDropdown ? (
-              <div className="dashboard-topbar-dropdown-menu" style={{ minWidth: 280, maxHeight: 220, overflowY: 'auto' }}>
-                {projectAccounts.map((account) => (
+              <div
+                className="dashboard-topbar-dropdown-menu dashboard-topbar-mail-menu"
+                style={{ maxHeight: 'min(58vh, 420px)', overflowY: 'auto', overflowX: 'hidden' }}
+              >
+                {projectAccounts.length ? projectAccounts.map((account) => (
                   <button
                     key={account.id}
                     type="button"
-                    className={`dashboard-topbar-dropdown-item ${selectedAccount === account.id ? 'active' : ''}`}
+                    className={`dashboard-topbar-dropdown-item dashboard-topbar-mail-item ${selectedAccount === account.id ? 'active' : ''}`}
                     onClick={() => selectTopbarMail(account.id)}
                   >
                     {account.from}
                   </button>
-                ))}
+                )) : (
+                  <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
+                    No sender IDs added for this project.
+                  </div>
+                )}
                 <button
                   type="button"
                   className="dashboard-topbar-dropdown-item add"
@@ -3552,10 +3680,17 @@ const normalizeSelectedListEmails = async () => {
               ) : (
                 <span className="dashboard-topbar-avatar">{profileInitials}</span>
               )}
-              <span>{profileDisplayName}</span>
+              <span className="dashboard-topbar-profile-name">{profileDisplayName}</span>
             </button>
             {showTopbarProfileDropdown ? (
               <div className="dashboard-topbar-dropdown-menu" style={{ minWidth: 240, right: 0 }}>
+                <input
+                  ref={topbarProfilePhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="dashboard-profile-photo-input"
+                  onChange={handleTopbarProfilePhotoUpload}
+                />
                 <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
                   <strong style={{ display: 'block' }}>{profileDisplayName}</strong>
                   <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.56)', marginTop: 2 }}>
@@ -3567,6 +3702,13 @@ const normalizeSelectedListEmails = async () => {
                     Role: {profileRoleLabel}
                   </small>
                 </div>
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item"
+                  onClick={() => topbarProfilePhotoInputRef.current?.click()}
+                >
+                  Add Profile Photo
+                </button>
                 <button
                   type="button"
                   className="dashboard-topbar-dropdown-item"
@@ -3637,7 +3779,12 @@ const normalizeSelectedListEmails = async () => {
       {showTopbarRangeDropdown && typeof window !== 'undefined'
         ? createPortal(
             <div className="dashboard-popup-backdrop" onClick={() => setShowTopbarRangeDropdown(false)}>
-              <div className="dashboard-popup-card dashboard-range-popup" onClick={(event) => event.stopPropagation()}>
+              <div
+                ref={topbarRangeDropdownRef}
+                className="dashboard-popup-card dashboard-range-popup"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
             <div className="dashboard-popup-head">
               <div>
                 <strong>Filter Dashboard</strong>
@@ -3956,14 +4103,20 @@ const normalizeSelectedListEmails = async () => {
         onRefreshCampaigns={() => refreshCampaignData({ source: 'manual-button' })}
         calendarDays={calendarDays}
         selectedAccountLabel={selectedAccountLabel}
-        senderAccounts={projectAccounts}
+        senderAccounts={accounts}
         selectedSenderAccountId={selectedAccount}
         onSelectSenderAccount={(accountId) => {
           setSelectedAccount(accountId);
-          const nextAccount = projectAccounts.find((account) => account.id === accountId);
+          const nextAccount = accounts.find((account) => account.id === accountId);
           setActiveAccount(nextAccount?.from || '');
         }}
+        senderEmptyMessage={
+          project
+            ? `No sender IDs added for this project.`
+            : 'No sender IDs available.'
+        }
         project={project}
+        projectOptions={projectOptions}
         barChartMetrics={barChartMetrics}
         logs={logs}
         activeCampaign={activeCampaign}
@@ -4252,7 +4405,7 @@ const normalizeSelectedListEmails = async () => {
                     </div>
                   </div>
                   <div className="row" style={{ marginTop: 2 }}>
-                    <button className="button" onClick={createAndStartCampaign}>Create Campaign</button>
+                    <button className="button" onClick={() => createAndStartCampaign()}>Create Campaign</button>
                   </div>
                 </div>
               </section>

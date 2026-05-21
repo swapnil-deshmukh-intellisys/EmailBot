@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import SenderAccount from '@/models/SenderAccount';
 import Campaign from '@/models/Campaign';
+import LeadList from '@/models/LeadList';
 import WarmupAutoReplyLog from '@/models/WarmupAutoReplyLog';
 import { requireUser } from '@/lib/apiAuth';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
@@ -24,15 +25,25 @@ export async function GET(req) {
     if (errorResponse) return errorResponse;
     await connectDB();
 
-    const [setting, oauthAccounts, senderAccounts, logs, storedCampaigns] = await Promise.all([
+    const [setting, oauthAccounts, senderAccounts, logs] = await Promise.all([
       getWarmupAutoReplySetting(userEmail, { lean: true }),
       GraphOAuthAccount.find({ userEmail }).sort({ updatedAt: -1 }).lean(),
       SenderAccount.find({ userEmail }).sort({ updatedAt: -1 }).lean(),
-      WarmupAutoReplyLog.find({ userEmail }).sort({ repliedAt: -1, createdAt: -1 }).limit(50).lean(),
-      Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean()
+      WarmupAutoReplyLog.find({ userEmail }).sort({ repliedAt: -1, createdAt: -1 }).limit(50).lean()
     ]);
 
-    const campaigns = await Campaign.find({ userEmail, project: 'warmup' }).sort({ createdAt: -1 }).limit(25).lean();
+    const workspace = setting?.workspace || {};
+    const savedListId = workspace?.listId ? String(workspace.listId) : '';
+    const [campaigns, savedSheet] = await Promise.all([
+      Campaign.find({
+        userEmail,
+        $or: [
+          { project: 'warmup' },
+          { name: /^Warmup\b/i }
+        ]
+      }).sort({ createdAt: -1 }).limit(25).lean(),
+      savedListId ? LeadList.findOne({ _id: savedListId, userEmail }).lean() : Promise.resolve(null)
+    ]);
 
     const envAccounts = getRuntimeSenderAccounts().map(toPublicAccount);
     const oauthPublic = oauthAccounts.map((a) => ({
@@ -89,6 +100,22 @@ export async function GET(req) {
 
     return NextResponse.json({
       setting,
+      workspace: {
+        project: String(workspace.project || ''),
+        senderAccountId: String(workspace.senderAccountId || ''),
+        draftType: String(workspace.draftType || 'cover_story'),
+        draftId: workspace.draftId ? String(workspace.draftId) : '',
+        listId: savedListId,
+        fileName: String(workspace.fileName || savedSheet?.sourceFile || savedSheet?.name || ''),
+        updatedAt: workspace.updatedAt || null
+      },
+      savedSheet: savedSheet ? {
+        _id: String(savedSheet._id),
+        name: savedSheet.name || '',
+        sourceFile: savedSheet.sourceFile || '',
+        columns: Array.isArray(savedSheet.columns) ? savedSheet.columns : [],
+        leads: Array.isArray(savedSheet.leads) ? savedSheet.leads : []
+      } : null,
       accounts: rows,
       stats: {
         totalAccounts: rows.length,
@@ -139,6 +166,37 @@ export async function POST(req) {
 
     if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
       setting.enabled = Boolean(body.enabled);
+    }
+    if (body.workspace && typeof body.workspace === 'object') {
+      const workspace = body.workspace;
+      if (!setting.workspace) setting.workspace = {};
+      const project = String(workspace.project || '').trim().toLowerCase();
+      const senderAccountId = String(workspace.senderAccountId || '').trim();
+      const draftType = String(workspace.draftType || '').trim();
+      const draftId = String(workspace.draftId || '').trim();
+      const listId = String(workspace.listId || '').trim();
+      const fileName = String(workspace.fileName || '').trim();
+
+      if (project || project === '') setting.workspace.project = project;
+      if (senderAccountId || senderAccountId === '') setting.workspace.senderAccountId = senderAccountId;
+      if (draftType) setting.workspace.draftType = draftType;
+      if (draftId || Object.prototype.hasOwnProperty.call(workspace, 'draftId')) {
+        setting.workspace.draftId = draftId || null;
+      }
+      if (listId) {
+        const list = await LeadList.findOne({ _id: listId, userEmail }).select('_id sourceFile name').lean();
+        if (!list) {
+          return NextResponse.json({ error: 'Warmup sheet not found for current user' }, { status: 404 });
+        }
+        setting.workspace.listId = list._id;
+        setting.workspace.fileName = fileName || list.sourceFile || list.name || '';
+      } else if (Object.prototype.hasOwnProperty.call(workspace, 'listId')) {
+        setting.workspace.listId = null;
+        setting.workspace.fileName = fileName;
+      } else if (fileName || fileName === '') {
+        setting.workspace.fileName = fileName;
+      }
+      setting.workspace.updatedAt = new Date();
     }
     await setting.save();
 

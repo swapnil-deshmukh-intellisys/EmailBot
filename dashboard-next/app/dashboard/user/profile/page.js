@@ -48,6 +48,16 @@ export default function UserProfilePage() {
   const [creditSummary, setCreditSummary] = useState({ totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
   const [creditTransactions, setCreditTransactions] = useState([]);
   const [counts, setCounts] = useState({ campaigns: 0, lists: 0, mails: 0 });
+  const [mailPilotOverview, setMailPilotOverview] = useState({
+    user: {},
+    totals: {},
+    campaignStatusCounts: {},
+    projects: [],
+    connectedMailIds: [],
+    recentCampaigns: []
+  });
+  const [overviewProjectFilter, setOverviewProjectFilter] = useState('all');
+  const [overviewStatusFilter, setOverviewStatusFilter] = useState('all');
   const [accounts, setAccounts] = useState([]);
   const [profilePhotoName, setProfilePhotoName] = useState('');
   const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
@@ -73,6 +83,21 @@ export default function UserProfilePage() {
   const billingUpgradeTarget = String(creditSummary.upgradeTargetPlan || '').trim();
   const hasUpgrade = billingUpgradeTarget && billingUpgradeTarget !== String(profile.planName || 'Basic').trim();
   const connectedAccounts = useMemo(() => accounts.slice(0, 3), [accounts]);
+  const overviewTotals = mailPilotOverview.totals || {};
+  const overviewProjects = Array.isArray(mailPilotOverview.projects) ? mailPilotOverview.projects : [];
+  const overviewStatuses = useMemo(
+    () => Object.keys(mailPilotOverview.campaignStatusCounts || {}).filter(Boolean),
+    [mailPilotOverview.campaignStatusCounts]
+  );
+  const filteredOverviewCampaigns = useMemo(() => {
+    const campaigns = Array.isArray(mailPilotOverview.recentCampaigns) ? mailPilotOverview.recentCampaigns : [];
+    return campaigns.filter((campaign) => {
+      const matchesProject = overviewProjectFilter === 'all' || campaign.projectId === overviewProjectFilter;
+      const matchesStatus = overviewStatusFilter === 'all' || String(campaign.status || '').toLowerCase() === overviewStatusFilter.toLowerCase();
+      return matchesProject && matchesStatus;
+    });
+  }, [mailPilotOverview.recentCampaigns, overviewProjectFilter, overviewStatusFilter]);
+  const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(Number(value || 0));
   const accountSummary = (account) => ({
     provider: String(account?.provider || '').trim() || 'Connected inbox',
     status: String(account?.status || '').trim() || 'Active',
@@ -89,12 +114,13 @@ export default function UserProfilePage() {
     const load = async () => {
       try {
         let accountsData = null;
-        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes] = await Promise.all([
+        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes, overviewRes] = await Promise.all([
           fetch('/api/auth/me', { signal: controller.signal }),
           fetch('/api/accounts', { signal: controller.signal }),
           fetch('/api/campaigns', { signal: controller.signal }).catch(() => null),
           fetch('/api/lists', { signal: controller.signal }).catch(() => null),
-          fetch('/api/credits', { signal: controller.signal }).catch(() => null)
+          fetch('/api/credits', { signal: controller.signal }).catch(() => null),
+          fetch('/api/profile/overview', { signal: controller.signal }).catch(() => null)
         ]);
 
         if (meRes.ok) {
@@ -127,10 +153,21 @@ export default function UserProfilePage() {
         const campaignsData = campaignsRes?.ok ? await campaignsRes.json().catch(() => null) : null;
         const listsData = listsRes?.ok ? await listsRes.json().catch(() => null) : null;
         const creditsData = creditsRes?.ok ? await creditsRes.json().catch(() => null) : null;
+        const overviewData = overviewRes?.ok ? await overviewRes.json().catch(() => null) : null;
+        if (overviewData?.ok) {
+          setMailPilotOverview({
+            user: overviewData.user || {},
+            totals: overviewData.totals || {},
+            campaignStatusCounts: overviewData.campaignStatusCounts || {},
+            projects: Array.isArray(overviewData.projects) ? overviewData.projects : [],
+            connectedMailIds: Array.isArray(overviewData.connectedMailIds) ? overviewData.connectedMailIds : [],
+            recentCampaigns: Array.isArray(overviewData.recentCampaigns) ? overviewData.recentCampaigns : []
+          });
+        }
         setCounts({
-          campaigns: Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns.length : 0,
-          lists: Array.isArray(listsData?.lists) ? listsData.lists.length : 0,
-          mails: Array.isArray(accountsData?.accounts) ? accountsData.accounts.length : 0
+          campaigns: Number(overviewData?.totals?.campaigns ?? (Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns.length : 0)),
+          lists: Number(overviewData?.totals?.lists ?? (Array.isArray(listsData?.lists) ? listsData.lists.length : 0)),
+          mails: Number(overviewData?.totals?.mailIds ?? (Array.isArray(accountsData?.accounts) ? accountsData.accounts.length : 0))
         });
         if (creditsData?.ok) {
           setCreditSummary(creditsData.summary || { totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
@@ -299,6 +336,7 @@ export default function UserProfilePage() {
 
   const profileActions = [
     { label: 'Profile', href: '#profile' },
+    { label: 'Overview', href: '#overview' },
     { label: 'Settings', href: '#settings' },
     { label: 'Notifications', href: '#notifications' },
     { label: 'Billing', href: '#billing' },
@@ -307,6 +345,7 @@ export default function UserProfilePage() {
   const sectionLinks = profileActions.map((item) => ({ ...item, label: item.label }));
   const sectionLabelMap = {
     profile: 'Profile overview',
+    overview: 'MailPilot overview',
     settings: 'Settings',
     notifications: 'Notifications',
     billing: 'Billing',
@@ -315,6 +354,7 @@ export default function UserProfilePage() {
   const activeSectionLabel = sectionLabelMap[activeSection] || 'Profile overview';
   const activeSectionTone = {
     profile: 'tone-profile',
+    overview: 'tone-profile',
     settings: 'tone-settings',
     notifications: 'tone-notifications',
     billing: 'tone-billing',
@@ -325,7 +365,7 @@ export default function UserProfilePage() {
     <AppLayout
       topbarProps={{
         title: 'Profile',
-        subtitle: 'Your account summary, preferences, and quick actions.',
+        subtitle: '',
         profile: {
             email: profile.email,
             role: profile.role,
@@ -382,9 +422,106 @@ export default function UserProfilePage() {
         </aside>
 
         <main className="dashboard-profile-main">
-          <article className="dashboard-profile-card dashboard-profile-intro-card">
-            <strong>Profile</strong>
-            <p>Your account summary, preferences, and quick actions.</p>
+          <article id="overview" className={`dashboard-profile-card dashboard-profile-overview-card ${activeSection === 'overview' ? 'tone-profile' : ''}`}>
+            <div className="dashboard-profile-overview-head">
+              <div>
+                <strong>MailPilot Overview</strong>
+                <p>Complete user activity, project IDs, campaign count, and mail usage for this profile.</p>
+              </div>
+              <div className="dashboard-profile-overview-actions">
+                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/campaigns'; }}>Campaigns</button>
+                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/mail-inbox'; }}>Mailbox</button>
+                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/client-data'; }}>Client Data</button>
+              </div>
+            </div>
+
+            <div className="dashboard-profile-identity-grid">
+              <span><small>User ID</small><strong>{mailPilotOverview.user?.id || profile.email || 'Not available'}</strong></span>
+              <span><small>Project View ID</small><strong>{overviewProjectFilter === 'all' ? 'All projects' : overviewProjectFilter}</strong></span>
+              <span><small>MailPilot Role</small><strong>{mailPilotOverview.user?.role || profileRoleLabel}</strong></span>
+              <span><small>Login Mail ID</small><strong>{mailPilotOverview.user?.email || profile.email || 'Not available'}</strong></span>
+            </div>
+
+            <div className="dashboard-profile-overview-metrics">
+              <span><strong>{formatNumber(overviewTotals.campaigns)}</strong><small>Total Campaigns</small></span>
+              <span><strong>{formatNumber(overviewTotals.runningCampaigns)}</strong><small>Running</small></span>
+              <span><strong>{formatNumber(overviewTotals.sent)}</strong><small>Mails Sent</small></span>
+              <span><strong>{formatNumber(overviewTotals.recipients)}</strong><small>Total Recipients</small></span>
+              <span><strong>{formatNumber(overviewTotals.opens)}</strong><small>Opens</small></span>
+              <span><strong>{formatNumber(overviewTotals.replies)}</strong><small>Replies</small></span>
+              <span><strong>{formatNumber(overviewTotals.mailIds)}</strong><small>Mail IDs</small></span>
+              <span><strong>{formatNumber(overviewTotals.drafts)}</strong><small>Drafts</small></span>
+            </div>
+
+            <div className="dashboard-profile-filter-row">
+              <label>
+                <span>Project</span>
+                <select value={overviewProjectFilter} onChange={(event) => setOverviewProjectFilter(event.target.value)}>
+                  <option value="all">All projects</option>
+                  {overviewProjects.map((project) => (
+                    <option key={project.id} value={project.id}>{project.name} ({project.id})</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select value={overviewStatusFilter} onChange={(event) => setOverviewStatusFilter(event.target.value)}>
+                  <option value="all">All statuses</option>
+                  {overviewStatuses.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="dashboard-profile-project-grid">
+              {overviewProjects.length ? overviewProjects.map((project) => (
+                <article key={project.id}>
+                  <div>
+                    <strong>{project.name}</strong>
+                    <small>ID: {project.id}</small>
+                  </div>
+                  <span>{formatNumber(project.campaigns)} campaigns</span>
+                  <span>{formatNumber(project.running)} running</span>
+                  <span>{formatNumber(project.sent)} sent</span>
+                </article>
+              )) : <p className="dashboard-profile-note">No project activity found yet.</p>}
+            </div>
+
+            <div className="dashboard-profile-table">
+              <div className="dashboard-profile-table-head">
+                <span>Campaign</span>
+                <span>Project ID</span>
+                <span>Status</span>
+                <span>Sent</span>
+                <span>Sender</span>
+              </div>
+              {filteredOverviewCampaigns.length ? filteredOverviewCampaigns.map((campaign) => (
+                <button
+                  key={campaign.id}
+                  type="button"
+                  className="dashboard-profile-table-row"
+                  onClick={() => { window.location.href = `/campaigns?campaign=${encodeURIComponent(campaign.id)}`; }}
+                >
+                  <span>{campaign.name}</span>
+                  <span>{campaign.projectId}</span>
+                  <span>{campaign.status}</span>
+                  <span>{formatNumber(campaign.sent)}</span>
+                  <span>{campaign.sender || 'No sender'}</span>
+                </button>
+              )) : <p className="dashboard-profile-note">No campaigns match this filter.</p>}
+            </div>
+
+            <div className="dashboard-profile-mail-id-grid">
+              {(mailPilotOverview.connectedMailIds || []).slice(0, 6).map((mailId) => (
+                <article key={mailId.id || mailId.email}>
+                  <strong>{mailId.email}</strong>
+                  <span>{mailId.provider} - {mailId.status}</span>
+                  <small>{formatNumber(mailId.sentToday)} / {formatNumber(mailId.dailyLimit)} sent today - {mailId.health}</small>
+                </article>
+              ))}
+              {!mailPilotOverview.connectedMailIds?.length ? <p className="dashboard-profile-note">No connected MailPilot sender IDs found.</p> : null}
+            </div>
           </article>
 
           <article className={`dashboard-profile-card ${activeSection === 'profile' ? 'tone-profile' : ''}`}>

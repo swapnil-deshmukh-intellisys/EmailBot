@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import { activeListFilter, moveExpiredUploadsToBin } from '@/app/api/client-data/_retention';
 
 function jsonError(status = 500, message = 'Failed to load lead lists.') {
   return NextResponse.json(
@@ -16,7 +17,9 @@ export async function GET(req) {
     if (auth.errorResponse) return auth.errorResponse;
 
     await connectDB();
-    const lists = await LeadList.find(buildAuthOwnerFilter(auth))
+    const ownerQuery = buildAuthOwnerFilter(auth);
+    await moveExpiredUploadsToBin(LeadList, ownerQuery);
+    const lists = await LeadList.find(activeListFilter(ownerQuery))
       .select('_id name sourceFile sourceFileName sourceFileId validationStatus kind leads createdAt updatedAt uploadedAt')
       .sort({ createdAt: -1 })
       .lean();

@@ -51,6 +51,11 @@ const LeadListSchema = new mongoose.Schema(
     validationStatus: { type: String, enum: ['Valid', 'Duplicate', 'Invalid'], default: 'Valid' },
     kind: { type: String, default: 'uploaded', index: true },
     clonedFrom: { type: String, default: '' },
+    dataCenterMeta: { type: mongoose.Schema.Types.Mixed, default: {} },
+    deletedAt: { type: Date, default: null, index: true },
+    deleteReason: { type: String, default: '' },
+    autoDeleteAt: { type: Date, default: null, index: true },
+    originalKind: { type: String, default: '' },
     columns: { type: [String], default: [] },
     sheetStyle: {
       fontFamily: { type: String, default: 'Segoe UI' },
@@ -73,6 +78,8 @@ LeadListSchema.index({ userId: 1, uploadedAt: -1 });
 LeadListSchema.index({ userEmail: 1, uploadedAt: -1 });
 LeadListSchema.index({ userId: 1, kind: 1, createdAt: -1 });
 LeadListSchema.index({ userEmail: 1, kind: 1, createdAt: -1 });
+LeadListSchema.index({ userId: 1, deletedAt: 1, createdAt: -1 });
+LeadListSchema.index({ userEmail: 1, deletedAt: 1, createdAt: -1 });
 LeadListSchema.index({ userId: 1, project: 1, createdAt: -1 });
 LeadListSchema.index({ userEmail: 1, project: 1, createdAt: -1 });
 LeadListSchema.index({ userId: 1, 'leads.Email': 1 });

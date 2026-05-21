@@ -3,7 +3,8 @@ export const UNIFIED_NAVBAR_ITEMS = [
   { label: 'Client Data', href: '/client-data' },
   { label: 'Drafts', href: '/drafts' },
   { label: 'Campaigns', href: '/campaigns' },
-  { label: 'Mail Inbox', href: '/mail-inbox' }
+  { label: 'Mailbox', href: '/mail-inbox' },
+  { label: 'Notifications', href: '/dashboard/user/profile#notifications' }
 ];
 
 export const UNIFIED_NAVBAR_TOPBAR_PROPS = {

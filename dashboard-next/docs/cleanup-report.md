@@ -23,21 +23,21 @@ Generated during the production stabilization pass. No files were deleted.
 
 ## Duplicate But Currently Used
 
-- Dashboard routes exist at both `app/dashboard/page.js` and role-specific routes such as `app/dashboard/user/page.js`, `app/user/dashboard/page.js`, `app/admin/dashboard/page.js`, and `app/dashboard/admin/page.js`. These are navigation/role compatibility routes and should not be deleted without redirect testing.
+- Dashboard routes are canonical under role-specific paths such as `app/dashboard/user/page.js`, `app/dashboard/manager/page.js`, and `app/dashboard/admin/page.js`.
 - Mailbox APIs exist under both `app/api/mailbox/*` and `app/api/mailbox-folders/route.js`. Current frontend calls `/api/mailbox/*`; keep the older endpoint until external links are checked.
-- Inbox pages exist as `app/mail-inbox/page.js` and `app/master-inbox/page.js`. Both are user-facing routes.
-- Warmup pages exist as `app/warm-up/page.js` and `app/email-warmup/page.js`. Keep until navigation and redirects are clarified.
+- Inbox page is canonical at `app/mail-inbox/page.js`.
+- Warmup page is canonical at `app/warm-up/page.js`.
 
 ## Duplicate And Unused Candidates
 
 - No duplicate component/page was proven unused by import and route checks in this pass.
-- Candidate old routes needing confirmation: `app/sidebar-campaigns/page.js`, `app/leads/page.js`, `app/report/page.js`, `app/summary/page.js`.
+- Candidate old routes needing confirmation: `app/leads/page.js`, `app/report/page.js`, `app/summary/page.js`.
 
 ## 404 Route Mismatches Found
 
 - Frontend calls `/api/lists` in `app/dashboard/user/profile/page.js`, but only `/api/lists/[id]`, `/api/lists/[id]/normalize-emails`, and `/api/lists/custom` exist. This is a likely repeated 404 source.
 - Requested campaign, upload, client-data, draft, account, mailbox, and auth APIs exist in `app/api`.
-- Dashboard route aliases `/dashboard/user` and `/user/dashboard` both exist; no patch applied because both are currently valid.
+- Removed duplicate route aliases after internal links were updated to canonical paths.
 
 ## Final Decision
 

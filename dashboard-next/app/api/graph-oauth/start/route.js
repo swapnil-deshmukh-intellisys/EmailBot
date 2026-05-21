@@ -22,7 +22,7 @@ export async function GET(req) {
   }
 
   const url = new URL(req.url);
-  const returnTo = url.searchParams.get('returnTo') || '/dashboard';
+  const returnTo = url.searchParams.get('returnTo') || '/dashboard/user';
   const expectedEmail = (url.searchParams.get('expectedEmail') || '').trim().toLowerCase();
   const loginHint = (url.searchParams.get('loginHint') || expectedEmail).trim();
 

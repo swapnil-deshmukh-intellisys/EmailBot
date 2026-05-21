@@ -4,6 +4,7 @@ import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+import { activeListFilter, moveExpiredUploadsToBin } from '@/app/api/client-data/_retention';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -63,8 +64,10 @@ export async function GET(req) {
     await connectDB();
 
     const ownerQuery = buildAuthOwnerFilter(auth);
+    await moveExpiredUploadsToBin(LeadList, ownerQuery);
+    const activeQuery = activeListFilter(ownerQuery);
     const [listDocs, campaignDocs, verifiedRows] = await Promise.all([
-      LeadList.find(ownerQuery)
+      LeadList.find(activeQuery)
         .select('name sourceFile sourceFileName kind uploadedAt createdAt project projectId projectName leads')
         .sort({ uploadedAt: -1, createdAt: -1 })
         .lean(),
@@ -73,7 +76,7 @@ export async function GET(req) {
         .sort({ createdAt: -1 })
         .lean(),
       LeadList.aggregate([
-        { $match: ownerQuery },
+        { $match: activeQuery },
         { $unwind: { path: '$leads', preserveNullAndEmptyArrays: false } },
         {
           $group: {

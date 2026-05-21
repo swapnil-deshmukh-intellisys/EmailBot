@@ -93,7 +93,7 @@ export default function WorkspaceSectionPage({
             <div className="workspace-highlight-side">
               {highlightMeta ? <span>{highlightMeta}</span> : null}
               {highlightAction ? (
-                <Button as="a" href="/master-inbox" variant="secondary" className="workspace-secondary">
+                <Button as="a" href="/mail-inbox" variant="secondary" className="workspace-secondary">
                   {highlightAction}
                 </Button>
               ) : null}

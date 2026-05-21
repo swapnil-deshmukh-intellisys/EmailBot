@@ -94,6 +94,21 @@ function getPresetSenderEmails(project = "") {
   const p = String(project || "").trim().toLowerCase();
   const tec = process.env.PRESET_SENDER_EMAILS_TEC;
   const tut = process.env.PRESET_SENDER_EMAILS_TUT;
+  const parseEmails = (value = "") =>
+    String(value || "")
+      .split(/[,\n\r]+/g)
+      .map((s) => String(s || "").trim().toLowerCase())
+      .filter(Boolean)
+      .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  if (!p) {
+    return Array.from(new Set([
+      ...parseEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ""),
+      ...parseEmails(tec || ""),
+      ...parseEmails(tut || ""),
+      ...DEFAULT_PROJECT_PRESET_SENDERS.tec,
+      ...DEFAULT_PROJECT_PRESET_SENDERS.tut
+    ]));
+  }
   const raw = String(
     p === "tut"
       ? (tut || "")
@@ -101,11 +116,7 @@ function getPresetSenderEmails(project = "") {
         ? (tec || "")
         : (process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || "")
   ).trim();
-  const parsed = raw
-    .split(/[,\n\r]+/g)
-    .map((s) => String(s || "").trim().toLowerCase())
-    .filter(Boolean)
-    .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  const parsed = parseEmails(raw);
   const defaults = DEFAULT_PROJECT_PRESET_SENDERS[p] || [];
   if (defaults.length) return Array.from(new Set([...parsed, ...defaults]));
   return parsed;

@@ -6,6 +6,7 @@ import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import ClientDataSectionNav from '@/app/client-data/components/ClientDataSectionNav';
+import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
@@ -25,6 +26,22 @@ const TABLE_COLUMNS = [
   'User ID',
   'Project Approach',
   'Sender ID'
+];
+
+const PASTE_COLUMNS = [
+  { key: 'name', label: 'Name' },
+  { key: 'surname', label: 'Surname' },
+  { key: 'designation', label: 'Designation' },
+  { key: 'cmpName', label: 'Company Name' },
+  { key: 'sector', label: 'Sector' },
+  { key: 'country', label: 'Country' },
+  { key: 'email', label: 'Email' },
+  { key: 'source', label: 'Source' },
+  { key: 'leadType', label: 'Lead Type' },
+  { key: 'sourcer', label: 'Sourcer' },
+  { key: 'userId', label: 'User ID' },
+  { key: 'projectApproach', label: 'Project Approach' },
+  { key: 'senderId', label: 'Sender ID' }
 ];
 
 const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -135,6 +152,12 @@ function extractOptionValues(rows, key) {
   ).sort((a, b) => a.localeCompare(b));
 }
 
+function formatDisplayDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+}
+
 function uniqueSorted(values = []) {
   return Array.from(new Set(values.map((value) => normalizeText(value)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
@@ -180,6 +203,66 @@ function validateEmailForSheet(raw = '') {
   if (email.split('@').length !== 2) return { ok: false, reason: 'Invalid email format: must contain exactly one @' };
   if (!EMAIL_REGEX.test(email)) return { ok: false, reason: 'Invalid email format' };
   return { ok: true, reason: '' };
+}
+
+function splitDelimitedLine(line = '') {
+  if (line.includes('\t')) return line.split('\t');
+  const values = [];
+  let current = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === ',' && !quoted) {
+      values.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  values.push(current);
+  return values;
+}
+
+function normalizeHeader(value = '') {
+  return normalizeText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function parsePastedRows(rawText = '') {
+  const lines = String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim());
+  if (!lines.length) return [];
+  const parsed = lines.map(splitDelimitedLine);
+  const headerMap = new Map(PASTE_COLUMNS.map((column) => [normalizeHeader(column.label), column.key]));
+  const firstLineKeys = parsed[0].map((cell) => headerMap.get(normalizeHeader(cell)));
+  const hasHeader = firstLineKeys.filter(Boolean).length >= 2;
+  const rows = hasHeader ? parsed.slice(1) : parsed;
+  return rows.map((cells, rowIndex) => {
+    const row = { _rowId: `paste-${Date.now()}-${rowIndex}` };
+    cells.forEach((cell, index) => {
+      const field = hasHeader ? firstLineKeys[index] : PASTE_COLUMNS[index]?.key;
+      if (!field) return;
+      row[field] = normalizeText(cell);
+    });
+    PASTE_COLUMNS.forEach((column) => {
+      if (typeof row[column.key] !== 'string') row[column.key] = '';
+    });
+    row.email = normalizeText(row.email).toLowerCase();
+    return row;
+  }).filter(hasVisibleClientData);
+}
+
+function createEmptyPasteRows(count = 8) {
+  return Array.from({ length: count }, (_, index) => ({
+    _rowId: `paste-empty-${Date.now()}-${index}`,
+    ...Object.fromEntries(PASTE_COLUMNS.map((column) => [column.key, '']))
+  }));
 }
 
 function getLeadValue(lead, ...keys) {
@@ -369,12 +452,16 @@ const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
 
 export default function ClientListPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'client-list';
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return ['upload', 'customize', 'bin', 'client-list'].includes(tab) ? tab : 'client-list';
+  });
   const [lists, setLists] = useState([]);
   const [clientRowsData, setClientRowsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showClientDirectory, setShowClientDirectory] = useState(true);
-  const [showSelectedSheets, setShowSelectedSheets] = useState(true);
+  const [showClientDirectory] = useState(true);
   const [showCreatedSheetsPicker, setShowCreatedSheetsPicker] = useState(false);
   const [selectedClientIds, setSelectedClientIds] = useState([]);
   const [newSheetName, setNewSheetName] = useState('');
@@ -390,11 +477,31 @@ export default function ClientListPage() {
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [creatingRow, setCreatingRow] = useState(false);
-  const [deletingRowId, setDeletingRowId] = useState('');
   const [activeCell, setActiveCell] = useState(null);
+  const [showPastePanel, setShowPastePanel] = useState(false);
+  const [pasteRawText, setPasteRawText] = useState('');
+  const [pasteRows, setPasteRows] = useState([]);
+  const [selectedPasteRowIds, setSelectedPasteRowIds] = useState([]);
+  const [savingPastedData, setSavingPastedData] = useState(false);
+  const [creatingPasteSheet, setCreatingPasteSheet] = useState(false);
+  const [usingCampaignListId, setUsingCampaignListId] = useState('');
+  const [binSheets, setBinSheets] = useState([]);
+  const [loadingBin, setLoadingBin] = useState(false);
+  const [historySheetId, setHistorySheetId] = useState('');
+  const [historyClients, setHistoryClients] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
   const cellRefs = useRef({});
-  const selectedSheetsSectionRef = useRef(null);
   const createdSheetsPickerRef = useRef(null);
+  const clientListRef = useRef(null);
+  const activeSection = activeTab;
+
+  const switchClientDataTab = (tab) => {
+    setActiveTab(tab);
+    const nextUrl = tab === 'client-list' ? '/client-data/client-list' : `/client-data/client-list?tab=${tab}`;
+    window.history.replaceState(null, '', nextUrl);
+  };
 
   useEffect(() => {
     const onDocClick = (event) => {
@@ -408,13 +515,37 @@ export default function ClientListPage() {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showCreatedSheetsPicker]);
 
+  useEffect(() => () => {
+    if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (activeSection !== 'client-list') return undefined;
+
+    const timer = setTimeout(() => {
+      clientListRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [activeSection]);
+
   useEffect(() => {
     let active = true;
 
     const loadLists = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/client-data/list', { cache: 'no-store' });
+        if (activeTab === 'upload' || activeTab === 'bin') {
+          setLists([]);
+          setClientRowsData([]);
+          setError('');
+          return;
+        }
+        const endpoint = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/sheets';
+        const response = await fetch(endpoint, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) {
           throw new Error(data?.error || 'Failed to load client lists');
@@ -422,7 +553,7 @@ export default function ClientListPage() {
 
         if (!active) return;
         setLists(Array.isArray(data?.lists) ? data.lists : []);
-        setClientRowsData(Array.isArray(data?.rows) ? data.rows : []);
+        setClientRowsData(activeTab === 'client-list' && Array.isArray(data?.rows) ? data.rows : []);
         setError('');
       } catch (err) {
         if (!active) return;
@@ -438,17 +569,19 @@ export default function ClientListPage() {
     return () => {
       active = false;
     };
-  }, [refreshNonce]);
+  }, [activeTab, refreshNonce]);
 
   const uploadedFiles = useMemo(
-    () => lists.filter((list) => String(list?.kind || 'uploaded') !== 'custom'),
+    () => lists.filter((list) => !['custom', 'selected_client_sheet'].includes(String(list?.kind || 'uploaded'))),
     [lists]
   );
 
   const selectedClientSheets = useMemo(
-    () => lists.filter((list) => String(list?.kind || 'uploaded') === 'custom'),
+    () => lists.filter((list) => ['custom', 'selected_client_sheet'].includes(String(list?.kind || 'uploaded'))),
     [lists]
   );
+
+  const customizeSheets = useMemo(() => lists, [lists]);
 
   const clientRows = useMemo(
     () => clientRowsData.filter(hasVisibleClientData),
@@ -565,6 +698,204 @@ export default function ClientListPage() {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
 
+  const showToast = (tone, text) => {
+    setToast({ tone, message: text });
+    if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 5200);
+  };
+
+  const handleParsePastedData = () => {
+    const rows = parsePastedRows(pasteRawText);
+    setPasteRows(rows.length ? rows : createEmptyPasteRows(8));
+    setSelectedPasteRowIds([]);
+    setShowPastePanel(true);
+    if (rows.length) {
+      showToast('success', `${rows.length} rows pasted successfully.`);
+    } else {
+      showToast('error', 'No usable pasted rows found.');
+    }
+  };
+
+  const handlePasteRowChange = (rowIndex, field, value) => {
+    setPasteRows((current) => current.map((row, index) => (
+      index === rowIndex ? { ...row, [field]: value } : row
+    )));
+  };
+
+  const filledPasteRows = useMemo(
+    () => pasteRows.filter(hasVisibleClientData),
+    [pasteRows]
+  );
+
+  const togglePasteRowSelection = (rowId) => {
+    setSelectedPasteRowIds((current) => (
+      current.includes(rowId) ? current.filter((id) => id !== rowId) : [...current, rowId]
+    ));
+  };
+
+  const toggleAllPasteRows = () => {
+    const filledIds = filledPasteRows.map((row) => row._rowId);
+    const allSelected = filledIds.length > 0 && filledIds.every((id) => selectedPasteRowIds.includes(id));
+    setSelectedPasteRowIds(allSelected ? [] : filledIds);
+  };
+
+  const handlePasteGridPaste = (event, startRowIndex, startColumnIndex) => {
+    const rawText = event.clipboardData?.getData('text/plain');
+    if (!rawText || !rawText.trim()) return;
+    event.preventDefault();
+    const incoming = parsePastedRows(rawText);
+    if (!incoming.length) return;
+    setPasteRows((current) => {
+      const next = [...current];
+      incoming.forEach((sourceRow, rowOffset) => {
+        const targetIndex = startRowIndex + rowOffset;
+        while (!next[targetIndex]) {
+          next.push({
+            _rowId: `paste-extra-${Date.now()}-${next.length}`,
+            ...Object.fromEntries(PASTE_COLUMNS.map((column) => [column.key, '']))
+          });
+        }
+        const updated = { ...next[targetIndex] };
+        PASTE_COLUMNS.slice(startColumnIndex).forEach((column, colOffset) => {
+          const sourceColumn = PASTE_COLUMNS[colOffset];
+          if (!sourceColumn) return;
+          updated[column.key] = sourceRow[sourceColumn.key] || '';
+        });
+        next[targetIndex] = updated;
+      });
+      return next;
+    });
+    showToast('success', `${incoming.length} rows pasted successfully.`);
+  };
+
+  const handleAddPasteRows = () => {
+    setPasteRows((current) => [...current, ...createEmptyPasteRows(1)]);
+  };
+
+  const openPastePanel = () => {
+    setShowPastePanel(true);
+    setPasteRows((current) => (current.length ? current : createEmptyPasteRows(6)));
+  };
+
+  const pasteDuplicateRowIndexes = useMemo(() => {
+    const existingEmails = new Set(rowsWithEdits.map((row) => normalizeText(row.email).toLowerCase()).filter((email) => email && email !== '-'));
+    const seen = new Map();
+    const duplicates = new Set();
+    pasteRows.forEach((row, index) => {
+      const email = normalizeText(row.email).toLowerCase();
+      if (!email) return;
+      if (existingEmails.has(email)) duplicates.add(index);
+      if (seen.has(email)) {
+        duplicates.add(index);
+        duplicates.add(seen.get(email));
+      }
+      seen.set(email, index);
+    });
+    return duplicates;
+  }, [pasteRows, rowsWithEdits]);
+
+  const pasteInvalidRowIndexes = useMemo(() => {
+    const invalid = new Set();
+    pasteRows.forEach((row, index) => {
+      if (!validateEmailForSheet(row.email).ok) invalid.add(index);
+    });
+    return invalid;
+  }, [pasteRows]);
+
+  const handleSavePastedData = async () => {
+    if (!filledPasteRows.length) {
+      setSelectionError('Paste and preview client rows before saving.');
+      return;
+    }
+    try {
+      setSavingPastedData(true);
+      setSelectionError('');
+      setSelectionMessage('');
+      const response = await fetch('/api/client-data/paste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: filledPasteRows })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to save pasted data');
+      }
+      setPasteRawText('');
+      setPasteRows(createEmptyPasteRows(8));
+      setSelectedPasteRowIds([]);
+      setShowPastePanel(false);
+      setRefreshNonce((value) => value + 1);
+      setSelectionMessage(`${data.message || 'Pasted data saved.'} ${data.summary?.repeatedClients || 0} repeated, ${data.summary?.invalidClients || 0} invalid.`);
+      showToast('success', data.message || 'Pasted data saved to Client Directory.');
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to save pasted data');
+      showToast('error', err.message || 'Failed to save pasted data');
+    } finally {
+      setSavingPastedData(false);
+    }
+  };
+
+  const handleCreateSheetFromPastedRows = async () => {
+    const selectedRows = filledPasteRows.filter((row) => selectedPasteRowIds.includes(row._rowId));
+    if (!selectedRows.length) {
+      setSelectionError('Select pasted table rows before creating a sheet.');
+      showToast('error', 'Select pasted table rows before creating a sheet.');
+      return;
+    }
+    const invalidSelected = selectedRows.some((row) => !validateEmailForSheet(row.email).ok);
+    if (invalidSelected) {
+      setSelectionError('Fix invalid email rows before creating a sheet.');
+      showToast('error', 'Fix invalid email rows before creating a sheet.');
+      return;
+    }
+    const defaultName = normalizeText(newSheetName) || `Selected Clients ${formatDisplayDate()}`;
+    const promptedName = window.prompt('Rename selected client sheet', defaultName);
+    if (promptedName === null) return;
+    const trimmedName = normalizeText(promptedName) || defaultName;
+    try {
+      setCreatingPasteSheet(true);
+      setSelectionError('');
+      const response = await fetch('/api/client-data/selected-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          sourceFile: `${trimmedName}.pasted-selected`,
+          rows: selectedRows
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to create selected pasted sheet');
+      }
+      const savedList = data.list || data;
+      const nextList = {
+        _id: savedList.listId || savedList._id,
+        name: savedList.name || trimmedName,
+        sourceFile: savedList.sourceFile || `${trimmedName}.pasted-selected`,
+        kind: savedList.kind || 'selected_client_sheet',
+        uploadedAt: savedList.uploadedAt || new Date().toISOString(),
+        createdAt: savedList.createdAt || savedList.uploadedAt || new Date().toISOString(),
+        leadCount: selectedRows.length,
+        leads: selectedRows
+      };
+      setLists((current) => [nextList, ...current.filter((item) => String(item._id) !== String(nextList._id))]);
+      setRecentCreatedSheetId(String(nextList._id));
+      setActiveTab('customize');
+      setSelectedPasteRowIds([]);
+      setSelectionMessage(data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
+      showToast('success', data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to create selected pasted sheet');
+      showToast('error', err.message || 'Failed to create selected pasted sheet');
+    } finally {
+      setCreatingPasteSheet(false);
+    }
+  };
+
   const toggleClientSelection = (clientId) => {
     setSelectedClientIds((current) =>
       current.includes(clientId)
@@ -623,7 +954,7 @@ export default function ClientListPage() {
     }
   };
 
-  const handleGridPaste = (event, startRowIndex, startFieldIndex) => {
+  const handleGridPaste = async (event, startRowIndex, startFieldIndex) => {
     const rawText = event.clipboardData?.getData('text/plain');
     if (!rawText || !rawText.trim()) return;
     event.preventDefault();
@@ -635,12 +966,22 @@ export default function ClientListPage() {
       .map((line) => line.split('\t'));
     if (!rows.length) return;
 
+    const overflowRows = [];
     setRowEdits((current) => {
       const next = { ...current };
       rows.forEach((pastedRow, rowOffset) => {
         const targetRowIndex = startRowIndex + rowOffset;
         const targetRow = paginatedClientRows[targetRowIndex];
-        if (!targetRow) return;
+        if (!targetRow) {
+          const overflow = {};
+          pastedRow.forEach((value, colOffset) => {
+            const field = GRID_EDITABLE_FIELDS[startFieldIndex + colOffset];
+            if (!field) return;
+            overflow[field] = value;
+          });
+          overflowRows.push(overflow);
+          return;
+        }
         const rowPatch = { ...(next[targetRow.id] || {}) };
         pastedRow.forEach((value, colOffset) => {
           const field = GRID_EDITABLE_FIELDS[startFieldIndex + colOffset];
@@ -651,6 +992,23 @@ export default function ClientListPage() {
       });
       return next;
     });
+    showToast('success', `${rows.length} rows pasted successfully.`);
+    if (overflowRows.length) {
+      try {
+        const response = await fetch('/api/client-data/paste', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: overflowRows, name: `Direct Table Paste ${new Date().toLocaleDateString()}` })
+        });
+        const data = await response.json();
+        if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to save overflow pasted rows');
+        setRefreshNonce((value) => value + 1);
+        showToast('success', `${overflowRows.length} extra rows added to Client Directory.`);
+      } catch (err) {
+        setSelectionError(err.message || 'Failed to add pasted overflow rows.');
+        showToast('error', err.message || 'Failed to add pasted overflow rows.');
+      }
+    }
   };
 
   const handleSaveDirectoryEdits = async () => {
@@ -798,48 +1156,18 @@ export default function ClientListPage() {
     }
   };
 
-  const handleDeleteSelectedRows = async () => {
-    if (!selectedClientIds.length) {
-      setSelectionError('Select at least one row to delete.');
-      setSelectionMessage('');
-      return;
-    }
-    if (!window.confirm(`Delete ${selectedClientIds.length} selected row(s)?`)) return;
-
-    try {
-      setDeletingRowId('bulk');
-      setSelectionError('');
-      setSelectionMessage('');
-
-      const ids = [...selectedClientIds];
-      for (const rowId of ids) {
-        const response = await fetch(`/api/client-data/${encodeURIComponent(rowId)}`, { method: 'DELETE' });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data?.error || `Failed to delete row ${rowId}`);
-        }
-      }
-
-      setSelectedClientIds([]);
-      setSelectionMessage('Selected rows deleted successfully.');
-      setRefreshNonce((value) => value + 1);
-    } catch (err) {
-      setSelectionError(err.message || 'Failed to delete selected rows');
-      setSelectionMessage('');
-    } finally {
-      setDeletingRowId('');
-    }
-  };
-
   const handleCreateSheet = async () => {
-    const selectedRows = clientRows.filter((row) => selectedClientIds.includes(row.id));
+    const selectedRows = rowsWithEdits.filter((row) => selectedClientIds.includes(row.id));
     if (!selectedRows.length) {
       setSelectionError('Select at least one client first.');
       setSelectionMessage('');
       return;
     }
 
-    const trimmedName = normalizeText(newSheetName) || `Selected Clients ${new Date().toLocaleDateString()}`;
+    const defaultName = normalizeText(newSheetName) || `Selected Clients ${formatDisplayDate()}`;
+    const promptedName = window.prompt('Rename selected client sheet', defaultName);
+    if (promptedName === null) return;
+    const trimmedName = normalizeText(promptedName) || defaultName;
     const parentListIds = Array.from(new Set(selectedRows.map((row) => row.sourceListId).filter(Boolean)));
     const parentFiles = Array.from(new Set(selectedRows.map((row) => row.sourceFile).filter(Boolean)));
 
@@ -848,12 +1176,12 @@ export default function ClientListPage() {
       setSelectionError('');
       setSelectionMessage('');
 
-      const response = await fetch('/api/lists/custom', {
+      const response = await fetch('/api/client-data/selected-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmedName,
-          sourceListId: parentListIds.length === 1 ? parentListIds[0] : '',
+          parentListIds,
           sourceFile: parentFiles.join(', ') || `${trimmedName}.csv`,
           rows: selectedRows.map((row) => ({
             Name: row.name === '-' ? '' : row.name,
@@ -878,14 +1206,15 @@ export default function ClientListPage() {
         throw new Error(data?.error || 'Failed to create selected client sheet');
       }
 
+      const savedList = data.list || data;
       const nextList = {
-        _id: data.listId,
-        name: data.name || trimmedName,
-        sourceFile: data.sourceFile || `${trimmedName}.csv`,
-        kind: data.kind || 'custom',
-        clonedFrom: data.clonedFrom || parentListIds[0] || '',
-        uploadedAt: data.uploadedAt || new Date().toISOString(),
-        createdAt: data.uploadedAt || new Date().toISOString(),
+        _id: savedList.listId || savedList._id,
+        name: savedList.name || trimmedName,
+        sourceFile: savedList.sourceFile || `${trimmedName}.csv`,
+        kind: savedList.kind || 'selected_client_sheet',
+        clonedFrom: savedList.clonedFrom || parentListIds.join(','),
+        uploadedAt: savedList.uploadedAt || new Date().toISOString(),
+        createdAt: savedList.createdAt || savedList.uploadedAt || new Date().toISOString(),
         leadCount: selectedRows.length,
         leads: selectedRows.map((row) => ({
           Name: row.name === '-' ? '' : row.name,
@@ -899,15 +1228,12 @@ export default function ClientListPage() {
       };
 
       setLists((current) => [nextList, ...current.filter((item) => String(item._id) !== String(nextList._id))]);
-      setSelectionMessage(`Created ${trimmedName} with ${selectedRows.length} selected clients.`);
+      setSelectionMessage(data.message || `Created ${trimmedName} with ${selectedRows.length} selected clients.`);
+      showToast('success', data.message || `Created selected-client sheet with ${selectedRows.length} clients.`);
       setSelectedClientIds([]);
       setNewSheetName('');
-      setShowSelectedSheets(true);
       setRecentCreatedSheetId(String(nextList._id));
-      router.push(`/dashboard?listId=${encodeURIComponent(String(nextList._id))}`);
-      requestAnimationFrame(() => {
-        selectedSheetsSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-      });
+      setActiveTab('customize');
     } catch (err) {
       setSelectionError(err.message || 'Failed to create selected client sheet');
     } finally {
@@ -915,17 +1241,240 @@ export default function ClientListPage() {
     }
   };
 
+  const handleUseForCampaign = async (listId) => {
+    const normalizedListId = String(listId || '').trim();
+    if (!normalizedListId) return;
+    try {
+      setUsingCampaignListId(normalizedListId);
+      setSelectionError('');
+      const response = await fetch('/api/client-data/use-for-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listId: normalizedListId })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to use sheet for campaign');
+      }
+      window.localStorage?.setItem?.('campaign:selectedClientListId', data.listId);
+      window.localStorage?.setItem?.('campaign:selectedClientListName', data.name || '');
+      showToast('success', `${data.name || 'Selected sheet'} attached to Campaign Workflow.`);
+      router.push(data.redirectUrl || `/dashboard/user?listId=${encodeURIComponent(data.listId)}`);
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to use sheet for campaign');
+      showToast('error', err.message || 'Failed to use sheet for campaign');
+    } finally {
+      setUsingCampaignListId('');
+    }
+  };
+
+  const handleRenameCustomSheet = async (list) => {
+    const currentName = normalizeText(list?.name) || 'Selected Clients';
+    const nextName = window.prompt('Rename selected client sheet', currentName);
+    if (nextName === null) return;
+    const trimmedName = normalizeText(nextName);
+    if (!trimmedName || trimmedName === currentName) return;
+    try {
+      const response = await fetch(`/api/lists/${encodeURIComponent(String(list._id))}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName })
+      });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to rename sheet');
+      }
+      setLists((current) => current.map((item) => (
+        String(item._id) === String(list._id) ? { ...item, name: trimmedName } : item
+      )));
+      showToast('success', 'Sheet renamed.');
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to rename sheet');
+      showToast('error', err.message || 'Failed to rename sheet');
+    }
+  };
+
+  const handleDeleteCustomSheet = async (list) => {
+    if (!window.confirm(`Delete "${list?.name || 'this sheet'}"?`)) return;
+    try {
+      const response = await fetch(`/api/lists/${encodeURIComponent(String(list._id))}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to delete sheet');
+      }
+      setLists((current) => current.filter((item) => String(item._id) !== String(list._id)));
+      showToast('success', 'Sheet deleted.');
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to delete sheet');
+      showToast('error', err.message || 'Failed to delete sheet');
+    }
+  };
+
+  const loadBinSheets = async () => {
+    try {
+      setLoadingBin(true);
+      const response = await fetch('/api/client-data/bin', { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to load bin storage');
+      setBinSheets(Array.isArray(data?.lists) ? data.lists : []);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load bin storage');
+    } finally {
+      setLoadingBin(false);
+    }
+  };
+
+  const restoreBinSheet = async (listId) => {
+    try {
+      const response = await fetch('/api/client-data/bin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to restore sheet');
+      showToast('success', 'Sheet restored.');
+      setRefreshNonce((value) => value + 1);
+      await loadBinSheets();
+    } catch (err) {
+      showToast('error', err.message || 'Failed to restore sheet');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'bin') {
+      void loadBinSheets();
+    }
+  }, [activeTab]);
+
+  const loadSheetHistory = async (listId) => {
+    try {
+      setHistorySheetId(String(listId));
+      setLoadingHistory(true);
+      setHistoryClients([]);
+      const response = await fetch(`/api/client-data/history?listId=${encodeURIComponent(String(listId))}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to load client history');
+      setHistoryClients(Array.isArray(data?.clients) ? data.clients : []);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to load client history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+      {toast ? (
+        <div className={`dashboard-toast dashboard-toast-${toast.tone}`} role="status" aria-live="polite">
+          <div>
+            <strong>{toast.tone === 'error' ? 'Action failed' : 'Action completed'}</strong>
+            <p>{toast.message}</p>
+          </div>
+          <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">x</button>
+        </div>
+      ) : null}
       <div className="client-data-page">
-        <ClientDataSectionNav />
+        <ClientDataSectionNav activeTab={activeTab} onTabChange={switchClientDataTab} />
         <section className="ui-page-section">
           <div className="client-data-clientlist-stack">
-            <section className="client-data-panel">
+            {activeTab === 'upload' ? (
+              <>
+                <section className="client-data-panel client-data-upload-compact-panel">
+                  <div className="ui-card-content client-data-upload-compact">
+                    <UploadSheetWorkflow
+                      buttonClassName="client-data-section-switcher-button client-data-upload-sheet-button active"
+                      inline
+                      onUploadSaved={() => setRefreshNonce((value) => value + 1)}
+                    />
+                  </div>
+                </section>
+            <section className={`client-data-panel client-data-paste-panel ${showPastePanel ? '' : 'client-data-paste-panel-closed'}`}>
+              <div className="client-data-panel-head">
+                <div>
+                  <h2 className="ui-card-title">Paste Extracted Data</h2>
+                </div>
+                <div className="client-data-panel-head-actions">
+                  {showPastePanel ? (
+                    <Button type="button" variant="ghost" onClick={() => setShowPastePanel(false)}>
+                      Close
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={openPastePanel}>
+                      Open Sheet
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {showPastePanel ? (
+                <div className="ui-card-content client-data-paste-workspace">
+                  <div className="client-data-paste-actions">
+                    <Button type="button" onClick={handleSavePastedData} disabled={savingPastedData || !pasteRows.length}>
+                      {savingPastedData ? 'Saving...' : 'Save Pasted Data'}
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={handleAddPasteRows}>
+                      Create Row
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedPasteRowIds.length}>
+                      {creatingPasteSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                    </Button>
+                    <span>{filledPasteRows.length} filled rows | {selectedPasteRowIds.length} selected | {pasteInvalidRowIndexes.size} invalid | {pasteDuplicateRowIndexes.size} repeated</span>
+                  </div>
+                  {pasteRows.length ? (
+                    <div className="client-data-table client-data-table-scroll client-data-paste-preview-table client-data-paste-excel-table">
+                      <div className="client-data-table-head">
+                        <span>No.</span>
+                        <span>
+                          <input
+                            type="checkbox"
+                            checked={filledPasteRows.length > 0 && filledPasteRows.every((row) => selectedPasteRowIds.includes(row._rowId))}
+                            onChange={toggleAllPasteRows}
+                            aria-label="Select all pasted rows"
+                          />
+                        </span>
+                        {PASTE_COLUMNS.map((column) => <span key={column.key}>{column.label}</span>)}
+                      </div>
+                      {pasteRows.map((row, rowIndex) => {
+                        const invalid = pasteInvalidRowIndexes.has(rowIndex);
+                        const duplicate = pasteDuplicateRowIndexes.has(rowIndex);
+                        const hasData = hasVisibleClientData(row);
+                        return (
+                          <div key={row._rowId || rowIndex} className={`client-data-table-row ${invalid ? 'client-data-invalid-row' : ''} ${duplicate ? 'client-directory-duplicate-row' : ''}`}>
+                            <span>{rowIndex + 1}</span>
+                            <span>
+                              <input
+                                type="checkbox"
+                                checked={selectedPasteRowIds.includes(row._rowId)}
+                                disabled={!hasData}
+                                onChange={() => togglePasteRowSelection(row._rowId)}
+                                aria-label={`Select pasted row ${rowIndex + 1}`}
+                              />
+                            </span>
+                            {PASTE_COLUMNS.map((column) => (
+                              <span key={`${rowIndex}-${column.key}`} className="client-data-paste-cell">
+                                <input
+                                  className={`input ${column.key === 'email' && (invalid || duplicate) ? 'invalid' : ''}`}
+                                  value={row[column.key] || ''}
+                                  onChange={(event) => handlePasteRowChange(rowIndex, column.key, event.target.value)}
+                                  onPaste={(event) => handlePasteGridPaste(event, rowIndex, PASTE_COLUMNS.findIndex((item) => item.key === column.key))}
+                                />
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+              </>
+            ) : null}
+            {activeTab === 'client-list' ? (
+            <section className="client-data-panel" ref={clientListRef}>
               <div className="client-data-panel-head">
                 <div>
                   <h2 className="ui-card-title">Client Directory</h2>
-                  <p className="ui-card-description">Live client rows from your stored sheets.</p>
                   <p className="ui-card-description client-directory-summary">
                     {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {repeatedClientCount} repeated | {contactedCount} contacted
                   </p>
@@ -936,30 +1485,12 @@ export default function ClientListPage() {
                   ) : null}
                 </div>
                   <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
-                    <div className="client-data-header-create">
-                    <label className="client-data-selection-name client-data-selection-name-compact">
-                      <span>New Sheet Name</span>
-                      <input
-                        className="input"
-                        type="text"
-                        value={newSheetName}
-                        onChange={(event) => setNewSheetName(event.target.value)}
-                        placeholder="April Leads"
-                      />
-                    </label>
-                  </div>
-                  <button type="button" onClick={() => setShowClientDirectory((value) => !value)}>
-                    {showClientDirectory ? 'x Close' : '+ Show More'}
-                  </button>
                 </div>
               </div>
               {selectionError ? <p className="client-data-custom-note error">{selectionError}</p> : null}
               {selectionMessage ? <p className="client-data-custom-note success">{selectionMessage}</p> : null}
               {showClientDirectory ? (
                 <div className="ui-card-content">
-                  <div className="client-data-custom-note" style={{ marginBottom: 10 }}>
-                    Use filters below, then click <strong>Apply Filters</strong> to show matching sheet rows.
-                  </div>
                   <ClientDirectoryFilters
                     initialFilters={filters}
                     filterOptions={filterOptions}
@@ -1020,22 +1551,23 @@ export default function ClientListPage() {
                                     type="button"
                                     size="sm"
                                     variant="secondary"
-                                    onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                                    onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
                                   >
-                                    Upload Sheet
+                                    Upload This Sheet
                                   </Button>
                                   <Button
                                     type="button"
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}`)}
+                                    onClick={() => handleUseForCampaign(list._id)}
+                                    disabled={usingCampaignListId === String(list._id)}
                                   >
-                                    Campaign Flow
+                                    {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
                                   </Button>
                                 </div>
                               </div>
                             )) : (
-                              <p style={{ margin: 0 }}>No created sheets yet. Create from selected rows first.</p>
+                              <p style={{ margin: 0 }}>No created sheets yet.</p>
                             )}
                           </div>
                         ) : null}
@@ -1046,15 +1578,7 @@ export default function ClientListPage() {
                         onClick={handleCreateSheet}
                         disabled={creatingSheet || !selectedCount}
                       >
-                        {creatingSheet ? 'Creating...' : 'Create Sheet'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={handleDeleteSelectedRows}
-                        disabled={deletingRowId === 'bulk' || !selectedCount}
-                      >
-                        {deletingRowId === 'bulk' ? 'Deleting...' : 'Delete Selected Rows'}
+                        {creatingSheet ? 'Creating...' : 'Create Selected Client Sheet'}
                       </Button>
                       <Button
                         type="button"
@@ -1210,56 +1734,188 @@ export default function ClientListPage() {
                 </div>
               ) : null}
             </section>
-
-            <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact" ref={selectedSheetsSectionRef}>
+            ) : null}
+            {activeTab === 'customize' ? (
+            <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
               <div className="client-data-panel-head">
                 <div>
-                  <h2 className="ui-card-title">Selected Client Sheets</h2>
-                  <p className="ui-card-description">Newly created selected-client sheets appear here.</p>
-                </div>
-                <div className="client-data-panel-head-actions">
-                  <button type="button" onClick={() => setShowSelectedSheets((value) => !value)}>
-                    {showSelectedSheets ? 'x Close' : '+ Show More'}
-                  </button>
+                  <h2 className="ui-card-title">Customize List</h2>
                 </div>
               </div>
-              {showSelectedSheets ? (
                 <div className="ui-card-content">
                   <div className="client-data-health-list">
-                    {selectedClientSheets.length ? selectedClientSheets.map((list) => (
+                    {customizeSheets.length ? customizeSheets.map((list) => (
                       <div key={list._id} className={String(list._id) === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''}>
                         <strong>{list.name || 'Selected client sheet'}</strong>
-                        <span>{Number(list.leadCount || list.leads?.length || 0)} clients | created {formatDateTime(list.uploadedAt || list.createdAt)} | source {list.sourceFile || '-'}</span>
+                        <span>
+                          {Number(list.leadCount || list.leads?.length || 0)} clients | {String(list.kind || 'uploaded')} | created {formatDateTime(list.uploadedAt || list.createdAt)} | source {list.sourceFile || '-'}
+                          {list.autoDeleteAt ? ` | auto bin ${formatDateTime(list.autoDeleteAt)}` : ''}
+                        </span>
                         <div style={{ marginTop: 8 }}>
                           <Button
                             type="button"
                             size="sm"
                             variant="secondary"
-                            onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}`)}
+                            onClick={() => handleUseForCampaign(list._id)}
+                            disabled={usingCampaignListId === String(list._id)}
                           >
-                            Use For Campaign
+                            {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
-                            onClick={() => router.push(`/dashboard?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
                             style={{ marginLeft: 8 }}
                           >
                             Upload This Sheet
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => loadSheetHistory(list._id)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            Client History
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRenameCustomSheet(list)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            Rename
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteCustomSheet(list)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            Delete
                           </Button>
                         </div>
                       </div>
                     )) : (
                       <div>
-                        <strong>No selected-client sheets yet.</strong>
-                        <span>Select clients from the directory and create a sheet to store them here.</span>
+                        <strong>No custom sheets yet.</strong>
                       </div>
                     )}
                   </div>
+                  {historySheetId ? (
+                    <div className="client-data-history-panel">
+                      <div className="client-data-panel-head">
+                        <div>
+                          <h3 className="ui-card-title">Client Mail History</h3>
+                          <p className="ui-card-description">Cover Story, Reminder, Follow-up, Up Cost, and Final Cost status for every client.</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { setHistorySheetId(''); setHistoryClients([]); }}>
+                          Close
+                        </Button>
+                      </div>
+                      {loadingHistory ? <p className="ui-card-description">Loading history...</p> : null}
+                      {!loadingHistory && historyClients.length ? (
+                        <div className="client-data-history-list">
+                          {historyClients.slice(0, 80).map((client) => (
+                            <article key={`${historySheetId}-${client.email}`} className="client-data-history-card">
+                              <div className="client-data-history-card-head">
+                                <div>
+                                  <strong>{client.name}</strong>
+                                  <span>{client.email}</span>
+                                </div>
+                                <Badge variant={client.responseReceived ? 'success' : client.stage === 'Failed' ? 'danger' : 'default'}>{client.stage}</Badge>
+                              </div>
+                              <div className="client-data-history-meta">
+                                <span>{client.company}</span>
+                                <span>Sent {client.sentCount}</span>
+                                <span>Replies {client.replyCount}</span>
+                                {client.responseReceived ? <span>Response: {client.replyType || 'received'}</span> : null}
+                                {client.followUpStopped ? <span>{client.followUpStopReason || 'Follow-up stopped'}</span> : null}
+                              </div>
+                              {client.replyPreview ? <p className="client-data-history-reply">{client.replyPreview}</p> : null}
+                              <div className="client-data-history-steps">
+                                {client.steps.map((step) => (
+                                  <div key={`${client.email}-${step.stepNumber}`} className={`client-data-history-step client-data-history-step-${String(step.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                                    <strong>{step.label}</strong>
+                                    <span>{step.status || 'Pending'}</span>
+                                    <small>{formatDateTime(step.sentAt || step.repliedAt || step.skippedAt || step.failedAt)}</small>
+                                  </div>
+                                ))}
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!loadingHistory && !historyClients.length ? <p className="ui-card-description">No campaign history found for this sheet yet.</p> : null}
+                    </div>
+                  ) : null}
+                  <div className="client-data-bin-panel">
+                    <div className="client-data-panel-head">
+                      <div>
+                        <h3 className="ui-card-title">Bin Storage</h3>
+                        <p className="ui-card-description">Uploaded files auto move here after 7 days. Deleted sheets also appear here.</p>
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" onClick={loadBinSheets} disabled={loadingBin}>
+                        {loadingBin ? 'Loading...' : 'Show Bin'}
+                      </Button>
+                    </div>
+                    {binSheets.length ? (
+                      <div className="client-data-bin-list">
+                        {binSheets.map((sheet) => (
+                          <article key={`bin-${sheet._id}`} className="client-data-bin-card">
+                            <strong>{sheet.name || sheet.sourceFile || 'Deleted sheet'}</strong>
+                            <span>{Number(sheet.leadCount || 0)} clients | deleted {formatDateTime(sheet.deletedAt)}</span>
+                            <small>{sheet.deleteReason || 'Deleted'}</small>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => restoreBinSheet(sheet._id)}>
+                              Restore
+                            </Button>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              ) : null}
             </section>
+            ) : null}
+            {activeTab === 'bin' ? (
+            <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
+              <div className="client-data-panel-head">
+                <div>
+                  <h2 className="ui-card-title">Bin Storage</h2>
+                  <p className="ui-card-description">Deleted sheets and files auto-moved after their 7-day timer appear here.</p>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={loadBinSheets} disabled={loadingBin}>
+                  {loadingBin ? 'Loading...' : 'Refresh Bin'}
+                </Button>
+              </div>
+              <div className="ui-card-content">
+                {loadingBin ? <p className="ui-card-description">Loading bin storage...</p> : null}
+                {!loadingBin && !binSheets.length ? (
+                  <div className="client-data-bin-empty">
+                    <strong>No deleted sheets in bin.</strong>
+                    <span>Your active sheets are still available in Client List and Customize List.</span>
+                  </div>
+                ) : null}
+                {binSheets.length ? (
+                  <div className="client-data-bin-list">
+                    {binSheets.map((sheet) => (
+                      <article key={`bin-page-${sheet._id}`} className="client-data-bin-card">
+                        <strong>{sheet.name || sheet.sourceFile || 'Deleted sheet'}</strong>
+                        <span>{Number(sheet.leadCount || 0)} clients | deleted {formatDateTime(sheet.deletedAt)}</span>
+                        <small>{sheet.deleteReason || 'Deleted'}</small>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => restoreBinSheet(sheet._id)}>
+                          Restore
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+            ) : null}
           </div>
         </section>
       </div>

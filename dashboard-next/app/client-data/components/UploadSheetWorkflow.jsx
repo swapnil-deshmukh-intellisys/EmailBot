@@ -41,10 +41,10 @@ function compactUploadRow(row = {}) {
   return compact;
 }
 
-export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSaved = null }) {
+export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSaved = null, inline = false }) {
   const fileInputRef = useRef(null);
   const spreadsheetRefs = useRef({});
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(inline));
   const [previewRows, setPreviewRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [columns, setColumns] = useState([]);
@@ -56,6 +56,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [savedSheets, setSavedSheets] = useState([]);
+  const [showSavedSheets, setShowSavedSheets] = useState(false);
   const [sheetEditingId, setSheetEditingId] = useState('');
   const [sheetDraftName, setSheetDraftName] = useState('');
   const [sheetSavingId, setSheetSavingId] = useState('');
@@ -77,11 +78,15 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
   }, [repeatedRows]);
 
   useEffect(() => {
-    if (!open) return;
+    if (inline) setOpen(true);
+  }, [inline]);
+
+  useEffect(() => {
+    if (!open || !showSavedSheets) return;
     let active = true;
     const loadSheets = async () => {
       try {
-        const response = await fetch('/api/client-data/list', { cache: 'no-store' });
+        const response = await fetch('/api/client-data/sheets', { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) {
           throw new Error(data?.error || 'Failed to load sheets');
@@ -97,7 +102,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, showSavedSheets]);
 
   const requestPreview = async (payload, isMultipart = false) => {
     const response = await fetch('/api/uploads/preview', {
@@ -403,6 +408,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
 
   return (
     <>
+      {!inline ? (
       <button
         type="button"
         className={buttonClassName}
@@ -415,29 +421,34 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
         <span className="client-data-upload-sheet-icon" aria-hidden="true">↑</span>
         <span>Upload Sheet</span>
       </button>
+      ) : null}
 
       <input
         ref={fileInputRef}
         type="file"
         accept=".xlsx,.csv"
+        hidden
         className="client-data-hidden-file-input"
         onChange={handleChooseFile}
       />
 
       {open ? (
-        <div className="client-upload-modal-backdrop" onClick={() => setOpen(false)}>
+        <div className={`client-upload-modal-backdrop${inline ? ' client-upload-inline-backdrop' : ''}`} onClick={() => { if (!inline) setOpen(false); }}>
           <div className="client-upload-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="client-upload-modal-head">
+            {!inline ? <div className="client-upload-modal-head">
               <div>
-                <h3>Upload Sheet</h3>
+                <h3>Upload File</h3>
                 <p>Upload Excel or CSV, preview repeated clients, and save all unique clients.</p>
               </div>
               <button type="button" className="client-upload-modal-close" onClick={() => setOpen(false)}>x</button>
-            </div>
+            </div> : null}
 
             <div className="client-upload-modal-actions">
               <Button type="button" onClick={() => fileInputRef.current?.click()} disabled={loadingPreview}>
                 {loadingPreview ? 'Parsing...' : 'Choose XLSX / CSV'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setShowSavedSheets((value) => !value)}>
+                {showSavedSheets ? 'Hide Saved Sheets' : 'Saved Sheets'}
               </Button>
               {previewRows.length ? (
                 <>
@@ -460,7 +471,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                   </Button>
                 </>
               ) : null}
-              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              {!inline ? <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button> : null}
             </div>
 
             {summary ? (
@@ -481,7 +492,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
               </div>
             ) : null}
 
-            <div className="client-upload-preview">
+            {fileName || previewRows.length ? <div className="client-upload-preview">
               <div className="client-upload-preview-head">
                 <span>File Name</span>
                 <strong>{fileName || 'No file selected'}</strong>
@@ -583,13 +594,8 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                     </>
                   )}
                 </div>
-              ) : (
-                <div className="client-data-upload-empty">
-                  <strong>No preview yet.</strong>
-                  <p>Choose an Excel or CSV file to preview unique and repeated clients before saving.</p>
-                </div>
-              )}
-            </div>
+              ) : null}
+            </div> : null}
 
             {repeatedRows.length ? (
               <div className="client-duplicate-compare">
@@ -619,47 +625,52 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
               </div>
             ) : null}
 
-            <div className="client-upload-preview" style={{ marginTop: 10 }}>
-              <div className="client-upload-preview-head">
-                <span>Saved Sheets</span>
-                <strong>{savedSheets.length}</strong>
+            {showSavedSheets ? <div className="client-upload-preview client-upload-saved-sheets">
+              <div className="client-upload-preview-head client-upload-saved-sheets-head">
+                <div>
+                  <span>Saved Sheets</span>
+                  <strong>{savedSheets.length || '-'}</strong>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowSavedSheets((value) => !value)}>
+                  {showSavedSheets ? 'Hide' : 'Show'}
+                </Button>
               </div>
-              <div className="client-data-health-list">
-                {savedSheets.length ? savedSheets.slice(0, 12).map((sheet) => (
-                  <div key={sheet._id} style={{ display: 'grid', gap: 8 }}>
-                    <strong>
-                      {sheetEditingId === String(sheet._id) ? (
-                        <input
-                          className="input"
-                          value={sheetDraftName}
-                          onChange={(event) => setSheetDraftName(event.target.value)}
-                        />
-                      ) : (
-                        sheet.name
-                      )}
-                    </strong>
-                    <span>{sheet.sourceFile || '-'} | {Number(sheet.leadCount || 0)} contacts</span>
-                    <div className="client-data-sheet-savebar" style={{ justifyContent: 'flex-start' }}>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => handleEditSheet(sheet)}>Edit</Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateSheet(sheet._id)} disabled={sheetSavingId === String(sheet._id)}>
-                        {sheetSavingId === String(sheet._id) ? 'Updating...' : 'Update'}
-                      </Button>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => handleSaveSheet(sheet._id)} disabled={sheetEditingId !== String(sheet._id) || sheetSavingId === String(sheet._id)}>
-                        {sheetSavingId === String(sheet._id) ? 'Saving...' : 'Save'}
-                      </Button>
-                      <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteSheet(sheet._id)} disabled={sheetDeletingId === String(sheet._id)}>
-                        {sheetDeletingId === String(sheet._id) ? 'Deleting...' : 'Delete'}
-                      </Button>
+                <div className="client-upload-saved-sheet-list">
+                  {savedSheets.length ? savedSheets.slice(0, 6).map((sheet) => (
+                    <div key={sheet._id} className="client-upload-saved-sheet-card">
+                      <strong>
+                        {sheetEditingId === String(sheet._id) ? (
+                          <input
+                            className="input"
+                            value={sheetDraftName}
+                            onChange={(event) => setSheetDraftName(event.target.value)}
+                          />
+                        ) : (
+                          sheet.name
+                        )}
+                      </strong>
+                      <span>{sheet.sourceFile || '-'} | {Number(sheet.leadCount || 0)} contacts</span>
+                      <div className="client-upload-saved-sheet-actions">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleEditSheet(sheet)}>Edit</Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleUpdateSheet(sheet._id)} disabled={sheetSavingId === String(sheet._id)}>
+                          {sheetSavingId === String(sheet._id) ? 'Updating...' : 'Update'}
+                        </Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => handleSaveSheet(sheet._id)} disabled={sheetEditingId !== String(sheet._id) || sheetSavingId === String(sheet._id)}>
+                          {sheetSavingId === String(sheet._id) ? 'Saving...' : 'Save'}
+                        </Button>
+                        <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteSheet(sheet._id)} disabled={sheetDeletingId === String(sheet._id)}>
+                          {sheetDeletingId === String(sheet._id) ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )) : (
-                  <div>
-                    <strong>No saved sheets yet.</strong>
-                    <span>Upload and save a sheet to manage it here.</span>
-                  </div>
-                )}
-              </div>
-            </div>
+                  )) : (
+                    <div className="client-upload-saved-sheet-empty">
+                      <strong>No saved sheets yet.</strong>
+                    </div>
+                  )}
+                  {savedSheets.length > 6 ? <p className="client-upload-saved-sheet-more">Showing 6 of {savedSheets.length}. Open Client List or Customize List for full management.</p> : null}
+                </div>
+            </div> : null}
           </div>
         </div>
       ) : null}

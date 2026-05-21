@@ -100,7 +100,6 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
     >
       <div className="premium-step-track">
         <span className="premium-step-index">{step.index}</span>
-        {!isLast ? <i /> : null}
       </div>
       <strong style={{ color: 'var(--text-primary)' }}>
         {stepIcons[step.index] ? <span className="premium-step-title-icon">{stepIcons[step.index]}</span> : null}
@@ -149,7 +148,6 @@ function NotificationItem({ item, onClick }) {
         <small>{item.time}</small>
         {item.subject ? <span className="premium-list-item-subject">Subject: {item.subject}</span> : null}
         <p>{item.preview || item.text}</p>
-        {onClick ? <span className="premium-list-item-cue">Click to open</span> : null}
       </div>
     </>
   );
@@ -407,9 +405,11 @@ export default function PremiumDashboardShell({
   calendarDays,
   selectedAccountLabel,
   senderAccounts = [],
+  senderEmptyMessage = 'No sender IDs available.',
   selectedSenderAccountId = '',
   onSelectSenderAccount,
   project,
+  projectOptions = [],
   barChartMetrics,
   logs,
   activeCampaign = null,
@@ -574,7 +574,7 @@ export default function PremiumDashboardShell({
     if (item?.preview) params.set('preview', item.preview);
     if (item?.time) params.set('time', item.time);
     const query = params.toString();
-    return `/master-inbox${query ? `?${query}` : ''}`;
+    return `/mail-inbox${query ? `?${query}` : ''}`;
   };
   const replyNotificationCards = useMemo(
     () =>
@@ -672,7 +672,7 @@ export default function PremiumDashboardShell({
     return combinedCards.sort((a, b) => {
       const aTime = parseEventDate(`${a.date} ${a.time || ''}`)?.getTime?.() || parseEventDate(a.date)?.getTime?.() || 0;
       const bTime = parseEventDate(`${b.date} ${b.time || ''}`)?.getTime?.() || parseEventDate(b.date)?.getTime?.() || 0;
-      return aTime - bTime;
+      return bTime - aTime;
     });
   }, [timelineCards, timelineCustomTasks]);
   const groupedTimelineCards = useMemo(() => {
@@ -684,12 +684,8 @@ export default function PremiumDashboardShell({
     }, {});
   }, [timelineSortedCards]);
   const inlineTimelineCards = useMemo(() => {
-    const pendingCards = timelineSortedCards.filter((item, index) => {
-      const key = item.id || `${item.date}-${index}`;
-      return !Boolean(timelineCompletionMap[key]);
-    });
-    return pendingCards.slice(0, 7);
-  }, [timelineCompletionMap, timelineSortedCards]);
+    return timelineSortedCards.slice(0, 8);
+  }, [timelineSortedCards]);
   const timelinePopupGroups = useMemo(() => {
     const groups = {};
     timelineSortedCards.forEach((item, index) => {
@@ -723,6 +719,11 @@ export default function PremiumDashboardShell({
     if (!item) return;
     router.push(buildInboxRoute(item));
   };
+  const scrollToBroadcastPerformance = () => {
+    window.setTimeout(() => {
+      broadcastPerformanceRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  };
   const initialCalendarDate = new Date();
   const [calendarCursor, setCalendarCursor] = useState(
     new Date(initialCalendarDate.getFullYear(), initialCalendarDate.getMonth(), 1)
@@ -746,11 +747,12 @@ export default function PremiumDashboardShell({
   const [draftSaving, setDraftSaving] = useState(false);
   const [popupAnchors, setPopupAnchors] = useState({});
   const [tableSearch, setTableSearch] = useState('');
-  const [selectedTagFilter, setSelectedTagFilter] = useState('All Tags');
+  const [selectedTagFilters, setSelectedTagFilters] = useState([]);
+  const [showTagFilterMenu, setShowTagFilterMenu] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
   const [openActionMenu, setOpenActionMenu] = useState(null);
   const actionMenuRef = useRef(null);
-  const [isBroadcastPerformanceMinimized, setIsBroadcastPerformanceMinimized] = useState(false);
+  const tagFilterRef = useRef(null);
   const [currentTablePage, setCurrentTablePage] = useState(1);
   const [noteDraft, setNoteDraft] = useState('');
   const [noteTopic, setNoteTopic] = useState('');
@@ -766,6 +768,8 @@ export default function PremiumDashboardShell({
   const [editingCell, setEditingCell] = useState(null);
   const [columnMappings, setColumnMappings] = useState([]);
   const [overviewRows, setOverviewRows] = useState([]);
+  const [selectedOverviewColumns, setSelectedOverviewColumns] = useState([]);
+  const [mappingCollapsed, setMappingCollapsed] = useState(false);
   const [showClientListSelectionNote, setShowClientListSelectionNote] = useState(false);
   const [showCampaignNotice, setShowCampaignNotice] = useState(false);
   const [showProceedWithoutListNote, setShowProceedWithoutListNote] = useState(false);
@@ -783,6 +787,7 @@ export default function PremiumDashboardShell({
   const [campaignTagDraft, setCampaignTagDraft] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [campaignGoal, setCampaignGoal] = useState('Lead Generation');
+  const [campaignProjectFilter, setCampaignProjectFilter] = useState('');
   const [campaignSender, setCampaignSender] = useState('');
   const [campaignFolder, setCampaignFolder] = useState('');
   const [campaignTracking, setCampaignTracking] = useState({
@@ -808,6 +813,7 @@ export default function PremiumDashboardShell({
   const [testEmailError, setTestEmailError] = useState('');
   const [includeTracking, setIncludeTracking] = useState(false);
   const workflowShellRef = useRef(null);
+  const broadcastPerformanceRef = useRef(null);
   const draftTypeDropdownRef = useRef(null);
   const draftTypeItems = DRAFT_TYPE_ITEMS;
   const uploadedLists = [];
@@ -818,6 +824,18 @@ export default function PremiumDashboardShell({
   const effectiveDraftMessage = controlledDraftBody ?? draftMessage;
   const effectiveCampaignName = controlledCampaignName ?? campaignName;
   const effectiveCampaignSender = onSelectSenderAccount ? (selectedSenderAccountId || '') : campaignSender;
+  const visibleCampaignSenderAccounts = useMemo(() => {
+    const selectedProject = String(campaignProjectFilter || '').trim().toLowerCase();
+    if (!selectedProject) return [];
+    return senderAccounts.filter((account) => {
+      const from = String(account?.from || '').trim().toLowerCase();
+      const accountProject = String(account?.project || '').trim().toLowerCase();
+      if (accountProject === selectedProject) return true;
+      if (selectedProject === 'tec') return from.endsWith('@theentrepreneurialchronicle.com');
+      if (selectedProject === 'tut') return from.endsWith('@theunicorntimes.com');
+      return false;
+    });
+  }, [campaignProjectFilter, senderAccounts]);
   const completedWorkflowSteps = useMemo(() => {
     const hasList = Boolean(selectedListId);
     const hasOverview = Array.isArray(previewRows) && previewRows.length > 0;
@@ -1010,6 +1028,21 @@ export default function PremiumDashboardShell({
   const renderPortalPopup = (isOpen, node) => {
     if (!isOpen || typeof window === 'undefined') return null;
     return createPortal(node, document.body);
+  };
+  const openTagFilterMenu = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = Math.max(170, Math.min(220, rect.width));
+    setPopupAnchors((current) => ({
+      ...current,
+      tagFilter: {
+        top: rect.bottom + 6,
+        left: Math.min(window.innerWidth - width - 12, Math.max(12, rect.left)),
+        width,
+        maxHeight: Math.min(260, window.innerHeight - rect.bottom - 18),
+        transform: 'none'
+      }
+    }));
+    setShowTagFilterMenu((current) => !current);
   };
   const formatListMeta = (item) => {
     const contacts = `${Number(item?.leadCount || 0)} contacts`;
@@ -1293,14 +1326,36 @@ export default function PremiumDashboardShell({
       )
     ];
   }, [performanceCampaigns]);
+  const selectedTagFilterLabel = selectedTagFilters.length
+    ? selectedTagFilters.join(' + ')
+    : 'All Tags';
+  const toggleTagFilter = (tag) => {
+    if (tag === 'All Tags') {
+      setSelectedTagFilters([]);
+      return;
+    }
+    setSelectedTagFilters((current) =>
+      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]
+    );
+  };
   const filteredCampaigns = useMemo(() => {
     const query = tableSearch.trim().toLowerCase();
+    const activeFilters = selectedTagFilters.filter((tag) => tag !== 'All Tags');
+    const statusFilters = new Set(
+      activeFilters
+        .map((tag) => String(tag || '').toLowerCase())
+        .filter((tag) => ['queued', 'running', 'paused', 'completed', 'failed'].includes(tag))
+    );
+    const tagFilters = new Set(
+      activeFilters.filter((tag) => !['Queued', 'Running', 'Paused', 'Completed', 'Failed'].includes(tag))
+    );
     return performanceCampaigns.filter((item) => {
       const statusValue = String(item.status || item.tag || '').toLowerCase();
-      const selectedStatus = String(selectedTagFilter || '').toLowerCase();
-      const isStatusFilter = ['queued', 'running', 'paused', 'completed', 'failed'].includes(selectedStatus);
-      const matchesTag = selectedTagFilter === 'All Tags'
-        || (isStatusFilter ? statusValue === selectedStatus : (item.tags || []).includes(selectedTagFilter));
+      const itemTags = item.tags || [];
+      const matchesTag =
+        !activeFilters.length ||
+        statusFilters.has(statusValue) ||
+        itemTags.some((tag) => tagFilters.has(tag));
       const haystack = [
         item.srNo,
         item.name,
@@ -1321,7 +1376,7 @@ export default function PremiumDashboardShell({
       const matchesSearch = !query || haystack.includes(query);
       return matchesTag && matchesSearch;
     });
-  }, [performanceCampaigns, selectedTagFilter, tableSearch]);
+  }, [performanceCampaigns, selectedTagFilters, tableSearch]);
   const rowsPerPage = 5;
   const totalTablePages = Math.max(1, Math.ceil(filteredCampaigns.length / rowsPerPage));
   const paginatedCampaigns = useMemo(() => {
@@ -1474,7 +1529,7 @@ export default function PremiumDashboardShell({
 
   useEffect(() => {
     setCurrentTablePage(1);
-  }, [selectedTagFilter, tableSearch]);
+  }, [selectedTagFilters, tableSearch]);
 
   useEffect(() => {
     if (!previewRows.length) return;
@@ -1703,7 +1758,7 @@ export default function PremiumDashboardShell({
   const handleViewCampaign = (campaign) => {
     const isActive = activeCampaign && String(activeCampaign._id || activeCampaign.id) === String(campaign.id);
     setTableSearch(campaign.name || '');
-    setSelectedTagFilter('All Tags');
+    setSelectedTagFilters([]);
     if (isActive) {
       setShowLogsPopup(true);
       showTableMessage(`Showing live logs for ${campaign.name}.`, 'success');
@@ -1715,13 +1770,6 @@ export default function PremiumDashboardShell({
   const handleEditTagsClick = (campaign) => {
     setTableSearch(campaign.name || '');
     showTableMessage(`Tags for ${campaign.name} come from real campaign data. Update them from the campaign source, then refresh this dashboard.`, 'info');
-  };
-
-  const handleShowAllBroadcastPerformance = () => {
-    setTableSearch('');
-    setSelectedTagFilter('All Tags');
-    setCurrentTablePage(1);
-    showTableMessage('Showing all broadcast performance rows.', 'success');
   };
 
   const handleDeleteCampaignClick = (campaign) => {
@@ -1737,6 +1785,9 @@ export default function PremiumDashboardShell({
     const handleOutsideActionMenu = (event) => {
       if (!actionMenuRef.current?.contains(event.target)) {
         setOpenActionMenu(null);
+      }
+      if (!tagFilterRef.current?.contains(event.target)) {
+        setShowTagFilterMenu(false);
       }
     };
 
@@ -1771,6 +1822,10 @@ export default function PremiumDashboardShell({
   const activeOverviewColumns = useMemo(
     () => columnMappings.filter((item) => item.mappedField !== 'Ignore'),
     [columnMappings]
+  );
+  const overviewGridTemplate = useMemo(
+    () => `56px repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(150px, 1fr)) 96px`,
+    [activeOverviewColumns.length]
   );
   const emailMapping = useMemo(
     () => columnMappings.find((item) => item.mappedField === 'Email') || null,
@@ -1827,6 +1882,33 @@ export default function PremiumDashboardShell({
       return matchesFilter && matchesSearch;
     });
   }, [overviewFilter, overviewRows, overviewSearch, rowIssues]);
+  const allVisibleOverviewColumnsSelected =
+    activeOverviewColumns.length > 0 && activeOverviewColumns.every((column) => selectedOverviewColumns.includes(column.sheetColumn));
+
+  const toggleOverviewColumnSelection = (columnName) => {
+    setSelectedOverviewColumns((current) =>
+      current.includes(columnName) ? current.filter((name) => name !== columnName) : [...current, columnName]
+    );
+  };
+
+  const toggleAllOverviewColumns = () => {
+    const visibleColumns = activeOverviewColumns.map((column) => column.sheetColumn);
+    setSelectedOverviewColumns((current) =>
+      allVisibleOverviewColumnsSelected
+        ? current.filter((name) => !visibleColumns.includes(name))
+        : Array.from(new Set([...current, ...visibleColumns]))
+    );
+  };
+
+  const deleteSelectedOverviewColumns = () => {
+    selectedOverviewColumns.forEach((columnName) => onPreviewDeleteColumn?.(columnName));
+    setSelectedOverviewColumns([]);
+  };
+
+  useEffect(() => {
+    const columnNames = new Set(activeOverviewColumns.map((column) => column.sheetColumn));
+    setSelectedOverviewColumns((current) => current.filter((name) => columnNames.has(name)));
+  }, [activeOverviewColumns]);
 
   const canContinueClientList =
     clientListTab === 'upload'
@@ -1941,10 +2023,21 @@ export default function PremiumDashboardShell({
       scheduledTime: scheduledTimeValue,
       country: normalizedScheduleCountry,
       timezone: scheduleTimezone,
-      scheduledAt
+      scheduledAt,
+      tracking: {
+        enabled: Boolean(campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies),
+        opens: Boolean(campaignTracking.opens),
+        clicks: Boolean(campaignTracking.clicks),
+        replies: Boolean(campaignTracking.replies),
+        abTesting: Boolean(campaignAbTesting)
+      }
     };
   }, [
     batchSize,
+    campaignAbTesting,
+    campaignTracking.clicks,
+    campaignTracking.opens,
+    campaignTracking.replies,
     delaySeconds,
     durationUnit,
     scheduleTimezone,
@@ -2106,7 +2199,7 @@ export default function PremiumDashboardShell({
       .replace(/>/g, '&gt;')
       .replace(/\r\n/g, '\n')
       .replace(/\n/g, '<br/>');
-    const next = html ? `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">${html}</div>` : '';
+    const next = html ? `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">${html}</div>` : '';
     if (onDraftBodyChange) {
       onDraftBodyChange(next);
       return;
@@ -2167,17 +2260,6 @@ export default function PremiumDashboardShell({
               );
             })()
           ))}
-          <button
-            type="button"
-            className="premium-stepper-start"
-            onClick={() => {
-              onShowMessage?.('Starting the campaign from the workflow stepper.', 'info');
-              onStartCampaign?.();
-            }}
-            style={{ color: '#ffffff', background: 'linear-gradient(180deg, #22c55e, #15803d)', border: '1px solid #166534' }}
-          >
-            START
-          </button>
         </div>
       </section>
 
@@ -2185,7 +2267,6 @@ export default function PremiumDashboardShell({
             <div className="premium-gauge-card premium-card-with-tabs premium-campaign-health-panel">
                 <div className="premium-panel-head">
                   <div>
-                    <span className="premium-section-kicker">Campaign health</span>
                     <h3>Target</h3>
                   </div>
                   <div className="premium-target-filter-row">
@@ -2263,16 +2344,21 @@ export default function PremiumDashboardShell({
                           boxShadow: targetAchieved ? '0 0 0 1px rgba(245, 158, 11, 0.12), 0 0 14px rgba(245, 158, 11, 0.1)' : undefined
                         }}
                       >
-                      <div className="premium-arc-ring-inner" aria-hidden="true" />
+                      <div className="premium-arc-ring-inner" aria-hidden="true">
+                        <strong>{targetPercent}%</strong>
+                        <span>Progress</span>
+                      </div>
                     </div>
                 </div>
                   <div className="premium-arc-copy">
                       <strong className={targetAchieved ? 'premium-target-goal-reached' : ''}>{targetAchieved ? 'Goal reached' : 'Goal pending'}</strong>
-                      <span className="premium-arc-copy-sub">
-                        {targetWindowLabel} target: {targetSentCount} / {targetLimit} mails
+                      <span className="premium-arc-copy-sub premium-target-detail-line">
+                        <b>{targetWindowLabel} target:</b>
+                        <span>{targetSentCount} / {targetLimit} mails</span>
                       </span>
-                      <span className="premium-arc-copy-sub">
-                        {targetAchieved ? 'Daily target completed • soft warning only' : `${targetRemaining} mails left`} • {targetResetText}
+                      <span className="premium-arc-copy-sub premium-target-detail-line premium-target-reset-line">
+                        <span>{targetAchieved ? 'Daily target completed' : `${targetRemaining} mails left`}</span>
+                        <span>{targetResetText}</span>
                       </span>
                       {targetAchieved ? (
                         <span className="premium-arc-copy-sub premium-target-soft-warning">
@@ -2324,36 +2410,9 @@ export default function PremiumDashboardShell({
         <div className="premium-calendar-card premium-card-with-tabs">
           <div className="premium-panel-head">
             <div>
-              <span className="premium-section-kicker">Calendar</span>
               <h3>{monthLabel}</h3>
             </div>
             <div className="premium-calendar-nav premium-calendar-nav-wide">
-              <button type="button" className="ghost subtle premium-calendar-add" onClick={() => openEventForm(selectedDate)}>
-                Add Event
-              </button>
-              <button
-                type="button"
-                className="ghost subtle"
-                onClick={() => {
-                  const nextToday = new Date();
-                  setSelectedDate(nextToday);
-                  setCalendarCursor(new Date(nextToday.getFullYear(), nextToday.getMonth(), 1));
-                }}
-              >
-                Today
-              </button>
-              <div className="premium-calendar-view-toggle" aria-label="Calendar view">
-                {['month', 'week', 'day'].map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={calendarViewMode === mode ? 'active' : ''}
-                    onClick={() => setCalendarViewMode(mode)}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
               <button
                 type="button"
                 className="ghost subtle"
@@ -2418,6 +2477,9 @@ export default function PremiumDashboardShell({
                   See more ({selectedEvents.length})
                 </button>
               ) : null}
+              <button type="button" className="ghost subtle premium-calendar-add" onClick={() => openEventForm(selectedDate)}>
+                Add Event
+              </button>
             </div>
             {selectedEvents.length ? (
               selectedEvents.slice(0, 3).map((item) => (
@@ -2466,7 +2528,6 @@ export default function PremiumDashboardShell({
         <section className="premium-panel premium-main-notification-panel">
           <div className="premium-panel-head">
             <div>
-              <span className="premium-section-kicker">Inbox</span>
               <h3>Inbox</h3>
             </div>
             <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('notifications', setShowNotificationsPopup)(event)}>
@@ -2483,7 +2544,6 @@ export default function PremiumDashboardShell({
         <section className="premium-panel premium-side-notification-panel">
           <div className="premium-panel-head">
             <div>
-              <span className="premium-section-kicker">Notes</span>
               <h3>Write Note</h3>
             </div>
           </div>
@@ -2520,35 +2580,31 @@ export default function PremiumDashboardShell({
           </div>
         </section>
 
-        <section className="premium-panel premium-panel-span-3">
+        <section className="premium-panel premium-panel-span-3" ref={broadcastPerformanceRef}>
           <div className="premium-panel-head">
             <div>
-              <span className="premium-section-kicker">Broadcast table</span>
               <h3>All Broadcast Performance</h3>
             </div>
             <div className="premium-panel-head-actions">
-              <button type="button" className="ghost" onClick={handleShowAllBroadcastPerformance}>Show</button>
               <button type="button" className="ghost" onClick={() => onRefreshCampaigns?.()} disabled={campaignRefreshing}>
                 {campaignRefreshing ? 'Refreshing...' : 'Refresh'}
               </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setIsBroadcastPerformanceMinimized((value) => !value)}
-              >
-                {isBroadcastPerformanceMinimized ? 'Expand' : 'Minimize'}
-              </button>
             </div>
           </div>
-          {!isBroadcastPerformanceMinimized ? (
-            <>
+          <>
               <div className="premium-table-actions">
                 <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaign'}</button>
-                <select className="premium-broadcast-tag-filter" value={selectedTagFilter} onChange={(event) => setSelectedTagFilter(event.target.value)}>
-                  {availableTags.map((tag) => (
-                    <option key={tag} value={tag}>{tag}</option>
-                  ))}
-                </select>
+                <div className="premium-broadcast-tag-filter-wrap" ref={tagFilterRef}>
+                  <button
+                    type="button"
+                    className="premium-broadcast-tag-filter"
+                    onClick={openTagFilterMenu}
+                    aria-haspopup="listbox"
+                    aria-expanded={showTagFilterMenu}
+                  >
+                    {selectedTagFilterLabel}
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={tableSearch}
@@ -2733,7 +2789,6 @@ export default function PremiumDashboardShell({
                 </div>
               </div>
           </>
-          ) : null}
         </section>
 
         <section className="premium-panel premium-logs-panel">
@@ -2745,14 +2800,14 @@ export default function PremiumDashboardShell({
                   <button type="button" className="ghost" onClick={() => setShowTimelineAddPopup(true)}>
                     Add Task
                   </button>
-                  <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('timeline', setShowTimelinePopup)(event)}>
+                  <button type="button" className="ghost" onClick={() => router.push('/campaigns')}>
                     See All
                   </button>
                 </div>
               </div>
               <div className="premium-timeline-summary">
-                <strong>{inlineTimelineCards.length} tasks remaining</strong>
-                <span>Showing the next pending items only.</span>
+                <strong>{inlineTimelineCards.length} campaign activities</strong>
+                <span>Running, pending, paused, completed, failed, and draft campaign actions.</span>
               </div>
               <div className="premium-timeline-stack">
                 {Object.entries(
@@ -2812,6 +2867,28 @@ export default function PremiumDashboardShell({
             </div>
           </section>
         </div>
+
+      {renderPortalPopup(
+        showTagFilterMenu,
+        <div
+          className="premium-broadcast-tag-filter-menu"
+          style={popupStyleFor('tagFilter')}
+          role="listbox"
+          aria-label="Filter broadcast tags"
+          ref={tagFilterRef}
+        >
+          {availableTags.map((tag) => (
+            <label key={tag} className="premium-broadcast-tag-filter-option">
+              <input
+                type="checkbox"
+                checked={tag === 'All Tags' ? selectedTagFilters.length === 0 : selectedTagFilters.includes(tag)}
+                onChange={() => toggleTagFilter(tag)}
+              />
+              <span>{tag}</span>
+            </label>
+          ))}
+        </div>
+      )}
 
       {renderPortalPopup(
         showCalendarPopup,
@@ -3007,8 +3084,7 @@ export default function PremiumDashboardShell({
         showNotificationsPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotificationsPopup(false)}>
           <div className="premium-calendar-modal premium-notifications-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
-              <h3>Inbox Preview</h3>
+            <div className="premium-panel-head premium-modal-head-actions-only">
               <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>×</button>
             </div>
             <div className="premium-calendar-modal-list">
@@ -3431,10 +3507,12 @@ export default function PremiumDashboardShell({
                 <div className="premium-review-block-head">
                   <div>
                     <h4>Column Mapping</h4>
-                    <p>Please make sure your columns are correctly mapped.</p>
                   </div>
+                  <button type="button" className="ghost subtle" onClick={() => setMappingCollapsed((current) => !current)}>
+                    {mappingCollapsed ? 'Show Mapping' : 'Minimize'}
+                  </button>
                 </div>
-                <div className="premium-review-mapping">
+                {!mappingCollapsed ? <div className="premium-review-mapping">
                   <div className="premium-review-mapping-head">
                     <span>Sheet Column Name</span>
                     <span>Mapped Field</span>
@@ -3467,7 +3545,7 @@ export default function PremiumDashboardShell({
                       <span>{item.sample}</span>
                     </div>
                   ))}
-                </div>
+                </div> : null}
               </section>
 
               <section className="premium-review-block">
@@ -3498,22 +3576,30 @@ export default function PremiumDashboardShell({
                     <div className="premium-review-toolbar-actions">
                       <button type="button" className="ghost subtle" onClick={() => onPreviewAddRow?.()}>+ Row</button>
                       <button type="button" className="ghost subtle" onClick={() => onPreviewAddColumn?.()}>+ Col</button>
+                      <button type="button" className="ghost subtle danger" onClick={deleteSelectedOverviewColumns} disabled={!selectedOverviewColumns.length}>
+                        Delete Selected Columns
+                      </button>
                       <button type="button" className="ghost primary" onClick={() => onPreviewSave?.()} disabled={!previewDirty}>Save</button>
                     </div>
                   </div>
                 </div>
 
                 <div className="premium-review-tablewrap">
-                  <div className="premium-review-table premium-review-table-head">
+                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: overviewGridTemplate }}>
                     <span>#</span>
                     {activeOverviewColumns.map((item) => (
                       <span key={`head-${item.sheetColumn}`} className="premium-review-head-cell">
+                        <input
+                          type="checkbox"
+                          checked={selectedOverviewColumns.includes(item.sheetColumn)}
+                          onChange={() => toggleOverviewColumnSelection(item.sheetColumn)}
+                          aria-label={`Select ${item.sheetColumn} column`}
+                        />
                         <input
                           value={item.sheetColumn}
                           onChange={(event) => onPreviewRenameColumn?.(item.sheetColumn, event.target.value)}
                           aria-label={`Rename ${item.sheetColumn}`}
                         />
-                        <button type="button" className="ghost subtle premium-review-icon-btn danger" onClick={() => onPreviewDeleteColumn?.(item.sheetColumn)} aria-label={`Delete ${item.sheetColumn}`}>×</button>
                       </span>
                     ))}
                     <span className="premium-review-actions-head">Actions</span>
@@ -3522,7 +3608,7 @@ export default function PremiumDashboardShell({
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
-                        <div key={row.id} className="premium-review-table premium-review-table-row">
+                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: overviewGridTemplate }}>
                           <span>{index + 1}</span>
                           {activeOverviewColumns.map((mapping) => {
                             const field = mapping.sheetColumn;
@@ -3653,7 +3739,6 @@ export default function PremiumDashboardShell({
               <div>
                 <span className="premium-popup-step-badge">7</span>
                 <h3>Schedule</h3>
-                <p>Configure your sending preferences.</p>
                 <small className="premium-schedule-stepcopy">Step 7 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>×</button>
@@ -3700,13 +3785,14 @@ export default function PremiumDashboardShell({
                 </label>
               </div>
 
+              {sendMode === 'scheduled' ? (
+              <>
               <div className="premium-schedule-grid premium-schedule-grid-2">
                   <label className="premium-schedule-field">
                     <span>Scheduled date</span>
                     <input
                       type="date"
                       value={scheduledDateValue}
-                      disabled={sendMode !== 'scheduled'}
                       onChange={(event) => setScheduledDateValue(event.target.value)}
                     />
                   </label>
@@ -3715,7 +3801,6 @@ export default function PremiumDashboardShell({
                     <input
                       type="time"
                       value={scheduledTimeValue}
-                      disabled={sendMode !== 'scheduled'}
                       onChange={(event) => setScheduledTimeValue(event.target.value)}
                     />
                   </label>
@@ -3739,6 +3824,33 @@ export default function PremiumDashboardShell({
                   </select>
                 </label>
               </div>
+              <div className="premium-schedule-inline-actions">
+                <button
+                  type="button"
+                  className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
+                  aria-disabled={!hasScheduleRequiredFields}
+                  onClick={async () => {
+                    if (!hasScheduleRequiredFields) {
+                      setShowScheduleContinueWarning(true);
+                      onShowMessage?.(scheduleContinueHint, 'warning');
+                      return;
+                    }
+                    const result = await onSaveSchedule?.(scheduleDraftPayload);
+                    if (result?.ok !== false) {
+                      onShowMessage?.('Schedule saved. Click START when you are ready to begin.', 'success');
+                    }
+                  }}
+                >
+                  {hasScheduleRequiredFields ? 'Save Schedule' : 'Complete required details first'}
+                </button>
+              </div>
+              </>
+              ) : (
+                <div className="premium-schedule-sendnow-summary">
+                  <strong>Send Now</strong>
+                  <span>Campaign will start immediately using the batch size and delay interval above.</span>
+                </div>
+              )}
 
               {showScheduleContinueWarning && !hasScheduleRequiredFields ? (
                 <p className="premium-select-draft-warning">
@@ -3758,37 +3870,28 @@ export default function PremiumDashboardShell({
               >
                 Back
               </button>
-                <button
-                  type="button"
-                  className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
-                  onClick={async () => {
-                    if (!hasScheduleRequiredFields) {
-                      setShowScheduleContinueWarning(true);
-                      onShowMessage?.(scheduleContinueHint, 'warning');
-                      return;
-                    }
-                    const result = await onSaveSchedule?.(scheduleDraftPayload);
-                    if (result?.ok !== false) {
-                      setShowSchedulePopup(false);
-                    }
-                }}
-                disabled={!hasScheduleRequiredFields}
-              >
-                {hasScheduleRequiredFields ? 'Save Schedule' : 'Complete required details first'}
-              </button>
               <button
                 type="button"
                 className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
+                aria-disabled={!hasScheduleRequiredFields}
                 onClick={async () => {
                   if (!hasScheduleRequiredFields) {
                     setShowScheduleContinueWarning(true);
                     onShowMessage?.(scheduleContinueHint, 'warning');
                     return;
                   }
-                  onStartCampaign?.(scheduleDraftPayload);
-                  setShowSchedulePopup(false);
+                  const result = await onStartCampaign?.(scheduleDraftPayload);
+                  if (result?.ok !== false) {
+                    setShowSchedulePopup(false);
+                    onShowMessage?.(
+                      result?.data?.scheduled
+                        ? 'Campaign scheduled. It will send automatically at the selected time.'
+                        : 'Campaign started. Opening broadcast performance.',
+                      'success'
+                    );
+                    scrollToBroadcastPerformance();
+                  }
                 }}
-                disabled={!hasScheduleRequiredFields}
               >
                 {hasScheduleRequiredFields ? 'START' : 'Complete required details first'}
               </button>
@@ -3805,7 +3908,6 @@ export default function PremiumDashboardShell({
               <div>
                 <span className="premium-popup-step-badge">3</span>
                 <h3>Create Campaign</h3>
-                <p>Name the campaign, choose the sender, and set the tracking options.</p>
                 <small className="premium-campaign-stepcopy">Step 3 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowCampaignPopup(false)}>
@@ -3870,23 +3972,42 @@ export default function PremiumDashboardShell({
                   </select>
                 </label>
                 <label className="premium-campaign-field">
-                  <span>Sender</span>
+                  <span>Project</span>
                   <select
-                    value={effectiveCampaignSender}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setCampaignSender(nextValue);
-                      onSelectSenderAccount?.(nextValue);
-                    }}
+                    value={campaignProjectFilter}
+                    onChange={(event) => setCampaignProjectFilter(event.target.value)}
+                    aria-label="Select project"
                   >
-                    <option value="">{selectedAccountLabel || 'Select Mail ID'}</option>
-                    {senderAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.from}
-                      </option>
+                    <option value="">Select project</option>
+                    {projectOptions.map((item) => (
+                      <option key={item} value={item}>{String(item).toUpperCase()}</option>
                     ))}
                   </select>
                 </label>
+                <div className="premium-campaign-field premium-campaign-sender-field">
+                  <span>Sender</span>
+                  {visibleCampaignSenderAccounts.length ? (
+                    <select
+                      value={effectiveCampaignSender}
+                      onChange={(event) => {
+                        setCampaignSender(event.target.value);
+                        onSelectSenderAccount?.(event.target.value);
+                      }}
+                      aria-label="Select sender ID"
+                    >
+                      <option value="">Select sender</option>
+                      {visibleCampaignSenderAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.from} - {String(account.provider || '').includes('graph') ? 'Microsoft Graph' : account.provider || 'Mail'}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="premium-campaign-sender-empty">
+                      {campaignProjectFilter ? senderEmptyMessage : 'Select a project first.'}
+                    </div>
+                  )}
+                </div>
                 <label className="premium-campaign-field">
                   <span>Folder</span>
                   <select value={campaignFolder} onChange={(event) => setCampaignFolder(event.target.value)}>
@@ -3897,56 +4018,41 @@ export default function PremiumDashboardShell({
 
               <div className="premium-campaign-grid premium-campaign-grid-bottom premium-campaign-settings">
                 <div className="premium-campaign-field premium-campaign-settings-block">
-                  <span>Tracking</span>
+                  <span>Campaign Options</span>
                   <div className="premium-campaign-checks">
                     {[
+                      ['tracking', 'Tracking', campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies],
                       ['opens', 'Opens'],
                       ['clicks', 'Clicks'],
-                      ['replies', 'Replies']
-                    ].map(([key, label]) => (
-                      <label key={key}>
-                        <input
-                          type="checkbox"
-                          checked={campaignTracking[key]}
-                          onChange={() =>
-                            setCampaignTracking((current) => ({ ...current, [key]: !current[key] }))
-                          }
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
+                      ['replies', 'Replies'],
+                      ['abTesting', 'A/B Testing', campaignAbTesting]
+                    ].map(([key, label, explicitEnabled]) => {
+                      const enabled = typeof explicitEnabled === 'boolean' ? explicitEnabled : Boolean(campaignTracking[key]);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`premium-campaign-option-toggle ${enabled ? 'active' : ''}`}
+                          aria-pressed={enabled}
+                          onClick={() => {
+                            if (key === 'tracking') {
+                              const nextEnabled = !(campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies);
+                              setCampaignTracking({ opens: nextEnabled, clicks: nextEnabled, replies: nextEnabled });
+                              return;
+                            }
+                            if (key === 'abTesting') {
+                              setCampaignAbTesting((current) => !current);
+                              return;
+                            }
+                            setCampaignTracking((current) => ({ ...current, [key]: !current[key] }));
+                          }}
+                        >
+                          {label} {enabled ? 'On' : 'Off'}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-
-                <div className="premium-campaign-field premium-campaign-toggle-field premium-campaign-settings-block">
-                  <span>A/B Testing</span>
-                  <button
-                    type="button"
-                    className={`premium-campaign-toggle ${campaignAbTesting ? 'active' : ''}`}
-                    onClick={() => setCampaignAbTesting((current) => !current)}
-                    aria-pressed={campaignAbTesting}
-                  >
-                    <i />
-                  </button>
-                </div>
-              </div>
-
-              <div className="premium-campaign-tracking-summary">
-                <span
-                  className={`master ${campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies ? 'active' : ''}`}
-                >
-                  Tracking {campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies ? 'On' : 'Off'}
-                </span>
-                {[
-                  ['Opens', campaignTracking.opens],
-                  ['Clicks', campaignTracking.clicks],
-                  ['Replies', campaignTracking.replies],
-                  ['A/B Testing', campaignAbTesting]
-                ].map(([label, enabled]) => (
-                  <span key={label} className={enabled ? 'active' : ''}>
-                    {label} {enabled ? 'On' : 'Off'}
-                  </span>
-                ))}
               </div>
 
             </div>
@@ -4003,7 +4109,7 @@ export default function PremiumDashboardShell({
               <div>
                 <span className="premium-popup-step-badge">4</span>
                 <h3>Select Draft</h3>
-                <p>Choose an existing draft or create a new one</p>
+                <p>{effectiveCampaignName ? `Campaign: ${effectiveCampaignName}` : 'Campaign: Not named yet'}</p>
                 <small className="premium-select-draft-stepcopy">Step 4 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowSelectDraftPopup(false)}>
@@ -4051,6 +4157,16 @@ export default function PremiumDashboardShell({
                         <span> ({draftTypeCounts[item.value] || 0})</span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className="premium-select-draft-type-action"
+                      onClick={() => {
+                        setSelectDraftTab('create');
+                        setShowDraftTypeDropdown(false);
+                      }}
+                    >
+                      Add Draft
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -4405,7 +4521,7 @@ export default function PremiumDashboardShell({
               <div className="premium-template-field premium-template-message-head">
                 <span>Message</span>
               </div>
-              <div className="premium-template-editor">
+              <div className="premium-template-editor premium-summary-message-editor">
                 <RichTextEditor
                   value={effectiveDraftMessage}
                   onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}

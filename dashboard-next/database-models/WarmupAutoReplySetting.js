@@ -15,7 +15,16 @@ const WarmupAutoReplySettingSchema = new mongoose.Schema(
     },
     maxRepliesPerRun: { type: Number, default: 3 },
     lastCheckedAt: { type: Date, default: null },
-    lastRepliedAt: { type: Date, default: null }
+    lastRepliedAt: { type: Date, default: null },
+    workspace: {
+      project: { type: String, default: '' },
+      senderAccountId: { type: String, default: '' },
+      draftType: { type: String, default: 'cover_story' },
+      draftId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailDraft', default: null },
+      listId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadList', default: null },
+      fileName: { type: String, default: '' },
+      updatedAt: { type: Date, default: null }
+    }
   },
   { timestamps: true }
 );

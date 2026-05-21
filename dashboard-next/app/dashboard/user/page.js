@@ -1,8 +1,8 @@
-import DashboardPage from '../page';
+import DashboardClientPage from '../DashboardClientPage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default function UserDashboardAliasPage() {
-  return <DashboardPage />;
+export default function UserDashboardPage() {
+  return <DashboardClientPage />;
 }

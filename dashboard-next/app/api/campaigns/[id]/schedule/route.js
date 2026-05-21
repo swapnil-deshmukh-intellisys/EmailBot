@@ -12,6 +12,7 @@ import {
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 
 const ROUTE_NAME = 'POST /api/campaigns/[id]/schedule';
+const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
 
 function jsonError({ status = 400, code = 'CAMPAIGN_SCHEDULE_FAILED', message = 'Failed to schedule campaign.', campaignId = '', userEmail = '' }) {
   console.error(`[${ROUTE_NAME}] ${code}: ${message}`, { campaignId, userEmail });
@@ -55,10 +56,16 @@ export async function POST(req, { params }) {
     const normalizedTimezone = String(body?.timezone || body?.scheduledStart?.timezone || 'Asia/Kolkata').trim() || 'Asia/Kolkata';
     const normalizedSlot = String(body?.slot || body?.scheduledTime || '').trim();
     const normalizedDateValue = String(body?.scheduledDate || '').trim();
-    const delayInterval = Math.max(1, Math.floor(Number(body?.delayInterval ?? body?.options?.delayInterval ?? 1) || 1));
+    const delayIntervalInput = Math.max(1, Math.floor(Number(body?.delayInterval ?? body?.options?.delayInterval ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS));
     const durationUnit = normalizeDurationUnit(body?.durationUnit || body?.options?.durationUnit || 'seconds');
     const batchSize = Math.max(1, Math.floor(Number(body?.batchSize ?? body?.options?.batchSize ?? 1) || 1));
-    const delaySeconds = convertDelayIntervalToSeconds(delayInterval, durationUnit);
+    const delaySeconds = Math.max(
+      MIN_CAMPAIGN_SEND_GAP_SECONDS,
+      convertDelayIntervalToSeconds(delayIntervalInput, durationUnit)
+    );
+    const delayInterval = durationUnit === 'seconds'
+      ? Math.max(MIN_CAMPAIGN_SEND_GAP_SECONDS, delayIntervalInput)
+      : delayIntervalInput;
     const persistOnly = Boolean(body?.persistOnly);
     const activate = Boolean(body?.activate);
 

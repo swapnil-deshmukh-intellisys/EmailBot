@@ -8,7 +8,7 @@ const escapeHtml = (value = '') =>
 
 export function buildWordPadTableHtml(columns = [], rows = []) {
   if (!columns.length) {
-    return '<div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">No data available.</div>';
+    return '<div style="font-family:Inter, Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">No data available.</div>';
   }
 
   const headerHtml = columns
@@ -31,7 +31,7 @@ export function buildWordPadTableHtml(columns = [], rows = []) {
     .join('');
 
   return `
-    <div style="font-family:Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">
+    <div style="font-family:Inter, Segoe UI, Arial, sans-serif;font-size:14px;line-height:1.6;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr>${headerHtml}</tr></thead>
         <tbody>${rowsHtml}</tbody>

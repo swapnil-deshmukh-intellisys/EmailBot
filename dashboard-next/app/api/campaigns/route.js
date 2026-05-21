@@ -31,6 +31,8 @@ import { normalizeDraftType } from '@/app/lib/draftTypes';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
   Pragma: 'no-cache',
@@ -344,13 +346,19 @@ export async function POST(req) {
 
     }
 
-    const parsedDelayInterval = Number(String(options?.delayInterval ?? options?.delaySeconds ?? '').trim() || 1);
+    const parsedDelayInterval = Number(String(options?.delayInterval ?? options?.delaySeconds ?? '').trim() || MIN_CAMPAIGN_SEND_GAP_SECONDS);
     if (!Number.isFinite(parsedDelayInterval) || parsedDelayInterval < 1) {
       return jsonError({ status: 400, code: 'INVALID_DELAY_INTERVAL', message: 'Delay interval must be a number greater than or equal to 1.' });
     }
 
     const normalizedDurationUnit = normalizeDurationUnit(options?.durationUnit || 'seconds');
-    const convertedDelaySeconds = convertDelayIntervalToSeconds(parsedDelayInterval, normalizedDurationUnit);
+    const convertedDelaySeconds = Math.max(
+      MIN_CAMPAIGN_SEND_GAP_SECONDS,
+      convertDelayIntervalToSeconds(parsedDelayInterval, normalizedDurationUnit)
+    );
+    const storedDelayInterval = normalizedDurationUnit === 'seconds'
+      ? Math.max(MIN_CAMPAIGN_SEND_GAP_SECONDS, Math.floor(parsedDelayInterval))
+      : Math.max(1, Math.floor(parsedDelayInterval));
     const normalizedScheduleMode = String(scheduleMode || 'send_now').trim().toLowerCase() === 'scheduled' ? 'scheduled' : 'send_now';
     const normalizedCountry = String(country || '').trim() || 'India';
     const normalizedTimezone = String(timezone || '').trim() || 'Asia/Kolkata';
@@ -382,7 +390,7 @@ export async function POST(req) {
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
       'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
       'options.batchSize': batchSize,
-      'options.delayInterval': parsedDelayInterval,
+      'options.delayInterval': storedDelayInterval,
       'options.durationUnit': normalizedDurationUnit,
       'options.delaySeconds': convertedDelaySeconds,
       'options.replyMode': replyMode
@@ -444,7 +452,7 @@ export async function POST(req) {
       options: {
 
         batchSize: Math.max(1, Math.floor(parsedBatchSize)),
-        delayInterval: Math.max(1, Math.floor(parsedDelayInterval)),
+        delayInterval: storedDelayInterval,
         durationUnit: normalizedDurationUnit,
         delaySeconds: convertedDelaySeconds,
 

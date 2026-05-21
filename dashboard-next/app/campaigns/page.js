@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
@@ -19,13 +19,13 @@ const EMPTY_COUNTS = {
 };
 
 const COUNT_CARDS = [
-  { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', description: 'All campaigns created by this user.', tone: 'total' },
-  { key: 'running', label: 'Running Campaigns', shortLabel: 'Running', icon: 'R', description: 'Actively sending or worker-owned.', tone: 'running' },
-  { key: 'paused', label: 'Paused Campaigns', shortLabel: 'Paused', icon: 'P', description: 'Temporarily held campaigns.', tone: 'paused' },
-  { key: 'failed', label: 'Failed Campaigns', shortLabel: 'Failed', icon: '!', description: 'Campaigns that ended with errors.', tone: 'failed' },
-  { key: 'incomplete', label: 'Incomplete / Draft', shortLabel: 'Incomplete', icon: 'D', description: 'Drafts or campaigns missing launch data.', tone: 'incomplete' },
-  { key: 'completed', label: 'Completed Campaigns', shortLabel: 'Completed', icon: 'C', description: 'Finished campaigns.', tone: 'completed' },
-  { key: 'scheduled', label: 'Scheduled Campaigns', shortLabel: 'Scheduled', icon: 'S', description: 'Scheduled or queued for launch.', tone: 'scheduled' }
+  { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', tone: 'total' },
+  { key: 'running', label: 'Running Campaigns', shortLabel: 'Running', icon: 'R', tone: 'running' },
+  { key: 'paused', label: 'Paused Campaigns', shortLabel: 'Paused', icon: 'P', tone: 'paused' },
+  { key: 'failed', label: 'Failed Campaigns', shortLabel: 'Failed', icon: '!', tone: 'failed' },
+  { key: 'incomplete', label: 'Incomplete / Draft', shortLabel: 'Incomplete', icon: 'D', tone: 'incomplete' },
+  { key: 'completed', label: 'Completed Campaigns', shortLabel: 'Completed', icon: 'C', tone: 'completed' },
+  { key: 'scheduled', label: 'Scheduled Campaigns', shortLabel: 'Scheduled', icon: 'S', tone: 'scheduled' }
 ];
 
 const STATUS_TABS = [
@@ -196,7 +196,13 @@ function getMailStatusClass(step = {}) {
   return 'campaign-mail-cell campaign-mail-cell-ok';
 }
 
-function CountCard({ card, count, loading }) {
+function CountCard({ card, count, total, loading }) {
+  const countValue = Number(count || 0);
+  const totalValue = Number(total || 0);
+  const percentage = card.key === 'total'
+    ? (totalValue > 0 ? 100 : 0)
+    : (totalValue > 0 ? Math.round((countValue / totalValue) * 100) : 0);
+
   return (
     <article className={`campaign-count-card campaign-count-card-${card.tone}`}>
       <div className="campaign-count-card-glow" />
@@ -204,8 +210,8 @@ function CountCard({ card, count, loading }) {
         <span className="campaign-count-icon" aria-hidden="true">{card.icon}</span>
         <span className="campaign-count-label">{card.shortLabel}</span>
       </div>
-      {loading ? <div className="campaign-count-skeleton" /> : <strong>{Number(count || 0).toLocaleString()}</strong>}
-      <p>{card.description}</p>
+      {loading ? <div className="campaign-count-skeleton" /> : <strong>{countValue.toLocaleString()}</strong>}
+      <span className="campaign-count-percent">{percentage}%</span>
     </article>
   );
 }
@@ -235,6 +241,7 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
       <table className="campaign-table">
         <thead>
           <tr>
+            <th>Sr. No.</th>
             <th>Campaign Name</th>
             <th>Project</th>
             <th>Status</th>
@@ -253,12 +260,13 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
           </tr>
         </thead>
         <tbody>
-          {campaigns.map((campaign) => {
+          {campaigns.map((campaign, index) => {
             const stats = getStats(campaign);
             const bucket = normalizeCampaignStatusBucket(campaign);
 
             return (
               <tr key={campaign._id}>
+                <td>{index + 1}</td>
                 <td>
                   <div className="campaign-name-cell">
                     <button
@@ -272,8 +280,8 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
                   </div>
                 </td>
                 <td>{getProjectLabel(campaign)}</td>
-                <td>
-                  <Badge variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
+                <td className="campaign-status-cell">
+                  <Badge className="campaign-status-badge" variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
                     {getDisplayStatus(campaign)}
                   </Badge>
                 </td>
@@ -282,7 +290,10 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
                 <td>{stats.pending.toLocaleString()}</td>
                 <td>{stats.failed.toLocaleString()}</td>
                 <td>{stats.opens.toLocaleString()}</td>
-                <td>{stats.replies.toLocaleString()} Replies</td>
+                <td>
+                  <span className="campaign-table-primary-value">{stats.replies.toLocaleString()}</span>
+                  <small className="campaign-table-secondary-value">Replies</small>
+                </td>
                 <td>{getFailureReason(campaign)}</td>
                 <td>{formatDateTime(getLastActivity(campaign))}</td>
                 <td>{formatDateTime(campaign.createdAt)}</td>
@@ -579,6 +590,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
 }
 
 export default function CampaignsPage() {
+  const campaignListRef = useRef(null);
   const [isMounted, setIsMounted] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
   const [counts, setCounts] = useState(EMPTY_COUNTS);
@@ -591,10 +603,24 @@ export default function CampaignsPage() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [actionLoadingKey, setActionLoadingKey] = useState('');
+  const activeSection = 'campaign-list';
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isMounted) return undefined;
+
+    const timer = setTimeout(() => {
+      campaignListRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [activeSection, isMounted]);
 
   const loadCampaigns = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -724,7 +750,6 @@ export default function CampaignsPage() {
               <div>
                 <span className="campaigns-page-kicker">Live campaign operations</span>
                 <h1>Campaigns</h1>
-                <p>Manage, monitor, pause, resume and track all email campaigns.</p>
               </div>
             </section>
             <div className="campaign-table-loading">
@@ -747,10 +772,9 @@ export default function CampaignsPage() {
             <div>
               <span className="campaigns-page-kicker">Live campaign operations</span>
               <h1>Campaigns</h1>
-              <p>Manage, monitor, pause, resume and track all email campaigns.</p>
             </div>
             <div className="campaigns-hero-actions">
-              <Button as="a" href="/dashboard?workflowStep=1" size="md">
+              <Button as="a" href="/dashboard/user?workflowStep=1" size="md">
                 Create Campaign
               </Button>
               <Button variant="secondary" size="md" loading={refreshing} onClick={handleRefresh}>
@@ -765,17 +789,17 @@ export default function CampaignsPage() {
                 key={card.key}
                 card={card}
                 count={counts[card.key]}
+                total={counts.total}
                 loading={loading}
               />
             ))}
           </section>
 
-          <section className="campaign-panel">
+          <section className="campaign-panel" ref={campaignListRef}>
             <div className="campaign-panel-head">
               <div>
                 <span className="campaigns-page-kicker">Campaign library</span>
                 <h2>All Campaigns</h2>
-                <p>Live database records for the current logged-in user.</p>
               </div>
               <div className="campaign-panel-total">
                 Showing {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}

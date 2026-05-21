@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Button from '../ui-components/UiActionButton';
 import Input from '../ui-components/UiTextInputField';
@@ -9,9 +9,15 @@ import { TEMP_LOGIN_ACCOUNTS } from '@/app/lib/dashboardRoles';
 import { cn } from '@/app/lib/UiClassNameUtility';
 import ThemeToggle from './SharedThemeToggleControl';
 
+function formatDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function isActive(pathname, href) {
   if (!href) return false;
-  if (href === '/dashboard') return pathname === '/dashboard';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -64,7 +70,15 @@ export function Topbar({
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [loadedProfile, setLoadedProfile] = useState(null);
-  const resolvedProfile = profile || loadedProfile;
+  const [uploadedAvatarDataUrl, setUploadedAvatarDataUrl] = useState('');
+  const [selectedTopbarDate, setSelectedTopbarDate] = useState(() => formatDateInputValue());
+  const profilePhotoInputRef = useRef(null);
+  const shouldLoadProfile = !profile?.email && !profile?.identifier && !profile?.name && !profile?.displayName && !profile?.avatarDataUrl;
+  const resolvedProfile = {
+    ...(loadedProfile || {}),
+    ...(profile || {}),
+    avatarDataUrl: uploadedAvatarDataUrl || profile?.avatarDataUrl || loadedProfile?.avatarDataUrl || ''
+  };
   const profileName =
     resolvedProfile?.name ||
     resolvedProfile?.displayName ||
@@ -77,7 +91,7 @@ export function Topbar({
   const showProfileMenu = Boolean(resolvedProfile && (profileActions.length || profileEmail || profileRole));
 
   useEffect(() => {
-    if (profile) return;
+    if (profile && !shouldLoadProfile) return;
     let active = true;
     fetch('/api/profile', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
@@ -91,7 +105,26 @@ export function Topbar({
     return () => {
       active = false;
     };
-  }, [profile]);
+  }, [profile, shouldLoadProfile]);
+
+  const handleProfilePhotoUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const avatarDataUrl = String(reader.result || '');
+      setUploadedAvatarDataUrl(avatarDataUrl);
+      setLoadedProfile((current) => ({ ...(current || {}), avatarName: file.name, avatarDataUrl }));
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarName: file.name, avatarDataUrl })
+      }).catch(() => {});
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <section className={cn('dashboard-topbar dashboard-topbar-rich', className)}>
@@ -139,8 +172,23 @@ export function Topbar({
 
         {rightContent || (
           <>
-            <ThemeToggle />
-            <Button variant="ghost" className="dashboard-topbar-notify">Alerts</Button>
+            <ThemeToggle buttonLabel="Select Theme" />
+            <label className="dashboard-topbar-date-control">
+              <span>Select Date</span>
+              <input
+                type="date"
+                value={selectedTopbarDate}
+                onChange={(event) => setSelectedTopbarDate(event.target.value || formatDateInputValue())}
+                aria-label="Select dashboard date"
+              />
+            </label>
+            <Button
+              variant="ghost"
+              className="dashboard-topbar-notify"
+              onClick={() => router.push('/dashboard/user/profile#notifications')}
+            >
+              Notifications
+            </Button>
             {showProfileMenu ? (
               <div className="dashboard-topbar-profile-wrap" style={{ position: 'relative' }}>
                 <Button variant="ghost" className="dashboard-topbar-profile" onClick={() => setProfileOpen((prev) => !prev)}>
@@ -153,11 +201,25 @@ export function Topbar({
                 </Button>
                 {profileOpen ? (
                   <div className="dashboard-topbar-dropdown-menu" style={{ minWidth: 240, right: 0 }}>
+                    <input
+                      ref={profilePhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="dashboard-profile-photo-input"
+                      onChange={handleProfilePhotoUpload}
+                    />
                     <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
                       <strong style={{ display: 'block' }}>{profileName}</strong>
                       {profileEmail ? <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.56)', marginTop: 2 }}>{profileEmail}</small> : null}
                       {profileRole ? <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.52)', marginTop: 2 }}>Role: {profileRole}</small> : null}
                     </div>
+                    <button
+                      type="button"
+                      className="dashboard-topbar-dropdown-item"
+                      onClick={() => profilePhotoInputRef.current?.click()}
+                    >
+                      Add Profile Photo
+                    </button>
                     {profileActions.map((item) => (
                       <button
                         key={item.label}

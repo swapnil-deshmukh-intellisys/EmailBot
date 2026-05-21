@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+import { activeListFilter } from '@/app/api/client-data/_retention';
 
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
@@ -21,7 +22,7 @@ export async function GET(req, { params }) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
-    const query = buildAuthOwnerFilter(auth, { _id: params.id });
+    const query = activeListFilter(buildAuthOwnerFilter(auth, { _id: params.id }));
     const list = await LeadList.findOne(query).lean();
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
@@ -62,7 +63,7 @@ export async function PATCH(req, { params }) {
   if (auth.errorResponse) return auth.errorResponse;
   await connectDB();
 
-  const query = buildAuthOwnerFilter(auth, { _id: params.id });
+  const query = activeListFilter(buildAuthOwnerFilter(auth, { _id: params.id }));
   const list = await LeadList.findOne(query);
   if (!list) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
@@ -73,6 +74,7 @@ export async function PATCH(req, { params }) {
   const rows = Array.isArray(body.rows) ? body.rows : null;
   const columns = Array.isArray(body.columns) ? body.columns.map((c) => String(c || '').trim()).filter(Boolean) : null;
   const sheetStyle = body.sheetStyle && typeof body.sheetStyle === 'object' ? body.sheetStyle : null;
+  const resetStatus = Boolean(body.resetStatus);
 
   // Metadata-only update: allow sheet renaming without requiring full rows payload.
   if (!rows && nextName) {
@@ -121,10 +123,10 @@ export async function PATCH(req, { params }) {
         ...data,
         Email: email
       },
-      status: previousLead.status || 'Pending',
-      error: previousLead.error || '',
-      sentAt: previousLead.sentAt || null,
-      failedAt: previousLead.failedAt || null
+      status: resetStatus ? 'Pending' : (previousLead.status || 'Pending'),
+      error: resetStatus ? '' : (previousLead.error || ''),
+      sentAt: resetStatus ? null : (previousLead.sentAt || null),
+      failedAt: resetStatus ? null : (previousLead.failedAt || null)
     });
     return acc;
   }, []);
@@ -138,8 +140,18 @@ export async function DELETE(req, { params }) {
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
   await connectDB();
-  const query = buildAuthOwnerFilter(auth, { _id: params.id });
-  const deleted = await LeadList.findOneAndDelete(query);
+  const query = activeListFilter(buildAuthOwnerFilter(auth, { _id: params.id }));
+  const deleted = await LeadList.findOneAndUpdate(
+    query,
+    {
+      $set: {
+        deletedAt: new Date(),
+        deleteReason: 'Deleted by user',
+        originalKind: 'custom'
+      }
+    },
+    { new: true }
+  );
   if (!deleted) {
     return NextResponse.json({ error: 'List not found' }, { status: 404 });
   }

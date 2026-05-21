@@ -31,11 +31,11 @@ function ThemeIcon({ theme }) {
 }
 
 function themeLabel(theme) {
-  if (theme === 'colorful') return 'Aurora';
+  if (theme === 'colorful') return 'Colourful';
   return theme.charAt(0).toUpperCase() + theme.slice(1);
 }
 
-export default function ThemeToggle({ className = '' }) {
+export default function ThemeToggle({ className = '', buttonLabel = '' }) {
   const { theme, setTheme, themes } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
@@ -126,7 +126,7 @@ export default function ThemeToggle({ className = '' }) {
               {theme === option ? <span className="theme-toggle-current">Current</span> : null}
             </span>
             <span className="theme-toggle-option-copy">
-              {option === 'light' ? 'Clean iOS light' : option === 'dark' ? 'Graphite dark' : 'Aurora colour'}
+              {option === 'light' ? 'Clean light dashboard' : option === 'dark' ? 'Graphite dark dashboard' : 'Colourful dashboard'}
             </span>
           </span>
         </button>
@@ -156,7 +156,7 @@ export default function ThemeToggle({ className = '' }) {
         <span className="theme-toggle-btn-icon" aria-hidden="true">
           <ThemeIcon theme={theme} />
         </span>
-        <span className="theme-toggle-btn-label">{themeLabel(theme)}</span>
+        <span className="theme-toggle-btn-label">{buttonLabel || themeLabel(theme)}</span>
       </button>
 
       {themeMenu}

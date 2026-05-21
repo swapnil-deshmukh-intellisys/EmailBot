@@ -3,30 +3,37 @@
 import { usePathname, useRouter } from 'next/navigation';
 
 const CLIENT_DATA_SECTIONS = [
-  { label: 'Client List', href: '/client-data/client-list' },
-  { label: 'Uploaded Files', href: '/client-data/uploaded-files' },
-  { label: 'Upload Sheet', href: '/client-data/upload-sheet' }
+  { key: 'upload', label: 'Upload File', href: '/client-data/client-list?tab=upload' },
+  { key: 'customize', label: 'Customize List', href: '/client-data/client-list?tab=customize' },
+  { key: 'bin', label: 'Bin Storage', href: '/client-data/client-list?tab=bin' },
+  { key: 'client-list', label: 'Client List', href: '/client-data/client-list' }
 ];
 
-export default function ClientDataSectionNav() {
+export default function ClientDataSectionNav({ activeTab = '', onTabChange = null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const visibleSections = CLIENT_DATA_SECTIONS;
 
   return (
     <section className="client-data-page-header">
       <div className="client-data-page-header-copy">
         <h1>Client Data</h1>
-        <p>Upload, manage, and review client files and records.</p>
       </div>
       <div className="client-data-section-switcher" aria-label="Client data pages">
-        {CLIENT_DATA_SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <button
-            key={section.href}
+            key={section.key}
             type="button"
-            className={`client-data-section-switcher-button ${pathname === section.href ? 'active' : ''}`}
-            onClick={() => router.push(section.href)}
+            className={`client-data-section-switcher-button ${(activeTab ? activeTab === section.key : pathname === section.href) ? 'active' : ''}`}
+            onClick={() => {
+              if (onTabChange) {
+                onTabChange(section.key);
+                return;
+              }
+              router.push(section.href);
+            }}
           >
-            {section.label === 'Upload Sheet' ? (
+            {section.key === 'upload' ? (
               <span className="client-data-upload-sheet-icon" aria-hidden="true">&uarr;</span>
             ) : null}
             <span>{section.label}</span>

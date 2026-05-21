@@ -106,6 +106,8 @@ Graph API notes:
 npm run dev
 ```
 
+`npm run dev` stops any old local Next server on port 3000, clears `.next` and `node_modules/.cache`, and then starts `next dev`. This prevents stale server chunks after code changes. Do not use `next dev`, `next start`, or `npm run dev:server` directly for development; use `npm run dev`.
+
 For reliable long-running campaign sending, use production mode instead of dev mode:
 ```bash
 npm run build
@@ -114,6 +116,29 @@ npm run start
 
 5. Open:
 - `http://localhost:3000/login`
+
+## Troubleshooting
+
+If Next.js crashes with an error like `Cannot find module './xxxx.js'` from `.next/server/webpack-runtime.js`, stop the dev server, delete `.next`, and restart with:
+
+```bash
+npm run dev
+```
+
+On Windows, always open the project with the same path casing:
+
+```text
+C:\Users\HP\Desktop\Emailbot\EmailBot\dashboard-next
+```
+
+Avoid switching between `EmailBot` and `emailbot` in terminals because the Next watcher can treat those as different roots while writing the same `.next` folder.
+
+For production, rebuild before starting:
+
+```bash
+npm run build
+npm run start
+```
 
 ## API Routes
 - `POST /api/auth/login`

@@ -4,6 +4,22 @@ import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 
+export async function GET(req, { params }) {
+  try {
+    const auth = await requireAuth(req);
+    if (auth.errorResponse) return auth.errorResponse;
+    await connectDB();
+    const draft = await EmailDraft.findOne(buildAuthOwnerFilter(auth, { _id: params.id })).lean();
+    if (!draft) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    }
+    const resolvedDraftType = inferDraftTypeFromDraft(draft);
+    return NextResponse.json({ draft: { ...draft, draftType: resolvedDraftType, category: resolvedDraftType } });
+  } catch (error) {
+    return NextResponse.json({ error: error.message || 'Failed to load draft' }, { status: 500 });
+  }
+}
+
 export async function PATCH(req, { params }) {
   try {
     const auth = await requireAuth(req);

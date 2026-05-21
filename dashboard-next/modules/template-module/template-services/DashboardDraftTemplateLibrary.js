@@ -2,7 +2,7 @@ const draftTemplates = {
   cover_story: {
     label: 'Cover Story',
     subject: 'Cover Story: {{Name}} Shortlisted for The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026',
-    body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
+    body: `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">
   <p style="margin:0 0 12px;">Dear {{Name}},</p>
   <p style="margin:0 0 12px;">I hope you are doing well.</p>
   <p style="margin:0 0 12px;">I am writing to inform you that our editorial team at The Entrepreneurial Chronicles Magazine has shortlisted you for inclusion in one of our upcoming 2026 leadership editions, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026", recognizing professionals who are driving innovation, growth, and meaningful impact within their respective industries.</p>
@@ -33,7 +33,7 @@ const draftTemplates = {
   reminder: {
     label: 'Reminder',
     subject: 'Reminder: Feature Opportunity in The Visionary Leader Shaping the Future of Industry - 2026',
-    body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
+    body: `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">
   <p style="margin:0 0 12px;">Hello {{Name}},</p>
   <p style="margin:0 0 12px;">This is a gentle reminder about the exclusive feature opportunity we shared with you recently.</p>
   <p style="margin:0 0 12px;">Our upcoming Special Edition, "The Visionary Leader Shaping the Future of Industry - 2026," aims to spotlight leaders transforming the healthcare industry, and we believe your story would be a strong fit.</p>
@@ -45,7 +45,7 @@ const draftTemplates = {
   follow_up: {
     label: 'Follow Up',
     subject: 'Follow-Up on Cover Story Proposal - The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026',
-    body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
+    body: `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">
   <p style="margin:0 0 12px;">Dear {{Name}},</p>
   <p style="margin:0 0 12px;">I hope you're doing well.</p>
   <p style="margin:0 0 12px;">I wanted to kindly follow up on the proposal I shared regarding our upcoming special edition, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026." We believe your leadership journey would be an excellent fit for this feature, and the cover story package offers a strong platform to showcase your success and inspire a global audience.</p>
@@ -57,7 +57,7 @@ const draftTemplates = {
   updated_cost: {
     label: 'Updated Cost',
     subject: 'Updated Sponsorship Details - The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026',
-    body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
+    body: `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">
   <p style="margin:0 0 12px;">Hello {{Name}},</p>
   <p style="margin:0 0 12px;">I hope everything is going great on your end.</p>
   <p style="margin:0 0 12px;">I'm reaching out regarding our proposal to feature you in our upcoming special edition, "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026." Your remarkable contributions to the industry make you an excellent fit, and we'd be delighted to showcase your journey to our 295,000+ C-Suite subscribers and 370,000 readers worldwide.</p>
@@ -70,7 +70,7 @@ const draftTemplates = {
   final_cost: {
     label: 'Final Call',
     subject: 'Final Call: Special Rate for The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026',
-    body: `<div style="font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;">
+    body: `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">
   <p style="margin:0 0 12px;">Dear {{Name}},</p>
   <p style="margin:0 0 12px;">I wanted to reach out one last time regarding your feature in "The Most Eminent Robotics Leaders Driving Intelligent Automation - 2026."</p>
   <p style="margin:0 0 12px;">To make this opportunity even more exciting, we are offering a final special rate of $700 USD for the full premium package, which includes your cover story, multi-page profile, digital promotions, social media features, advertisements, recognition awards, and a back-link to your website.</p>

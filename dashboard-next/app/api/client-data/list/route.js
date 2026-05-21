@@ -4,6 +4,7 @@ import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+import { activeListFilter, moveExpiredUploadsToBin } from '@/app/api/client-data/_retention';
 
 function normalizeText(value = '') {
   return String(value ?? '').trim();
@@ -90,7 +91,9 @@ export async function GET(req) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
 
-    const query = buildAuthOwnerFilter(auth);
+    const ownerQuery = buildAuthOwnerFilter(auth);
+    await moveExpiredUploadsToBin(LeadList, ownerQuery);
+    const query = activeListFilter(ownerQuery);
 
     const projection = [
       'name',
@@ -100,6 +103,7 @@ export async function GET(req) {
       'projectId',
       'projectName',
       'uploadedAt',
+      'autoDeleteAt',
       'createdAt',
       'uploadDate',
       'leads.Name',
@@ -152,6 +156,7 @@ export async function GET(req) {
         project: listProjectKey(list, campaignsByListId),
         uploadedAt: list.uploadedAt || null,
         createdAt: list.createdAt || null,
+        autoDeleteAt: list.autoDeleteAt || null,
         leadCount: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData).length : 0
       }))
     });

@@ -65,7 +65,7 @@ export default function ChangePasswordPage() {
         setError(data.error || 'Failed to change password.');
         return;
       }
-      router.push(data.dashboardPath || '/dashboard');
+      router.push(data.dashboardPath || '/dashboard/user');
       router.refresh();
     } catch {
       setError('Unable to change password right now.');

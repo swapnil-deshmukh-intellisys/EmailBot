@@ -3,19 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "kill:next": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { $procs = Get-CimInstance Win32_Process -Filter \\\"Name='node.exe'\\\" | Where-Object { $_.CommandLine -like '*dashboard-next*next*dev*' -or $_.CommandLine -like '*dashboard-next*start-server.js*' }; $procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }\"",
+    "kill:next": "node scripts/next-preflight.mjs --kill",
     "kill:3000": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { $owners = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($processId in $owners) { Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue } }\"",
-    "clean:next": "node -e \"const fs=require('fs'); for (const dir of ['.next','.turbo']) { fs.rmSync(dir,{recursive:true,force:true}); }\"",
-    "dev:server": "next dev -p 3000",
+    "clean": "node scripts/next-preflight.mjs",
+    "clean:next": "npm run clean",
+    "dev:server": "npm run dev:clean",
     "dev:next": "npm run dev:clean",
     "dev": "npm run dev:clean",
-    "dev:clean": "npm run kill:next && npm run kill:3000 && npm run clean:next && npm run dev:server",
-    "build:next": "next build",
-    "build": "npm run clean:next && npm run build:next && npm run standalone:assets",
+    "predev:clean": "node scripts/next-preflight.mjs --kill",
+    "dev:clean": "next dev -p 3000",
+    "build:next": "npm run build:clean",
+    "prebuild:clean": "node scripts/next-preflight.mjs --kill",
+    "build:clean": "next build",
+    "build": "npm run build:clean && npm run standalone:assets",
     "standalone:assets": "node scripts/copy-standalone-assets.mjs",
     "start": "node .next/standalone/server.js",
     "start:rebuild": "npm run build && node .next/standalone/server.js",
-    "start:next": "next start",
     "deploy:ecs": "node scripts/deploy-ecs-immutable.mjs",
     "worker:campaigns": "node scripts/campaign-worker.mjs",
     "check:env": "node scripts/check-env.mjs",
@@ -34,5 +37,8 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.10"
   }
 }

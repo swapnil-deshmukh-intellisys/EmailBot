@@ -4,7 +4,6 @@ import AppLayout from '@/shared-components/layout-components/SharedAppLayoutShel
 import { Sidebar } from '@/shared-components/layout-components/LayoutComponentExports';
 import { cn } from '@/app/lib/UiClassNameUtility';
 import { getRoleNavigation } from '@/app/lib/roleNavigation';
-import Button from '@/shared-components/ui-components/UiActionButton';
 
 export default function RoleDashboardShell({
   role = 'user',
@@ -17,6 +16,7 @@ export default function RoleDashboardShell({
   const nav = getRoleNavigation(role);
   const profileActions = [
     { label: 'Profile', onClick: () => { window.location.href = '/dashboard/user/profile#profile'; } },
+    { label: 'Overview', onClick: () => { window.location.href = '/dashboard/user/profile#overview'; } },
     { label: 'Settings', onClick: () => { window.location.href = '/dashboard/user/profile#settings'; } },
     { label: 'Notifications', onClick: () => { window.location.href = '/dashboard/user/profile#notifications'; } },
     { label: 'Billing', onClick: () => { window.location.href = '/dashboard/user/profile#billing'; } },
@@ -35,7 +35,7 @@ export default function RoleDashboardShell({
           primaryItems={nav.primaryItems}
           navItems={nav.navItems}
           brand="Intelli Mail Pilot"
-          brandHref="/dashboard"
+          brandHref="/dashboard/user"
         />
       }
       topbarProps={{
@@ -46,12 +46,7 @@ export default function RoleDashboardShell({
           ...(profile || {}),
           actions: profile?.actions || profileActions
         },
-        rightContent: rightContent || (
-          <Button variant="ghost" className="dashboard-topbar-profile">
-            <span className="dashboard-topbar-avatar">{role === 'admin' ? 'AD' : role === 'manager' ? 'MG' : 'US'}</span>
-            <span>{nav.title}</span>
-          </Button>
-        )
+        rightContent
       }}
     >
       {children}

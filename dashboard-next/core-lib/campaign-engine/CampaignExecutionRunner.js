@@ -34,6 +34,7 @@ const SENDING_LOCK_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.SENDING_L
 const DEFAULT_PROFILE_CREDITS = PLAN_LIMITS.Basic;
 const CAMPAIGN_WORKER_ID = String(process.env.CAMPAIGN_WORKER_ID || 'web-worker').trim() || 'web-worker';
 const WORKER_HEARTBEAT_INTERVAL_MS = Math.max(5000, Number(process.env.CAMPAIGN_WORKER_HEARTBEAT_MS || 15000));
+const MIN_CAMPAIGN_SEND_GAP_SECONDS = Math.max(60, Number(process.env.MIN_CAMPAIGN_SEND_GAP_SECONDS || 60));
 const DELAY_POLL_INTERVAL_MS = 250;
 
 function senderThreadKey(account = {}) {
@@ -839,7 +840,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
     : ['reminder', 'follow_up', 'updated_cost', 'final_cost'].includes(campaignType);
   const selectedRange = parseRowRange(campaign.options?.rowRange, list.leads.length);
   const configuredBatchSize = Math.max(1, Math.floor(Number(campaign.options?.batchSize || 1) || 1));
-  const configuredDelaySeconds = Math.max(1, Math.floor(Number(campaign.options?.delaySeconds || 60) || 60));
+  const configuredDelaySeconds = Math.max(
+    MIN_CAMPAIGN_SEND_GAP_SECONDS,
+    Math.floor(Number(campaign.options?.delaySeconds || MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS)
+  );
   const allowedIndexes = selectedRange
     ? new Set(Array.from({ length: selectedRange.end - selectedRange.start + 1 }, (_, i) => selectedRange.start - 1 + i))
     : null;

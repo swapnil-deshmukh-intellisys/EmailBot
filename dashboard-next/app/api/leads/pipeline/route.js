@@ -28,10 +28,12 @@ export async function GET(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
+    const url = new URL(req.url);
+    const limit = Math.max(1, Math.min(5000, Number(url.searchParams.get('limit') || 5000) || 5000));
     const logs = await CampaignRecipientLog.find(buildAuthOwnerFilter(auth, { $or: [{ replyReceived: true }, { replyCount: { $gt: 0 } }, { lastReplyAt: { $ne: null } }] }))
-      .select('campaignName projectName recipientEmail recipientName clientName email company status replyType replyPreview lastReplyAt updatedAt notes userEmail followUpStopped unsubscribe dnc')
+      .select('campaignId campaignName projectId projectName recipientEmail recipientName clientName email company designation status replyType replyPreview lastReplyAt updatedAt notes userEmail followUpStopped unsubscribe dnc')
       .sort({ lastReplyAt: -1, updatedAt: -1 })
-      .limit(300)
+      .limit(limit)
       .lean();
     const stages = STAGES.map((stage) => ({ stage, count: 0, cards: [] }));
     const stageMap = new Map(stages.map((item) => [item.stage, item]));
@@ -41,9 +43,13 @@ export async function GET(req) {
       bucket.count += 1;
       bucket.cards.push({
         id: String(log._id),
+        campaignId: String(log.campaignId || ''),
         clientName: log.clientName || log.recipientName || log.email || 'Client',
         email: log.recipientEmail || log.email,
         company: log.company || '-',
+        designation: log.designation || '',
+        projectId: log.projectId || '',
+        projectName: log.projectName || '',
         campaignName: log.campaignName || '-',
         responseStatus: log.replyType || log.status || 'Response',
         lastReplyDate: log.lastReplyAt || log.updatedAt || null,
