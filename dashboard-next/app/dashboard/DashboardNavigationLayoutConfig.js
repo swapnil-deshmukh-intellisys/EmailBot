@@ -16,7 +16,5 @@ export const TOP_NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard/user' },
   { label: 'Client Data', href: '/client-data' },
   { label: 'Drafts', href: '/drafts' },
-  { label: 'Campaigns', href: '/campaigns' },
-  { label: 'Mailbox', href: '/mail-inbox' },
-  { label: 'Notifications', href: '/dashboard/user/profile#notifications' }
+  { label: 'Campaigns', href: '/campaigns' }
 ];

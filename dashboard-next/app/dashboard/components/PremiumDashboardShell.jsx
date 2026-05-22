@@ -985,6 +985,8 @@ export default function PremiumDashboardShell({
       'testEmail',
       'draftSummary',
       'schedule',
+      'calendar',
+      'day',
       'timeline',
       'logs'
     ]);
@@ -998,6 +1000,8 @@ export default function PremiumDashboardShell({
         testEmail: { width: 'min(90vw, 920px)', maxHeight: 'min(84vh, 820px)' },
         draftSummary: { width: 'min(92vw, 940px)', maxHeight: 'min(84vh, 820px)' },
         schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+        calendar: { width: 'min(92vw, 620px)', maxHeight: 'min(82vh, 680px)' },
+        day: { width: 'min(92vw, 560px)', maxHeight: 'min(82vh, 680px)' },
         timeline: { width: 'min(90vw, 740px)', maxHeight: 'min(78vh, 680px)' },
         logs: { width: 'min(90vw, 760px)', maxHeight: 'min(78vh, 680px)' }
       };

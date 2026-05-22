@@ -2336,3 +2336,693 @@ body {
     text-align: center;
   }
 }
+
+/* Calendar responsive alignment hardening.
+   Keep the target/calendar/timeline area readable at every dashboard width. */
+.premium-dashboard-shell .premium-calendar-card {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  gap: 12px !important;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-panel-head {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-panel-head h3 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary, #0f172a);
+  font-size: clamp(0.9rem, 1.1vw, 1.05rem);
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-nav {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-nav .ghost.subtle {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 !important;
+  line-height: 1;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-grid {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(30px, auto);
+  gap: clamp(4px, 0.5vw, 7px) !important;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-weekday {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 20px;
+  overflow: hidden;
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-day {
+  display: grid;
+  grid-template-rows: minmax(14px, 1fr) 6px;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: clamp(30px, 4.4vw, 38px);
+  padding: 4px 2px 3px;
+  border-radius: 10px;
+  line-height: 1;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-day > span:first-child {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-dots {
+  min-height: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events {
+  display: grid;
+  align-content: start;
+  gap: 8px !important;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head {
+  display: grid !important;
+  grid-template-columns: minmax(92px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head strong,
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-loading {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-loading {
+  justify-self: end;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-more,
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head .premium-calendar-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  min-width: 104px !important;
+  max-width: 100%;
+  min-height: 34px;
+  justify-self: stretch;
+  padding: 0 12px !important;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-more {
+  grid-column: 1 / 2;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head .premium-calendar-add {
+  grid-column: 2 / 3;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event p,
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event small,
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-upcoming-list strong,
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-upcoming-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-dashboard-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.premium-calendar-modal-backdrop {
+  padding: clamp(10px, 2vw, 20px) !important;
+  z-index: 140 !important;
+}
+
+.premium-calendar-modal {
+  width: min(92vw, 620px);
+  max-width: calc(100vw - 20px) !important;
+  max-height: calc(100dvh - 20px) !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+}
+
+.premium-calendar-modal .premium-panel-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.premium-calendar-modal .premium-panel-head h3,
+.premium-calendar-modal .premium-panel-head p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.premium-calendar-modal-list {
+  min-width: 0;
+  max-height: min(58vh, 520px) !important;
+  overflow: auto !important;
+}
+
+.premium-calendar-modal .premium-calendar-event {
+  min-width: 0;
+}
+
+.premium-calendar-modal .premium-calendar-event p,
+.premium-calendar-modal .premium-calendar-event small {
+  overflow-wrap: anywhere;
+}
+
+.premium-event-form-modal {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(94vw, 760px) !important;
+  max-width: calc(100vw - 20px) !important;
+  max-height: calc(100dvh - 20px) !important;
+  overflow: hidden !important;
+}
+
+.premium-event-form-modal .premium-panel-head {
+  align-items: start;
+}
+
+.premium-event-form-head-actions {
+  justify-content: flex-end;
+}
+
+.premium-event-form-grid {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.premium-event-form-grid input,
+.premium-event-form-grid select,
+.premium-event-form-grid textarea {
+  min-width: 0;
+}
+
+.premium-event-form-actions {
+  margin-right: -18px;
+  margin-left: -18px;
+}
+
+@media (max-width: 760px) {
+  .premium-dashboard-shell .premium-calendar-card {
+    gap: 10px !important;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-panel-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-grid {
+    gap: 4px !important;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-weekday {
+    font-size: 9px;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-day {
+    min-height: 32px;
+    border-radius: 9px;
+    font-size: 10px;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-more,
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-events-head .premium-calendar-add {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    justify-self: stretch;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-dashboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .premium-calendar-modal .premium-panel-head,
+  .premium-event-form-modal .premium-panel-head {
+    grid-template-columns: 1fr;
+  }
+
+  .premium-event-form-head-actions,
+  .premium-event-form-actions,
+  .premium-event-form-actions > div {
+    width: 100%;
+  }
+
+  .premium-event-form-head-actions button,
+  .premium-event-form-actions button {
+    flex: 1 1 120px;
+  }
+
+  .premium-event-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .premium-event-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 420px) {
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-nav .ghost.subtle {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-day {
+    min-height: 30px;
+    padding-inline: 1px;
+    font-size: 9px;
+  }
+
+  .premium-dashboard-shell .premium-calendar-card .premium-calendar-dots i {
+    width: 4px !important;
+    height: 4px !important;
+  }
+}
+
+/* Dashboard productivity section type scale from the requested design spec. */
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-logs-panel,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) {
+  gap: 12px;
+  padding: 16px;
+  font-family: Inter, 'Inter', 'Segoe UI', Tahoma, Arial, sans-serif;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel {
+  width: min(100%, 280px);
+  min-height: 360px;
+  justify-self: stretch;
+}
+
+.premium-dashboard-shell .premium-calendar-card {
+  width: min(100%, 380px);
+  min-height: 460px;
+  justify-self: stretch;
+}
+
+.premium-dashboard-shell .premium-logs-panel {
+  min-height: 220px;
+}
+
+.premium-dashboard-shell .premium-main-notification-panel {
+  width: min(100%, 300px);
+  min-height: 220px;
+  justify-self: stretch;
+}
+
+.premium-dashboard-shell .premium-side-notification-panel {
+  width: min(100%, 300px);
+  min-height: 260px;
+  justify-self: stretch;
+}
+
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-logs-panel,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) .premium-panel-head h3 {
+  color: #0f172a !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric span,
+  .premium-credit-metric span
+) {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric strong,
+  .premium-arc-ring-inner strong
+) {
+  color: #0f172a !important;
+  font-size: 30px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-credit-metric strong {
+  color: #0f172a !important;
+  font-size: 30px !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-arc-ring-inner span {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-arc-copy > strong {
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-arc-copy-sub {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-target-detail-line b {
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-target-approval-pill {
+  color: #16a34a !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-target-approval-pill.pending {
+  color: #d97706 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-target-approval-pill.failed {
+  color: #dc2626 !important;
+}
+
+.premium-dashboard-shell :where(
+  .premium-target-approval-btn,
+  .premium-calendar-add,
+  .premium-note-compose button,
+  .premium-event-form-actions button:not(.ghost),
+  .premium-event-form-head-actions button:not(.ghost)
+) {
+  min-height: 38px !important;
+  height: 38px;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #38bdf8, #6366f1, #a855f7) !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+.premium-dashboard-shell :where(
+  .premium-calendar-more,
+  .premium-main-notification-panel .premium-panel-head .ghost,
+  .premium-note-actions .ghost,
+  .premium-calendar-nav .ghost.subtle,
+  .premium-event-form-head-actions .ghost,
+  .premium-event-form-actions .ghost
+) {
+  min-height: 38px !important;
+  height: 38px;
+  padding: 0 14px !important;
+  border: 1px solid rgba(99, 102, 241, 0.22) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-panel-head h3 {
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-nav .ghost.subtle {
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: #334155 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-weekday {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-grid {
+  gap: 6px !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-day {
+  width: 34px;
+  min-width: 0;
+  max-width: 100%;
+  height: 34px;
+  min-height: 34px;
+  justify-self: center;
+  border-radius: 12px !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-day.selected {
+  border: 1px solid rgba(99, 102, 241, 0.32) !important;
+  background: rgba(99, 102, 241, 0.16) !important;
+  color: #6366f1 !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-day.adjacent {
+  color: #94a3b8 !important;
+  opacity: 0.75;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-events strong {
+  color: #0f172a !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-loading {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event {
+  padding: 10px 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-left: 4px solid var(--event-color, #2563eb) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event p {
+  color: #0f172a !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-calendar-event small {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+.premium-dashboard-shell .premium-timeline-summary strong,
+.premium-dashboard-shell .premium-calendar-dashboard-summary strong {
+  color: #0f172a !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.premium-dashboard-shell .premium-timeline-summary span,
+.premium-dashboard-shell .premium-calendar-dashboard-summary span {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.premium-dashboard-shell .premium-timeline-item {
+  padding: 10px 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.68) !important;
+}
+
+.premium-dashboard-shell .premium-timeline-copy strong {
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.premium-dashboard-shell .premium-timeline-copy small {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.premium-dashboard-shell .premium-main-notification-panel .premium-panel-head h3,
+.premium-dashboard-shell .premium-side-notification-panel .premium-panel-head h3 {
+  color: #0f172a !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.premium-dashboard-shell .premium-main-notification-panel .premium-panel-head .ghost {
+  color: #6366f1 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.premium-dashboard-shell .premium-note-tile-grid input,
+.premium-dashboard-shell .premium-note-compose textarea {
+  border: 1px solid rgba(148, 163, 184, 0.34) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.premium-dashboard-shell .premium-note-tile-grid input {
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 12px !important;
+}
+
+.premium-dashboard-shell .premium-note-compose textarea {
+  min-height: 96px !important;
+  padding: 12px !important;
+  line-height: 1.45 !important;
+}
+
+.premium-dashboard-shell .premium-note-tile-grid input::placeholder,
+.premium-dashboard-shell .premium-note-compose textarea::placeholder {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.premium-dashboard-shell .premium-note-compose-footer small {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 1440px) {
+  .premium-dashboard-shell .premium-campaign-health-panel,
+  .premium-dashboard-shell .premium-calendar-card,
+  .premium-dashboard-shell .premium-main-notification-panel,
+  .premium-dashboard-shell .premium-side-notification-panel {
+    width: 100%;
+  }
+}
