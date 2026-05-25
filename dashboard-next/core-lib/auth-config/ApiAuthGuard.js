@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import {
   getBlockedStatusMessage,
   getSessionFromRequest,
@@ -173,6 +174,12 @@ export function buildOwnerFilter(user = null, extra = {}) {
     or.push({ userId });
     or.push({ ownerId: userId });
     or.push({ createdBy: userId });
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      const objectUserId = new mongoose.Types.ObjectId(userId);
+      or.push({ userId: objectUserId });
+      or.push({ ownerId: objectUserId });
+      or.push({ createdBy: objectUserId });
+    }
   }
   if (userEmail) or.push({ userEmail });
   if (intellisysUserId) or.push({ intellisysUserId });

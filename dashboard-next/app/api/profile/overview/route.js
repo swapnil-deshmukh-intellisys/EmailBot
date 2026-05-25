@@ -83,6 +83,8 @@ export async function GET(req) {
             recipients: { $sum: { $ifNull: ['$totalRecipients', { $ifNull: ['$stats.total', 0] }] } },
             sent: { $sum: { $ifNull: ['$sentCount', { $ifNull: ['$stats.sent', 0] }] } },
             failed: { $sum: { $ifNull: ['$failedCount', { $ifNull: ['$stats.failed', 0] }] } },
+            bounced: { $sum: { $ifNull: ['$stats.bounced', 0] } },
+            spam: { $sum: { $ifNull: ['$stats.spam', 0] } },
             pending: { $sum: { $ifNull: ['$pendingCount', { $ifNull: ['$stats.pending', 0] }] } },
             opens: { $sum: { $ifNull: ['$openCount', { $ifNull: ['$trackingStats.openCount', 0] }] } },
             replies: { $sum: { $ifNull: ['$replyCount', { $ifNull: ['$trackingStats.replyCount', 0] }] } }
@@ -99,6 +101,8 @@ export async function GET(req) {
             running: { $sum: { $cond: [{ $eq: ['$status', 'Running'] }, 1, 0] } },
             sent: { $sum: { $ifNull: ['$sentCount', { $ifNull: ['$stats.sent', 0] }] } },
             failed: { $sum: { $ifNull: ['$failedCount', { $ifNull: ['$stats.failed', 0] }] } },
+            bounced: { $sum: { $ifNull: ['$stats.bounced', 0] } },
+            spam: { $sum: { $ifNull: ['$stats.spam', 0] } },
             senders: { $addToSet: { $ifNull: ['$senderFrom', { $ifNull: ['$senderAccount.from', '$senderAccount.user'] }] } },
             lastUpdatedAt: { $max: { $ifNull: ['$lastActivityAt', '$updatedAt'] } }
           }
@@ -147,12 +151,14 @@ export async function GET(req) {
       return acc;
     }, {});
 
-    const campaignTotals = campaignTotalsRows[0] || { recipients: 0, sent: 0, failed: 0, pending: 0, opens: 0, replies: 0 };
+    const campaignTotals = campaignTotalsRows[0] || { recipients: 0, sent: 0, failed: 0, bounced: 0, spam: 0, pending: 0, opens: 0, replies: 0 };
     const logTotals = recipientSummary[0] || {};
     const mailTotals = {
       recipients: Math.max(campaignTotals.recipients, numberValue(logTotals.recipients)),
       sent: Math.max(campaignTotals.sent, numberValue(logTotals.sent)),
       failed: Math.max(campaignTotals.failed, numberValue(logTotals.failed)),
+      bounced: numberValue(campaignTotals.bounced),
+      spam: numberValue(campaignTotals.spam),
       pending: Math.max(campaignTotals.pending, numberValue(logTotals.pending)),
       opens: Math.max(campaignTotals.opens, numberValue(logTotals.opens)),
       replies: Math.max(campaignTotals.replies, numberValue(logTotals.replies))

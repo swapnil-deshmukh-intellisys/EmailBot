@@ -88,8 +88,21 @@ export function parseHtmlTimeValue(timeValue = '') {
   return { hours, minutes };
 }
 
+export function normalizeScheduleDateValue(dateValue = '') {
+  const value = String(dateValue || '').trim();
+  const htmlDateMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (htmlDateMatch) return value;
+
+  const displayDateMatch = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!displayDateMatch) return value;
+
+  const [, day, month, year] = displayDateMatch;
+  return `${year}-${month}-${day}`;
+}
+
 export function buildScheduledDateTimeInZone(dateValue = '', timeValue = '', timeZone = 'Asia/Kolkata') {
-  const dateMatch = String(dateValue || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const normalizedDateValue = normalizeScheduleDateValue(dateValue);
+  const dateMatch = normalizedDateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const timeParts = parseHtmlTimeValue(timeValue);
   if (!dateMatch || !timeParts) return null;
 

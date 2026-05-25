@@ -24,6 +24,7 @@ import {
 } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import {
+  ensureRecipientLogsForCampaign,
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 import { normalizeDraftType } from '@/app/lib/draftTypes';
@@ -32,6 +33,16 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+const MAX_SCHEDULE_DELAY_MINUTES = 1440;
+const MAX_SCHEDULE_DELAY_HOURS = 24;
+const MAX_SCHEDULE_DELAY_SECONDS = 86400;
+
+function getScheduleDelayLimit(unit = 'minutes') {
+  const normalizedUnit = normalizeDurationUnit(unit);
+  if (normalizedUnit === 'hours') return MAX_SCHEDULE_DELAY_HOURS;
+  if (normalizedUnit === 'seconds') return MAX_SCHEDULE_DELAY_SECONDS;
+  return MAX_SCHEDULE_DELAY_MINUTES;
+}
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -55,7 +66,7 @@ function shouldUseDemoData() {
 
 function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.' }) {
   console.error(`[api/campaigns] ${code}: ${message}`);
-  return NextResponse.json({ success: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
+  return NextResponse.json({ success: false, ok: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 export async function GET(req) {
@@ -176,6 +187,7 @@ export async function GET(req) {
         .limit(limit)
         .lean()
     ]);
+    await Promise.all(rawCampaigns.map((campaign) => ensureRecipientLogsForCampaign(campaign).catch(() => [])));
     const campaignIds = rawCampaigns.map((campaign) => campaign._id);
     const recipientLogSummaries = campaignIds.length
       ? await CampaignRecipientLog.aggregate([
@@ -183,6 +195,11 @@ export async function GET(req) {
           {
             $group: {
               _id: '$campaignId',
+              sentCount: { $sum: { $cond: [{ $eq: ['$status', 'Sent'] }, 1, 0] } },
+              failedCount: { $sum: { $cond: [{ $in: ['$status', ['Failed', 'Bounced', 'Spam']] }, 1, 0] } },
+              bouncedCount: { $sum: { $cond: [{ $eq: ['$status', 'Bounced'] }, 1, 0] } },
+              spamCount: { $sum: { $cond: [{ $eq: ['$status', 'Spam'] }, 1, 0] } },
+              skippedCount: { $sum: { $cond: [{ $or: [{ $eq: ['$status', 'Skipped'] }, '$followUpStopped'] }, 1, 0] } },
               openCount: { $sum: { $ifNull: ['$openCount', 0] } },
               replyCount: { $sum: { $ifNull: ['$replyCount', 0] } },
               positiveReplyCount: { $sum: { $cond: [{ $eq: ['$replyType', 'positive'] }, 1, 0] } },
@@ -211,7 +228,7 @@ export async function GET(req) {
     });
 
     return NextResponse.json(
-      { success: true, counts, campaigns, summary, pagination: { total: totalCount, limit, skip, hasMore: skip + campaigns.length < totalCount } },
+      { success: true, ok: true, data: campaigns, counts, campaigns, summary, pagination: { total: totalCount, limit, skip, hasMore: skip + campaigns.length < totalCount } },
       { headers: NO_STORE_HEADERS }
     );
 
@@ -346,12 +363,19 @@ export async function POST(req) {
 
     }
 
+    const normalizedDurationUnit = normalizeDurationUnit(options?.durationUnit || 'seconds');
     const parsedDelayInterval = Number(String(options?.delayInterval ?? options?.delaySeconds ?? '').trim() || MIN_CAMPAIGN_SEND_GAP_SECONDS);
     if (!Number.isFinite(parsedDelayInterval) || parsedDelayInterval < 1) {
       return jsonError({ status: 400, code: 'INVALID_DELAY_INTERVAL', message: 'Delay interval must be a number greater than or equal to 1.' });
     }
+    if (parsedDelayInterval > getScheduleDelayLimit(normalizedDurationUnit)) {
+      return jsonError({
+        status: 400,
+        code: 'DELAY_INTERVAL_TOO_LARGE',
+        message: `Delay interval cannot be more than ${getScheduleDelayLimit(normalizedDurationUnit)} ${normalizedDurationUnit}.`
+      });
+    }
 
-    const normalizedDurationUnit = normalizeDurationUnit(options?.durationUnit || 'seconds');
     const convertedDelaySeconds = Math.max(
       MIN_CAMPAIGN_SEND_GAP_SECONDS,
       convertDelayIntervalToSeconds(parsedDelayInterval, normalizedDurationUnit)
@@ -382,6 +406,7 @@ export async function POST(req) {
     const batchSize = Math.max(1, Math.floor(parsedBatchSize));
     const duplicateCampaign = await Campaign.findOne({
       userEmail,
+      status: 'Draft',
       name: String(name || '').trim(),
       listId,
       senderAccountId: senderAccountId || '',
@@ -397,7 +422,7 @@ export async function POST(req) {
     }).lean();
 
     if (duplicateCampaign) {
-      return NextResponse.json({ success: true, campaign: duplicateCampaign, duplicate: true }, { headers: NO_STORE_HEADERS });
+      return NextResponse.json({ success: true, ok: true, data: duplicateCampaign, campaign: duplicateCampaign, duplicate: true }, { headers: NO_STORE_HEADERS });
     }
 
     const campaign = await Campaign.create({
@@ -490,7 +515,7 @@ export async function POST(req) {
 
 
 
-    return NextResponse.json({ success: true, campaign }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ success: true, ok: true, data: campaign, campaign }, { headers: NO_STORE_HEADERS });
 
   } catch (error) {
 

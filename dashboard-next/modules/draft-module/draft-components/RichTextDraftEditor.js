@@ -110,9 +110,40 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
     selectNodeContents(wrapper);
   };
 
+  const plainTextToEditorHtml = (text = '') => {
+    const escaped = String(text || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped
+      .split(/\n{2,}/)
+      .map((block) => `<p>${block.replace(/\n/g, '<br>') || '<br>'}</p>`)
+      .join('');
+  };
+
   const runCommand = (command, val = null) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
+    if (command === 'removeFormat') {
+      restoreSelection();
+      const selection = window.getSelection?.();
+      const hasSelection =
+        selection &&
+        selection.rangeCount > 0 &&
+        !selection.isCollapsed &&
+        editorRef.current.contains(selection.getRangeAt(0).commonAncestorContainer);
+
+      if (hasSelection) {
+        document.execCommand('removeFormat', false, null);
+      } else {
+        editorRef.current.innerHTML = plainTextToEditorHtml(editorRef.current.innerText || editorRef.current.textContent || '');
+        selectNodeContents(editorRef.current);
+      }
+      saveSelection();
+      updateValue(true);
+      return;
+    }
     if (['bold', 'italic', 'underline', 'fontName', 'fontSize'].includes(command)) {
       applyInlineFormat(command, val);
     } else {
@@ -194,11 +225,11 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
         </select>
         <select className="select wysiwyg-select" defaultValue="" onMouseDown={saveSelection} onChange={(e) => runCommand('fontSize', e.target.value)}>
           <option value="" disabled>Size</option>
-          <option value="2">Small</option>
-          <option value="3">Normal</option>
-          <option value="4">Medium</option>
-          <option value="5">Large</option>
-          <option value="6">XL</option>
+          <option value="2">13</option>
+          <option value="3">15</option>
+          <option value="4">17</option>
+          <option value="5">20</option>
+          <option value="6">24</option>
         </select>
         <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'bold')}>B</button>
         <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'italic')}><i>I</i></button>

@@ -127,16 +127,39 @@ function appendLog(campaign, message, level = 'info') {
 }
 
 function campaignCounterSnapshot(campaign) {
+  const failureCount = getCampaignFailureCount(campaign);
   return {
     status: campaign.status,
     sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
     pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
-    failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+    failedCount: failureCount,
     bounced: Number(campaign.stats?.bounced || 0),
     spam: Number(campaign.stats?.spam || 0),
     totalRecipients: Number(campaign.totalRecipients ?? campaign.stats?.total ?? 0),
     workerHeartbeatAt: campaign.workerHeartbeatAt || null
   };
+}
+
+function getCampaignFailureCount(campaign = {}) {
+  return (
+    Number(campaign?.stats?.failed || 0) +
+    Number(campaign?.stats?.bounced || 0) +
+    Number(campaign?.stats?.spam || 0)
+  );
+}
+
+function syncCampaignProgressCounters(campaign) {
+  const total = Number(campaign.stats?.total || 0);
+  const sent = Number(campaign.stats?.sent || 0);
+  const failed = getCampaignFailureCount(campaign);
+  const pending = Math.max(0, total - sent - failed);
+
+  campaign.totalRecipients = total;
+  campaign.sentCount = sent;
+  campaign.failedCount = failed;
+  campaign.pendingCount = pending;
+  campaign.stats.pending = pending;
+  return campaign;
 }
 
 async function persistCampaignCounters(campaign, reason = 'progress') {
@@ -164,7 +187,7 @@ async function persistCampaignCounters(campaign, reason = 'progress') {
         'stats.total': snapshot.totalRecipients,
         'stats.sent': snapshot.sentCount,
         'stats.pending': snapshot.pendingCount,
-        'stats.failed': snapshot.failedCount,
+        'stats.failed': Number(campaign.stats?.failed || 0),
         'stats.bounced': snapshot.bounced,
         'stats.spam': snapshot.spam
       }
@@ -508,6 +531,9 @@ async function claimLeadForSend(listId, idx, claimedAt = new Date()) {
       $or: [
         { [`leads.${idx}.status`]: 'Pending' },
         { [`leads.${idx}.status`]: 'Failed' },
+        { [`leads.${idx}.status`]: 'Sent' },
+        { [`leads.${idx}.status`]: 'Bounced' },
+        { [`leads.${idx}.status`]: 'Spam' },
         {
           [`leads.${idx}.status`]: 'Sending',
           [`leads.${idx}.sendingStartedAt`]: { $lt: staleBefore }
@@ -677,12 +703,11 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
     throw new Error('Recipient list is empty');
   }
 
-  const alreadyHandledLeadCount = validLeads.filter((lead) => {
+  const hasPendingRecipients = validLeads.some((lead) => {
     const status = String(lead?.status || '').toLowerCase();
-    return status === 'sent' || status === 'failed' || status === 'bounced' || status === 'spam';
-  }).length;
-  const requiredCredits = Math.max(0, validLeads.length - alreadyHandledLeadCount);
-  if (campaignUserEmail && requiredCredits > 0) {
+    return !['sent', 'failed', 'bounced', 'spam'].includes(status);
+  });
+  if (campaignUserEmail && hasPendingRecipients) {
     const { summary } = await getOrCreateSubscriptionSummary(campaignUserEmail, profile);
     if (summary.status !== 'active') {
       throw new Error('Subscription is not active');
@@ -692,9 +717,6 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
     }
     if (summary.sendingDisabled) {
       throw new Error('Sending is disabled for this account.');
-    }
-    if (requiredCredits > summary.dailyRemainingCredits) {
-      throw new Error(`Daily mail limit is ${summary.dailyLimit || 500}. You can send only ${summary.dailyRemainingCredits} more today.`);
     }
   }
 
@@ -848,6 +870,16 @@ export async function startCampaignRunner(campaignId, options = {}) {
     ? new Set(Array.from({ length: selectedRange.end - selectedRange.start + 1 }, (_, i) => selectedRange.start - 1 + i))
     : null;
   const scopedLeads = allowedIndexes ? list.leads.filter((_, idx) => allowedIndexes.has(idx)) : list.leads;
+  const existingClaims = await CampaignRecipientClaim.find({ campaignId: campaign._id }).lean();
+  const claimStatusByEmail = existingClaims.reduce((map, claim) => {
+    const email = normalizeRecipientEmail(claim?.recipientEmail || '');
+    if (email) map.set(email, String(claim?.status || '').toLowerCase());
+    return map;
+  }, new Map());
+  const scopedClaimStatuses = scopedLeads.map((lead) => {
+    const email = normalizeRecipientEmail(lead?.Email || lead?.email || '');
+    return email ? claimStatusByEmail.get(email) || '' : '';
+  });
 
   campaign.status = 'Running';
   campaign.startedAt = startTime;
@@ -860,16 +892,16 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.workerHeartbeatAt = startTime;
   campaign.lastRunError = '';
   campaign.lastRunErrorAt = null;
-  const scopedSent = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'sent').length;
-  const scopedFailed = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'failed').length;
-  const scopedBounced = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'bounced').length;
-  const scopedSpam = scopedLeads.filter((lead) => String(lead?.status || '').toLowerCase() === 'spam').length;
+  const scopedSent = scopedClaimStatuses.filter((status) => status === 'sent').length;
+  const scopedFailed = scopedClaimStatuses.filter((status) => status === 'failed').length;
+  const scopedBounced = scopedClaimStatuses.filter((status) => status === 'bounced').length;
+  const scopedSpam = scopedClaimStatuses.filter((status) => status === 'spam').length;
   campaign.stats.total = scopedLeads.length;
   campaign.stats.sent = scopedSent;
   campaign.stats.failed = scopedFailed;
   campaign.stats.bounced = scopedBounced;
   campaign.stats.spam = scopedSpam;
-  campaign.stats.pending = Math.max(0, scopedLeads.length - scopedSent - scopedFailed - scopedBounced - scopedSpam);
+  syncCampaignProgressCounters(campaign);
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
   appendLog(campaign, `Campaign worker claimed: ${CAMPAIGN_WORKER_ID}`);
   if (trigger === 'scheduler') {
@@ -902,11 +934,22 @@ export async function startCampaignRunner(campaignId, options = {}) {
           return;
         }
 
+        const recipientEmail = normalizeRecipientEmail(lead?.Email || lead?.email || '');
+        if (!recipientEmail) {
+          pendingIndexes.push(idx);
+          return;
+        }
+
+        const campaignRecipientStatus = claimStatusByEmail.get(recipientEmail) || '';
+        if (['sent', 'failed', 'bounced', 'spam'].includes(campaignRecipientStatus)) {
+          return;
+        }
+
         const normalizedStatus = String(lead.status || '').toLowerCase();
         const sendingStartedAtMs = lead?.sendingStartedAt ? new Date(lead.sendingStartedAt).getTime() : 0;
         const hasFreshSendingLock = normalizedStatus === 'sending' && sendingStartedAtMs && (now - sendingStartedAtMs) < SENDING_LOCK_TTL_MS;
 
-        if (normalizedStatus === 'sent' || hasFreshSendingLock) {
+        if (hasFreshSendingLock) {
           return;
         }
 
@@ -948,7 +991,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.failedAt = new Date();
           lead.sendingStartedAt = null;
           campaign.stats.failed += 1;
-          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          syncCampaignProgressCounters(campaign);
           appendLog(campaign, `Failed: unknown - Lead has no email address`, 'error');
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
@@ -965,7 +1008,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.failedAt = new Date();
           lead.sendingStartedAt = null;
           campaign.stats.failed += 1;
-          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          syncCampaignProgressCounters(campaign);
           const stepLogs = ensureStepLogs(existingRecipientLog?.stepLogs || [], 5).map((step) => (
             Number(step.stepNumber) > 1 && !['Sent', 'Opened', 'Replied'].includes(step.status)
               ? { ...step, status: 'Skipped', skippedAt: step.skippedAt || new Date(), failureReason: 'Client replied - follow-up stopped' }
@@ -1005,7 +1048,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.failedAt = new Date();
           lead.sendingStartedAt = null;
           campaign.stats.failed += 1;
-          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          syncCampaignProgressCounters(campaign);
           appendLog(campaign, `Skipped duplicate recipient: ${recipientEmail}`);
           await persistLeadProgress(list._id, idx, lead);
           if (!(await saveCampaignIfExists(campaign))) {
@@ -1042,7 +1085,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.failedAt = new Date();
           lead.sendingStartedAt = null;
           campaign.stats.failed += 1;
-          campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          syncCampaignProgressCounters(campaign);
           campaign.failureReason = classifyFailureReason(creditReservation.message || 'Credit limit reached');
           campaign.lastError = creditReservation.message || 'Credit limit reached';
           campaign.lastErrorAt = new Date();
@@ -1097,8 +1140,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
             await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
           }
           campaign.stats.sent += 1;
-          campaign.sentCount = campaign.stats.sent;
-          campaign.pendingCount = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
+          syncCampaignProgressCounters(campaign);
           campaign.lastActivityAt = new Date();
           await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
           await upsertRecipientLogForLead({
@@ -1143,7 +1185,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           } else {
             campaign.stats.failed += 1;
           }
-          campaign.failedCount = campaign.stats.failed;
+          syncCampaignProgressCounters(campaign);
           campaign.failureReason = campaign.failureReason || classifyFailureReason(error.message);
           campaign.lastError = error.message;
           campaign.lastErrorAt = new Date();
@@ -1170,14 +1212,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
           }
         }
 
-        campaign.stats.pending = Math.max(0, campaign.stats.total - campaign.stats.sent - campaign.stats.failed - campaign.stats.bounced - campaign.stats.spam);
-        campaign.totalRecipients = campaign.stats.total;
+        syncCampaignProgressCounters(campaign);
         campaign.status = 'Running';
         campaign.workerStatus = 'running';
         campaign.queueReason = '';
-        campaign.sentCount = campaign.stats.sent;
-        campaign.pendingCount = campaign.stats.pending;
-        campaign.failedCount = campaign.stats.failed;
         campaign.workerHeartbeatAt = new Date();
         lastHeartbeatAt = Date.now();
         await persistLeadProgress(list._id, idx, lead);

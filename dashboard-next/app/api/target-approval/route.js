@@ -17,7 +17,12 @@ export async function GET(req) {
 
   const targetIdentifier = String(new URL(req.url).searchParams.get('identifier') || userEmail).trim().toLowerCase();
   const scope = String(new URL(req.url).searchParams.get('scope') || '').trim().toLowerCase();
+  const actingRole = String(session?.role || '').toLowerCase();
+  const canViewOthers = actingRole === 'manager' || actingRole === 'admin';
   if (scope === 'manager' || scope === 'admin') {
+    if (!canViewOthers) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const approvals = await TargetApproval.find({}).sort({ createdAt: -1 }).limit(50).lean();
     return NextResponse.json({
       ok: true,
@@ -34,6 +39,9 @@ export async function GET(req) {
         note: item.requestNote || ''
       }))
     });
+  }
+  if (targetIdentifier !== userEmail && !canViewOthers) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const profile = await UserProfile.findOne({ identifier: targetIdentifier }).lean();

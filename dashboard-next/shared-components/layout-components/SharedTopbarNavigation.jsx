@@ -189,6 +189,13 @@ export function Topbar({
             >
               Notifications
             </Button>
+            <Button
+              variant="secondary"
+              className="dashboard-topbar-profile-link"
+              onClick={() => router.push('/dashboard/user/profile')}
+            >
+              Go to Profile
+            </Button>
             {showProfileMenu ? (
               <div className="dashboard-topbar-profile-wrap" style={{ position: 'relative' }}>
                 <Button variant="ghost" className="dashboard-topbar-profile" onClick={() => setProfileOpen((prev) => !prev)}>

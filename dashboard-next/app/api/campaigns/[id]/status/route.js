@@ -5,6 +5,7 @@ import Campaign from '@/models/Campaign';
 import { getRunnerState } from '@/lib/campaignRunner';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { computeCampaignDisplayStatus } from '@/core-lib/campaign-engine/CampaignStatusSummary';
+import { ensureRecipientLogsForCampaign, refreshCampaignRollups } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,7 +19,7 @@ const NO_STORE_HEADERS = {
 
 function jsonError({ status = 400, code = 'CAMPAIGN_STATUS_FAILED', message = 'Failed to load campaign status.', campaignId = '', userEmail = '' }) {
   console.error(`[GET /api/campaigns/[id]/status] ${code}: ${message}`, { campaignId, userEmail });
-  return NextResponse.json({ success: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
+  return NextResponse.json({ success: false, ok: false, code, message, error: message }, { status, headers: NO_STORE_HEADERS });
 }
 
 export async function GET(req, { params }) {
@@ -45,13 +46,18 @@ export async function GET(req, { params }) {
       });
     }
 
+    await ensureRecipientLogsForCampaign(campaign).catch(() => {});
+    await refreshCampaignRollups(campaign._id).catch(() => {});
+    campaign = await Campaign.findOne(buildAuthOwnerFilter(auth, { _id: campaignId })).lean();
     const displayStatus = computeCampaignDisplayStatus(campaign);
     campaign = { ...campaign, displayStatus };
     let runner = getRunnerState(String(campaign._id));
 
-    return NextResponse.json({
+    const payload = {
       success: true,
+      ok: true,
       campaign,
+      data: campaign,
       runner,
       status: campaign.status,
       displayStatus,
@@ -69,7 +75,8 @@ export async function GET(req, { params }) {
         queueRequestedAt: campaign?.queueRequestedAt || null,
         queueReason: displayStatus === 'Queued' ? campaign?.queueReason || '' : ''
       }
-    }, { headers: NO_STORE_HEADERS });
+    };
+    return NextResponse.json(payload, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return jsonError({
       status: 500,

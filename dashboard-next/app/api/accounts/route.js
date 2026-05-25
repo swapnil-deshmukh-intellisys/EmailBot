@@ -84,7 +84,7 @@ function toPublicAccount(a) {
     status: a.status || 'Connected',
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
-    sentToday: a.sentToday || 18,
+    sentToday: Number(a.sentToday || 0),
     errors: errorCount,
     health: a.health || 'Good'
   };
@@ -128,7 +128,8 @@ export async function GET(req) {
   if (errorResponse) return errorResponse;
   const url = new URL(req.url);
   const project = String(url.searchParams.get("project") || "").trim().toLowerCase();
-  const cacheKey = `${userEmail}::${project || '__all__'}`;
+  const ownedOnly = ['1', 'true', 'yes'].includes(String(url.searchParams.get('owned') || url.searchParams.get('ownedOnly') || '').trim().toLowerCase());
+  const cacheKey = `${userEmail}::${project || '__all__'}::${ownedOnly ? 'owned' : 'all'}`;
   const cache = getAccountsCache();
   const now = Date.now();
   const cached = cache.get(cacheKey);
@@ -159,7 +160,7 @@ export async function GET(req) {
     status: a.status || 'Connected',
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
-    sentToday: a.sentToday || 18,
+    sentToday: Number(a.sentToday || 0),
     errors: Number(a?.errorCount ?? a?.errors ?? 0) || 0,
     health: a.health || 'Good'
   }));
@@ -172,7 +173,7 @@ export async function GET(req) {
     status: a.status || 'Connected',
     lastSync: a.lastSync || a.updatedAt || a.createdAt || null,
     dailyLimit: a.dailyLimit || 250,
-    sentToday: a.sentToday || 18,
+    sentToday: Number(a.sentToday || 0),
     errors: Number(a?.errorCount ?? a?.errors ?? 0) || 0,
     health: a.health || 'Good'
   }));
@@ -202,7 +203,7 @@ export async function GET(req) {
       status: graphAppReady ? "Connected" : "Not connected",
       lastSync: graphAppReady ? new Date().toISOString() : null,
       dailyLimit: 250,
-      sentToday: 18,
+      sentToday: 0,
       errors: 0,
       health: graphAppReady ? "Good" : "Needs setup"
     }));
@@ -219,12 +220,14 @@ export async function GET(req) {
       status: graphAppReady ? "Connected" : "Not connected",
       lastSync: graphAppReady ? new Date().toISOString() : null,
       dailyLimit: 250,
-      sentToday: 18,
+      sentToday: 0,
       errors: 0,
       health: graphAppReady ? "Good" : "Needs setup"
     }));
 
-  let accounts = [...envAccounts, ...oauthPublic, ...dbPublic, ...dbPresetPublic, ...presetPublic];
+  let accounts = ownedOnly
+    ? [...oauthPublic, ...dbPublic]
+    : [...envAccounts, ...oauthPublic, ...dbPublic, ...dbPresetPublic, ...presetPublic];
   if ((project === "tec" || project === "tut") && presetEmails.length) {
     const allowed = new Set(presetEmails);
     accounts = accounts.filter((a) => {
@@ -291,7 +294,7 @@ export async function POST(req) {
         status: created.status || 'Connected',
         lastSync: created.lastSync || created.updatedAt || created.createdAt || null,
         dailyLimit: created.dailyLimit || 250,
-        sentToday: created.sentToday || 18,
+        sentToday: Number(created.sentToday || 0),
         errors: Number(created?.errorCount ?? created?.errors ?? 0) || 0,
         health: created.health || 'Good'
       }

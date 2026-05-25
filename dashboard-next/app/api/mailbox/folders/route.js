@@ -6,7 +6,8 @@ import {
   graphRequest,
   normalizeFolder,
   normalizeGraphError,
-  serializeMailboxAccount
+  serializeMailboxAccount,
+  summarizeMailboxFolders
 } from '@/core-lib/mail-engine/MicrosoftGraphMailboxService';
 
 async function fetchFolderChildren(account, folderId, depth = 0) {
@@ -59,6 +60,8 @@ export async function GET(req) {
       success: true,
       connected: true,
       account: serializeMailboxAccount(account),
+      folderCounts: summarizeMailboxFolders(allFolders),
+      mailCounts: summarizeMailboxFolders(allFolders),
       folders: allFolders
     });
   } catch (error) {

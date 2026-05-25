@@ -3,10 +3,12 @@ import { requireAuth } from '@/core-lib/auth-config/ApiAuthGuard';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 import {
   getCurrentUserMailboxAccount,
+  getMailboxUserEmail,
   graphRequest,
   normalizeFolder,
   normalizeMessage,
-  serializeMailboxAccount
+  serializeMailboxAccount,
+  summarizeMailboxFolders
 } from '@/core-lib/mail-engine/MicrosoftGraphMailboxService';
 
 const DEFAULT_FOLDER_ORDER = ['inbox', 'sentitems', 'drafts', 'deleteditems', 'junkemail', 'archive'];
@@ -29,8 +31,9 @@ export async function GET(req) {
   try {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
+    const userEmail = getMailboxUserEmail(auth);
 
-    const warmupSetting = await getWarmupAutoReplySetting(auth.userEmail, { lean: true });
+    const warmupSetting = await getWarmupAutoReplySetting(userEmail, { lean: true });
     const account = await getCurrentUserMailboxAccount(auth).catch((error) => {
       if (error?.code === 'MAILBOX_NOT_CONNECTED') return null;
       throw error;
@@ -46,7 +49,7 @@ export async function GET(req) {
       });
     }
 
-    const warmupRun = await processWarmupAutoReplies(auth.userEmail).catch(() => null);
+    const warmupRun = await processWarmupAutoReplies(userEmail).catch(() => null);
     const folderData = await graphRequest(
       account,
       '/me/mailFolders?$top=100&$select=id,displayName,wellKnownName,totalItemCount,unreadItemCount,childFolderCount'
@@ -93,12 +96,15 @@ export async function GET(req) {
         flag: message.flag || null
       }))
     );
+    const folderCounts = summarizeMailboxFolders(folderResults);
 
     return NextResponse.json({
       connected: true,
       account: serializeMailboxAccount(account),
       warmupAutoReply: warmupSetting || null,
       warmupRun,
+      folderCounts,
+      mailCounts: folderCounts,
       folders: folderResults.map(({ messages: folderMessages, ...folder }) => folder),
       messages
     });

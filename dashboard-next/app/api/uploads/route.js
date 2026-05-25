@@ -117,118 +117,138 @@ function dedupeLeadsByEmail(leads = []) {
 }
 
 export async function POST(req) {
+  let userEmail = '';
   const auth = await requireAuth(req);
   if (auth.errorResponse) return auth.errorResponse;
-  const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-  await connectDB();
+  userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
 
-  if (!checkUploadRateLimit(req, userEmail)) {
-    return NextResponse.json(
-      { error: 'Too many uploads. Please wait a minute before trying again.' },
-      { status: 429 }
-    );
+  try {
+    await connectDB();
+
+    if (!checkUploadRateLimit(req, userEmail)) {
+      console.warn('[uploads:rate-limit]', { userEmail });
+      return NextResponse.json(
+        { ok: false, error: 'Too many uploads. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
+    }
+
+    const form = await req.formData();
+    const file = form.get('file');
+
+    if (!file) {
+      console.warn('[uploads:missing-file]', { userEmail });
+      return NextResponse.json({ ok: false, error: 'No file uploaded' }, { status: 400 });
+    }
+
+    const fileName = file.name || 'upload';
+    const extension = getFileExtension(fileName);
+    const mimeType = String(file.type || '').trim().toLowerCase();
+
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      console.warn('[uploads:bad-extension]', { userEmail, fileName, extension });
+      return NextResponse.json({ ok: false, error: 'Only .xlsx and .csv files are allowed' }, { status: 400 });
+    }
+
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      console.warn('[uploads:bad-mime]', { userEmail, fileName, mimeType });
+      return NextResponse.json({ ok: false, error: 'Unsupported file type' }, { status: 400 });
+    }
+
+    if (typeof file.size === 'number' && file.size > MAX_UPLOAD_BYTES) {
+      console.warn('[uploads:file-too-large]', { userEmail, fileName, size: file.size });
+      return NextResponse.json(
+        { ok: false, error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
+        { status: 400 }
+      );
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    if (buffer.length > MAX_UPLOAD_BYTES) {
+      console.warn('[uploads:buffer-too-large]', { userEmail, fileName, size: buffer.length });
+      return NextResponse.json(
+        { ok: false, error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
+        { status: 400 }
+      );
+    }
+
+    const workbook = XLSX.read(buffer, {
+      type: 'buffer',
+      dense: false,
+      cellFormula: false,
+      cellHTML: false
+    });
+    const firstSheet = workbook.SheetNames[0];
+    if (!firstSheet || !workbook.Sheets[firstSheet]) {
+      console.warn('[uploads:no-readable-sheet]', { userEmail, fileName });
+      return NextResponse.json({ ok: false, error: 'Uploaded file does not contain a readable sheet' }, { status: 400 });
+    }
+
+    const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+    if (rawRows.length > MAX_ROWS) {
+      console.warn('[uploads:too-many-rows]', { userEmail, fileName, rowCount: rawRows.length });
+      return NextResponse.json(
+        { ok: false, error: `Too many rows. Maximum allowed rows is ${MAX_ROWS}.` },
+        { status: 400 }
+      );
+    }
+
+    const rows = rawRows.map((row) => normalizeRow(row).data);
+    const columns = extractColumns(rows);
+
+    if (columns.length > MAX_COLUMNS) {
+      console.warn('[uploads:too-many-columns]', { userEmail, fileName, columnCount: columns.length });
+      return NextResponse.json(
+        { ok: false, error: `Too many columns. Maximum allowed columns is ${MAX_COLUMNS}.` },
+        { status: 400 }
+      );
+    }
+
+    const leads = dedupeLeadsByEmail(rows
+      .map(normalizeRow)
+      .filter((row) => row.Email && String(row.Email).includes('@')));
+
+    if (!leads.length) {
+      console.warn('[uploads:no-valid-leads]', { userEmail, fileName, totalRows: rawRows.length });
+      return NextResponse.json({ ok: false, error: 'No valid leads with Email found in file' }, { status: 400 });
+    }
+
+    const list = await LeadList.create({
+      userId: auth.currentUser._id,
+      userEmail,
+      name: `${fileName} - ${new Date().toLocaleString()}`,
+      sourceFile: fileName,
+      kind: 'uploaded',
+      columns,
+      sheetStyle: {
+        fontFamily: 'Segoe UI',
+        fontSize: 14,
+        headerBg: '#edf2f7',
+        headerColor: '#1e293b',
+        cellBg: '#ffffff',
+        cellColor: '#0f172a',
+        columnWidths: {}
+      },
+      leads
+    });
+
+    const responseData = {
+      listId: String(list._id),
+      totalRows: rawRows.length,
+      validRows: leads.length,
+      count: leads.length,
+      previewColumns: columns,
+      previewRows: rows,
+      sheetStyle: list.sheetStyle,
+      preview: leads
+    };
+    console.info('[uploads:success]', { userEmail, fileName, listId: responseData.listId, totalRows: rawRows.length, validRows: leads.length });
+    return NextResponse.json({ ok: true, success: true, data: responseData, ...responseData });
+  } catch (error) {
+    console.error('[uploads:failed]', { userEmail, message: error?.message || 'Upload failed', stack: error?.stack || '' });
+    return NextResponse.json({ ok: false, success: false, error: error?.message || 'Upload failed' }, { status: 500 });
   }
-
-  const form = await req.formData();
-  const file = form.get('file');
-
-  if (!file) {
-    return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
-  }
-
-  const fileName = file.name || 'upload';
-  const extension = getFileExtension(fileName);
-  const mimeType = String(file.type || '').trim().toLowerCase();
-
-  if (!ALLOWED_EXTENSIONS.has(extension)) {
-    return NextResponse.json({ error: 'Only .xlsx and .csv files are allowed' }, { status: 400 });
-  }
-
-  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-    return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
-  }
-
-  if (typeof file.size === 'number' && file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json(
-      { error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
-      { status: 400 }
-    );
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  if (buffer.length > MAX_UPLOAD_BYTES) {
-    return NextResponse.json(
-      { error: `File is too large. Maximum upload size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.` },
-      { status: 400 }
-    );
-  }
-
-  const workbook = XLSX.read(buffer, {
-    type: 'buffer',
-    dense: false,
-    cellFormula: false,
-    cellHTML: false
-  });
-  const firstSheet = workbook.SheetNames[0];
-  if (!firstSheet || !workbook.Sheets[firstSheet]) {
-    return NextResponse.json({ error: 'Uploaded file does not contain a readable sheet' }, { status: 400 });
-  }
-
-  const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
-  if (rawRows.length > MAX_ROWS) {
-    return NextResponse.json(
-      { error: `Too many rows. Maximum allowed rows is ${MAX_ROWS}.` },
-      { status: 400 }
-    );
-  }
-
-  const rows = rawRows.map((row) => normalizeRow(row).data);
-  const columns = extractColumns(rows);
-
-  if (columns.length > MAX_COLUMNS) {
-    return NextResponse.json(
-      { error: `Too many columns. Maximum allowed columns is ${MAX_COLUMNS}.` },
-      { status: 400 }
-    );
-  }
-
-  const leads = dedupeLeadsByEmail(rows
-    .map(normalizeRow)
-    .filter((row) => row.Email && String(row.Email).includes('@')));
-
-  if (!leads.length) {
-    return NextResponse.json({ error: 'No valid leads with Email found in file' }, { status: 400 });
-  }
-
-  const list = await LeadList.create({
-    userId: auth.currentUser._id,
-    userEmail,
-    name: `${fileName} - ${new Date().toLocaleString()}`,
-    sourceFile: fileName,
-    kind: 'uploaded',
-    columns,
-    sheetStyle: {
-      fontFamily: 'Segoe UI',
-      fontSize: 14,
-      headerBg: '#edf2f7',
-      headerColor: '#1e293b',
-      cellBg: '#ffffff',
-      cellColor: '#0f172a',
-      columnWidths: {}
-    },
-    leads
-  });
-
-  return NextResponse.json({
-    ok: true,
-    listId: String(list._id),
-    count: leads.length,
-    previewColumns: columns,
-    previewRows: rows,
-    sheetStyle: list.sheetStyle,
-    preview: leads
-  });
 }
 
 export async function GET(req) {

@@ -131,6 +131,52 @@ export function normalizeFolder(folder = {}) {
   };
 }
 
+function normalizeFolderKey(folder = {}) {
+  return String(folder.wellKnownName || folder.displayName || folder.label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
+export function summarizeMailboxFolders(folders = []) {
+  const counts = {
+    total: 0,
+    unread: 0,
+    read: 0,
+    open: 0,
+    inbox: 0,
+    sent: 0,
+    drafts: 0,
+    deleted: 0,
+    archive: 0,
+    junk: 0,
+    spam: 0
+  };
+
+  folders.forEach((folder) => {
+    const total = Number(folder.totalItemCount ?? folder.count ?? 0) || 0;
+    const unread = Number(folder.unreadItemCount ?? 0) || 0;
+    const read = Math.max(0, total - unread);
+    const key = normalizeFolderKey(folder);
+
+    counts.total += total;
+    counts.unread += unread;
+    counts.read += read;
+    counts.open += read;
+
+    if (key === 'inbox') counts.inbox += total;
+    if (key === 'sentitems' || key === 'sent') counts.sent += total;
+    if (key === 'drafts' || key === 'draft') counts.drafts += total;
+    if (key === 'deleteditems' || key === 'deleted' || key === 'trash') counts.deleted += total;
+    if (key === 'archive') counts.archive += total;
+    if (key === 'junkemail' || key === 'junk' || key.includes('junk')) counts.junk += total;
+    if (key === 'spam' || key.includes('spam')) counts.spam += total;
+  });
+
+  if (!counts.spam) counts.spam = counts.junk;
+  return counts;
+}
+
 export function normalizeMessage(message = {}, folder = null) {
   const from = message.from?.emailAddress || {};
   const sender = message.sender?.emailAddress || {};

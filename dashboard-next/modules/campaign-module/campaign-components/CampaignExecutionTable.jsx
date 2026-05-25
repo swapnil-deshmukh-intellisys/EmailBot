@@ -77,8 +77,9 @@ function CampaignTable({
             </TableHeader>
             <TableBody>
               {campaigns.map((campaign, idx) => {
-                const total = campaign.stats?.total || 0;
-                const sent = campaign.stats?.sent || 0;
+                const total = Number(campaign.totalRecipients ?? campaign.stats?.total ?? 0);
+                const sent = Number(campaign.sentCount ?? campaign.stats?.sent ?? 0);
+                const failed = Number(campaign.failedCount ?? campaign.stats?.failed ?? 0);
                 const percent = total ? Math.round((sent / total) * 100) : 0;
                 const timeLabel = getCampaignTimeLabel(campaign);
                 const isChecked = selectedIds.includes(campaign._id);
@@ -122,7 +123,7 @@ function CampaignTable({
                       <div className="progress"><div style={{ width: `${percent}%` }} /></div>
                       <small>{percent}%</small>
                     </TableCell>
-                    <TableCell>{sent}/{total} sent, {campaign.stats?.failed || 0} failed</TableCell>
+                    <TableCell>{sent}/{total} sent, {failed} failed</TableCell>
                     <TableCell className="ui-table-actions-cell">
                       <div className="ui-table-actions">
                         <Button size="sm" onClick={() => onStart(campaign._id)}>Start</Button>

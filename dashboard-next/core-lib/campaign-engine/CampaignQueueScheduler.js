@@ -17,6 +17,13 @@ const schedulerState =
   });
 const WORKER_LOCK_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 10 * 60 * 1000));
 
+export function isInAppCampaignSchedulerEnabled() {
+  const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
+  if (configured === 'true') return true;
+  if (configured === 'false') return false;
+  return true;
+}
+
 async function recoverStaleCampaigns(now = new Date()) {
   const staleBefore = new Date(now.getTime() - WORKER_LOCK_STALE_MS);
   const staleCampaigns = await Campaign.find({
@@ -153,6 +160,7 @@ export function initCampaignScheduler() {
 
 export function getCampaignSchedulerState() {
   return {
+    enabled: isInAppCampaignSchedulerEnabled(),
     started: Boolean(schedulerState.started),
     startedAt: schedulerState.startedAt || null,
     lastTickAt: schedulerState.lastTickAt || null,

@@ -13,30 +13,37 @@ function formatDate(value) {
 export default function LeadsPage() {
   const [pipeline, setPipeline] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [creatingCampaignId, setCreatingCampaignId] = useState('');
 
-  useEffect(() => {
-    let active = true;
-    const loadPipeline = async () => {
+  const loadPipeline = async ({ silent = false } = {}) => {
       try {
-        setLoading(true);
-        const response = await fetch('/api/leads/pipeline?limit=5000', { cache: 'no-store' });
+        if (silent) setRefreshing(true);
+        else setLoading(true);
+        const response = await fetch(`/api/leads/pipeline?limit=5000&t=${Date.now()}`, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to load leads');
-        if (!active) return;
         setPipeline(Array.isArray(data.stages) ? data.stages : []);
         setError('');
+        if (silent) setMessage('Lead data refreshed.');
       } catch (err) {
-        if (!active) return;
         setError(err.message || 'Failed to load leads');
         setPipeline([]);
       } finally {
-        if (active) setLoading(false);
+        setLoading(false);
+        setRefreshing(false);
       }
     };
-    void loadPipeline();
+
+  useEffect(() => {
+    let active = true;
+    const guardedLoad = async () => {
+      if (!active) return;
+      await loadPipeline();
+    };
+    void guardedLoad();
     return () => {
       active = false;
     };
@@ -88,7 +95,9 @@ export default function LeadsPage() {
             <p>Track received replies, next follow-ups, and sales stages in a CRM-style board.</p>
           </div>
           <div className="user-dashboard-actions">
-            <Button variant="secondary" onClick={() => window.location.reload()}>Refresh</Button>
+            <Button variant="secondary" loading={refreshing} onClick={() => loadPipeline({ silent: true })}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
           </div>
         </div>
 

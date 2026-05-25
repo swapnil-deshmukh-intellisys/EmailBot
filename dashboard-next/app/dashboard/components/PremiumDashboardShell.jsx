@@ -7,10 +7,30 @@ import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraf
 import {
   buildScheduledDateTimeInZone,
   isFutureScheduledDate,
+  normalizeScheduleDateValue,
   normalizeDurationUnit
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 import { DRAFT_TYPE_ITEMS, draftTypeLabel, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
+
+const MAX_SCHEDULE_DELAY_MINUTES = 1440;
+const MAX_SCHEDULE_DELAY_HOURS = 24;
+const MAX_SCHEDULE_DELAY_SECONDS = 86400;
+
+function getDelayInputLimit(unit = 'minutes') {
+  const normalizedUnit = normalizeDurationUnit(unit);
+  if (normalizedUnit === 'hours') return MAX_SCHEDULE_DELAY_HOURS;
+  if (normalizedUnit === 'seconds') return MAX_SCHEDULE_DELAY_SECONDS;
+  return MAX_SCHEDULE_DELAY_MINUTES;
+}
+
+function normalizeDelayInputValue(value, unit = 'minutes') {
+  const rawValue = String(value ?? '').trim();
+  if (!rawValue) return '';
+  const numeric = Math.floor(Number(rawValue));
+  if (!Number.isFinite(numeric)) return '';
+  return String(Math.max(1, Math.min(getDelayInputLimit(unit), numeric)));
+}
 
 function getTemplateForDraftType(value = '') {
   const draftType = normalizeDraftType(value);
@@ -412,6 +432,7 @@ export default function PremiumDashboardShell({
   projectOptions = [],
   barChartMetrics,
   logs,
+  workspaceOverviewItems = [],
   activeCampaign = null,
   activeCampaignProgressText = '0/0 emails sent',
   lists = [],
@@ -759,8 +780,11 @@ export default function PremiumDashboardShell({
   const [noteTag, setNoteTag] = useState('');
   const [quickNotes, setQuickNotes] = useState([]);
   const [sendMode, setSendMode] = useState(initialScheduleMode || 'send_now');
-  const [clientListTab, setClientListTab] = useState('upload');
+  const [clientListTab, setClientListTab] = useState('custom');
   const [clientListName, setClientListName] = useState('');
+  const [selectedUploadFileName, setSelectedUploadFileName] = useState('');
+  const [uploadedListId, setUploadedListId] = useState('');
+  const [clientListUploading, setClientListUploading] = useState(false);
   const [selectedUploadedList, setSelectedUploadedList] = useState('');
   const [selectedCustomList, setSelectedCustomList] = useState('');
   const [overviewFilter, setOverviewFilter] = useState('all');
@@ -768,6 +792,8 @@ export default function PremiumDashboardShell({
   const [editingCell, setEditingCell] = useState(null);
   const [columnMappings, setColumnMappings] = useState([]);
   const [overviewRows, setOverviewRows] = useState([]);
+  const [reviewLocalColumns, setReviewLocalColumns] = useState([]);
+  const [selectedOverviewRowIds, setSelectedOverviewRowIds] = useState([]);
   const [selectedOverviewColumns, setSelectedOverviewColumns] = useState([]);
   const [mappingCollapsed, setMappingCollapsed] = useState(false);
   const [showClientListSelectionNote, setShowClientListSelectionNote] = useState(false);
@@ -798,6 +824,9 @@ export default function PremiumDashboardShell({
   const [campaignAbTesting, setCampaignAbTesting] = useState(true);
   const [selectDraftTab, setSelectDraftTab] = useState('my-drafts');
   const [showDraftTypeDropdown, setShowDraftTypeDropdown] = useState(false);
+  const [draftTypeLibraryOpen, setDraftTypeLibraryOpen] = useState(false);
+  const [draftUploadedFileName, setDraftUploadedFileName] = useState('');
+  const [draftUploadedText, setDraftUploadedText] = useState('');
   const [showProgressFilterDropdown, setShowProgressFilterDropdown] = useState(false);
   const [progressFilterOptions, setProgressFilterOptions] = useState([
     { label: 'Day Wise', value: 'today' },
@@ -815,11 +844,12 @@ export default function PremiumDashboardShell({
   const workflowShellRef = useRef(null);
   const broadcastPerformanceRef = useRef(null);
   const draftTypeDropdownRef = useRef(null);
+  const draftFileInputRef = useRef(null);
   const draftTypeItems = DRAFT_TYPE_ITEMS;
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
-  const draftViewerText = '';
+  const draftViewerText = draftUploadedText;
   const effectiveDraftSubject = controlledDraftSubject ?? draftSubject;
   const effectiveDraftMessage = controlledDraftBody ?? draftMessage;
   const effectiveCampaignName = controlledCampaignName ?? campaignName;
@@ -1087,11 +1117,7 @@ export default function PremiumDashboardShell({
         updated: 'Saved draft'
       }))
     : savedDrafts;
-  const filteredSavedDrafts = useMemo(() => {
-    const target = selectedDraftType ? normalizeDraftType(selectedDraftType) : '';
-    if (!target) return [];
-    return effectiveSavedDrafts.filter((item) => inferDraftTypeFromDraft(item) === target);
-  }, [effectiveSavedDrafts, selectedDraftType]);
+  const filteredSavedDrafts = useMemo(() => effectiveSavedDrafts, [effectiveSavedDrafts]);
   const draftTypeCounts = useMemo(() => {
     return draftTypeItems.reduce((counts, item) => {
       counts[item.value] = effectiveSavedDrafts.filter((draft) => inferDraftTypeFromDraft(draft) === item.value).length;
@@ -1115,6 +1141,11 @@ export default function PremiumDashboardShell({
   const selectedDraftPreviewBody = String(
     selectedPreviewDraft?.body || ''
   ).trim();
+  const relatedDraftsForSelectedType = useMemo(() => {
+    const target = selectedDraftType ? normalizeDraftType(selectedDraftType) : '';
+    if (!target) return [];
+    return effectiveSavedDrafts.filter((item) => inferDraftTypeFromDraft(item) === target);
+  }, [effectiveSavedDrafts, selectedDraftType]);
   useEffect(() => {
     if (!templateDraftForSelectedType) return;
     const hasDraftContent =
@@ -1540,31 +1571,39 @@ export default function PremiumDashboardShell({
     const columns = previewColumns.length
       ? previewColumns
       : Array.from(new Set(previewRows.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
+    const mergedColumns = Array.from(new Set([...columns, ...reviewLocalColumns]));
     setColumnMappings(
-      columns.map((column) => ({
-        sheetColumn: column,
-        mappedField: /email/i.test(column)
-          ? 'Email'
-          : /name/i.test(column)
-            ? 'Name'
-            : /company/i.test(column)
-              ? 'Company'
-              : /phone|mobile/i.test(column)
-                ? 'Phone'
-                : /city/i.test(column)
-                  ? 'City'
-                  : 'Ignore',
-        sample: String(previewRows.find((row) => row?.[column])?.[column] || ''),
-        status: /email|name|company|phone|city/i.test(column) ? 'success' : 'warning'
-      }))
+      mergedColumns.map((column) => {
+        const isAddedColumn = reviewLocalColumns.includes(column);
+        const mappedField = isAddedColumn
+          ? 'Notes'
+          : /email/i.test(column)
+            ? 'Email'
+            : /name/i.test(column)
+              ? 'Name'
+              : /company/i.test(column)
+                ? 'Company'
+                : /phone|mobile/i.test(column)
+                  ? 'Phone'
+                  : /city/i.test(column)
+                    ? 'City'
+                    : 'Ignore';
+        return {
+          sheetColumn: column,
+          mappedField,
+          sample: String(previewRows.find((row) => row?.[column])?.[column] || ''),
+          status: mappedField === 'Ignore' ? 'warning' : 'success'
+        };
+      })
     );
     setOverviewRows(
       previewRows.map((row, index) => ({
         id: index + 1,
+        ...Object.fromEntries(reviewLocalColumns.map((column) => [column, ''])),
         ...row
       }))
     );
-  }, [previewColumns, previewRows]);
+  }, [previewColumns, previewRows, reviewLocalColumns]);
 
 
   useEffect(() => {
@@ -1600,6 +1639,8 @@ export default function PremiumDashboardShell({
     if (!templateDraft) return false;
     onDraftSubjectChange ? onDraftSubjectChange(templateDraft.subject) : setDraftSubject(templateDraft.subject);
     onDraftBodyChange ? onDraftBodyChange(templateDraft.body) : setDraftMessage(templateDraft.body);
+    setDraftUploadedText(String(templateDraft.body || '').replace(/<[^>]*>/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
+    setDraftUploadedFileName(templateDraft.title || 'Template draft');
     return true;
   };
 
@@ -1607,6 +1648,7 @@ export default function PremiumDashboardShell({
     const nextValue = normalizeDraftType(value);
     const firstMatchingDraft = effectiveSavedDrafts.find((draft) => inferDraftTypeFromDraft(draft) === nextValue);
     setSelectDraftTab('my-drafts');
+    setDraftTypeLibraryOpen(true);
     setSelectedDraftId(firstMatchingDraft?.id || '');
     onSelectedDraftTypeChange?.(nextValue);
     onSelectSavedDraft?.(firstMatchingDraft?.id || '');
@@ -1617,12 +1659,52 @@ export default function PremiumDashboardShell({
   };
 
   const handleCreateDraftClick = () => {
-    if (!String(selectedDraftType || '').trim()) {
-      onShowMessage?.('Select a draft type before creating a new draft.', 'info');
-      setShowDraftTypeDropdown(true);
-      return;
-    }
+    setDraftTypeLibraryOpen(false);
+    setShowDraftTypeDropdown(false);
     setSelectDraftTab('create');
+  };
+
+  const loadDraftIntoEditor = (draft) => {
+    if (!draft) return;
+    onSelectedDraftTypeChange?.(normalizeDraftType(draft.draftType || draft.category || selectedDraftType));
+    setSelectedDraftId(draft.id || '');
+    onSelectSavedDraft?.(draft.id || '');
+    if (onDraftSubjectChange) {
+      onDraftSubjectChange(draft.subject || '');
+    } else {
+      setDraftSubject(draft.subject || '');
+    }
+    if (onDraftBodyChange) {
+      onDraftBodyChange(draft.body || '');
+    } else {
+      setDraftMessage(draft.body || '');
+    }
+    setDraftUploadedText(String(draft.body || '').replace(/<[^>]*>/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
+    setDraftUploadedFileName(draft.title || 'Saved draft');
+  };
+
+  const handleDraftFileUpload = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    setDraftUploadedFileName(file.name);
+    try {
+      const text = await file.text();
+      setDraftUploadedText(text);
+      if (!String(effectiveDraftSubject || '').trim()) {
+        const subjectFromName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        if (onDraftSubjectChange) {
+          onDraftSubjectChange(subjectFromName);
+        } else {
+          setDraftSubject(subjectFromName);
+        }
+      }
+      onShowMessage?.(`${file.name} uploaded to draft viewer.`, 'success');
+    } catch (error) {
+      setDraftUploadedText('');
+      onShowMessage?.('Could not read this file in the browser. Try TXT, HTML, or paste the content manually.', 'warning');
+    } finally {
+      if (event.target) event.target.value = '';
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -1691,13 +1773,18 @@ export default function PremiumDashboardShell({
   };
 
   const toggleAllRows = () => {
+    const visibleIds = paginatedCampaigns.map((item) => item.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedRows.includes(id));
     setSelectedRows((current) =>
-      current.length === paginatedCampaigns.length ? [] : paginatedCampaigns.map((item) => item.id)
+      allVisibleSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds]))
     );
   };
 
   const handleWorkflowAction = (step, event) => {
     if (step.action === 'Upload List' || step.title === 'Upload List') {
+      setClientListTab('custom');
       openAnchoredPopup('clientList', setShowClientListPopup)(event);
       return;
     }
@@ -1828,7 +1915,7 @@ export default function PremiumDashboardShell({
     [columnMappings]
   );
   const overviewGridTemplate = useMemo(
-    () => `56px repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(150px, 1fr)) 96px`,
+    () => `48px 56px repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(150px, 1fr))`,
     [activeOverviewColumns.length]
   );
   const emailMapping = useMemo(
@@ -1886,27 +1973,69 @@ export default function PremiumDashboardShell({
       return matchesFilter && matchesSearch;
     });
   }, [overviewFilter, overviewRows, overviewSearch, rowIssues]);
-  const allVisibleOverviewColumnsSelected =
-    activeOverviewColumns.length > 0 && activeOverviewColumns.every((column) => selectedOverviewColumns.includes(column.sheetColumn));
+  const visibleOverviewRowIds = filteredOverviewRows.map((row) => row.id);
+  const allVisibleOverviewRowsSelected =
+    visibleOverviewRowIds.length > 0 && visibleOverviewRowIds.every((id) => selectedOverviewRowIds.includes(id));
 
-  const toggleOverviewColumnSelection = (columnName) => {
-    setSelectedOverviewColumns((current) =>
-      current.includes(columnName) ? current.filter((name) => name !== columnName) : [...current, columnName]
+  const toggleOverviewRowSelection = (rowId) => {
+    setSelectedOverviewRowIds((current) =>
+      current.includes(rowId) ? current.filter((id) => id !== rowId) : [...current, rowId]
     );
   };
 
-  const toggleAllOverviewColumns = () => {
-    const visibleColumns = activeOverviewColumns.map((column) => column.sheetColumn);
-    setSelectedOverviewColumns((current) =>
-      allVisibleOverviewColumnsSelected
-        ? current.filter((name) => !visibleColumns.includes(name))
-        : Array.from(new Set([...current, ...visibleColumns]))
+  const toggleAllOverviewRows = () => {
+    setSelectedOverviewRowIds((current) =>
+      allVisibleOverviewRowsSelected
+        ? current.filter((id) => !visibleOverviewRowIds.includes(id))
+        : Array.from(new Set([...current, ...visibleOverviewRowIds]))
     );
   };
 
-  const deleteSelectedOverviewColumns = () => {
-    selectedOverviewColumns.forEach((columnName) => onPreviewDeleteColumn?.(columnName));
-    setSelectedOverviewColumns([]);
+  const deleteSelectedOverviewRows = () => {
+    if (!selectedOverviewRowIds.length) return;
+    [...selectedOverviewRowIds]
+      .sort((left, right) => right - left)
+      .forEach((rowId) => onPreviewDeleteRow?.(rowId - 1));
+    setSelectedOverviewRowIds([]);
+  };
+
+  const addOverviewRow = (afterRowId = null) => {
+    const sourceIndex = Number.isFinite(Number(afterRowId)) ? Number(afterRowId) - 1 : null;
+    const insertIndex = Number.isInteger(sourceIndex)
+      ? Math.max(0, Math.min(overviewRows.length, sourceIndex + 1))
+      : overviewRows.length;
+    const blankRow = Object.fromEntries(activeOverviewColumns.map((column) => [column.sheetColumn, '']));
+
+    // Keep the review grid responsive immediately, then delegate to the parent preview state for persistence.
+    setOverviewRows((current) => {
+      const nextRows = [...current.slice(0, insertIndex), blankRow, ...current.slice(insertIndex)];
+      return nextRows.map((row, index) => ({ ...row, id: index + 1 }));
+    });
+    onPreviewAddRow?.(sourceIndex);
+  };
+
+  const addOverviewColumn = () => {
+    const existingColumns = columnMappings.map((item) => item.sheetColumn);
+    let nextIndex = existingColumns.length + 1;
+    let nextName = `Column${nextIndex}`;
+    while (existingColumns.includes(nextName)) {
+      nextIndex += 1;
+      nextName = `Column${nextIndex}`;
+    }
+    const nextMapping = {
+      sheetColumn: nextName,
+      mappedField: 'Notes',
+      sample: '',
+      status: 'success'
+    };
+
+    // Update local mapping and rows before the parent preview props round-trip back into this modal.
+    setReviewLocalColumns((current) => current.includes(nextName) ? current : [...current, nextName]);
+    setColumnMappings((current) =>
+      current.some((item) => item.sheetColumn === nextName) ? current : [...current, nextMapping]
+    );
+    setOverviewRows((current) => current.map((row) => ({ ...row, [nextName]: '' })));
+    onPreviewAddColumn?.(nextName);
   };
 
   useEffect(() => {
@@ -1914,17 +2043,31 @@ export default function PremiumDashboardShell({
     setSelectedOverviewColumns((current) => current.filter((name) => columnNames.has(name)));
   }, [activeOverviewColumns]);
 
+  useEffect(() => {
+    const rowIds = new Set(overviewRows.map((row) => row.id));
+    setSelectedOverviewRowIds((current) => current.filter((id) => rowIds.has(id)));
+  }, [overviewRows]);
+
   const canContinueClientList =
     clientListTab === 'upload'
-      ? Boolean(selectedListId)
+      ? Boolean(selectedListId || uploadedListId)
       : clientListTab === 'uploaded'
         ? Boolean(selectedUploadedList)
         : Boolean(selectedCustomList);
+  const hasPickedUploadFile = Boolean(String(selectedUploadFileName || clientListName || '').trim());
+  const clientListActionReady = canContinueClientList || clientListUploading;
+  const displayedClientListName = selectedListName || selectedUploadFileName || clientListName || 'No file selected yet';
 
   const handleClientListNext = async () => {
+    if (clientListUploading) {
+      setShowClientListSelectionNote(true);
+      onShowMessage?.('File upload is still finishing. Please wait a moment.', 'info');
+      return;
+    }
+
     const selectedList =
       clientListTab === 'upload'
-        ? selectedListId
+        ? (selectedListId || uploadedListId)
         : clientListTab === 'uploaded'
           ? selectedUploadedList
         : clientListTab === 'custom'
@@ -1976,7 +2119,7 @@ export default function PremiumDashboardShell({
     setSelectedUploadedList('');
     setSelectedCustomList('');
     setShowClientListSelectionNote(false);
-    setClientListTab('upload');
+    setClientListTab('custom');
     setShowOverviewPopup(false);
     setShowClientListPopup(true);
   };
@@ -2010,20 +2153,36 @@ export default function PremiumDashboardShell({
     }
   }, [hasDraftRequiredFields, showDraftContinueWarning]);
   const normalizedScheduleCountry = String(scheduledCountry || 'India').trim() || 'India';
+  const userFacingDurationUnit = normalizeDurationUnit(durationUnit === 'seconds' ? 'minutes' : durationUnit);
+  const delayInputLimit = getDelayInputLimit(userFacingDurationUnit);
+  const rawDisplayedDelayInterval = durationUnit === 'seconds'
+    ? Math.max(1, Math.ceil(Number(delaySeconds || 60) / 60))
+    : Number(delaySeconds);
+  const displayedDelayInterval = normalizeDelayInputValue(
+    rawDisplayedDelayInterval,
+    userFacingDurationUnit
+  );
   const scheduleDraftPayload = useMemo(() => {
     const normalizedMode = sendMode === 'scheduled' ? 'scheduled' : 'send_now';
-    const normalizedUnit = normalizeDurationUnit(durationUnit);
+    const normalizedUnit = normalizeDurationUnit(durationUnit === 'seconds' ? 'minutes' : durationUnit);
     const numericBatchSize = Math.max(1, Math.floor(Number(batchSize) || 1));
-    const numericDelayInterval = Math.max(1, Math.floor(Number(delaySeconds) || 1));
+    const numericDelayInterval = Math.min(
+      getDelayInputLimit(normalizedUnit),
+      Math.max(
+        1,
+        Math.floor(durationUnit === 'seconds' ? Math.ceil(Number(delaySeconds || 60) / 60) : Number(delaySeconds) || 1)
+      )
+    );
+    const normalizedScheduledDate = normalizeScheduleDateValue(scheduledDateValue);
     const scheduledAt = normalizedMode === 'scheduled'
-      ? buildScheduledDateTimeInZone(scheduledDateValue, scheduledTimeValue, scheduleTimezone)
+      ? buildScheduledDateTimeInZone(normalizedScheduledDate, scheduledTimeValue, scheduleTimezone)
       : null;
     return {
       scheduleMode: normalizedMode,
       batchSize: numericBatchSize,
       delayInterval: numericDelayInterval,
       durationUnit: normalizedUnit,
-      scheduledDate: scheduledDateValue,
+      scheduledDate: normalizedScheduledDate,
       scheduledTime: scheduledTimeValue,
       country: normalizedScheduleCountry,
       timezone: scheduleTimezone,
@@ -2055,6 +2214,7 @@ export default function PremiumDashboardShell({
     Number(batchSize) < 1 ? 'Batch size must be at least 1' : null,
     !String(delaySeconds || '').trim() ? 'Delay interval is empty' : null,
     Number(delaySeconds) < 1 ? 'Delay interval must be at least 1' : null,
+    Number(rawDisplayedDelayInterval) > delayInputLimit ? `Delay interval cannot be more than ${delayInputLimit} ${userFacingDurationUnit}` : null,
     !['seconds', 'minutes', 'hours'].includes(normalizeDurationUnit(durationUnit)) ? 'Duration unit is invalid' : null,
     !String(scheduledCountry || '').trim() ? 'Country is empty' : null,
     !String(scheduleTimezone || '').trim() ? 'Time zone is empty' : null,
@@ -2065,6 +2225,10 @@ export default function PremiumDashboardShell({
       : null
   ].filter(Boolean);
   const hasScheduleRequiredFields = scheduleMissingFields.length === 0;
+  const hasScheduleDateAndTime = String(scheduleDraftPayload.scheduledDate || '').trim() && String(scheduleDraftPayload.scheduledTime || '').trim();
+  const canAttemptScheduleAction = hasScheduleRequiredFields || Boolean(hasScheduleDateAndTime);
+  const scheduleActionLabel = scheduleDraftPayload.scheduleMode === 'scheduled' ? 'Schedule' : 'START';
+  const scheduleSaveLabel = 'Save Schedule';
   const scheduleContinueHint = `Please fill: ${scheduleMissingFields.join(', ')} before continuing.`;
   const [showScheduleContinueWarning, setShowScheduleContinueWarning] = useState(false);
   useEffect(() => {
@@ -2172,13 +2336,38 @@ export default function PremiumDashboardShell({
     onSelectedDraftTypeChange,
     onShowMessage
   ]);
-  const handlePremiumShellUpload = (event) => {
+  useEffect(() => {
+    if (selectedListId) {
+      setUploadedListId(selectedListId);
+      setClientListUploading(false);
+      setShowClientListSelectionNote(false);
+      setReviewLocalColumns([]);
+    }
+  }, [selectedListId]);
+
+  const handlePremiumShellUpload = async (event) => {
     const file = event.target?.files?.[0];
     if (file) {
+      setSelectedUploadFileName(file.name);
       setClientListName((current) => current || file.name);
+      setClientListUploading(true);
+      setShowClientListSelectionNote(false);
       onShowMessage?.(`${file.name} selected.`, 'success');
     }
-    onUploadFile?.(event);
+    try {
+      const result = await Promise.resolve(onUploadFile?.(event));
+      const nextListId = String(result?.listId || result?.id || result?._id || '').trim();
+      if (nextListId) {
+        setUploadedListId(nextListId);
+        onSelectList?.(nextListId);
+        setShowClientListSelectionNote(false);
+      } else if (result?.ok === false) {
+        setUploadedListId('');
+        setShowClientListSelectionNote(true);
+      }
+    } finally {
+      setClientListUploading(false);
+    }
   };
   const updateOverviewCell = (rowId, field, value) => {
     setOverviewRows((current) =>
@@ -2760,7 +2949,7 @@ export default function PremiumDashboardShell({
                 <label className="premium-table-bulk">
                   <input
                     type="checkbox"
-                    checked={paginatedCampaigns.length > 0 && selectedRows.length === paginatedCampaigns.length}
+                    checked={paginatedCampaigns.length > 0 && paginatedCampaigns.every((campaign) => selectedRows.includes(campaign.id))}
                     onChange={toggleAllRows}
                   />
                   <span>Select all visible rows</span>
@@ -2804,7 +2993,7 @@ export default function PremiumDashboardShell({
                   <button type="button" className="ghost" onClick={() => setShowTimelineAddPopup(true)}>
                     Add Task
                   </button>
-                  <button type="button" className="ghost" onClick={() => router.push('/campaigns')}>
+                  <button type="button" className="ghost" onClick={() => setShowTimelinePopup(true)}>
                     See All
                   </button>
                 </div>
@@ -2850,22 +3039,19 @@ export default function PremiumDashboardShell({
 
             <div className="premium-logs-split-column">
                 <div className="premium-panel-head">
-                  <h3>Activity Feed</h3>
+                  <h3>Workspace Overview</h3>
                   <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
                     See All
                   </button>
                 </div>
-                <div className="premium-logs-stack">
-                  {Object.entries(logPopupGroups).map(([label, items]) => {
-                    const firstItem = items[items.length - 1];
-                    if (!firstItem) return null;
-                    return (
-                      <div key={label} className="premium-logs-preview-group">
-                        <div className="premium-log-preview-label">{label}</div>
-                        <LogItem item={firstItem} />
-                      </div>
-                    );
-                  })}
+                <div className="premium-workspace-overview-grid">
+                  {workspaceOverviewItems.map((item) => (
+                    <article key={item.label} className={`premium-workspace-overview-card tone-${item.tone || 'neutral'}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.detail}</small>
+                    </article>
+                  ))}
                 </div>
               </div>
             </div>
@@ -3325,7 +3511,7 @@ export default function PremiumDashboardShell({
             <div className="premium-clientlist-summary">
               <div>
                 <span>Current file</span>
-                <strong>{selectedListName || clientListName || 'No file selected yet'}</strong>
+                <strong>{displayedClientListName}</strong>
               </div>
               <div>
                 <span>Next step</span>
@@ -3338,59 +3524,95 @@ export default function PremiumDashboardShell({
             </div>
 
             <div className="premium-clientlist-tabs">
+              <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
+                Customize List
+              </button>
               <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
-                Upload File
+                Upload Sheet
               </button>
               <button type="button" className={clientListTab === 'uploaded' ? 'active' : ''} onClick={() => setClientListTab('uploaded')}>
-                My Uploaded Lists
-              </button>
-              <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
-                Custom Lists
+                Uploaded Files
               </button>
             </div>
 
             {clientListTab === 'upload' ? (
-              <div className="premium-clientlist-body">
-                <div className="premium-clientlist-section-copy">
-                  <strong>Upload a client list</strong>
-                  <p>Choose one file, name it, then continue to the review step.</p>
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.csv"
-                  onChange={handlePremiumShellUpload}
-                  style={{ display: 'none' }}
-                  id="premium-shell-upload-input"
-                />
-                <label className="premium-clientlist-uploadbox" htmlFor="premium-shell-upload-input">
-                  <div className="premium-clientlist-uploadicon">＋</div>
-                  <strong>Drag & drop your file here</strong>
-                  <span>or click to browse</span>
-                  <small>Supported formats: CSV, XLSX</small>
-                  <small>Max file size: 10MB</small>
-                  {selectedListName || clientListName ? (
-                    <small style={{ marginTop: 6, color: 'var(--success)', fontWeight: 700 }}>
-                      Selected file: {selectedListName || clientListName}
-                    </small>
-                  ) : null}
-                </label>
-                <label className="premium-clientlist-field">
-                  <span>List Name</span>
+              <div className="premium-clientlist-body premium-clientlist-split">
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
+                    <strong>Upload Sheet</strong>
+                    <p>Choose one sheet, name it, then continue to the review step.</p>
+                  </div>
                   <input
-                    type="text"
-                    value={clientListName}
-                    onChange={(event) => setClientListName(event.target.value)}
-                    placeholder="Enter list name"
+                    type="file"
+                    accept=".xlsx,.csv"
+                    onChange={handlePremiumShellUpload}
+                    style={{ display: 'none' }}
+                    id="premium-shell-upload-input"
                   />
-                </label>
+                  <label className="premium-clientlist-uploadbox" htmlFor="premium-shell-upload-input">
+                    <div className="premium-clientlist-uploadicon">+</div>
+                    <strong>Upload sheet</strong>
+                    <span>Click to browse CSV or XLSX</span>
+                    <small>Max file size: 10MB</small>
+                    {selectedListName || selectedUploadFileName || clientListName ? (
+                      <small style={{ marginTop: 6, color: 'var(--success)', fontWeight: 700 }}>
+                        Selected file: {selectedListName || selectedUploadFileName || clientListName}
+                      </small>
+                    ) : null}
+                    {clientListUploading ? (
+                      <small style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                        Uploading file...
+                      </small>
+                    ) : null}
+                  </label>
+                  <label className="premium-clientlist-field">
+                    <span>List Name</span>
+                    <input
+                      type="text"
+                      value={clientListName}
+                      onChange={(event) => setClientListName(event.target.value)}
+                      placeholder="Enter list name"
+                    />
+                  </label>
+                </section>
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
+                    <strong>Uploaded Files</strong>
+                    <p>All uploaded sheets are available here.</p>
+                  </div>
+                  <div className="premium-clientlist-list">
+                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="uploadedListFromUpload"
+                          checked={selectedUploadedList === item.id}
+                          onChange={() => {
+                            setSelectedUploadedList(item.id);
+                            onSelectList?.(item.id);
+                          }}
+                        />
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.meta}</p>
+                        </div>
+                      </label>
+                    )) : (
+                      <div className="premium-clientlist-empty">
+                        <strong>No uploaded files yet.</strong>
+                        <p>Upload a sheet first, and it will appear here for everyone in this workflow.</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
             ) : null}
 
             {clientListTab === 'uploaded' ? (
               <div className="premium-clientlist-body">
                 <div className="premium-clientlist-section-copy">
-                  <strong>Select from uploaded files</strong>
-                  <p>Choose a file you&apos;ve already uploaded.</p>
+                  <strong>Uploaded Files</strong>
+                  <p>Choose any sheet you&apos;ve already uploaded.</p>
                 </div>
                 <div className="premium-clientlist-list">
                   {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
@@ -3422,7 +3644,7 @@ export default function PremiumDashboardShell({
             {clientListTab === 'custom' ? (
               <div className="premium-clientlist-body">
                 <div className="premium-clientlist-section-copy">
-                  <strong>Select a saved list</strong>
+                  <strong>Customize List</strong>
                   <p>Use a client list created in your workspace.</p>
                 </div>
                 <div className="premium-clientlist-list">
@@ -3462,10 +3684,10 @@ export default function PremiumDashboardShell({
             <div className="premium-clientlist-actions">
               <button
                 type="button"
-                className={`premium-template-next${selectedListId || selectedUploadedList || selectedCustomList ? '' : ' is-disabled'}`}
+                className={`premium-template-next${clientListActionReady ? '' : ' is-disabled'}`}
                 onClick={handleClientListNext}
               >
-                {selectedListId || selectedUploadedList || selectedCustomList ? 'Continue' : 'Select required list first'}
+                {clientListUploading ? 'Uploading...' : canContinueClientList ? 'Continue' : 'Select required list first'}
               </button>
             </div>
             {showClientListSelectionNote ? (
@@ -3578,10 +3800,17 @@ export default function PremiumDashboardShell({
                       </select>
                     </div>
                     <div className="premium-review-toolbar-actions">
-                      <button type="button" className="ghost subtle" onClick={() => onPreviewAddRow?.()}>+ Row</button>
-                      <button type="button" className="ghost subtle" onClick={() => onPreviewAddColumn?.()}>+ Col</button>
-                      <button type="button" className="ghost subtle danger" onClick={deleteSelectedOverviewColumns} disabled={!selectedOverviewColumns.length}>
-                        Delete Selected Columns
+                      <button type="button" className="ghost subtle" onClick={() => addOverviewRow()}>
+                        Add Row
+                      </button>
+                      <button type="button" className="ghost subtle" onClick={addOverviewColumn}>
+                        Add Column
+                      </button>
+                      <button type="button" className="ghost subtle" onClick={toggleAllOverviewRows} disabled={!filteredOverviewRows.length}>
+                        {allVisibleOverviewRowsSelected ? 'Clear Selection' : 'Select All'}
+                      </button>
+                      <button type="button" className="ghost subtle danger" onClick={deleteSelectedOverviewRows} disabled={!selectedOverviewRowIds.length}>
+                        Delete Selected
                       </button>
                       <button type="button" className="ghost primary" onClick={() => onPreviewSave?.()} disabled={!previewDirty}>Save</button>
                     </div>
@@ -3589,30 +3818,59 @@ export default function PremiumDashboardShell({
                 </div>
 
                 <div className="premium-review-tablewrap">
-                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: overviewGridTemplate }}>
+                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
+                    <span>Row</span>
+                    <span className="premium-review-select-cell">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleOverviewRowsSelected}
+                        onChange={toggleAllOverviewRows}
+                        aria-label="Select all visible rows"
+                      />
+                    </span>
                     <span>#</span>
                     {activeOverviewColumns.map((item) => (
                       <span key={`head-${item.sheetColumn}`} className="premium-review-head-cell">
                         <input
-                          type="checkbox"
-                          checked={selectedOverviewColumns.includes(item.sheetColumn)}
-                          onChange={() => toggleOverviewColumnSelection(item.sheetColumn)}
-                          aria-label={`Select ${item.sheetColumn} column`}
-                        />
-                        <input
                           value={item.sheetColumn}
-                          onChange={(event) => onPreviewRenameColumn?.(item.sheetColumn, event.target.value)}
+                          onChange={(event) => {
+                            const nextName = event.target.value;
+                            if (!nextName.trim()) return;
+                            setColumnMappings((current) =>
+                              current.map((entry) => entry.sheetColumn === item.sheetColumn ? { ...entry, sheetColumn: nextName } : entry)
+                            );
+                            setOverviewRows((current) =>
+                              current.map((row) => {
+                                const updated = { ...row, [nextName]: row?.[item.sheetColumn] ?? '' };
+                                delete updated[item.sheetColumn];
+                                return updated;
+                              })
+                            );
+                            onPreviewRenameColumn?.(item.sheetColumn, nextName);
+                          }}
                           aria-label={`Rename ${item.sheetColumn}`}
                         />
                       </span>
                     ))}
-                    <span className="premium-review-actions-head">Actions</span>
                   </div>
                   <div className="premium-review-table-body">
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
-                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: overviewGridTemplate }}>
+                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
+                          <span className="premium-review-row-action-cell">
+                            <button type="button" className="ghost subtle" onClick={() => addOverviewRow(row.id)}>
+                              + Row
+                            </button>
+                          </span>
+                          <span className="premium-review-select-cell">
+                            <input
+                              type="checkbox"
+                              checked={selectedOverviewRowIds.includes(row.id)}
+                              onChange={() => toggleOverviewRowSelection(row.id)}
+                              aria-label={`Select row ${index + 1}`}
+                            />
+                          </span>
                           <span>{index + 1}</span>
                           {activeOverviewColumns.map((mapping) => {
                             const field = mapping.sheetColumn;
@@ -3635,7 +3893,10 @@ export default function PremiumDashboardShell({
                                   <input
                                     autoFocus
                                     value={value}
-                                    onChange={(event) => onPreviewCellChange?.(row.id - 1, field, event.target.value)}
+                                    onChange={(event) => {
+                                      updateOverviewCell(row.id, field, event.target.value);
+                                      onPreviewCellChange?.(row.id - 1, field, event.target.value);
+                                    }}
                                     onBlur={() => setEditingCell(null)}
                                     onKeyDown={(event) => {
                                       if (event.key === 'Enter') setEditingCell(null);
@@ -3650,9 +3911,6 @@ export default function PremiumDashboardShell({
                               </label>
                             );
                           })}
-                          <div className="premium-review-row-actions">
-                            <button type="button" className="ghost subtle premium-review-icon-btn" onClick={() => onPreviewAddRow?.(row.id)} aria-label="Insert row after this row">＋</button><button type="button" className="ghost subtle premium-review-icon-btn danger" onClick={() => onPreviewDeleteRow?.(row.id - 1)} aria-label="Delete row">×</button>
-                          </div>
                         </div>
                       );
                     })}
@@ -3776,13 +4034,34 @@ export default function PremiumDashboardShell({
                   <input type="number" min="1" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
                 </label>
                 <label className="premium-schedule-field">
-                  <span>Delay interval</span>
-                  <input type="number" min="1" value={delaySeconds} onChange={(event) => onDelaySecondsChange?.(event.target.value)} />
+                  <span>Delay interval (minutes)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={delayInputLimit}
+                    value={displayedDelayInterval}
+                    onChange={(event) => {
+                      const nextUnit = userFacingDurationUnit === 'hours' ? 'hours' : 'minutes';
+                      const nextValue = normalizeDelayInputValue(event.target.value, nextUnit);
+                      setDurationUnit(nextUnit);
+                      onDelaySecondsChange?.(nextValue);
+                    }}
+                    onBlur={(event) => {
+                      const nextValue = normalizeDelayInputValue(event.target.value, userFacingDurationUnit) || '1';
+                      onDelaySecondsChange?.(nextValue);
+                    }}
+                  />
                 </label>
                 <label className="premium-schedule-field">
                   <span>Duration unit</span>
-                  <select value={durationUnit} onChange={(event) => setDurationUnit(event.target.value)}>
-                    <option value="seconds">Seconds</option>
+                  <select
+                    value={userFacingDurationUnit}
+                    onChange={(event) => {
+                      const nextUnit = event.target.value;
+                      setDurationUnit(nextUnit);
+                      onDelaySecondsChange?.(normalizeDelayInputValue(delaySeconds, nextUnit) || '1');
+                    }}
+                  >
                     <option value="minutes">Minutes</option>
                     <option value="hours">Hours</option>
                   </select>
@@ -3831,30 +4110,26 @@ export default function PremiumDashboardShell({
               <div className="premium-schedule-inline-actions">
                 <button
                   type="button"
-                  className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
-                  aria-disabled={!hasScheduleRequiredFields}
+                  className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+                  aria-disabled={!canAttemptScheduleAction}
                   onClick={async () => {
-                    if (!hasScheduleRequiredFields) {
+                    if (!canAttemptScheduleAction) {
                       setShowScheduleContinueWarning(true);
                       onShowMessage?.(scheduleContinueHint, 'warning');
                       return;
                     }
+                    onShowMessage?.('Saving schedule...', 'info');
                     const result = await onSaveSchedule?.(scheduleDraftPayload);
                     if (result?.ok !== false) {
                       onShowMessage?.('Schedule saved. Click START when you are ready to begin.', 'success');
                     }
                   }}
                 >
-                  {hasScheduleRequiredFields ? 'Save Schedule' : 'Complete required details first'}
+                  {scheduleSaveLabel}
                 </button>
               </div>
               </>
-              ) : (
-                <div className="premium-schedule-sendnow-summary">
-                  <strong>Send Now</strong>
-                  <span>Campaign will start immediately using the batch size and delay interval above.</span>
-                </div>
-              )}
+              ) : null}
 
               {showScheduleContinueWarning && !hasScheduleRequiredFields ? (
                 <p className="premium-select-draft-warning">
@@ -3876,28 +4151,28 @@ export default function PremiumDashboardShell({
               </button>
               <button
                 type="button"
-                className={`premium-schedule-next${hasScheduleRequiredFields ? '' : ' is-disabled'}`}
-                aria-disabled={!hasScheduleRequiredFields}
+                className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+                aria-disabled={!canAttemptScheduleAction}
                 onClick={async () => {
-                  if (!hasScheduleRequiredFields) {
+                  if (!canAttemptScheduleAction) {
                     setShowScheduleContinueWarning(true);
                     onShowMessage?.(scheduleContinueHint, 'warning');
                     return;
                   }
+                  setShowSchedulePopup(false);
+                  onShowMessage?.(
+                    scheduleDraftPayload.scheduleMode === 'scheduled'
+                      ? 'Scheduling campaign...'
+                      : 'Starting campaign...',
+                    'info'
+                  );
                   const result = await onStartCampaign?.(scheduleDraftPayload);
                   if (result?.ok !== false) {
-                    setShowSchedulePopup(false);
-                    onShowMessage?.(
-                      result?.data?.scheduled
-                        ? 'Campaign scheduled. It will send automatically at the selected time.'
-                        : 'Campaign started. Opening broadcast performance.',
-                      'success'
-                    );
                     scrollToBroadcastPerformance();
                   }
                 }}
               >
-                {hasScheduleRequiredFields ? 'START' : 'Complete required details first'}
+                {scheduleActionLabel}
               </button>
             </div>
           </div>
@@ -4012,51 +4287,6 @@ export default function PremiumDashboardShell({
                     </div>
                   )}
                 </div>
-                <label className="premium-campaign-field">
-                  <span>Folder</span>
-                  <select value={campaignFolder} onChange={(event) => setCampaignFolder(event.target.value)}>
-                    <option value="">Active</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="premium-campaign-grid premium-campaign-grid-bottom premium-campaign-settings">
-                <div className="premium-campaign-field premium-campaign-settings-block">
-                  <span>Campaign Options</span>
-                  <div className="premium-campaign-checks">
-                    {[
-                      ['tracking', 'Tracking', campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies],
-                      ['opens', 'Opens'],
-                      ['clicks', 'Clicks'],
-                      ['replies', 'Replies'],
-                      ['abTesting', 'A/B Testing', campaignAbTesting]
-                    ].map(([key, label, explicitEnabled]) => {
-                      const enabled = typeof explicitEnabled === 'boolean' ? explicitEnabled : Boolean(campaignTracking[key]);
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          className={`premium-campaign-option-toggle ${enabled ? 'active' : ''}`}
-                          aria-pressed={enabled}
-                          onClick={() => {
-                            if (key === 'tracking') {
-                              const nextEnabled = !(campaignTracking.opens || campaignTracking.clicks || campaignTracking.replies);
-                              setCampaignTracking({ opens: nextEnabled, clicks: nextEnabled, replies: nextEnabled });
-                              return;
-                            }
-                            if (key === 'abTesting') {
-                              setCampaignAbTesting((current) => !current);
-                              return;
-                            }
-                            setCampaignTracking((current) => ({ ...current, [key]: !current[key] }));
-                          }}
-                        >
-                          {label} {enabled ? 'On' : 'Off'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
 
             </div>
@@ -4127,6 +4357,7 @@ export default function PremiumDashboardShell({
                 className={selectDraftTab === 'my-drafts' ? 'active' : ''}
                 onClick={() => {
                   setSelectDraftTab('my-drafts');
+                  setDraftTypeLibraryOpen(true);
                   setShowDraftTypeDropdown(false);
                 }}
               >
@@ -4139,46 +4370,15 @@ export default function PremiumDashboardShell({
               >
                 Create New Draft
               </button>
-              <div className="premium-select-draft-dropdown-wrap" ref={draftTypeDropdownRef}>
-                <button
-                  type="button"
-                  className={showDraftTypeDropdown ? 'active' : ''}
-                  onClick={() => setShowDraftTypeDropdown((current) => !current)}
-                >
-                  Draft Types
-                  <span> ({selectedDraftType ? selectedDraftTypeLabel : effectiveSavedDrafts.length})</span>
-                </button>
-                {showDraftTypeDropdown ? (
-                  <div className="premium-select-draft-dropdown">
-                    {draftTypeItems.map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        className={normalizeDraftType(selectedDraftType) === item.value ? 'active' : ''}
-                        onClick={() => handleDraftTypeSelect(item.value)}
-                      >
-                        {item.label}
-                        <span> ({draftTypeCounts[item.value] || 0})</span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="premium-select-draft-type-action"
-                      onClick={() => {
-                        setSelectDraftTab('create');
-                        setShowDraftTypeDropdown(false);
-                      }}
-                    >
-                      Add Draft
-                    </button>
-                  </div>
-                ) : null}
-              </div>
             </div>
 
             {selectDraftTab === 'my-drafts' ? (
-              <div className="premium-select-draft-library">
+              <div className="premium-select-draft-library premium-select-draft-library-types">
                 <div className="premium-select-draft-list">
+                  <div className="premium-select-draft-type-page-head">
+                    <strong>Previously Used Drafts</strong>
+                    <small>{filteredSavedDrafts.length} drafts available</small>
+                  </div>
                   {filteredSavedDrafts.length ? (
                     filteredSavedDrafts.map((draft) => (
                       <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
@@ -4218,14 +4418,8 @@ export default function PremiumDashboardShell({
                     </label>
                   ) : (
                     <div className="premium-select-draft-empty">
-                      <strong>{selectedDraftType ? 'No matching drafts' : 'Choose a draft type'}</strong>
-                      <p>
-                        {!selectedDraftType
-                          ? 'Select Cover Story, Reminder, Follow-up, Updated Cost, or Final Cost from Draft Types.'
-                          : effectiveSavedDrafts.length
-                            ? `No saved drafts for ${selectedDraftTypeLabel}. Create one for this draft type.`
-                            : 'No saved drafts yet. Select a draft type, then create and save one for reuse.'}
-                      </p>
+                      <strong>No saved drafts yet</strong>
+                      <p>Create and save a draft once, then it will appear here for future campaigns.</p>
                     </div>
                   )}
                 </div>
@@ -4255,28 +4449,54 @@ export default function PremiumDashboardShell({
                       </div>
                     )}
                   </div>
+                  {selectedPreviewDraft ? (
+                    <button
+                      type="button"
+                      className="ghost subtle premium-select-draft-edit-selected"
+                      onClick={() => {
+                        loadDraftIntoEditor(selectedPreviewDraft);
+                        setSelectDraftTab('create');
+                        setDraftTypeLibraryOpen(false);
+                      }}
+                    >
+                      Edit in Create Draft
+                    </button>
+                  ) : null}
                 </aside>
               </div>
             ) : (
               <div className="premium-select-draft-create">
-                <label className="premium-template-field">
-                  <span>Draft Type</span>
-                  <select
-                    value={selectedDraftType || ''}
-                    onChange={(event) => onSelectedDraftTypeChange?.(event.target.value)}
-                  >
-                    <option value="">Select draft type</option>
-                    {draftTypeItems.map((item) => (
-                      <option key={item.value} value={item.value}>{item.label}</option>
-                    ))}
-                  </select>
-                </label>
+                <div className="premium-select-draft-create-top">
+                  <label className="premium-template-field">
+                    <span>Draft Type</span>
+                    <select
+                      value={selectedDraftType || ''}
+                      onChange={(event) => onSelectedDraftTypeChange?.(event.target.value)}
+                    >
+                      <option value="">Select draft type</option>
+                      {draftTypeItems.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <div className="premium-select-draft-upload">
-                  <div className="premium-select-draft-uploadbox">
+                  <input
+                    ref={draftFileInputRef}
+                    type="file"
+                    accept=".txt,.html,.htm,.md,.csv,.doc,.docx,.pdf,text/*"
+                    className="premium-select-draft-file-input"
+                    onChange={handleDraftFileUpload}
+                  />
+                  <button
+                    type="button"
+                    className="premium-select-draft-uploadbox"
+                    onClick={() => draftFileInputRef.current?.click()}
+                  >
                     <span className="premium-clientlist-uploadicon">＋</span>
                     <strong>Upload Word, PDF, or TXT file</strong>
-                    <small>Supported formats: DOCX, PDF, TXT</small>
-                  </div>
+                    <small>{draftUploadedFileName || 'Supported formats: DOCX, PDF, TXT'}</small>
+                  </button>
                 </div>
 
                 <div className="premium-select-draft-split">
@@ -4287,11 +4507,12 @@ export default function PremiumDashboardShell({
                         Import to Editor
                       </button>
                     </div>
-                    <div className="premium-select-draft-doc">
-                      {draftViewerText.split('\n\n').map((block, index) => (
-                        <p key={index}>{block}</p>
-                      ))}
-                    </div>
+                    <textarea
+                      className="premium-select-draft-doc premium-select-draft-doc-editable"
+                      value={draftViewerText}
+                      onChange={(event) => setDraftUploadedText(event.target.value)}
+                      placeholder="Uploaded file content or copied text will appear here. You can edit it before importing to the email editor."
+                    />
                   </section>
 
                   <section className="premium-select-draft-editor">
@@ -4313,6 +4534,26 @@ export default function PremiumDashboardShell({
                     </div>
                   </section>
                 </div>
+                {selectedDraftType ? (
+                  <section className="premium-select-draft-related">
+                    <div className="premium-select-draft-type-page-head">
+                      <strong>{selectedDraftTypeLabel} Saved Drafts</strong>
+                      <small>{relatedDraftsForSelectedType.length} related drafts</small>
+                    </div>
+                    <div className="premium-select-draft-related-list">
+                      {relatedDraftsForSelectedType.length ? (
+                        relatedDraftsForSelectedType.map((draft) => (
+                          <button key={draft.id} type="button" onClick={() => loadDraftIntoEditor(draft)}>
+                            <strong>{draft.title}</strong>
+                            <span>{draft.subject}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p>No saved drafts for this type yet.</p>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             )}
 
@@ -4505,10 +4746,13 @@ export default function PremiumDashboardShell({
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
           <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-template-head">
-              <span className="premium-popup-step-badge">5</span>
-              <h3>Summary</h3>
-              <p>Write your subject and message, then save it as a reusable draft.</p>
-              <small className="premium-template-stepcopy">Step 5 of 7</small>
+              <div>
+                <span className="premium-popup-step-badge">5</span>
+                <h3>Summary</h3>
+                <p>Write your subject and message, then save it as a reusable draft.</p>
+                <small className="premium-template-stepcopy">Step 5 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>×</button>
             </div>
 
             <div className="premium-template-body">
@@ -4535,7 +4779,6 @@ export default function PremiumDashboardShell({
 
             </div>
             <div className="premium-template-actions">
-              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>×</button>
               <button
                 type="button"
                 className="ghost subtle"

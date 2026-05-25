@@ -1983,6 +1983,107 @@ html.theme-dark .warmup-workspace-page .warmup-select {
   border-color: rgba(148, 163, 184, 0.22);
 }
 
+/* Login-inspired light theme. Keep this scoped so dark and colourful themes do not change. */
+html[data-theme='light'],
+html.theme-light {
+  --bg-main:
+    radial-gradient(circle at 18% 20%, rgba(188, 184, 246, 0.46) 0, rgba(188, 184, 246, 0.28) 18%, transparent 39%),
+    radial-gradient(circle at 60% 83%, rgba(145, 222, 233, 0.48) 0, rgba(177, 231, 239, 0.35) 20%, transparent 42%),
+    linear-gradient(90deg, #f3f1fb 0%, #f8f7fb 48%, #f4f4fb 100%);
+  --bg-app: var(--bg-main);
+  --bg-surface: rgba(255, 255, 255, 0.74);
+  --bg-card: rgba(255, 255, 255, 0.78);
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --bg-elevated: rgba(255, 255, 255, 0.94);
+  --sidebar-bg: rgba(255, 255, 255, 0.72);
+  --topbar-bg: rgba(255, 255, 255, 0.72);
+  --dock-bg: rgba(255, 255, 255, 0.78);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: #d7d2ee;
+  --border-soft: rgba(255, 255, 255, 0.82);
+  --border-glass: rgba(255, 255, 255, 0.9);
+  --text-main: #282940;
+  --text-soft: #4b4b66;
+  --text-muted: #777692;
+  --accent-primary: #574bc2;
+  --accent-secondary: #7a6ee6;
+  --accent-tertiary: #14b8c8;
+  --accent-gradient: linear-gradient(135deg, #574bc2, #7a6ee6);
+  --shadow-card: 0 18px 44px rgba(93, 94, 130, 0.1);
+  --shadow-floating: 0 22px 54px rgba(93, 94, 130, 0.14);
+  --button-bg: rgba(255, 255, 255, 0.88);
+  --button-border: rgba(202, 198, 238, 0.8);
+  --button-text: #5045c8;
+  --table-head-bg: rgba(255, 255, 255, 0.62);
+  --table-row-bg: rgba(255, 255, 255, 0.72);
+  --table-row-hover-bg: rgba(233, 230, 245, 0.78);
+  --blur-glass: blur(18px);
+  --ios-blur: blur(18px);
+}
+
+html[data-theme='light'] body,
+html.theme-light body {
+  background: var(--bg-main) !important;
+}
+
+html[data-theme='light'] body::before,
+html.theme-light body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 44%, rgba(255, 255, 255, 0.42), transparent 34%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.34));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+html[data-theme='light'] :where(.dashboard-shell, .premium-dashboard-shell, .workspace-shell),
+html.theme-light :where(.dashboard-shell, .premium-dashboard-shell, .workspace-shell) {
+  background: transparent !important;
+}
+
+html[data-theme='light'] :where(.dashboard-main, .dashboard-content-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page),
+html.theme-light :where(.dashboard-main, .dashboard-content-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) {
+  background: transparent !important;
+  color: #282940;
+}
+
+html[data-theme='light'] :where(.dashboard-sidebar-card, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .premium-toolbar, .premium-panel, .premium-card-with-tabs, .premium-kpi-card, .premium-stepper-row, .premium-gauge-card, .premium-calendar-card, .workspace-panel, .workspace-stat-card, .workspace-highlight-card, .client-data-panel, .client-data-stat-card, .client-data-page-header, .campaign-panel, .campaign-count-card, .report-card, .report-panel, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel, .card, .panel),
+html.theme-light :where(.dashboard-sidebar-card, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .premium-toolbar, .premium-panel, .premium-card-with-tabs, .premium-kpi-card, .premium-stepper-row, .premium-gauge-card, .premium-calendar-card, .workspace-panel, .workspace-stat-card, .workspace-highlight-card, .client-data-panel, .client-data-stat-card, .client-data-page-header, .campaign-panel, .campaign-count-card, .report-card, .report-panel, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel, .card, .panel) {
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  color: #282940 !important;
+  box-shadow: 0 18px 44px rgba(93, 94, 130, 0.1) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+html[data-theme='light'] :where(.dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-panel-tabs button, .campaign-status-tabs button, .client-data-section-switcher-button, .theme-toggle-btn, .ghost, .button, button),
+html.theme-light :where(.dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-panel-tabs button, .campaign-status-tabs button, .client-data-section-switcher-button, .theme-toggle-btn, .ghost, .button, button) {
+  border-color: rgba(202, 198, 238, 0.8) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #5045c8 !important;
+  box-shadow: 0 4px 10px rgba(86, 75, 190, 0.08) !important;
+}
+
+html[data-theme='light'] :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active, .campaign-status-tabs button.active, .client-data-section-switcher-button.active),
+html.theme-light :where(.dashboard-topbar-tab.active, .dashboard-sidebar-link.active, .dashboard-primary-link.active, .premium-toolbar-tabs button.active, .premium-panel-tabs button.active, .campaign-status-tabs button.active, .client-data-section-switcher-button.active) {
+  background: #ffffff !important;
+  color: #574bc2 !important;
+  border-color: rgba(202, 198, 238, 0.92) !important;
+}
+
+html[data-theme='light'] :where(input, textarea, select, .input, [contenteditable='true']),
+html.theme-light :where(input, textarea, select, .input, [contenteditable='true']) {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: #d7d2ee !important;
+  color: #282940 !important;
+  box-shadow: none !important;
+}
+
 /* Viewport-fit guardrails: keep app pages and compact dashboard cards inside the screen. */
 html,
 body {
@@ -3025,4 +3126,52 @@ body {
   .premium-dashboard-shell .premium-side-notification-panel {
     width: 100%;
   }
+}
+
+/* Final light-theme skin: login page look across authenticated pages only. */
+html[data-theme='light'] body,
+html.theme-light body {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(188, 184, 246, 0.46) 0, rgba(188, 184, 246, 0.28) 18%, transparent 39%),
+    radial-gradient(circle at 60% 83%, rgba(145, 222, 233, 0.48) 0, rgba(177, 231, 239, 0.35) 20%, transparent 42%),
+    linear-gradient(90deg, #f3f1fb 0%, #f8f7fb 48%, #f4f4fb 100%) !important;
+}
+
+html[data-theme='light'] :where(.dashboard-shell, .dashboard-main, .dashboard-content-shell, .premium-dashboard-shell, .workspace-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page),
+html.theme-light :where(.dashboard-shell, .dashboard-main, .dashboard-content-shell, .premium-dashboard-shell, .workspace-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) {
+  background: transparent !important;
+  color: #282940 !important;
+}
+
+html[data-theme='light'] :where(.dashboard-sidebar-card, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .premium-toolbar, .premium-panel, .premium-card-with-tabs, .premium-kpi-card, .premium-stepper-row, .premium-gauge-card, .premium-calendar-card, .workspace-panel, .workspace-stat-card, .workspace-highlight-card, .client-data-panel, .client-data-stat-card, .client-data-page-header, .campaign-panel, .campaign-count-card, .report-card, .report-panel, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel, .card, .panel),
+html.theme-light :where(.dashboard-sidebar-card, .dashboard-topbar, .dashboard-topbar-rich, .dashboard-mobile-dock, .premium-toolbar, .premium-panel, .premium-card-with-tabs, .premium-kpi-card, .premium-stepper-row, .premium-gauge-card, .premium-calendar-card, .workspace-panel, .workspace-stat-card, .workspace-highlight-card, .client-data-panel, .client-data-stat-card, .client-data-page-header, .campaign-panel, .campaign-count-card, .report-card, .report-panel, .lead-panel, .lead-card, .mail-inbox-stat-tile, .mail-inbox-account-card, .mail-inbox-preview-card, .master-mail-list-pane, .master-mail-reading-pane, .admin-table-card, .ui-section-card, .ui-stat-card, .ui-glass-panel, .card, .panel) {
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  color: #282940 !important;
+  box-shadow: 0 18px 44px rgba(93, 94, 130, 0.1) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+html[data-theme='light'] :where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) :where(button, .button, .ghost, .dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-panel-tabs button, .campaign-status-tabs button, .client-data-section-switcher-button, .theme-toggle-btn),
+html.theme-light :where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) :where(button, .button, .ghost, .dashboard-topbar-tab, .dashboard-sidebar-link, .dashboard-primary-link, .dashboard-logout-link, .premium-toolbar-tabs button, .premium-panel-tabs button, .campaign-status-tabs button, .client-data-section-switcher-button, .theme-toggle-btn) {
+  border-color: rgba(202, 198, 238, 0.8) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #5045c8 !important;
+  box-shadow: 0 4px 10px rgba(86, 75, 190, 0.08) !important;
+}
+
+html[data-theme='light'] :where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) :where(input, textarea, select, .input, [contenteditable='true']),
+html.theme-light :where(.dashboard-shell, .premium-dashboard-shell, .workspace-page, .client-data-page, .campaigns-modern-page, .report-dashboard-page, .mail-inbox-page, .master-mail-page, .warmup-workspace-page, .admin-dashboard-page) :where(input, textarea, select, .input, [contenteditable='true']) {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: #d7d2ee !important;
+  color: #282940 !important;
+}
+
+html[data-theme='light'] .dashboard-login-screen .login-button,
+html.theme-light .dashboard-login-screen .login-button {
+  border-color: transparent !important;
+  background: #574bc2 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 16px rgba(87, 75, 194, 0.14) !important;
 }

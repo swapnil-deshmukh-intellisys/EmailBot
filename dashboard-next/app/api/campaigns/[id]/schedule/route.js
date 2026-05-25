@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
-import { requireAuth } from '@/lib/apiAuth';
+import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import { isInAppCampaignSchedulerEnabled, triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
+import { startCampaignRunner } from '@/lib/campaignRunner';
 import {
   buildScheduledDateTimeInZone,
   buildScheduledLabel,
@@ -13,10 +15,21 @@ import {
 
 const ROUTE_NAME = 'POST /api/campaigns/[id]/schedule';
 const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+const SCHEDULE_START_GRACE_MS = 90 * 1000;
+const MAX_SCHEDULE_DELAY_MINUTES = 1440;
+const MAX_SCHEDULE_DELAY_HOURS = 24;
+const MAX_SCHEDULE_DELAY_SECONDS = 86400;
+
+function getScheduleDelayLimit(unit = 'minutes') {
+  const normalizedUnit = normalizeDurationUnit(unit);
+  if (normalizedUnit === 'hours') return MAX_SCHEDULE_DELAY_HOURS;
+  if (normalizedUnit === 'seconds') return MAX_SCHEDULE_DELAY_SECONDS;
+  return MAX_SCHEDULE_DELAY_MINUTES;
+}
 
 function jsonError({ status = 400, code = 'CAMPAIGN_SCHEDULE_FAILED', message = 'Failed to schedule campaign.', campaignId = '', userEmail = '' }) {
   console.error(`[${ROUTE_NAME}] ${code}: ${message}`, { campaignId, userEmail });
-  return NextResponse.json({ success: false, code, message, error: message }, { status });
+  return NextResponse.json({ success: false, ok: false, code, message, error: message }, { status });
 }
 
 export async function POST(req, { params }) {
@@ -30,7 +43,8 @@ export async function POST(req, { params }) {
 
   await connectDB();
 
-  const existing = await Campaign.findOne({ _id: campaignId, userEmail }).select('_id').lean();
+  const ownerQuery = buildAuthOwnerFilter(auth, { _id: campaignId });
+  const existing = await Campaign.findOne(ownerQuery).select('_id').lean();
   if (!existing) {
     return jsonError({
       status: 404,
@@ -56,8 +70,17 @@ export async function POST(req, { params }) {
     const normalizedTimezone = String(body?.timezone || body?.scheduledStart?.timezone || 'Asia/Kolkata').trim() || 'Asia/Kolkata';
     const normalizedSlot = String(body?.slot || body?.scheduledTime || '').trim();
     const normalizedDateValue = String(body?.scheduledDate || '').trim();
-    const delayIntervalInput = Math.max(1, Math.floor(Number(body?.delayInterval ?? body?.options?.delayInterval ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS));
     const durationUnit = normalizeDurationUnit(body?.durationUnit || body?.options?.durationUnit || 'seconds');
+    const delayIntervalInput = Math.max(1, Math.floor(Number(body?.delayInterval ?? body?.options?.delayInterval ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS));
+    if (delayIntervalInput > getScheduleDelayLimit(durationUnit)) {
+      return jsonError({
+        status: 400,
+        code: 'DELAY_INTERVAL_TOO_LARGE',
+        message: `Delay interval cannot be more than ${getScheduleDelayLimit(durationUnit)} ${durationUnit}.`,
+        campaignId,
+        userEmail
+      });
+    }
     const batchSize = Math.max(1, Math.floor(Number(body?.batchSize ?? body?.options?.batchSize ?? 1) || 1));
     const delaySeconds = Math.max(
       MIN_CAMPAIGN_SEND_GAP_SECONDS,
@@ -76,11 +99,12 @@ export async function POST(req, { params }) {
       body?.scheduledStart?.at ??
       null;
 
-    const scheduledAt = normalizedScheduleMode === 'scheduled'
+    let scheduledAt = normalizedScheduleMode === 'scheduled'
       ? (scheduledInput
           ? new Date(scheduledInput)
           : buildScheduledDateTimeInZone(normalizedDateValue, normalizedSlot, normalizedTimezone))
       : null;
+    let shouldQueueImmediately = false;
 
     if (normalizedScheduleMode === 'scheduled') {
       if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
@@ -92,14 +116,21 @@ export async function POST(req, { params }) {
           userEmail
         });
       }
+      const now = new Date();
       if (!isFutureScheduledDate(scheduledAt)) {
+        const pastByMs = now.getTime() - scheduledAt.getTime();
+        if (activate && pastByMs >= 0 && pastByMs <= SCHEDULE_START_GRACE_MS) {
+          scheduledAt = now;
+          shouldQueueImmediately = true;
+        } else {
         return jsonError({
           status: 400,
           code: 'SCHEDULE_TIME_NOT_FUTURE',
-          message: 'Scheduled time must be in future.',
+          message: 'Scheduled time must be in future. Pick a later time or use Send now.',
           campaignId,
           userEmail
         });
+        }
       }
     }
 
@@ -111,12 +142,14 @@ export async function POST(req, { params }) {
       scheduledAt
     });
 
-    const nextStatus = normalizedScheduleMode === 'scheduled'
+    const nextStatus = shouldQueueImmediately
+      ? 'Queued'
+      : normalizedScheduleMode === 'scheduled'
       ? (activate ? 'Scheduled' : 'Draft')
       : 'Draft';
 
     await Campaign.updateOne(
-      { _id: campaignId, userEmail },
+      ownerQuery,
       {
         $set: {
           scheduleMode: normalizedScheduleMode,
@@ -131,7 +164,8 @@ export async function POST(req, { params }) {
           },
           scheduledAt: normalizedScheduleMode === 'scheduled' ? scheduledAt : null,
           status: nextStatus,
-          queueRequestedAt: null,
+          queueRequestedAt: shouldQueueImmediately ? new Date() : null,
+          queueReason: shouldQueueImmediately ? 'Scheduled time reached; queued immediately' : '',
           workerId: '',
           workerLockedAt: null,
           workerHeartbeatAt: null,
@@ -145,7 +179,9 @@ export async function POST(req, { params }) {
           logs: {
             level: 'info',
             message: normalizedScheduleMode === 'scheduled'
-              ? (persistOnly
+              ? (shouldQueueImmediately
+                  ? `Scheduled time reached; campaign queued immediately (${scheduledLabel})`
+                  : persistOnly
                   ? `Schedule saved for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`
                   : `Campaign scheduled for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`)
               : `Schedule preferences saved for send-now mode | batch ${batchSize} | delay ${delayInterval} ${durationUnit}`,
@@ -155,9 +191,20 @@ export async function POST(req, { params }) {
       }
     );
 
-    const campaign = await Campaign.findOne({ _id: campaignId, userEmail }).lean();
+    const campaign = await Campaign.findOne(ownerQuery).lean();
+    const schedulerWarning =
+      normalizedScheduleMode === 'scheduled' &&
+      !shouldQueueImmediately &&
+      !isInAppCampaignSchedulerEnabled()
+        ? 'In-app campaign scheduler is disabled on this process. Ensure the PM2 campaign worker is running, or this scheduled campaign will not auto-start.'
+        : '';
+    if (shouldQueueImmediately) {
+      await startCampaignRunner(String(campaignId), { trigger: 'scheduler' });
+    } else if (activate || normalizedScheduleMode === 'send_now') {
+      await triggerCampaignSchedulerTick();
+    }
 
-    return NextResponse.json({ success: true, ok: true, campaign });
+    return NextResponse.json({ success: true, ok: true, data: campaign, campaign, warning: schedulerWarning });
   } catch (error) {
     return jsonError({
       status: 400,

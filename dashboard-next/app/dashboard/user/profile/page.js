@@ -4,6 +4,17 @@ import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 
+const PROFILE_SECTIONS = ['profile', 'overview', 'settings', 'notifications', 'billing', 'security'];
+
+function normalizeProfileSection(section) {
+  return PROFILE_SECTIONS.includes(section) ? section : 'profile';
+}
+
+function profileSectionPath(section) {
+  const safeSection = normalizeProfileSection(section);
+  return safeSection === 'profile' ? '/dashboard/user/profile' : `/dashboard/user/profile/${safeSection}`;
+}
+
 function displayNameFromEmail(email = '') {
   const localPart = String(email || '')
     .trim()
@@ -43,7 +54,7 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-export default function UserProfilePage() {
+export default function UserProfilePage({ initialSection = 'profile' }) {
   const [profile, setProfile] = useState({ email: '', role: '', displayName: '', avatarName: '', avatarDataUrl: '', planName: 'Basic', notificationPrefs: {} });
   const [creditSummary, setCreditSummary] = useState({ totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
   const [creditTransactions, setCreditTransactions] = useState([]);
@@ -56,6 +67,7 @@ export default function UserProfilePage() {
     connectedMailIds: [],
     recentCampaigns: []
   });
+  const [mailboxCounts, setMailboxCounts] = useState({ total: 0, unread: 0, read: 0, open: 0, junk: 0, spam: 0 });
   const [overviewProjectFilter, setOverviewProjectFilter] = useState('all');
   const [overviewStatusFilter, setOverviewStatusFilter] = useState('all');
   const [accounts, setAccounts] = useState([]);
@@ -72,7 +84,7 @@ export default function UserProfilePage() {
     confirmPassword: ''
   });
   const [message, setMessage] = useState('');
-  const [activeSection, setActiveSection] = useState('profile');
+  const [activeSection, setActiveSection] = useState(normalizeProfileSection(initialSection));
   const [selectedConnectedAccount, setSelectedConnectedAccount] = useState(null);
   const [showCreditHistory, setShowCreditHistory] = useState(false);
 
@@ -104,7 +116,7 @@ export default function UserProfilePage() {
     type: String(account?.label || '').trim() || 'Workspace account',
     lastSync: formatDateTime(account?.lastSync || account?.updatedAt || account?.createdAt),
     dailyLimit: String(account?.dailyLimit || '').trim() || '250',
-    sentToday: String(account?.sentToday || '').trim() || '18',
+    sentToday: String(account?.sentToday ?? '').trim() || '0',
     errors: String(account?.errors || '').trim() || '0',
     health: String(account?.health || '').trim() || 'Good'
   });
@@ -114,13 +126,14 @@ export default function UserProfilePage() {
     const load = async () => {
       try {
         let accountsData = null;
-        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes, overviewRes] = await Promise.all([
+        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes, overviewRes, mailboxRes] = await Promise.all([
           fetch('/api/auth/me', { signal: controller.signal }),
-          fetch('/api/accounts', { signal: controller.signal }),
+          fetch('/api/accounts?owned=1', { signal: controller.signal }),
           fetch('/api/campaigns', { signal: controller.signal }).catch(() => null),
           fetch('/api/lists', { signal: controller.signal }).catch(() => null),
           fetch('/api/credits', { signal: controller.signal }).catch(() => null),
-          fetch('/api/profile/overview', { signal: controller.signal }).catch(() => null)
+          fetch('/api/profile/overview', { signal: controller.signal }).catch(() => null),
+          fetch('/api/mailbox-folders', { signal: controller.signal }).catch(() => null)
         ]);
 
         if (meRes.ok) {
@@ -154,6 +167,16 @@ export default function UserProfilePage() {
         const listsData = listsRes?.ok ? await listsRes.json().catch(() => null) : null;
         const creditsData = creditsRes?.ok ? await creditsRes.json().catch(() => null) : null;
         const overviewData = overviewRes?.ok ? await overviewRes.json().catch(() => null) : null;
+        const mailboxData = mailboxRes?.ok ? await mailboxRes.json().catch(() => null) : null;
+        const nextMailboxCounts = mailboxData?.mailCounts || mailboxData?.folderCounts || {};
+        setMailboxCounts({
+          total: Number(nextMailboxCounts.total || 0),
+          unread: Number(nextMailboxCounts.unread || 0),
+          read: Number(nextMailboxCounts.read || 0),
+          open: Number(nextMailboxCounts.open ?? nextMailboxCounts.read ?? 0),
+          junk: Number(nextMailboxCounts.junk || 0),
+          spam: Number(nextMailboxCounts.spam ?? nextMailboxCounts.junk ?? 0)
+        });
         if (overviewData?.ok) {
           setMailPilotOverview({
             user: overviewData.user || {},
@@ -191,27 +214,8 @@ export default function UserProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const updateActiveSection = () => {
-      const hash = window.location.hash.replace('#', '').trim();
-      setActiveSection(hash || 'profile');
-    };
-    const scrollToSection = () => {
-      const hash = window.location.hash.replace('#', '').trim() || 'profile';
-      const element = document.getElementById(hash);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    };
-    updateActiveSection();
-    scrollToSection();
-    window.addEventListener('hashchange', updateActiveSection);
-    window.addEventListener('hashchange', scrollToSection);
-    return () => {
-      window.removeEventListener('hashchange', updateActiveSection);
-      window.removeEventListener('hashchange', scrollToSection);
-    };
-  }, []);
+    setActiveSection(normalizeProfileSection(initialSection));
+  }, [initialSection]);
 
   const toggleNotificationPref = async (key) => {
     setProfileNotificationPrefs((current) => {
@@ -302,7 +306,7 @@ export default function UserProfilePage() {
   };
 
   const handleOpenBilling = () => {
-    window.location.hash = '#billing';
+    window.location.href = profileSectionPath('billing');
     setMessage('Billing section opened.');
   };
 
@@ -335,12 +339,12 @@ export default function UserProfilePage() {
   };
 
   const profileActions = [
-    { label: 'Profile', href: '#profile' },
-    { label: 'Overview', href: '#overview' },
-    { label: 'Settings', href: '#settings' },
-    { label: 'Notifications', href: '#notifications' },
-    { label: 'Billing', href: '#billing' },
-    { label: 'Security', href: '#security' }
+    { label: 'Profile', section: 'profile', href: profileSectionPath('profile') },
+    { label: 'Overview', section: 'overview', href: profileSectionPath('overview') },
+    { label: 'Settings', section: 'settings', href: profileSectionPath('settings') },
+    { label: 'Notifications', section: 'notifications', href: profileSectionPath('notifications') },
+    { label: 'Billing', section: 'billing', href: profileSectionPath('billing') },
+    { label: 'Security', section: 'security', href: profileSectionPath('security') }
   ];
   const sectionLinks = profileActions.map((item) => ({ ...item, label: item.label }));
   const sectionLabelMap = {
@@ -372,7 +376,7 @@ export default function UserProfilePage() {
             name: profileDisplayName,
             initials: profileInitials,
           avatarDataUrl: profileAvatarDataUrl,
-          actions: profileActions.map((item) => ({ label: item.label, onClick: () => { window.location.hash = item.href; } }))
+          actions: profileActions.map((item) => ({ label: item.label, onClick: () => { window.location.href = item.href; } }))
         }
       }}
     >
@@ -400,9 +404,9 @@ export default function UserProfilePage() {
               <button
                 key={item.label}
                 type="button"
-                className={`dashboard-profile-nav-item ${activeSection === item.href.replace('#', '') ? 'active' : ''} ${activeSection === item.href.replace('#', '') ? activeSectionTone : ''}`}
+                className={`dashboard-profile-nav-item ${activeSection === item.section ? 'active' : ''} ${activeSection === item.section ? activeSectionTone : ''}`}
                 onClick={() => {
-                  window.location.hash = item.href;
+                  window.location.href = item.href;
                 }}
               >
                 {item.label}
@@ -422,6 +426,7 @@ export default function UserProfilePage() {
         </aside>
 
         <main className="dashboard-profile-main">
+          {activeSection === 'overview' ? (
           <article id="overview" className={`dashboard-profile-card dashboard-profile-overview-card ${activeSection === 'overview' ? 'tone-profile' : ''}`}>
             <div className="dashboard-profile-overview-head">
               <div>
@@ -449,6 +454,9 @@ export default function UserProfilePage() {
               <span><strong>{formatNumber(overviewTotals.recipients)}</strong><small>Total Recipients</small></span>
               <span><strong>{formatNumber(overviewTotals.opens)}</strong><small>Opens</small></span>
               <span><strong>{formatNumber(overviewTotals.replies)}</strong><small>Replies</small></span>
+              <span><strong>{formatNumber(mailboxCounts.open || mailboxCounts.read || overviewTotals.opens)}</strong><small>Open Mail</small></span>
+              <span><strong>{formatNumber(mailboxCounts.junk)}</strong><small>Junk</small></span>
+              <span><strong>{formatNumber(mailboxCounts.spam || overviewTotals.spam)}</strong><small>Spam</small></span>
               <span><strong>{formatNumber(overviewTotals.mailIds)}</strong><small>Mail IDs</small></span>
               <span><strong>{formatNumber(overviewTotals.drafts)}</strong><small>Drafts</small></span>
             </div>
@@ -523,7 +531,9 @@ export default function UserProfilePage() {
               {!mailPilotOverview.connectedMailIds?.length ? <p className="dashboard-profile-note">No connected MailPilot sender IDs found.</p> : null}
             </div>
           </article>
+          ) : null}
 
+          {activeSection === 'profile' ? (
           <article className={`dashboard-profile-card ${activeSection === 'profile' ? 'tone-profile' : ''}`}>
             <strong>Connected Accounts</strong>
             <p>Review the mail accounts connected to your workspace.</p>
@@ -549,7 +559,7 @@ export default function UserProfilePage() {
                   <span>{profile.email || 'Connected inbox'}</span>
                   <strong>Active</strong>
                   <small>Just now</small>
-                  <small>18 sent today · Good</small>
+                  <small>0 sent today · Good</small>
                 </article>
               )}
             </div>
@@ -566,7 +576,9 @@ export default function UserProfilePage() {
               )) : null}
             </div>
           </article>
+          ) : null}
 
+          {activeSection === 'settings' ? (
           <article id="settings" className={`dashboard-profile-card ${activeSection === 'settings' ? 'tone-settings' : ''}`}>
             <strong>Settings</strong>
             <p>Manage account preferences, theme, language, and workspace defaults.</p>
@@ -576,7 +588,9 @@ export default function UserProfilePage() {
               </button>
             </div>
           </article>
+          ) : null}
 
+          {activeSection === 'notifications' ? (
           <article id="notifications" className={`dashboard-profile-card ${activeSection === 'notifications' ? 'tone-notifications' : ''}`}>
             <strong>Notifications</strong>
             <p>Review alerts, campaign updates, and reply notifications in one place.</p>
@@ -594,7 +608,9 @@ export default function UserProfilePage() {
               </button>
             </div>
           </article>
+          ) : null}
 
+          {activeSection === 'billing' ? (
           <article id="billing" className={`dashboard-profile-card ${activeSection === 'billing' ? 'tone-billing' : ''}`}>
             <strong>Billing</strong>
             <p>Plan details, usage credits, invoices, and upgrade options.</p>
@@ -661,7 +677,9 @@ export default function UserProfilePage() {
               </button>
             </div>
           </article>
+          ) : null}
 
+          {activeSection === 'security' ? (
           <article id="security" className={`dashboard-profile-card ${activeSection === 'security' ? 'tone-security' : ''}`}>
             <strong>Security</strong>
             <p>Password, sign-in activity, connected accounts, and account safety.</p>
@@ -699,6 +717,7 @@ export default function UserProfilePage() {
               </button>
             </div>
           </article>
+          ) : null}
 
           {message ? <p className="dashboard-profile-message">{message}</p> : null}
         </main>

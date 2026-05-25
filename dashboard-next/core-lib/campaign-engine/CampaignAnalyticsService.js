@@ -213,6 +213,24 @@ export function getSafeActions(campaign = {}) {
 export function serializeCampaignForList(campaign = {}, recipientLogs = []) {
   const logs = Array.isArray(recipientLogs) ? recipientLogs : [];
   const summaryLog = logs.find((item) => item?.__summary);
+  const totalRecipients = Math.max(
+    Number(campaign.totalRecipients || 0),
+    Number(campaign.stats?.total || 0),
+    Number(summaryLog?.sentCount || 0) + Number(summaryLog?.failedCount || 0)
+  );
+  const sentCount = summaryLog
+    ? Number(summaryLog.sentCount || 0)
+    : Number(campaign.sentCount ?? campaign.stats?.sent ?? 0);
+  const failedCount = summaryLog
+    ? Number(summaryLog.failedCount || 0)
+    : Number(campaign.failedCount ?? campaign.stats?.failed ?? 0);
+  const skippedCount = summaryLog ? Number(summaryLog.skippedCount || 0) : Number(campaign.skippedCount || 0);
+  const pendingCount = Math.max(
+    0,
+    summaryLog
+      ? totalRecipients - sentCount - failedCount - skippedCount
+      : Number(campaign.pendingCount ?? campaign.stats?.pending ?? Math.max(totalRecipients - sentCount - failedCount, 0))
+  );
   const openCount = summaryLog ? Number(summaryLog.openCount || 0) : logs.reduce((sum, item) => sum + Number(item.openCount || 0), 0);
   const replyCount = summaryLog ? Number(summaryLog.replyCount || 0) : logs.reduce((sum, item) => sum + Number(item.replyCount || 0), 0);
   const positiveReplyCount = summaryLog ? Number(summaryLog.positiveReplyCount || 0) : logs.filter((item) => item.replyType === 'positive').length;
@@ -225,7 +243,20 @@ export function serializeCampaignForList(campaign = {}, recipientLogs = []) {
   return {
     ...campaign,
     _id: String(campaign._id),
-    displayStatus: computeCampaignDisplayStatus(campaign),
+    totalRecipients,
+    sentCount,
+    pendingCount,
+    failedCount,
+    stats: {
+      ...(campaign.stats || {}),
+      total: totalRecipients,
+      sent: sentCount,
+      pending: pendingCount,
+      failed: failedCount,
+      bounced: summaryLog ? Number(summaryLog.bouncedCount || 0) : Number(campaign.stats?.bounced || 0),
+      spam: summaryLog ? Number(summaryLog.spamCount || 0) : Number(campaign.stats?.spam || 0)
+    },
+    displayStatus: computeCampaignDisplayStatus({ ...campaign, sentCount, pendingCount, failedCount }),
     projectName: normalizeProjectName(campaign.projectName || campaign.project || ''),
     projectId: campaign.projectId || campaign.project || '',
     openCount: Number(campaign.openCount || campaign.trackingStats?.openCount || openCount),

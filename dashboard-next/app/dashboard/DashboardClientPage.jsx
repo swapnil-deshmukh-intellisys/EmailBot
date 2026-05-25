@@ -23,6 +23,7 @@ import {
   convertDelayIntervalToSeconds,
   isFutureScheduledDate,
   normalizeDurationUnit,
+  normalizeScheduleDateValue,
   normalizeScheduledSlotInput
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 import { buildWordPadTableHtml } from '@/modules/draft-module/draft-utils/DraftWordPadTableBuilder';
@@ -39,6 +40,16 @@ const LeadList = dynamic(() => import('@/modules/lead-module/lead-components/Lea
 const ActivityPanel = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardActivityPanel'));
 
 const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+const MAX_SCHEDULE_DELAY_MINUTES = 1440;
+const MAX_SCHEDULE_DELAY_HOURS = 24;
+const MAX_SCHEDULE_DELAY_SECONDS = 86400;
+
+function getScheduleDelayLimit(unit = 'minutes') {
+  const normalizedUnit = normalizeDurationUnit(unit);
+  if (normalizedUnit === 'hours') return MAX_SCHEDULE_DELAY_HOURS;
+  if (normalizedUnit === 'seconds') return MAX_SCHEDULE_DELAY_SECONDS;
+  return MAX_SCHEDULE_DELAY_MINUTES;
+}
 
 function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2563eb' }) {
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
@@ -307,6 +318,21 @@ const PROJECT_PRESET_SENDERS = {
 };
 
 const normalizeEmail = (value = '') => String(value || '').toLowerCase();
+const CONNECTED_SENDER_STATUSES = new Set(['connected', 'active', 'good', 'verified']);
+
+function isGraphAppSenderAccount(account = {}) {
+  const id = String(account?.id || '').toLowerCase();
+  const provider = String(account?.provider || '').toLowerCase();
+  const label = String(account?.label || '').toLowerCase();
+  return provider === 'graph' && (id === 'outlook-graph' || id.startsWith('graphapp:') || label.includes('graph app'));
+}
+
+function isUsableSenderAccount(account = {}) {
+  if (!account) return false;
+  if (isGraphAppSenderAccount(account)) return true;
+  const status = String(account?.status || '').trim().toLowerCase();
+  return !status || CONNECTED_SENDER_STATUSES.has(status);
+}
 
 const inferProjectKeyFromCampaign = (campaign = {}, fallbackProject = '') => {
   const rawProject = String(
@@ -424,6 +450,7 @@ export default function DashboardPage() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [activeTopNav, setActiveTopNav] = useState('Dashboard');
   const [activeSidebarView, setActiveSidebarView] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [project, setProject] = useState('');
   const [projectOptions, setProjectOptions] = useState(defaultProjectOptions);
   const [showTopbarProjectDropdown, setShowTopbarProjectDropdown] = useState(false);
@@ -714,11 +741,14 @@ export default function DashboardPage() {
       COUNTRY_TIME_SLOTS[nextCountry]?.timezone ||
       'Asia/Kolkata'
     ).trim() || 'Asia/Kolkata';
-    const nextDateValue = String(input.scheduledDate || scheduledDateValue || '').trim();
+    const nextDateValue = normalizeScheduleDateValue(input.scheduledDate || scheduledDateValue || '');
     const nextTimeValue = String(input.scheduledTime || scheduledTimeValue || '').trim();
     const nextDurationUnit = normalizeDurationUnit(input.durationUnit || durationUnit || 'seconds');
     const nextBatchSize = Math.max(1, Math.floor(Number(input.batchSize ?? batchSize ?? 1) || 1));
-    const parsedDelayInterval = Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS));
+    const parsedDelayInterval = Math.min(
+      getScheduleDelayLimit(nextDurationUnit),
+      Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS))
+    );
     const nextDelaySeconds = Math.max(
       MIN_CAMPAIGN_SEND_GAP_SECONDS,
       convertDelayIntervalToSeconds(parsedDelayInterval, nextDurationUnit)
@@ -2153,6 +2183,45 @@ const handleDeleteDraft = async (draft) => {
             status: String(item.status || 'info').toLowerCase()
           }))
         ];
+  const workspaceOverviewItems = useMemo(() => {
+    const campaignTotal = Number(campaigns?.length || 0);
+    const runningCampaigns = (campaigns || []).filter((item) => String(item?.status || '').toLowerCase() === 'running').length;
+    const draftCampaigns = (campaigns || []).filter((item) => String(item?.status || '').toLowerCase() === 'draft').length;
+    const savedDraftTotal = Number(savedDrafts?.length || 0);
+    const draftTypeTotal = new Set((savedDrafts || []).map((item) => String(item?.draftType || item?.category || '').trim()).filter(Boolean)).size;
+    const clientListTotal = Number(lists?.length || 0);
+    const clientRecordTotal = (lists || []).reduce((total, item) => total + Number(item?.count || item?.total || item?.rows || item?.rowCount || 0), 0);
+    const sentMails = Number(stats?.sent || 0);
+    const pendingMails = Number(stats?.pending || 0);
+    const failedMails = Number(stats?.failed || 0);
+
+    return [
+      {
+        label: 'Campaigns',
+        value: String(campaignTotal),
+        detail: `${runningCampaigns} running, ${draftCampaigns} draft`,
+        tone: 'campaigns'
+      },
+      {
+        label: 'Drafts',
+        value: String(savedDraftTotal),
+        detail: `${draftTypeTotal} draft type${draftTypeTotal === 1 ? '' : 's'} available`,
+        tone: 'drafts'
+      },
+      {
+        label: 'Clients',
+        value: String(clientListTotal),
+        detail: clientRecordTotal ? `${clientRecordTotal.toLocaleString()} records in lists` : 'Client lists ready',
+        tone: 'clients'
+      },
+      {
+        label: 'Mails',
+        value: String(sentMails),
+        detail: `${pendingMails} pending, ${failedMails} failed`,
+        tone: 'mails'
+      }
+    ];
+  }, [campaigns, lists, savedDrafts, stats?.failed, stats?.pending, stats?.sent]);
   const sidebarLiveBadges = useMemo(() => {
     const campaignTotal = Number(campaigns?.length || 0);
     const draftsTotal = Number(savedDrafts?.length || 0);
@@ -2614,18 +2683,24 @@ const handleDeleteDraft = async (draft) => {
 
     try {
       const data = await safeFetchJson('/api/uploads', { method: 'POST', body: form });
+      const uploadData = data?.data && typeof data.data === 'object' ? data.data : data;
+      if (!uploadData?.listId || !Number(uploadData?.validRows ?? uploadData?.count ?? 0)) {
+        throw new Error('Upload succeeded but no valid list data was returned. Please try again.');
+      }
       setLoading(false);
-      setPreviewColumns(data.previewColumns || []);
-      setPreview(data.previewRows || []);
+      setPreviewColumns(uploadData.previewColumns || []);
+      setPreview(uploadData.previewRows || []);
       setPreviewPage(1);
-      setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
+      setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(uploadData.sheetStyle || {}) });
       setPreviewDirty(false);
-      setSelectedListId(data.listId);
+      setSelectedListId(uploadData.listId);
       await loadAll();
-      notify('File uploaded successfully.', 'success');
+      notify(`File uploaded successfully. ${uploadData.validRows ?? uploadData.count} valid rows ready.`, 'success');
+      return { ok: true, ...uploadData };
     } catch (e) {
       setLoading(false);
       notify(e.message || 'Upload failed', 'error');
+      return { ok: false, error: e.message || 'Upload failed' };
     }
   };
 
@@ -2778,7 +2853,9 @@ const handleDeleteDraft = async (draft) => {
           await startCampaign(createdCampaign._id, { scheduleConfig: effectiveSchedule, startAfterSchedule: true });
         }
       }
-      notify('Campaign created successfully.', 'success');
+      if (!autoStart) {
+        notify('Campaign created successfully.', 'success');
+      }
       if (!skipReload) {
         void loadAll();
       }
@@ -2803,6 +2880,10 @@ const handleDeleteDraft = async (draft) => {
     }
     if (config.delayInterval < 1) {
       notify('Delay interval must be greater than or equal to 1.', 'warning');
+      return { ok: false };
+    }
+    if (config.delayInterval > getScheduleDelayLimit(config.durationUnit)) {
+      notify(`Delay interval cannot be more than ${getScheduleDelayLimit(config.durationUnit)} ${config.durationUnit}.`, 'warning');
       return { ok: false };
     }
     if (!['seconds', 'minutes', 'hours'].includes(config.durationUnit)) {
@@ -2894,7 +2975,25 @@ const handleDeleteDraft = async (draft) => {
 
     if (!campaignId) return { ok: false };
 
-    return startCampaign(campaignId, { scheduleConfig, startAfterSchedule: true });
+    const result = await startCampaign(campaignId, { scheduleConfig, startAfterSchedule: true });
+    if (
+      result?.ok === false &&
+      (result.status === 404 || result.status === 409 || ['CAMPAIGN_NOT_FOUND', 'CAMPAIGN_ALREADY_FINISHED'].includes(result.code))
+    ) {
+      setPendingCampaignId('');
+      lastCreatedCampaignIdRef.current = '';
+      lastCampaignCreateSignatureRef.current = '';
+      notify('Previous campaign draft cannot be started. Creating a fresh campaign and starting again...', 'info');
+      const freshCampaign = await createCampaign({
+        skipReload: true,
+        scheduleConfig,
+        tracking: rawConfig?.tracking || { enabled: false, opens: false, clicks: false, replies: false, abTesting: false }
+      });
+      if (!freshCampaign?._id) return result;
+      return startCampaign(freshCampaign._id, { scheduleConfig, startAfterSchedule: true });
+    }
+
+    return result;
   };
 
   useEffect(() => {
@@ -3008,6 +3107,43 @@ const normalizeSelectedListEmails = async () => {
     }
   };
 
+  const getCampaignActionCounts = (data = {}) => {
+    const campaign = data.campaign || {};
+    return {
+      sent: Number(data.sentCount ?? campaign.sentCount ?? campaign.stats?.sent ?? 0),
+      pending: Number(data.pendingCount ?? campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+      failed: Number(data.failedCount ?? campaign.failedCount ?? campaign.stats?.failed ?? 0)
+    };
+  };
+
+  const buildCampaignStartMessage = (data = {}) => {
+    const displayStatus = String(data.displayStatus || data.status || data.campaign?.displayStatus || data.campaign?.status || '').trim();
+    const normalizedStatus = displayStatus.toLowerCase();
+    const counts = getCampaignActionCounts(data);
+    const countText = `Sent ${counts.sent}, Pending ${counts.pending}, Failed ${counts.failed}`;
+
+    if (data.warning) {
+      return { tone: 'warning', message: `${data.warning} ${countText}.` };
+    }
+    if (data.scheduled || normalizedStatus === 'scheduled') {
+      return { tone: 'success', message: `Campaign scheduled successfully. It will start automatically at the selected time. ${countText}.` };
+    }
+    if (normalizedStatus === 'running' || data.started) {
+      return { tone: 'success', message: `Campaign started successfully. First email is sending now; every next email waits at least 60 seconds. ${countText}.` };
+    }
+    if (data.queued || normalizedStatus === 'queued') {
+      return { tone: 'info', message: `Campaign queued successfully. The worker is starting and mail sending will begin automatically. ${countText}.` };
+    }
+    if (data.started === false && data.message) {
+      return { tone: 'info', message: data.message };
+    }
+    return { tone: 'success', message: `Campaign start request completed. ${countText}.` };
+  };
+
+  const waitForCampaignStartStatus = async (campaignId, initialData = {}) => {
+    return initialData;
+  };
+
   const startCampaign = async (campaignId, options = {}) => {
     try {
       setPreferredActiveCampaignId(campaignId);
@@ -3031,68 +3167,48 @@ const normalizeSelectedListEmails = async () => {
           notify('Scheduled time must be in future. Choose a later date/time, or select Send now.', 'warning');
           return { ok: false };
         }
-        await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scheduleMode: 'scheduled',
-            country: scheduleConfig.country,
-            slot: scheduleConfig.normalizedSlot,
-            timezone: scheduleConfig.timezone,
-            label: scheduleConfig.label,
-            scheduledDate: scheduleConfig.scheduledDate,
-            scheduledTime: scheduleConfig.scheduledTime,
-            scheduledAt: scheduleConfig.scheduledAt.toISOString(),
-            batchSize: scheduleConfig.batchSize,
-            delayInterval: scheduleConfig.delayInterval,
-            durationUnit: scheduleConfig.durationUnit,
-            activate: true,
-            replyMode: isReplyModeCampaignType
-          })
-        });
         setScheduledStartLabel(scheduleConfig.label);
-      } else {
-        await safeFetchJson(`/api/campaigns/${campaignId}/schedule`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scheduleMode: 'send_now',
-            country: scheduleConfig.country,
-            timezone: scheduleConfig.timezone,
-            batchSize: scheduleConfig.batchSize,
-            delayInterval: scheduleConfig.delayInterval,
-            durationUnit: scheduleConfig.durationUnit,
-            persistOnly: true,
-            replyMode: isReplyModeCampaignType
-          })
-        });
       }
       console.debug('[campaign:start] request', { url: `/api/campaigns/${campaignId}/start`, campaignId });
-      const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, { method: 'POST' });
-      const optimisticStatus = data.scheduled ? 'Scheduled' : data.queued ? 'Queued' : 'Running';
+      const data = await safeFetchJson(`/api/campaigns/${campaignId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduleMode: scheduleConfig.scheduleMode,
+          country: scheduleConfig.country,
+          timezone: scheduleConfig.timezone,
+          slot: scheduleConfig.normalizedSlot,
+          scheduledDate: scheduleConfig.scheduledDate,
+          scheduledTime: scheduleConfig.scheduledTime,
+          scheduledAt: scheduleConfig.scheduledAt ? scheduleConfig.scheduledAt.toISOString() : null,
+          batchSize: scheduleConfig.batchSize,
+          delayInterval: scheduleConfig.delayInterval,
+          durationUnit: scheduleConfig.durationUnit,
+          replyMode: isReplyModeCampaignType
+        })
+      });
+      const latestData = await waitForCampaignStartStatus(campaignId, data);
+      const latestStatus = String(latestData.displayStatus || latestData.status || latestData.campaign?.displayStatus || latestData.campaign?.status || '').trim();
+      const optimisticStatus = latestData.scheduled || latestStatus === 'Scheduled' ? 'Scheduled' : latestData.queued || latestStatus === 'Queued' ? 'Queued' : latestStatus || 'Running';
+      const latestCounts = getCampaignActionCounts(latestData);
       applyCampaignPatch(campaignId, {
         status: optimisticStatus,
-        displayStatus: data.displayStatus || optimisticStatus,
-        workerStatus: data.workerStatus || (optimisticStatus === 'Running' ? 'running' : ''),
-        queueReason: data.queueReason || '',
-        sentCount: data.sentCount,
-        pendingCount: data.pendingCount,
-        failedCount: data.failedCount
+        displayStatus: latestData.displayStatus || optimisticStatus,
+        workerStatus: latestData.workerStatus || latestData.queueState?.workerStatus || (optimisticStatus === 'Running' ? 'running' : ''),
+        queueReason: latestData.queueReason || latestData.queueState?.queueReason || '',
+        sentCount: latestCounts.sent,
+        pendingCount: latestCounts.pending,
+        failedCount: latestCounts.failed
       });
       setPendingCampaignId('');
-      if (data.scheduled) {
-        notify('Campaign scheduled successfully', 'success');
-      } else if (data.started === false && data.message) {
-        notify(data.message, 'info');
-      } else {
-        notify('Campaign started now', 'success');
-      }
+      const startMessage = buildCampaignStartMessage(latestData);
+      notify(startMessage.message, startMessage.tone);
       await refreshCampaignData({ source: 'start-campaign' });
-      return { ok: true, data };
+      return { ok: true, data: latestData, message: startMessage.message, tone: startMessage.tone };
     } catch (e) {
       notify(e.message || 'Failed to start campaign', 'error');
       void refreshCampaignData({ source: 'start-campaign-error' });
-      return { ok: false, error: e.message || 'Failed to start campaign' };
+      return { ok: false, error: e.message || 'Failed to start campaign', code: e.code || '', status: e.status || 0 };
     }
   };
 
@@ -3238,24 +3354,32 @@ const normalizeSelectedListEmails = async () => {
       ? previewColumns
       : Array.from(new Set(preview.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
 
-  const addPreviewRow = () => {
+  const addPreviewRow = (afterIndex = null) => {
     const columns = getPreviewColumns();
     const newRow = Object.fromEntries(columns.map((column) => [column, '']));
-    setPreview((prev) => [...prev, newRow]);
+    setPreview((prev) => {
+      const insertIndex = Number.isInteger(afterIndex)
+        ? Math.max(0, Math.min(prev.length, afterIndex + 1))
+        : prev.length;
+      return [...prev.slice(0, insertIndex), newRow, ...prev.slice(insertIndex)];
+    });
     setPreviewDirty(true);
     setShowUploadPreview(true);
   };
 
-  const addPreviewColumn = () => {
+  const addPreviewColumn = (preferredName = '') => {
     const existingColumns = getPreviewColumns();
     let nextIndex = existingColumns.length + 1;
-    let nextName = `Column${nextIndex}`;
+    let nextName = String(preferredName || '').trim() || `Column${nextIndex}`;
     while (existingColumns.includes(nextName)) {
       nextIndex += 1;
       nextName = `Column${nextIndex}`;
     }
 
-    setPreviewColumns([...existingColumns, nextName]);
+    setPreviewColumns((current) => {
+      const currentColumns = current.length ? current : existingColumns;
+      return currentColumns.includes(nextName) ? currentColumns : [...currentColumns, nextName];
+    });
     setPreview((prev) => prev.map((row) => ({ ...row, [nextName]: '' })));
     setPreviewDirty(true);
     setShowUploadPreview(true);
@@ -3376,6 +3500,7 @@ const normalizeSelectedListEmails = async () => {
 
   const handleTopNavSelect = (item) => {
     setActiveTopNav(item.label);
+    setSidebarOpen(false);
     if (item.href?.startsWith('/')) {
       router.push(item.href);
       return;
@@ -3400,6 +3525,7 @@ const normalizeSelectedListEmails = async () => {
     if (event) {
       event.preventDefault();
     }
+    setSidebarOpen(false);
     if (item.href?.startsWith('/')) {
       router.push(item.href);
       return;
@@ -3463,8 +3589,28 @@ const normalizeSelectedListEmails = async () => {
 
   return (
     <main className="dashboard-shell">
-      <aside className="dashboard-sidebar">
+      <div
+        className={`dashboard-sidebar-backdrop ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+      <button
+        type="button"
+        className="dashboard-mobile-sidebar-toggle dashboard-hamburger-button"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open navigation menu"
+      >
+        ☰
+      </button>
+      <aside className={`dashboard-sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
           <div className="dashboard-sidebar-card">
+            <button
+              type="button"
+              className="dashboard-sidebar-close"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close navigation menu"
+            >
+              ×
+            </button>
             <div className="dashboard-brand">
               <img
                 src="/intellimailpilot-logo.png"
@@ -3590,7 +3736,7 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
-          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Select Theme" />
+          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Theme" />
           <button
             type="button"
             className="dashboard-topbar-pill dashboard-topbar-range-pill"
@@ -3705,7 +3851,10 @@ const normalizeSelectedListEmails = async () => {
                 <button
                   type="button"
                   className="dashboard-topbar-dropdown-item"
-                  onClick={() => topbarProfilePhotoInputRef.current?.click()}
+                  onClick={() => {
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile');
+                  }}
                 >
                   Add Profile Photo
                 </button>
@@ -3714,7 +3863,7 @@ const normalizeSelectedListEmails = async () => {
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
                     setShowTopbarProfileDropdown(false);
-                    router.push('/dashboard/user/profile#profile');
+                    router.push('/dashboard/user/profile');
                   }}
                 >
                   Profile
@@ -3724,7 +3873,7 @@ const normalizeSelectedListEmails = async () => {
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
                     setShowTopbarProfileDropdown(false);
-                    router.push('/dashboard/user/profile#settings');
+                    router.push('/dashboard/user/profile/settings');
                   }}
                 >
                   Settings
@@ -3734,7 +3883,7 @@ const normalizeSelectedListEmails = async () => {
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
                     setShowTopbarProfileDropdown(false);
-                    router.push('/dashboard/user/profile#notifications');
+                    router.push('/dashboard/user/profile/notifications');
                   }}
                 >
                   Notifications
@@ -3744,7 +3893,7 @@ const normalizeSelectedListEmails = async () => {
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
                     setShowTopbarProfileDropdown(false);
-                    router.push('/dashboard/user/profile#billing');
+                    router.push('/dashboard/user/profile/billing');
                   }}
                 >
                   Billing
@@ -3754,7 +3903,7 @@ const normalizeSelectedListEmails = async () => {
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
                     setShowTopbarProfileDropdown(false);
-                    router.push('/dashboard/user/profile#security');
+                    router.push('/dashboard/user/profile/security');
                   }}
                 >
                   Security
@@ -4119,6 +4268,7 @@ const normalizeSelectedListEmails = async () => {
         projectOptions={projectOptions}
         barChartMetrics={barChartMetrics}
         logs={logs}
+        workspaceOverviewItems={workspaceOverviewItems}
         activeCampaign={activeCampaign}
         activeCampaignProgressText={progressText}
         lists={lists}

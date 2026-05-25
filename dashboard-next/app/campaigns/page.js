@@ -115,10 +115,10 @@ function getSenderEmail(campaign = {}) {
 }
 
 function getStats(campaign = {}) {
-  const total = Number(campaign?.stats?.total || 0);
-  const sent = Number(campaign?.stats?.sent || 0);
-  const failed = Number(campaign?.stats?.failed || 0);
-  const pendingFromStats = campaign?.stats?.pending;
+  const total = Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0);
+  const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+  const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
+  const pendingFromStats = campaign?.pendingCount ?? campaign?.stats?.pending;
   const pending = Number.isFinite(Number(pendingFromStats))
     ? Number(pendingFromStats || 0)
     : Math.max(total - sent - failed, 0);
@@ -465,10 +465,10 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
           <>
             <div className="dashboard-subscription-modal-grid">
               <article><span>Status</span><strong>{getDisplayStatus(campaign)}</strong></article>
-              <article><span>Total recipients</span><strong>{Number(campaign.stats?.total || campaign.totalRecipients || recipients.length || 0).toLocaleString()}</strong></article>
-              <article><span>Sent</span><strong>{Number(campaign.stats?.sent || campaign.sentCount || 0).toLocaleString()}</strong></article>
-              <article><span>Pending</span><strong>{Number(campaign.stats?.pending || campaign.pendingCount || 0).toLocaleString()}</strong></article>
-              <article><span>Failed</span><strong>{Number(campaign.stats?.failed || campaign.failedCount || 0).toLocaleString()}</strong></article>
+              <article><span>Total recipients</span><strong>{Number(campaign.totalRecipients ?? campaign.stats?.total ?? recipients.length ?? 0).toLocaleString()}</strong></article>
+              <article><span>Sent</span><strong>{Number(campaign.sentCount ?? campaign.stats?.sent ?? 0).toLocaleString()}</strong></article>
+              <article><span>Pending</span><strong>{Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0).toLocaleString()}</strong></article>
+              <article><span>Failed</span><strong>{Number(campaign.failedCount ?? campaign.stats?.failed ?? 0).toLocaleString()}</strong></article>
               <article><span>Open count</span><strong>{Number(campaign.openCount || 0).toLocaleString()}</strong></article>
               <article><span>Reply count</span><strong>{Number(campaign.replyCount || 0).toLocaleString()}</strong></article>
               <article><span>Positive replies</span><strong>{Number(campaign.positiveReplyCount || 0).toLocaleString()}</strong></article>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
 import Button from '@/shared-components/ui-components/UiActionButton';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
@@ -79,12 +78,16 @@ function draftTypeLabel(value = '') {
 
 function resolveDraftLibraryType(draft = {}) {
   const rawType = normalizeDraftType(draft.draftType || draft.category || draft.type || '');
+  if (rawType === 'open_followup') return 'followup';
+  if (rawType === 'final_followup') return 'final_cost';
+  if (rawType === 'initial_outreach') return 'cover_story';
+  if (DRAFT_LIBRARY_SECTIONS.some((section) => section.value === rawType)) return rawType;
+
   const text = `${draft.draftType || ''} ${draft.category || ''} ${draft.type || ''} ${draft.title || ''} ${draft.subject || ''} ${draft.body || ''}`.toLowerCase();
-  if (rawType === 'cover_story' || text.includes('cover story') || text.includes('coverstory')) return 'cover_story';
-  if (rawType === 'reminder' || text.includes('reminder')) return 'reminder';
-  if (rawType === 'followup' || rawType === 'open_followup' || text.includes('follow-up') || text.includes('follow up') || text.includes('followup') || text.includes('open follow')) return 'followup';
-  if (rawType === 'updated_cost' || text.includes('up cost') || text.includes('upcost') || text.includes('updated cost') || text.includes('upsell')) return 'updated_cost';
-  if (rawType === 'final_cost' || rawType === 'final_followup' || text.includes('final cost') || text.includes('final call') || text.includes('final follow')) return 'final_cost';
+  if (text.includes('reminder')) return 'reminder';
+  if (text.includes('follow-up') || text.includes('follow up') || text.includes('followup') || text.includes('open follow')) return 'followup';
+  if (text.includes('up cost') || text.includes('upcost') || text.includes('updated cost') || text.includes('upsell')) return 'updated_cost';
+  if (text.includes('final cost') || text.includes('final call') || text.includes('final follow')) return 'final_cost';
   if (text.includes('cover story') || text.includes('coverstory')) return 'cover_story';
   const inferred = inferDraftTypeFromDraft(draft);
   if (inferred === 'open_followup') return 'followup';
@@ -129,7 +132,6 @@ function textToEditorHtml(value) {
 }
 
 export default function DraftsPage() {
-  const router = useRouter();
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -321,11 +323,7 @@ export default function DraftsPage() {
 
   const handleEditDraft = (draft) => {
     const draftId = String(draft?._id || draft?.id || '');
-    if (draftId) {
-      router.push(`/drafts/${encodeURIComponent(draftId)}`);
-      return;
-    }
-    setEditingDraftId(String(draft?._id || ''));
+    setEditingDraftId(draftId);
     setDraftTitle(String(draft?.title || ''));
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
@@ -463,7 +461,7 @@ export default function DraftsPage() {
                   </label>
 
                   <label className="draft-workspace-title-field">
-                    <span>Category</span>
+                    <span>Draft Type</span>
                     <select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)}>
                       {CATEGORY_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>

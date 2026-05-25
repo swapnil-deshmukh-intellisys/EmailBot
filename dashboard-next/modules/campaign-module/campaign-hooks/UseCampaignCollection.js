@@ -6,9 +6,9 @@ function isCampaignFinished(campaign) {
     return true;
   }
 
-  const total = Number(campaign?.stats?.total || 0);
-  const sent = Number(campaign?.stats?.sent || 0);
-  const failed = Number(campaign?.stats?.failed || 0);
+  const total = Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0);
+  const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+  const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
 
   return total > 0 && sent + failed >= total;
 }
@@ -76,7 +76,7 @@ export default function useCampaigns(campaigns = [], preferredActiveCampaignId =
   const activeCampaignIds = useMemo(() => activeCampaigns.map((c) => c._id), [activeCampaigns]);
   const historyCampaignIds = useMemo(() => historyCampaigns.map((c) => c._id), [historyCampaigns]);
   const progressText = activeCampaign
-    ? `${activeCampaign.stats?.sent || 0} emails sent`
+    ? `${Number(activeCampaign.sentCount ?? activeCampaign.stats?.sent ?? 0)} emails sent`
     : '0 emails sent';
 
   return {

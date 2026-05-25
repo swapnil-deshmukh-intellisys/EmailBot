@@ -1,7 +1,6 @@
 'use client';
 
 import AppLayout from '@/shared-components/layout-components/SharedAppLayoutShell';
-import { Sidebar } from '@/shared-components/layout-components/LayoutComponentExports';
 import { cn } from '@/app/lib/UiClassNameUtility';
 import { getRoleNavigation } from '@/app/lib/roleNavigation';
 
@@ -30,14 +29,12 @@ export default function RoleDashboardShell({
   return (
     <AppLayout
       className={cn(className)}
-      sidebar={
-        <Sidebar
-          primaryItems={nav.primaryItems}
-          navItems={nav.navItems}
-          brand="Intelli Mail Pilot"
-          brandHref="/dashboard/user"
-        />
-      }
+      sidebarProps={{
+        primaryItems: nav.primaryItems,
+        navItems: nav.navItems,
+        brand: 'Intelli Mail Pilot',
+        brandHref: '/dashboard/user'
+      }}
       topbarProps={{
         title: nav.title,
         subtitle: nav.subtitle,
