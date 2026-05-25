@@ -245,7 +245,7 @@ a { color: inherit; text-decoration: none; }
   padding: 18px 18px 18px 0;
   display: grid;
   grid-template-columns: minmax(260px, 280px) minmax(0, 1fr);
-  gap: 8px;
+  gap: 14px;
   align-items: start;
   min-width: 0;
   position: relative;
@@ -273,7 +273,7 @@ a { color: inherit; text-decoration: none; }
   margin: 0;
   padding: 0;
   padding-top: 46px;
-  margin-left: -8px;
+  margin-left: 0;
   min-width: 0;
   width: 100%;
 }
@@ -10211,6 +10211,23 @@ html.theme-dark .warmup-editor-textarea {
   padding: 12px 16px 10px;
   border-bottom: 1px solid rgba(226, 232, 240, 0.84);
   background: rgba(255, 255, 255, 0.82);
+}
+
+.premium-summary-template-head {
+  position: relative;
+  justify-content: center;
+  text-align: center;
+}
+
+.premium-summary-template-head > div {
+  flex: 0 1 auto;
+  text-align: center;
+}
+
+.premium-summary-template-head .ghost.subtle {
+  position: absolute;
+  top: 10px;
+  right: 16px;
 }
 
 .premium-template-body {
@@ -27255,4 +27272,632 @@ html.theme-dark .premium-dashboard-shell :where(
 ) {
   color: #fbbf24 !important;
   -webkit-text-fill-color: #fbbf24 !important;
+}
+
+/* Responsive fit guardrails only: preserve existing design while preventing viewport overflow. */
+html,
+body,
+body > div {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+:where(
+  .dashboard-shell,
+  .dashboard-main,
+  .app-layout-main,
+  .premium-dashboard-shell,
+  .workspace-page,
+  .client-data-page,
+  .campaigns-modern-page,
+  .report-dashboard-page,
+  .mail-inbox-page,
+  .master-mail-page,
+  .warmup-workspace-page,
+  .admin-dashboard-page,
+  .dashboard-profile-page
+) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+:where(
+  .dashboard-main,
+  .app-layout-main,
+  .premium-dashboard-shell,
+  .workspace-page,
+  .client-data-page,
+  .campaigns-modern-page,
+  .report-dashboard-page,
+  .mail-inbox-page,
+  .master-mail-page,
+  .warmup-workspace-page,
+  .admin-dashboard-page
+) > * {
+  min-width: 0;
+}
+
+:where(
+  .dashboard-topbar,
+  .dashboard-topbar-rich,
+  .dashboard-topbar-actions,
+  .dashboard-topbar-action-group,
+  .premium-toolbar,
+  .premium-panel-head,
+  .premium-table-actions,
+  .premium-toolbar-actions,
+  .premium-review-toolbar-actions,
+  .premium-review-tablebar,
+  .workspace-hero,
+  .workspace-hero-actions,
+  .workspace-panel-head,
+  .client-data-page-header,
+  .client-list-actions,
+  .campaign-panel-head,
+  .campaign-status-tabs,
+  .report-panel-head,
+  .lead-card-actions,
+  .mail-inbox-actions,
+  .master-mail-sidebar-actions,
+  .warmup-action-row,
+  .warmup-panel-actions,
+  .dashboard-subscription-modal-actions
+) {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+:where(
+  .premium-kpi-row,
+  .premium-summary-grid,
+  .premium-content-grid,
+  .workspace-stats,
+  .workspace-grid,
+  .client-data-stats,
+  .client-data-grid,
+  .campaign-count-grid,
+  .campaigns-grid,
+  .report-grid,
+  .report-dashboard-grid,
+  .lead-grid,
+  .dashboard-grid,
+  .mail-inbox-stats,
+  .mail-inbox-grid,
+  .master-mail-grid,
+  .warmup-start-grid,
+  .warmup-inline-setup-grid,
+  .admin-summary-grid
+) {
+  min-width: 0;
+}
+
+:where(
+  .premium-panel,
+  .premium-card-with-tabs,
+  .premium-kpi-card,
+  .premium-stepper-row,
+  .premium-gauge-card,
+  .premium-calendar-card,
+  .workspace-panel,
+  .workspace-stat-card,
+  .workspace-highlight-card,
+  .client-data-panel,
+  .client-data-stat-card,
+  .campaign-panel,
+  .campaign-count-card,
+  .report-card,
+  .report-panel,
+  .lead-panel,
+  .lead-card,
+  .mail-inbox-stat-tile,
+  .mail-inbox-account-card,
+  .mail-inbox-preview-card,
+  .master-mail-list-pane,
+  .master-mail-reading-pane,
+  .admin-table-card,
+  .dashboard-subscription-modal,
+  .card,
+  .panel
+) {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(
+  input,
+  select,
+  textarea,
+  button,
+  .dashboard-topbar-tab,
+  .dashboard-sidebar-link,
+  .dashboard-primary-link,
+  .dashboard-logout-link,
+  .premium-row-action,
+  .workspace-primary,
+  .workspace-secondary,
+  .ui-primary-button,
+  .ui-icon-button
+) {
+  max-width: 100%;
+}
+
+:where(
+  .premium-table-wrap,
+  .premium-review-tablewrap,
+  .table-wrap,
+  .client-data-table-scroll,
+  .workspace-table-scroll,
+  .workspace-table,
+  .campaign-table-wrap,
+  .campaigns-table-wrap,
+  .report-table-wrap,
+  .mail-inbox-table-wrap,
+  .admin-table-scroll,
+  .master-mail-message-list
+) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+:where(
+  .premium-table,
+  .premium-review-table,
+  .client-data-table,
+  .campaign-table,
+  .report-table,
+  .admin-table-card table,
+  .workspace-table-head,
+  .workspace-table-row
+) {
+  min-width: max-content;
+}
+
+:where(
+  .premium-calendar-modal,
+  .premium-clientlist-modal,
+  .premium-review-modal,
+  .premium-campaign-modal,
+  .premium-select-draft-modal,
+  .premium-test-email-modal,
+  .premium-schedule-modal,
+  .premium-template-modal,
+  .client-upload-modal,
+  .dashboard-popup-card,
+  .dashboard-subscription-modal,
+  [role='dialog']
+) {
+  width: min(96vw, var(--modal-width, 960px));
+  max-width: 96vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-main.container,
+  .app-layout-main {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .dashboard-sidebar {
+    max-width: min(88vw, 340px);
+  }
+}
+
+@media (max-width: 768px) {
+  :where(
+    .premium-content-grid,
+    .workspace-grid,
+    .client-data-grid,
+    .campaigns-grid,
+    .report-dashboard-grid,
+    .mail-inbox-grid,
+    .master-mail-grid,
+    .warmup-start-grid
+  ) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(
+    .premium-kpi-row,
+    .premium-summary-grid,
+    .workspace-stats,
+    .client-data-stats,
+    .campaign-count-grid,
+    .report-grid,
+    .lead-grid,
+    .dashboard-grid,
+    .mail-inbox-stats,
+    .admin-summary-grid
+  ) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  }
+
+  :where(
+    .dashboard-topbar-actions > *,
+    .dashboard-topbar-action-group > *,
+    .workspace-hero-actions > *,
+    .premium-table-actions > *,
+    .premium-review-toolbar-actions > *,
+    .premium-popup-primary-row > *,
+    .premium-template-actions > *,
+    .premium-schedule-actions > *,
+    .client-list-actions > *,
+    .warmup-panel-actions > *
+  ) {
+    flex: 1 1 160px;
+  }
+
+  :where(input, select, textarea) {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  :where(
+    .dashboard-main.container,
+    .app-layout-main,
+    .premium-dashboard-shell,
+    .workspace-page,
+    .client-data-page,
+    .campaigns-modern-page,
+    .report-dashboard-page,
+    .mail-inbox-page,
+    .master-mail-page,
+    .warmup-workspace-page
+  ) {
+    max-width: 100%;
+  }
+
+  :where(
+    .dashboard-topbar-actions > *,
+    .dashboard-topbar-action-group > *,
+    .workspace-hero-actions > *,
+    .premium-table-actions > *,
+    .premium-review-toolbar-actions > *,
+    .premium-popup-primary-row > *,
+    .premium-template-actions > *,
+    .premium-schedule-actions > *,
+    .client-list-actions > *,
+    .warmup-panel-actions > *
+  ) {
+    flex-basis: 100%;
+  }
+
+  :where(button, .dashboard-topbar-tab, .premium-row-action, .workspace-primary, .workspace-secondary) {
+    min-height: 40px;
+  }
+
+  :where(
+    .premium-calendar-modal,
+    .premium-clientlist-modal,
+    .premium-review-modal,
+    .premium-campaign-modal,
+    .premium-select-draft-modal,
+    .premium-test-email-modal,
+    .premium-schedule-modal,
+    .premium-template-modal,
+    .client-upload-modal,
+    .dashboard-popup-card,
+    .dashboard-subscription-modal,
+    [role='dialog']
+  ) {
+    width: min(96vw, 100%);
+    max-width: 96vw;
+    max-height: 90dvh;
+  }
+}
+
+/* Campaign workflow responsive flow only: keep card design, fix unstable column wrapping. */
+.premium-stepper-shell,
+.premium-stepper-row {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.premium-stepper-row {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.premium-workflow-title {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.premium-step-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.premium-step-card strong,
+.premium-step-card button,
+.premium-step-card .campaigns-workflow-link,
+.premium-step-chip {
+  max-width: 100%;
+}
+
+@media (max-width: 1440px) {
+  .premium-stepper-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .premium-stepper-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .premium-step-card {
+    min-height: 150px;
+    height: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .premium-stepper-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .premium-step-card {
+    min-height: 142px;
+  }
+}
+
+@media (max-width: 480px) {
+  .premium-stepper-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .premium-step-card {
+    min-height: auto;
+  }
+}
+
+/* Navbar/sidebar separation: keep topbar inside the main column, never over the left sidebar. */
+@media (min-width: 1201px) {
+  .dashboard-shell {
+    display: grid;
+    grid-template-columns: minmax(260px, 280px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    overflow: visible;
+  }
+
+  .dashboard-sidebar {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    z-index: 30;
+  }
+
+  .dashboard-main.container {
+    grid-column: 2;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    padding-top: 0;
+  }
+
+  .dashboard-topbar {
+    position: sticky;
+    top: 18px;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    z-index: 35;
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-main.container {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 0;
+  }
+
+  .dashboard-topbar,
+  .dashboard-topbar-rich {
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Target card compact metrics: reduce number size and keep period text on one line. */
+.premium-dashboard-shell .premium-campaign-health-panel :where(.premium-health-summary-row, .premium-credit-summary-row) {
+  gap: 6px !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(.premium-health-metric, .premium-credit-metric) {
+  min-height: 48px !important;
+  padding: 7px 6px !important;
+  gap: 1px !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(.premium-health-metric, .premium-credit-metric) span {
+  font-size: 8.5px !important;
+  line-height: 1.1 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(.premium-health-metric, .premium-credit-metric) strong,
+.premium-dashboard-shell .premium-campaign-health-panel .premium-credit-metric.usage strong {
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-credit-metric.usage strong {
+  font-size: 10px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-arc-ring-inner strong {
+  font-size: 13px !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel .premium-arc-copy > strong {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+/* Final productivity-card type lock: keep labels aligned after all compact overrides. */
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+),
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) :where(h3, span, strong, small, p, button, input, textarea, select, option) {
+  font-family: Inter, 'Inter', 'Segoe UI', Tahoma, Arial, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) .premium-panel-head {
+  align-items: center !important;
+}
+
+.premium-dashboard-shell :where(
+  .premium-campaign-health-panel,
+  .premium-calendar-card,
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) .premium-panel-head h3 {
+  margin: 0 !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+
+.premium-dashboard-shell :where(
+  .premium-health-metric span,
+  .premium-credit-metric span,
+  .premium-calendar-weekday,
+  .premium-calendar-loading,
+  .premium-calendar-dashboard-summary span,
+  .premium-note-compose-footer small,
+  .premium-main-notification-panel .premium-list-item small,
+  .premium-main-notification-panel .premium-list-item p,
+  .premium-main-notification-panel .premium-list-item-subject
+) {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  text-transform: none !important;
+}
+
+.premium-dashboard-shell :where(.premium-health-metric, .premium-credit-metric) {
+  align-content: center !important;
+  justify-items: start !important;
+  text-align: left !important;
+}
+
+.premium-dashboard-shell :where(.premium-health-metric strong, .premium-credit-metric strong),
+.premium-dashboard-shell .premium-credit-metric.usage strong,
+.premium-dashboard-shell .premium-calendar-dashboard-summary strong {
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  text-align: left !important;
+}
+
+.premium-dashboard-shell .premium-calendar-card .premium-panel-head h3 {
+  text-transform: uppercase !important;
+}
+
+.premium-dashboard-shell .premium-calendar-day,
+.premium-dashboard-shell .premium-calendar-events-head strong,
+.premium-dashboard-shell .premium-calendar-events > p,
+.premium-dashboard-shell .premium-calendar-event p,
+.premium-dashboard-shell .premium-calendar-event small,
+.premium-dashboard-shell :where(
+  .premium-target-detail-line,
+  .premium-target-detail-line b,
+  .premium-target-detail-line span,
+  .premium-target-reset-line,
+  .premium-target-reset-line span,
+  .premium-target-approval-pill,
+  .premium-target-approval-btn,
+  .premium-target-filter,
+  .premium-calendar-more,
+  .premium-calendar-add,
+  .premium-main-notification-panel .premium-panel-head .ghost,
+  .premium-note-actions .ghost,
+  .premium-note-compose button,
+  .premium-note-tile-grid input,
+  .premium-note-compose textarea
+) {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+}
+
+.premium-dashboard-shell .premium-calendar-dashboard-summary span {
+  display: grid !important;
+  align-content: center !important;
+  justify-items: start !important;
+  gap: 2px !important;
+  text-align: left !important;
+}
+
+.premium-dashboard-shell :where(.premium-note-tile-grid input, .premium-note-compose textarea)::placeholder {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+/* Target card final number scale: keep top and lower metrics visually equal. */
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric strong,
+  .premium-credit-metric strong,
+  .premium-credit-metric.usage strong,
+  .premium-arc-ring-inner strong
+) {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric span,
+  .premium-credit-metric span,
+  .premium-arc-ring-inner span
+) {
+  font-size: 8.5px !important;
+  line-height: 1.1 !important;
 }

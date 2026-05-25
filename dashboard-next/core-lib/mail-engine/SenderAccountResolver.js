@@ -79,7 +79,13 @@ export function getPresetSenderEmails(project = '') {
     );
     return Array.from(new Set([...configured, ...DEFAULT_PROJECT_PRESET_SENDERS.tec]));
   }
-  return parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || '');
+  return Array.from(new Set([
+    ...parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS || process.env.SENDER_EMAILS || ''),
+    ...parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS_TEC || ''),
+    ...parsePresetSenderEmails(process.env.PRESET_SENDER_EMAILS_TUT || ''),
+    ...DEFAULT_PROJECT_PRESET_SENDERS.tec,
+    ...DEFAULT_PROJECT_PRESET_SENDERS.tut
+  ]));
 }
 
 export function getProjectGraphConfig(project = '') {
@@ -114,14 +120,50 @@ export function getProjectGraphConfig(project = '') {
 function inferProjectFromEmail(email = '') {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) return '';
+  if (normalizedEmail.endsWith('@theunicorntimes.com')) return 'tut';
+  if (normalizedEmail.endsWith('@theentrepreneurialchronicle.com')) return 'tec';
   if (getPresetSenderEmails('tut').includes(normalizedEmail)) return 'tut';
   if (getPresetSenderEmails('tec').includes(normalizedEmail)) return 'tec';
   return '';
 }
 
 export function getRuntimeSenderAccounts(project = '') {
+  const normalizedProject = String(project || '').trim().toLowerCase();
+  if (!normalizedProject) {
+    const seen = new Set();
+    const allAccounts = [];
+    for (const scopedProject of ['tec', 'tut']) {
+      for (const account of getRuntimeSenderAccounts(scopedProject)) {
+        const key = `${account.id || ''}:${String(account.from || account.user || '').toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allAccounts.push(account);
+      }
+    }
+
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const host = process.env.SMTP_HOST || '';
+      const isGmail = host.toLowerCase().includes('gmail') || process.env.SMTP_USER.toLowerCase().endsWith('@gmail.com');
+      const smtpAccount = {
+        id: isGmail ? 'gmail-smtp' : 'smtp-default',
+        provider: isGmail ? 'gmail' : 'smtp',
+        label: isGmail ? 'Gmail' : 'Custom SMTP',
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        host: isGmail ? 'smtp.gmail.com' : host,
+        port: Number(isGmail ? 465 : (process.env.SMTP_PORT || 587)),
+        secure: isGmail ? true : String(process.env.SMTP_SECURE || 'false') === 'true',
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      };
+      const key = `${smtpAccount.id}:${String(smtpAccount.from || '').toLowerCase()}`;
+      if (!seen.has(key)) allAccounts.push(smtpAccount);
+    }
+
+    return allAccounts;
+  }
+
   const accounts = [];
-  const graphConfig = getProjectGraphConfig(project);
+  const graphConfig = getProjectGraphConfig(normalizedProject);
 
   if (isGraphAppOnlyEnabled() && graphConfig.tenantId && graphConfig.clientId && graphConfig.clientSecret) {
     const defaultFrom = String(graphConfig.defaultFrom || '').trim();
@@ -137,7 +179,7 @@ export function getRuntimeSenderAccounts(project = '') {
       });
     }
 
-    for (const email of getPresetSenderEmails(project)) {
+    for (const email of getPresetSenderEmails(normalizedProject)) {
       if (!email) continue;
       if (email === defaultFrom.toLowerCase()) continue;
       accounts.push({
@@ -174,7 +216,8 @@ export function getRuntimeSenderAccounts(project = '') {
 export async function resolveSenderAccountById(id, options = {}) {
   const raw = String(id || '').trim();
   const userEmail = String(options?.userEmail || '').trim().toLowerCase();
-  const project = String(options?.project || '').trim().toLowerCase();
+  const senderFrom = String(options?.senderFrom || options?.from || '').trim().toLowerCase();
+  const project = String(options?.project || inferProjectFromEmail(senderFrom) || '').trim().toLowerCase();
   if (!raw) return null;
 
   if (raw.startsWith('oauth:')) {
@@ -237,5 +280,21 @@ export async function resolveSenderAccountById(id, options = {}) {
     };
   }
 
-  return getRuntimeSenderAccounts(project).find((a) => a.id === raw) || null;
+  const runtimeCandidates = getRuntimeSenderAccounts(project);
+  const matchedByIdAndFrom = senderFrom
+    ? runtimeCandidates.find((a) => a.id === raw && String(a.from || a.user || '').trim().toLowerCase() === senderFrom)
+    : null;
+  if (matchedByIdAndFrom) return matchedByIdAndFrom;
+
+  const matchedById = runtimeCandidates.find((a) => a.id === raw);
+  if (matchedById) return matchedById;
+
+  if (senderFrom) {
+    const inferredProject = inferProjectFromEmail(senderFrom);
+    const fallbackByFrom = getRuntimeSenderAccounts(inferredProject)
+      .find((a) => String(a.from || a.user || '').trim().toLowerCase() === senderFrom);
+    if (fallbackByFrom) return fallbackByFrom;
+  }
+
+  return null;
 }

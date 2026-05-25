@@ -3175,3 +3175,342 @@ html.theme-light .dashboard-login-screen .login-button {
   color: #ffffff !important;
   box-shadow: 0 8px 16px rgba(87, 75, 194, 0.14) !important;
 }
+
+/* Match Inbox and Write Note headings to the compact productivity-card label scale. */
+.premium-dashboard-shell :where(
+  .premium-main-notification-panel,
+  .premium-side-notification-panel
+) .premium-panel-head h3 {
+  margin: 0 !important;
+  color: #0f172a !important;
+  font-family: Inter, 'Inter', 'Segoe UI', Tahoma, Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Campaigns page hero and count cards: reduce visual loudness only for the top summary section. */
+.campaigns-modern-page .campaigns-modern-hero {
+  padding: 20px !important;
+  gap: 14px !important;
+}
+
+.campaigns-modern-page .campaigns-modern-hero h1 {
+  margin: 4px 0 0 !important;
+  font-size: clamp(1.45rem, 1.8vw, 1.95rem) !important;
+  font-weight: 700 !important;
+  line-height: 1.16 !important;
+  letter-spacing: 0 !important;
+}
+
+.campaigns-modern-page .campaigns-page-kicker {
+  font-size: 10px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.04em !important;
+}
+
+.campaigns-modern-page .campaigns-hero-actions .ui-button {
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.campaigns-modern-page .campaign-count-grid {
+  gap: 12px !important;
+  margin-top: 12px !important;
+}
+
+.campaigns-modern-page .campaign-count-card {
+  min-height: 118px !important;
+  padding: 13px !important;
+  border-radius: 16px !important;
+}
+
+.campaigns-modern-page .campaign-count-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 11px !important;
+  font-size: 11px !important;
+  font-weight: 750 !important;
+}
+
+.campaigns-modern-page .campaign-count-label {
+  min-width: 0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-align: right !important;
+  text-transform: none !important;
+}
+
+.campaigns-modern-page .campaign-count-card strong {
+  margin-top: 12px !important;
+  font-size: clamp(1.25rem, 1.55vw, 1.7rem) !important;
+  font-weight: 750 !important;
+  line-height: 1 !important;
+}
+
+.campaigns-modern-page .campaign-count-percent {
+  margin-top: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+}
+
+.campaigns-modern-page .campaign-count-card-glow {
+  width: 82px !important;
+  height: 82px !important;
+  opacity: 0.11 !important;
+}
+
+/* Global compact pass: remove instructional copy and reduce unused spacing without changing flows. */
+:where(
+  .dashboard-main,
+  .app-layout-main,
+  .premium-dashboard-shell,
+  .workspace-page,
+  .client-data-page,
+  .campaigns-modern-page,
+  .report-dashboard-page,
+  .mail-inbox-page,
+  .master-mail-page,
+  .warmup-workspace-page,
+  .admin-dashboard-page,
+  .dashboard-content-shell,
+  .dashboard-profile-page
+) {
+  padding-block: 8px !important;
+}
+
+:where(
+  .premium-dashboard-shell,
+  .workspace-page,
+  .client-data-page,
+  .campaigns-modern-page,
+  .report-dashboard-page,
+  .mail-inbox-page,
+  .master-mail-page,
+  .warmup-workspace-page,
+  .admin-dashboard-page,
+  .dashboard-profile-page
+) > * + * {
+  margin-top: 10px !important;
+}
+
+:where(
+  .workspace-hero,
+  .campaigns-modern-hero,
+  .client-data-page-header,
+  .report-heading,
+  .user-dashboard-hero,
+  .dashboard-panel,
+  .dashboard-chart-card,
+  .premium-panel,
+  .workspace-panel,
+  .client-data-panel,
+  .campaign-panel,
+  .report-panel,
+  .lead-panel,
+  .ui-section-card,
+  .card,
+  .panel
+) {
+  padding: clamp(12px, 1vw, 16px) !important;
+}
+
+:where(
+  .workspace-stats,
+  .client-data-stats,
+  .campaign-count-grid,
+  .report-grid,
+  .lead-grid,
+  .dashboard-grid,
+  .admin-summary-grid,
+  .premium-kpi-row,
+  .premium-summary-grid,
+  .premium-content-grid,
+  .workspace-grid,
+  .client-data-grid,
+  .campaigns-grid,
+  .report-dashboard-grid,
+  .mail-inbox-grid,
+  .master-mail-grid,
+  .warmup-start-grid
+) {
+  gap: 10px !important;
+}
+
+:where(
+  .workspace-panel-head,
+  .client-data-panel-head,
+  .campaign-panel-head,
+  .report-panel-head,
+  .premium-panel-head,
+  .ui-section-card-head,
+  .dashboard-chart-card-header,
+  .dashboard-stat-card-header
+) {
+  margin-bottom: 8px !important;
+  padding-bottom: 0 !important;
+  gap: 8px !important;
+}
+
+:where(
+  .workspace-hero > div > p,
+  .campaigns-modern-hero > div > p,
+  .client-data-page-header p,
+  .report-heading p,
+  .user-dashboard-hero p,
+  .workspace-panel-head > div > p,
+  .client-data-panel-head > div > p,
+  .campaign-panel-head > div > p,
+  .report-panel-head > div > p,
+  .premium-panel-head > div > p,
+  .ui-card-description,
+  .ui-page-section-description,
+  .ui-modal-description,
+  .dashboard-stat-card-description,
+  .dashboard-chart-card-header .ui-card-description,
+  .dashboard-activity-copy p,
+  .dashboard-filter-bar-range,
+  .premium-clientlist-stepcopy,
+  .premium-review-stepcopy,
+  .premium-campaign-stepcopy,
+  .premium-select-draft-stepcopy,
+  .premium-test-email-stepcopy,
+  .premium-template-stepcopy,
+  .premium-schedule-stepcopy,
+  .premium-clientlist-section-copy p,
+  .premium-review-inline-note:not(.premium-review-inline-note-warning),
+  .premium-campaign-hint:not(.premium-campaign-hint-warning),
+  .premium-empty-state small,
+  .warmup-workspace-page .workspace-panel-head p,
+  .warmup-minimized-note,
+  .workspace-hero-cue
+) {
+  display: none !important;
+}
+
+:where(
+  .login-card-head > p:not(.login-card-kicker),
+  .account-status-copy,
+  .request-access-copy
+) {
+  display: none !important;
+}
+
+:where(
+  .workspace-stat-card,
+  .client-data-stat-card,
+  .campaign-count-card,
+  .report-card,
+  .dashboard-stat-card,
+  .ui-stat-card
+) {
+  min-height: 96px !important;
+  padding: 12px !important;
+}
+
+:where(
+  .dashboard-topbar,
+  .dashboard-topbar-rich,
+  .premium-toolbar
+) {
+  padding: 10px 12px !important;
+  min-height: 0 !important;
+}
+
+/* Drafts, templates, and leads: remove forced empty scroll space while keeping natural growth. */
+:where(
+  .app-layout-main:has(.drafts-page),
+  .app-layout-main:has(.draft-templates-page),
+  .app-layout-main:has(.lead-pipeline-page)
+) {
+  min-height: 0 !important;
+  height: auto !important;
+  padding-bottom: 8px !important;
+  overflow-y: visible !important;
+}
+
+:where(
+  .drafts-page,
+  .draft-templates-page,
+  .lead-pipeline-page
+) {
+  min-height: 0 !important;
+  height: auto !important;
+  padding-top: 8px !important;
+  padding-bottom: 0 !important;
+  overflow: visible !important;
+}
+
+:where(
+  .drafts-page,
+  .draft-templates-page,
+  .lead-pipeline-page
+) > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+:where(
+  .drafts-page,
+  .draft-templates-page,
+  .lead-pipeline-page
+) :where(
+  .workspace-hero,
+  .user-dashboard-hero,
+  .workspace-grid,
+  .draft-library-grid,
+  .workspace-panel,
+  .draft-workspace-panel,
+  .lead-overview-grid,
+  .lead-kanban
+) {
+  min-height: 0 !important;
+}
+
+:where(.drafts-page, .draft-templates-page) :where(.workspace-grid, .draft-library-grid) {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.lead-pipeline-page .lead-kanban {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  padding-bottom: 6px !important;
+  margin-bottom: 0 !important;
+}
+
+.lead-pipeline-page .lead-kanban-column {
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+.lead-pipeline-page .lead-kanban-cards {
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Target card final compact scale. theme.css loads after globals.css, so this must live here. */
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric strong,
+  .premium-credit-metric strong,
+  .premium-credit-metric.usage strong,
+  .premium-arc-ring-inner strong
+) {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+}
+
+.premium-dashboard-shell .premium-campaign-health-panel :where(
+  .premium-health-metric span,
+  .premium-credit-metric span,
+  .premium-arc-ring-inner span
+) {
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+  font-weight: 700 !important;
+}

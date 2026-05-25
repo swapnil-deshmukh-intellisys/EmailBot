@@ -25,6 +25,8 @@ const runners = global.campaignRunners || new Map();
 global.campaignRunners = runners;
 const startingRunners = global.campaignStartingRunners || new Set();
 global.campaignStartingRunners = startingRunners;
+const senderSendSlots = global.campaignSenderSendSlots || new Map();
+global.campaignSenderSendSlots = senderSendSlots;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
@@ -659,6 +661,38 @@ async function waitForCampaignDelay(state, campaign, delayMs, lastHeartbeatAt = 
   return { completed: true, interruptedBy: '', lastHeartbeatAt: heartbeatAt };
 }
 
+async function waitForSenderSendSlot(state, campaign, account, gapMs, lastHeartbeatAt = 0) {
+  const senderKey = senderThreadKey(account);
+  const now = Date.now();
+  const reservedAt = Math.max(now, Number(senderSendSlots.get(senderKey) || 0));
+  senderSendSlots.set(senderKey, reservedAt + gapMs);
+
+  if (reservedAt <= now) {
+    return { completed: true, interruptedBy: '', lastHeartbeatAt };
+  }
+
+  appendLog(campaign, `Sender throttle: next mail from ${account.from || account.user || 'sender'} at ${new Date(reservedAt).toISOString()}`);
+  await saveCampaignIfExists(campaign);
+
+  let heartbeatAt = lastHeartbeatAt;
+  while (Date.now() < reservedAt) {
+    if (state.stop) {
+      return { completed: false, interruptedBy: 'stop', lastHeartbeatAt: heartbeatAt };
+    }
+
+    if (state.paused) {
+      senderSendSlots.set(senderKey, Math.max(Date.now(), Number(senderSendSlots.get(senderKey) || 0)));
+      return { completed: false, interruptedBy: 'pause', lastHeartbeatAt: heartbeatAt };
+    }
+
+    heartbeatAt = await syncCampaignHeartbeat(campaign, heartbeatAt);
+    const remainingMs = Math.max(0, reservedAt - Date.now());
+    await wait(Math.min(DELAY_POLL_INTERVAL_MS, remainingMs));
+  }
+
+  return { completed: true, interruptedBy: '', lastHeartbeatAt: heartbeatAt };
+}
+
 export async function validateCampaignExecutionPreflight(campaign, options = {}) {
   await connectDB();
 
@@ -737,7 +771,8 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
   if (campaign.senderAccountId) {
     const sender = await resolveSenderAccountById(campaign.senderAccountId, {
       userEmail: campaign.userEmail || '',
-      project: campaign.project || ''
+      project: campaign.project || '',
+      senderFrom: campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user || ''
     });
     if (!sender) {
       throw new Error('No sender account found for this user');
@@ -745,6 +780,15 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
     const senderStatus = String(sender.status || 'Connected').trim().toLowerCase();
     if (senderStatus && !['connected', 'active', 'good', 'verified'].includes(senderStatus)) {
       throw new Error(`Sender account is not connected: ${sender.status}`);
+    }
+  } else if (!campaign.senderAccount?.provider && campaign.senderFrom) {
+    const sender = await resolveSenderAccountById(`graphapp:${normalizeEmail(campaign.senderFrom)}`, {
+      userEmail: campaign.userEmail || '',
+      project: campaign.project || '',
+      senderFrom: campaign.senderFrom
+    });
+    if (!sender && !getAvailableAccounts().length) {
+      throw new Error('No sender account configured');
     }
   } else if (!campaign.senderAccount?.provider && !getAvailableAccounts().length) {
     throw new Error('No sender account configured');
@@ -798,7 +842,8 @@ export async function startCampaignRunner(campaignId, options = {}) {
     appendLog(campaign, `Resolving sender account ${campaign.senderAccountId}`);
     const resolved = await resolveSenderAccountById(campaign.senderAccountId, {
       userEmail: campaign.userEmail || '',
-      project: campaign.project || ''
+      project: campaign.project || '',
+      senderFrom: campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user || ''
     });
     if (!resolved) {
       appendLog(campaign, `Sender account not found: ${campaign.senderAccountId}`, 'error');
@@ -809,6 +854,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
   } else if (campaign.senderAccount?.provider) {
     appendLog(campaign, `Using sender snapshot: ${campaign.senderAccount.provider} | ${campaign.senderAccount.from || 'unknown'}`);
     accounts = [campaign.senderAccount];
+  } else if (campaign.senderFrom) {
+    appendLog(campaign, `Resolving sender from campaign sender email ${campaign.senderFrom}`);
+    const resolved = await resolveSenderAccountById(`graphapp:${normalizeEmail(campaign.senderFrom)}`, {
+      userEmail: campaign.userEmail || '',
+      project: campaign.project || '',
+      senderFrom: campaign.senderFrom
+    });
+    accounts = resolved ? [resolved] : getAvailableAccounts();
   } else {
     appendLog(campaign, 'Using runtime sender accounts');
     accounts = getAvailableAccounts();
@@ -876,6 +929,11 @@ export async function startCampaignRunner(campaignId, options = {}) {
     if (email) map.set(email, String(claim?.status || '').toLowerCase());
     return map;
   }, new Map());
+  const claimErrorByEmail = existingClaims.reduce((map, claim) => {
+    const email = normalizeRecipientEmail(claim?.recipientEmail || '');
+    if (email) map.set(email, String(claim?.error || ''));
+    return map;
+  }, new Map());
   const scopedClaimStatuses = scopedLeads.map((lead) => {
     const email = normalizeRecipientEmail(lead?.Email || lead?.email || '');
     return email ? claimStatusByEmail.get(email) || '' : '';
@@ -893,7 +951,12 @@ export async function startCampaignRunner(campaignId, options = {}) {
   campaign.lastRunError = '';
   campaign.lastRunErrorAt = null;
   const scopedSent = scopedClaimStatuses.filter((status) => status === 'sent').length;
-  const scopedFailed = scopedClaimStatuses.filter((status) => status === 'failed').length;
+  const scopedFailed = scopedLeads.filter((lead) => {
+    const email = normalizeRecipientEmail(lead?.Email || lead?.email || '');
+    const status = email ? claimStatusByEmail.get(email) || '' : '';
+    const error = email ? claimErrorByEmail.get(email) || '' : '';
+    return status === 'failed' && !isCriticalSendError(error);
+  }).length;
   const scopedBounced = scopedClaimStatuses.filter((status) => status === 'bounced').length;
   const scopedSpam = scopedClaimStatuses.filter((status) => status === 'spam').length;
   campaign.stats.total = scopedLeads.length;
@@ -941,7 +1004,9 @@ export async function startCampaignRunner(campaignId, options = {}) {
         }
 
         const campaignRecipientStatus = claimStatusByEmail.get(recipientEmail) || '';
-        if (['sent', 'failed', 'bounced', 'spam'].includes(campaignRecipientStatus)) {
+        const previousClaimError = claimErrorByEmail.get(recipientEmail) || '';
+        const retryableSenderFailure = campaignRecipientStatus === 'failed' && isCriticalSendError(previousClaimError);
+        if (['sent', 'bounced', 'spam'].includes(campaignRecipientStatus) || (campaignRecipientStatus === 'failed' && !retryableSenderFailure)) {
           return;
         }
 
@@ -954,9 +1019,13 @@ export async function startCampaignRunner(campaignId, options = {}) {
         }
 
         pendingIndexes.push(idx);
-        if (normalizedStatus !== 'failed') {
+        if (normalizedStatus !== 'failed' || retryableSenderFailure) {
           lead.status = 'Pending';
           lead.sendingStartedAt = null;
+          if (retryableSenderFailure) {
+            lead.error = '';
+            lead.failedAt = null;
+          }
         }
       });
       await list.save();
@@ -1118,6 +1187,33 @@ export async function startCampaignRunner(campaignId, options = {}) {
         const selectedTemplate = inlineTemplate || templateFromDb;
         const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
         const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
+        const senderSlot = await waitForSenderSendSlot(state, campaign, account, delayMs, lastHeartbeatAt);
+        lastHeartbeatAt = senderSlot.lastHeartbeatAt;
+        if (!senderSlot.completed) {
+          lead.status = 'Pending';
+          lead.error = '';
+          lead.sendingStartedAt = null;
+          await persistLeadProgress(list._id, idx, lead);
+          await CampaignRecipientClaim.deleteOne({
+            campaignId: campaign._id,
+            recipientEmail,
+            status: 'Sending'
+          }).catch(() => {});
+          await CampaignRecipientLog.updateOne(
+            { campaignId: campaign._id, email: recipientEmail, status: 'Sending' },
+            {
+              $set: {
+                status: 'Pending',
+                pendingCount: 1,
+                lastActivityAt: new Date()
+              }
+            }
+          ).catch(() => {});
+          if (senderSlot.interruptedBy === 'pause') {
+            i -= 1;
+          }
+          continue;
+        }
 
         try {
           appendLog(campaign, `Sending to ${recipientEmail} with ${account.provider || 'smtp'} via ${account.from || account.user || 'unknown'}`);

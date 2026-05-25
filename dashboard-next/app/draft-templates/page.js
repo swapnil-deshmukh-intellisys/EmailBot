@@ -68,7 +68,7 @@ export default function DraftTemplatesPage() {
 
   return (
     <AppLayout>
-      <section className="workspace-page">
+      <section className="workspace-page draft-templates-page">
         <div className="workspace-hero">
           <div>
             <span className="workspace-kicker">Draft & Templates</span>

@@ -2896,16 +2896,24 @@ export default function PremiumDashboardShell({
                               Resume Draft
                             </button>
                           ) : null}
-                          {canPauseCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
-                          ) : null}
+                          <button
+                            type="button"
+                            disabled={!canPauseCampaign}
+                            onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}
+                          >
+                            Pause
+                          </button>
                           {canStopCampaign ? (
                             <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
                           ) : null}
-                          {canResumeCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
-                          ) : null}
-                          <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
+                          <button
+                            type="button"
+                            disabled={!canResumeCampaign}
+                            onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}
+                          >
+                            Resume
+                          </button>
+                          <button type="button" onClick={() => { setOpenActionMenu(null); handleDeleteCampaignClick(campaign); }}>Delete</button>
                         </div>
                         );
                       })() : null}
@@ -4745,7 +4753,7 @@ export default function PremiumDashboardShell({
         showDraftSummaryPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
           <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-template-head">
+            <div className="premium-template-head premium-summary-template-head">
               <div>
                 <span className="premium-popup-step-badge">5</span>
                 <h3>Summary</h3>

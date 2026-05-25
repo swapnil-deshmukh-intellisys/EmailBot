@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
-import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import { apiFetchJson } from '@/app/lib/apiClient';
@@ -744,30 +743,27 @@ export default function CampaignsPage() {
   if (!isMounted) {
     return (
       <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-        <PageContainer>
-          <main className="campaigns-page-shell campaigns-modern-page">
-            <section className="campaigns-modern-hero">
-              <div>
-                <span className="campaigns-page-kicker">Live campaign operations</span>
-                <h1>Campaigns</h1>
-              </div>
-            </section>
-            <div className="campaign-table-loading">
-              <div />
-              <div />
-              <div />
-              <div />
+        <main className="campaigns-page-shell campaigns-modern-page">
+          <section className="campaigns-modern-hero">
+            <div>
+              <span className="campaigns-page-kicker">Live campaign operations</span>
+              <h1>Campaigns</h1>
             </div>
-          </main>
-        </PageContainer>
+          </section>
+          <div className="campaign-table-loading">
+            <div />
+            <div />
+            <div />
+            <div />
+          </div>
+        </main>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-      <PageContainer>
-        <main className="campaigns-page-shell campaigns-modern-page">
+      <main className="campaigns-page-shell campaigns-modern-page">
           <section className="campaigns-modern-hero">
             <div>
               <span className="campaigns-page-kicker">Live campaign operations</span>
@@ -884,8 +880,7 @@ export default function CampaignsPage() {
               onActionCompleted={() => loadCampaigns({ silent: true })}
             />
           ) : null}
-        </main>
-      </PageContainer>
+      </main>
     </AppLayout>
   );
 }

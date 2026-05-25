@@ -24,7 +24,6 @@ import {
 } from '@/core-lib/campaign-engine/CampaignStatusSummary';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import {
-  ensureRecipientLogsForCampaign,
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 import { normalizeDraftType } from '@/app/lib/draftTypes';
@@ -187,7 +186,6 @@ export async function GET(req) {
         .limit(limit)
         .lean()
     ]);
-    await Promise.all(rawCampaigns.map((campaign) => ensureRecipientLogsForCampaign(campaign).catch(() => [])));
     const campaignIds = rawCampaigns.map((campaign) => campaign._id);
     const recipientLogSummaries = campaignIds.length
       ? await CampaignRecipientLog.aggregate([
@@ -335,7 +333,8 @@ export async function POST(req) {
     const senderAccount = senderAccountId
       ? await resolveSenderAccountById(senderAccountId, {
           userEmail,
-          project: String(project || '').trim().toLowerCase()
+          project: String(project || '').trim().toLowerCase(),
+          senderFrom
         })
       : null;
 

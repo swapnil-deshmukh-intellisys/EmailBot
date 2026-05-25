@@ -407,7 +407,7 @@ export default function DraftsPage() {
 
   return (
     <DashboardPlaceholderShell>
-      <section className="workspace-page" style={{ '--workspace-accent': '#f97316' }}>
+      <section className="workspace-page drafts-page" style={{ '--workspace-accent': '#f97316' }}>
         <div className="workspace-hero">
           <div>
             <span className="workspace-kicker">Drafts</span>

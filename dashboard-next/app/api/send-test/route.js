@@ -24,7 +24,10 @@ export async function POST(req) {
 
     const account = await resolveSenderAccountById(accountId, {
       userEmail,
-      project: String(project || '').trim().toLowerCase()
+      project: String(project || '').trim().toLowerCase(),
+      senderFrom: accountId && String(accountId).startsWith('graphapp:')
+        ? String(accountId).slice('graphapp:'.length)
+        : ''
     });
     if (!account) {
       const isPresetGraphAccount = String(accountId || '').startsWith('graphapp:');

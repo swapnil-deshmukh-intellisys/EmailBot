@@ -2403,12 +2403,12 @@ const handleDeleteDraft = async (draft) => {
   const fetchCampaignsWithFallback = async () => {
     const primaryUrl = buildCampaignsUrl();
     console.debug('[campaign:refetch] request', { url: primaryUrl, at: new Date().toISOString() });
-    const primary = await safeFetchJson(primaryUrl);
+    const primary = await safeFetchJson(primaryUrl, { timeoutMs: 45000 });
     const primaryCampaigns = primary?.campaigns || [];
 
     if (!showAllUserActivity && primaryCampaigns.length === 0) {
       console.debug('[campaign:refetch] fallback', { url: '/api/campaigns?limit=80', at: new Date().toISOString() });
-      const fallback = await safeFetchJson('/api/campaigns?limit=80');
+      const fallback = await safeFetchJson('/api/campaigns?limit=80', { timeoutMs: 45000 });
       return fallback?.campaigns || [];
     }
 
