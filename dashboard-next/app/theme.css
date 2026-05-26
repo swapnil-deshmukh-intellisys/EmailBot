@@ -4720,3 +4720,231 @@ html.theme-colorful {
   font-size: 12px !important;
   line-height: 1.4 !important;
 }
+
+/* Production-stable navigation layout.
+   These rules intentionally sit at the end of the final global CSS file so
+   Vercel's optimized CSS order cannot let older fixed-position navbar rules
+   overlap the sidebar or squeeze actions off-screen. */
+.dashboard-shell {
+  display: grid !important;
+  grid-template-columns: minmax(248px, 292px) minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: clamp(12px, 1.2vw, 18px) !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 16px !important;
+  overflow-x: clip !important;
+}
+
+.dashboard-shell > .dashboard-sidebar {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  position: sticky !important;
+  top: 16px !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 292px !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: calc(100dvh - 32px) !important;
+  margin: 0 !important;
+  transform: none !important;
+  z-index: 60 !important;
+  pointer-events: auto !important;
+}
+
+.dashboard-shell > .dashboard-main,
+.dashboard-shell > .dashboard-main.container,
+.dashboard-shell > .app-layout-main {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.dashboard-topbar,
+.dashboard-topbar-rich {
+  position: sticky !important;
+  top: 16px !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 0 16px !important;
+  z-index: 55 !important;
+  overflow: visible !important;
+}
+
+.dashboard-topbar:not(.dashboard-topbar-rich) {
+  display: grid !important;
+  grid-template-columns: minmax(220px, max-content) minmax(180px, 1fr) minmax(0, max-content) !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.dashboard-topbar-rich {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: start !important;
+  gap: 12px !important;
+}
+
+.dashboard-topbar-leading,
+.dashboard-topbar-tabs,
+.dashboard-topbar-search,
+.dashboard-topbar-actions,
+.dashboard-topbar-action-group {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.dashboard-topbar-tabs {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+  scrollbar-width: thin !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.dashboard-topbar-tab {
+  flex: 0 0 auto !important;
+}
+
+.dashboard-topbar-search {
+  width: 100% !important;
+}
+
+.dashboard-topbar-actions,
+.dashboard-topbar-action-group {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.dashboard-topbar-actions > *,
+.dashboard-topbar-action-group > * {
+  min-width: 0 !important;
+}
+
+.dashboard-topbar-date-control,
+.dashboard-topbar-notify,
+.dashboard-topbar-profile-link {
+  flex: 0 1 auto !important;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-shell {
+    grid-template-columns: minmax(228px, 268px) minmax(0, 1fr) !important;
+    padding: 12px !important;
+  }
+
+  .dashboard-shell > .dashboard-sidebar {
+    max-width: 268px !important;
+  }
+
+  .dashboard-topbar:not(.dashboard-topbar-rich) {
+    grid-template-columns: minmax(180px, 0.9fr) minmax(180px, 1fr) minmax(220px, 1fr) !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-shell {
+    display: block !important;
+    padding: 12px !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-shell > .dashboard-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: min(86vw, 332px) !important;
+    max-width: min(86vw, 332px) !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding: 12px !important;
+    transform: translateX(-110%) !important;
+    transition: transform 180ms ease !important;
+    z-index: 90 !important;
+    pointer-events: none !important;
+  }
+
+  .dashboard-shell > .dashboard-sidebar.mobile-open {
+    transform: translateX(0) !important;
+    pointer-events: auto !important;
+  }
+
+  .dashboard-shell > .dashboard-main,
+  .dashboard-shell > .dashboard-main.container,
+  .dashboard-shell > .app-layout-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .dashboard-topbar,
+  .dashboard-topbar-rich {
+    position: static !important;
+    top: auto !important;
+  }
+
+  .dashboard-topbar:not(.dashboard-topbar-rich),
+  .dashboard-topbar-rich {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-topbar-actions,
+  .dashboard-topbar-action-group {
+    justify-content: flex-start !important;
+  }
+
+  .dashboard-mobile-sidebar-toggle,
+  .dashboard-mobile-sidebar-toggle-inline,
+  .dashboard-hamburger-button {
+    display: inline-flex !important;
+  }
+
+  .dashboard-sidebar-backdrop {
+    display: block !important;
+    z-index: 80 !important;
+  }
+
+  .dashboard-sidebar-close {
+    display: inline-flex !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-shell {
+    padding: 8px !important;
+  }
+
+  .dashboard-topbar,
+  .dashboard-topbar-rich {
+    border-radius: 16px !important;
+    padding: 10px !important;
+  }
+
+  .dashboard-topbar-actions > *,
+  .dashboard-topbar-action-group > *,
+  .dashboard-topbar-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+
+  .dashboard-topbar-tab {
+    min-height: 38px !important;
+    padding-inline: 12px !important;
+    font-size: 12px !important;
+  }
+}
