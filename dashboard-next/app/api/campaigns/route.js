@@ -59,6 +59,34 @@ function escapeRegex(value = '') {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function buildProjectFilter(project = '') {
+  const normalized = String(project || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const projectRegex = new RegExp(`^${escapeRegex(normalized)}$`, 'i');
+  const clauses = [
+    { project: projectRegex },
+    { projectId: projectRegex },
+    { projectName: projectRegex }
+  ];
+  if (normalized === 'tec') {
+    clauses.push(
+      { projectName: /entrepreneurial/i },
+      { senderFrom: /@theentrepreneurialchronicle\.com$/i },
+      { 'senderAccount.from': /@theentrepreneurialchronicle\.com$/i },
+      { 'senderAccount.user': /@theentrepreneurialchronicle\.com$/i }
+    );
+  }
+  if (normalized === 'tut') {
+    clauses.push(
+      { projectName: /unicorn/i },
+      { senderFrom: /@theunicorntimes\.com$/i },
+      { 'senderAccount.from': /@theunicorntimes\.com$/i },
+      { 'senderAccount.user': /@theunicorntimes\.com$/i }
+    );
+  }
+  return { $or: clauses };
+}
+
 function shouldUseDemoData() {
   return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
 }
@@ -84,17 +112,18 @@ export async function GET(req) {
     const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') || 80) || 80));
     const skip = Math.max(0, Number(url.searchParams.get('skip') || 0) || 0);
 
-    if (project) {
-      filters.project = project;
-    }
+    const andClauses = [];
+    const projectFilter = buildProjectFilter(project);
+    if (projectFilter) andClauses.push(projectFilter);
     if (sender) {
       const senderRegex = new RegExp(`^${escapeRegex(sender)}$`, 'i');
-      filters.$or = [
+      andClauses.push({ $or: [
         { senderFrom: senderRegex },
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
-      ];
+      ] });
     }
+    if (andClauses.length) filters.$and = andClauses;
     const query = buildAuthOwnerFilter(auth, filters);
 
     const [totalCount, countSourceCampaigns, rawCampaigns] = await Promise.all([

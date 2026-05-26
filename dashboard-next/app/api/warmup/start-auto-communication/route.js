@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import connectDB from '@/lib/mongodb';
 import WarmupSheet from '@/models/WarmupSheet';
 import WarmupConversation from '@/models/WarmupConversation';
@@ -62,6 +63,7 @@ export async function POST(req) {
     const projectId = normalizeProject(body.projectId || body.project || '') || '';
     const delayMinutes = Math.max(1, Math.floor(Number(body.delayMinutes || body.delay || 1) || 1));
     const totalMessages = Math.max(1, Math.min(10, Math.floor(Number(body.totalMessages || 10) || 10)));
+    const runId = String(body.runId || crypto.randomUUID()).trim();
 
     if (!selectedSenderId) return jsonError('Please select a sender ID.');
     if (!warmupSheetId) return jsonError('Please select a warmup sheet.');
@@ -134,40 +136,39 @@ export async function POST(req) {
       const receiverAccount = await findVerifiedWarmupAccountByEmail({ userEmail, projectId: resolvedProjectId, email: receiverEmail, includeRuntime: true });
       const receiverAccountId = receiverAccount?.id || `bot:${receiverEmail}`;
       const mode = receiverAccount ? 'real' : 'simulated';
-      const threadId = buildWarmupThreadId({ userId: String(userId || userEmail), projectId: resolvedProjectId, senderEmail, receiverEmail });
+      const activeExisting = await WarmupConversation.findOne({
+        userEmail,
+        projectId: resolvedProjectId,
+        warmupSheetId: sheet._id,
+        senderEmail,
+        receiverEmail,
+        status: { $in: ['pending', 'running', 'paused'] }
+      }).lean();
+      if (activeExisting) {
+        skipped.push({ email: receiverEmail, reason: 'duplicate_conversation_running' });
+        continue;
+      }
+      const threadId = buildWarmupThreadId({ userId: String(userId || userEmail), projectId: resolvedProjectId, senderEmail, receiverEmail, runId });
       try {
-        const doc = await WarmupConversation.findOneAndUpdate(
-          { userEmail, projectId: resolvedProjectId, threadId },
-          {
-            $setOnInsert: {
-              userId,
-              userEmail,
-              projectId: resolvedProjectId,
-              warmupSheetId: sheet._id,
-              selectedSenderId,
-              receiverAccountId,
-              senderEmail,
-              receiverEmail,
-              threadId,
-              totalMessages,
-              currentMessageNumber: 0,
-              mode,
-              delayMinutes,
-              createdAt: new Date()
-            },
-            $set: {
-              status: 'pending',
-              receiverAccountId,
-              mode,
-              delayMinutes,
-              totalMessages,
-              nextMessageAt: new Date(Date.now() + delayMinutes * 60 * 1000),
-              updatedAt: new Date(),
-              lastError: ''
-            }
-          },
-          { new: true, upsert: true }
-        ).lean();
+        const doc = await WarmupConversation.create({
+          userId,
+          userEmail,
+          projectId: resolvedProjectId,
+          warmupSheetId: sheet._id,
+          selectedSenderId,
+          receiverAccountId,
+          senderEmail,
+          receiverEmail,
+          threadId,
+          totalMessages,
+          currentMessageNumber: 0,
+          status: 'pending',
+          mode,
+          delayMinutes,
+          nextMessageAt: new Date(Date.now() + delayMinutes * 60 * 1000),
+          lastError: '',
+          failedReason: ''
+        });
         created.push({ id: String(doc._id), selectedSenderId, receiverAccountId, receiverEmail, mode });
       } catch (error) {
         failed.push({ email: receiverEmail, reason: error.message || 'create_failed' });
@@ -189,6 +190,7 @@ export async function POST(req) {
         invalidRows: invalidRowsCount,
         duplicateRows: duplicateRowsCount
       },
+      runId,
       created,
       skipped,
       failed

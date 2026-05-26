@@ -4492,3 +4492,231 @@ html.theme-colorful {
     transition-duration: .001ms !important;
   }
 }
+
+/* Dashboard activity timeline: allow the whole page to scroll naturally. */
+.user-dashboard-page .premium-content-grid > .premium-logs-panel {
+  min-height: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.user-dashboard-page .premium-logs-panel .premium-logs-split {
+  height: auto !important;
+  min-height: 0 !important;
+  align-items: stretch !important;
+}
+
+.user-dashboard-page .premium-logs-panel .premium-logs-split-column {
+  height: auto !important;
+  min-height: 360px !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.user-dashboard-page .premium-logs-panel :where(.premium-timeline-stack, .premium-logs-stack) {
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+}
+
+.user-dashboard-page,
+.user-dashboard-page > .dashboard-main,
+.user-dashboard-page .premium-dashboard-shell {
+  height: auto !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Client Data Customize List: structured cards with reliable actions. */
+.client-data-page .client-data-clientlist-stack,
+.client-data-page .ui-page-section {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.client-data-page .client-data-clientlist-secondary.client-data-panel-compact {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.client-data-page .client-data-clientlist-secondary.client-data-panel-compact > .ui-card-content {
+  width: 100% !important;
+}
+
+.client-data-page .client-data-customize-list {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)) !important;
+  gap: 16px !important;
+}
+
+.client-data-page .client-data-customize-card {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 18px !important;
+  align-items: stretch !important;
+  min-height: 238px !important;
+  padding: 18px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06) !important;
+}
+
+.client-data-page .client-data-customize-card.active {
+  border-color: rgba(37, 99, 235, 0.34) !important;
+  background: linear-gradient(180deg, #f8fbff, #eef6ff) !important;
+}
+
+.client-data-page .client-data-customize-card-main {
+  display: grid !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.client-data-page .client-data-customize-title-row {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.client-data-page .client-data-customize-title-row > div {
+  min-width: 0 !important;
+}
+
+.client-data-page .client-data-customize-title-row strong {
+  display: block !important;
+  color: #0f172a !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.client-data-page .client-data-customize-title-row span {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.client-data-page .client-data-customize-meta-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.client-data-page .client-data-customize-meta-grid span {
+  display: block !important;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  border: 1px solid #edf2f7 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 750 !important;
+  line-height: 1.25 !important;
+}
+
+.client-data-page .client-data-customize-meta-grid b {
+  color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+.client-data-page .client-data-customize-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-self: end !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.client-data-page .client-data-customize-actions button {
+  flex: 1 1 140px !important;
+  margin: 0 !important;
+  min-height: 38px !important;
+  white-space: nowrap !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 980px) {
+  .client-data-page .client-data-customize-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .client-data-page .client-data-customize-actions {
+    justify-content: flex-start !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .client-data-page .client-data-customize-actions button {
+    flex: 1 1 145px !important;
+  }
+}
+
+.client-data-page .client-data-history-panel {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  margin-top: 18px !important;
+}
+
+.client-data-page .client-data-history-list {
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+}
+
+.client-data-page .client-data-history-campaigns {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.client-data-page .client-data-history-campaign {
+  display: grid !important;
+  gap: 8px !important;
+  padding: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+}
+
+.client-data-page .client-data-history-campaign > div:first-child {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+.client-data-page .client-data-history-campaign-stats {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)) !important;
+  gap: 6px !important;
+}
+
+.client-data-page .client-data-history-campaign-stats span {
+  margin: 0 !important;
+  padding: 6px 8px !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.client-data-page .client-data-history-campaign p {
+  margin: 0 !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}

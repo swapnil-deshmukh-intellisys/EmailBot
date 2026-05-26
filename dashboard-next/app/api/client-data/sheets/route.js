@@ -14,6 +14,13 @@ const NO_STORE_HEADERS = {
   'Surrogate-Control': 'no-store'
 };
 
+function normalizeProject(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw.includes('tut') || raw.includes('unicorn') || raw.includes('theunicorntimes.com')) return 'tut';
+  if (raw.includes('tec') || raw.includes('entrepreneurial') || raw.includes('theentrepreneurialchronicle.com')) return 'tec';
+  return raw || 'unassigned';
+}
+
 export async function GET(req) {
   try {
     const auth = await requireAuth(req);
@@ -21,6 +28,7 @@ export async function GET(req) {
     await connectDB();
 
     const ownerQuery = buildAuthOwnerFilter(auth);
+    const requestedProject = normalizeProject(new URL(req.url).searchParams.get('project') || '');
     await moveExpiredUploadsToBin(LeadList, ownerQuery);
     const lists = await LeadList.aggregate([
       { $match: activeListFilter(ownerQuery) },
@@ -42,19 +50,24 @@ export async function GET(req) {
       { $sort: { uploadedAt: -1, createdAt: -1 } }
     ]);
 
+    const mappedLists = lists.map((list) => ({
+      _id: String(list._id),
+      name: list.name,
+      sourceFile: list.sourceFile || list.sourceFileName || '',
+      kind: list.kind || 'uploaded',
+      project: normalizeProject(list.project || list.projectId || list.projectName || list.name || list.sourceFile || 'unassigned'),
+      uploadedAt: list.uploadedAt || null,
+      createdAt: list.createdAt || null,
+      autoDeleteAt: list.autoDeleteAt || null,
+      leadCount: Number(list.leadCount || 0)
+    }));
+    const scopedLists = requestedProject && requestedProject !== 'unassigned'
+      ? mappedLists.filter((list) => list.project === requestedProject)
+      : mappedLists;
+
     return NextResponse.json({
       ok: true,
-      lists: lists.map((list) => ({
-        _id: String(list._id),
-        name: list.name,
-        sourceFile: list.sourceFile || list.sourceFileName || '',
-        kind: list.kind || 'uploaded',
-        project: list.project || list.projectId || list.projectName || 'unassigned',
-        uploadedAt: list.uploadedAt || null,
-        createdAt: list.createdAt || null,
-        autoDeleteAt: list.autoDeleteAt || null,
-        leadCount: Number(list.leadCount || 0)
-      }))
+      lists: scopedLists
     }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return NextResponse.json({ ok: false, lists: [], error: error.message || 'Failed to load sheets' }, { status: 500, headers: NO_STORE_HEADERS });

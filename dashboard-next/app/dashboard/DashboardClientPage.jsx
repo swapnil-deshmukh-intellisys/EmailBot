@@ -164,6 +164,15 @@ function initialsFromName(value = '') {
   return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
 }
 
+function dashboardActivityDateParts(value) {
+  const date = value ? new Date(value) : new Date();
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  return {
+    date: safeDate.toLocaleDateString('en-GB'),
+    time: safeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+}
+
 function RichTextEditorLegacy({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -410,6 +419,7 @@ const DEFAULT_SHEET_STYLE = {
 };
 const DASHBOARD_DRAFT_STATE_KEY = 'dashboard:draft-state:v1';
 const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
+const DASHBOARD_SELECTED_PROJECT_KEY = 'dashboard:selected-project:v1';
 
 
 export default function DashboardPage() {
@@ -436,6 +446,7 @@ export default function DashboardPage() {
   const [lists, setLists] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [dashboardActivities, setDashboardActivities] = useState([]);
   const [preview, setPreview] = useState([]);
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
@@ -494,6 +505,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setIsMounted(true);
+    try {
+      const savedProject = String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase();
+      if (savedProject) {
+        setProject(savedProject);
+        setProjectOptions((current) => (current.includes(savedProject) ? current : [...current, savedProject]));
+        setShowAllUserActivity(false);
+      }
+    } catch (error) {
+      // Ignore storage failures.
+    }
   }, []);
   const [creditTransactions, setCreditTransactions] = useState([]);
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
@@ -800,10 +821,22 @@ export default function DashboardPage() {
   };
 
   const selectProject = (value) => {
-    setProject(value);
+    const normalizedProject = String(value || '').trim().toLowerCase();
+    setProject(normalizedProject);
     setSelectedAccount("");
     setActiveAccount("");
+    setShowAllUserActivity(!normalizedProject);
     setShowTopbarProjectDropdown(false);
+    try {
+      if (normalizedProject) {
+        window.localStorage.setItem(DASHBOARD_SELECTED_PROJECT_KEY, normalizedProject);
+      } else {
+        window.localStorage.removeItem(DASHBOARD_SELECTED_PROJECT_KEY);
+      }
+      window.dispatchEvent(new CustomEvent('dashboard-project-change', { detail: { project: normalizedProject } }));
+    } catch (error) {
+      // Ignore storage failures.
+    }
   };
 
   const addProjectOption = () => {
@@ -1164,7 +1197,8 @@ const handleDeleteDraft = async (draft) => {
 
   const loadSavedDrafts = async () => {
     try {
-      const data = await safeFetchJson('/api/drafts');
+      const draftsUrl = project ? `/api/drafts?project=${encodeURIComponent(String(project).trim().toLowerCase())}` : '/api/drafts';
+      const data = await safeFetchJson(draftsUrl);
       setSavedDrafts((data.drafts || data || []).map((draft) => normalizeDraft(draft)));
     } catch (err) {
       console.error('Failed to load drafts', err);
@@ -1630,6 +1664,23 @@ const handleDeleteDraft = async (draft) => {
     .map(({ _reply, ...item }) => item);
   const timelineCards = useMemo(() => {
     const sourceCampaigns = Array.isArray(campaigns) ? campaigns : [];
+    const dashboardActivityCards = (Array.isArray(dashboardActivities) ? dashboardActivities : [])
+      .map((activity, index) => {
+        const parts = dashboardActivityDateParts(activity?.date || activity?.updatedAt || activity?.createdAt);
+        const type = String(activity?.type || 'Dashboard').trim() || 'Dashboard';
+        const status = String(activity?.status || '').trim().toLowerCase();
+        return {
+          id: activity?.id || `dashboard-activity-${index}`,
+          date: parts.date,
+          time: parts.time,
+          title: String(activity?.title || 'Dashboard activity').trim(),
+          type,
+          text: String(activity?.text || 'Dashboard activity updated.').trim(),
+          status: status || (activity?.done ? 'done' : 'pending'),
+          done: Boolean(activity?.done || status === 'done' || status === 'completed')
+        };
+      })
+      .filter((item) => item.title);
     const campaignActivityCards = sourceCampaigns
       .slice()
       .sort((a, b) => {
@@ -1682,6 +1733,8 @@ const handleDeleteDraft = async (draft) => {
         return cards;
       });
 
+    const combinedActivityCards = [...dashboardActivityCards, ...campaignActivityCards];
+    if (combinedActivityCards.length) return combinedActivityCards.slice(0, 24);
     if (campaignActivityCards.length) return campaignActivityCards.slice(0, 16);
 
     return [{
@@ -1694,7 +1747,7 @@ const handleDeleteDraft = async (draft) => {
       status: 'pending',
       done: false
     }];
-  }, [campaigns]);
+  }, [campaigns, dashboardActivities]);
   const performanceCampaigns = (campaigns || [])
     .slice()
     .sort((a, b) => {
@@ -2369,16 +2422,24 @@ const handleDeleteDraft = async (draft) => {
         ? filterOverrides.customStatsEndDate
         : customStatsEndDate;
 
+    const params = new URLSearchParams();
+    if (project) params.set('project', String(project).trim().toLowerCase());
     if (effectiveRange === 'customize' && effectiveCustomStartDate && effectiveCustomEndDate) {
-      return `/api/stats?range=customize&startDate=${encodeURIComponent(effectiveCustomStartDate)}&endDate=${encodeURIComponent(effectiveCustomEndDate)}`;
+      params.set('range', 'customize');
+      params.set('startDate', effectiveCustomStartDate);
+      params.set('endDate', effectiveCustomEndDate);
+      return `/api/stats?${params.toString()}`;
     }
     if (effectiveRange) {
-      return `/api/stats?range=${encodeURIComponent(effectiveRange)}`;
+      params.set('range', effectiveRange);
+      return `/api/stats?${params.toString()}`;
     }
     if (effectiveDate) {
-      return `/api/stats?date=${encodeURIComponent(effectiveDate)}`;
+      params.set('date', effectiveDate);
+      return `/api/stats?${params.toString()}`;
     }
-    return '/api/stats';
+    const query = params.toString();
+    return query ? `/api/stats?${query}` : '/api/stats';
   };
 
   const buildCampaignsUrl = () => {
@@ -2386,7 +2447,7 @@ const handleDeleteDraft = async (draft) => {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}limit=80`;
     };
-    if (showAllUserActivity) {
+    if (showAllUserActivity && !project && !selectedSenderEmail) {
       return appendLimit('/api/campaigns');
     }
     const params = new URLSearchParams();
@@ -2400,13 +2461,24 @@ const handleDeleteDraft = async (draft) => {
     return appendLimit(qs ? `/api/campaigns?${qs}` : '/api/campaigns');
   };
 
+  const buildDashboardActivityUrl = () => {
+    const params = new URLSearchParams({ limit: '60' });
+    if (!showAllUserActivity && project) {
+      params.set('project', String(project).trim().toLowerCase());
+    }
+    if (!showAllUserActivity && selectedSenderEmail) {
+      params.set('sender', selectedSenderEmail);
+    }
+    return `/api/dashboard/activity?${params.toString()}`;
+  };
+
   const fetchCampaignsWithFallback = async () => {
     const primaryUrl = buildCampaignsUrl();
     console.debug('[campaign:refetch] request', { url: primaryUrl, at: new Date().toISOString() });
     const primary = await safeFetchJson(primaryUrl, { timeoutMs: 45000 });
     const primaryCampaigns = primary?.campaigns || [];
 
-    if (!showAllUserActivity && primaryCampaigns.length === 0) {
+    if (!project && !selectedSenderEmail && !showAllUserActivity && primaryCampaigns.length === 0) {
       console.debug('[campaign:refetch] fallback', { url: '/api/campaigns?limit=80', at: new Date().toISOString() });
       const fallback = await safeFetchJson('/api/campaigns?limit=80', { timeoutMs: 45000 });
       return fallback?.campaigns || [];
@@ -2446,17 +2518,19 @@ const handleDeleteDraft = async (draft) => {
   const loadAll = async (filterOverrides = {}) => {
     try {
       const statsUrl = buildStatsUrl(filterOverrides);
-      const accountsPromise = safeFetchJson('/api/accounts')
+      const accountsUrl = project ? `/api/accounts?project=${encodeURIComponent(String(project).trim().toLowerCase())}` : '/api/accounts';
+      const accountsPromise = safeFetchJson(accountsUrl)
         .then((accRes) => {
           setAccounts(accRes.accounts || []);
           return accRes;
         })
         .catch((err) => ({ __error: err }));
 
-      const [statsRes, templatesRes, campaignsRes] = await Promise.allSettled([
+      const [statsRes, templatesRes, campaignsRes, activityRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
         safeFetchJson('/api/templates'),
-        fetchCampaignsWithFallback()
+        fetchCampaignsWithFallback(),
+        safeFetchJson(buildDashboardActivityUrl(), { timeoutMs: 30000 })
       ]);
       const errors = [];
 
@@ -2486,6 +2560,12 @@ const handleDeleteDraft = async (draft) => {
         );
       } else {
         errors.push(campaignsRes.reason?.message || 'Failed to load campaigns');
+      }
+
+      if (activityRes.status === 'fulfilled') {
+        setDashboardActivities(Array.isArray(activityRes.value?.activities) ? activityRes.value.activities : []);
+      } else {
+        errors.push(activityRes.reason?.message || 'Failed to load dashboard activity');
       }
 
       const accountsRes = await accountsPromise;
@@ -2531,9 +2611,10 @@ const handleDeleteDraft = async (draft) => {
       }
 
       const statsUrl = buildStatsUrl(filterOverrides);
-      const [statsRes, campaignsRes] = await Promise.allSettled([
+      const [statsRes, campaignsRes, activityRes] = await Promise.allSettled([
         safeFetchJson(statsUrl, { timeoutMs: 45000 }),
-        fetchCampaignsWithFallback()
+        fetchCampaignsWithFallback(),
+        safeFetchJson(buildDashboardActivityUrl(), { timeoutMs: 30000 })
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -2559,12 +2640,22 @@ const handleDeleteDraft = async (draft) => {
         return;
       }
 
+      if (activityRes.status === 'fulfilled') {
+        setDashboardActivities(Array.isArray(activityRes.value?.activities) ? activityRes.value.activities : []);
+      } else if (String(activityRes.reason?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
+      }
+
       const errors = [];
       if (statsRes.status === 'rejected') {
         errors.push(statsRes.reason?.message || 'Failed to refresh stats');
       }
       if (campaignsRes.status === 'rejected') {
         errors.push(campaignsRes.reason?.message || 'Failed to refresh campaigns');
+      }
+      if (activityRes.status === 'rejected') {
+        errors.push(activityRes.reason?.message || 'Failed to refresh dashboard activity');
       }
       setError(errors[0] || '');
     } catch (e) {
@@ -2578,7 +2669,7 @@ const handleDeleteDraft = async (draft) => {
 
   useEffect(() => {
     loadSavedDrafts();
-  }, []);
+  }, [project]);
 
   useEffect(() => {
     return () => {

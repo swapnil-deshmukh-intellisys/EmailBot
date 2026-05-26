@@ -846,6 +846,11 @@ export default function PremiumDashboardShell({
   const draftTypeDropdownRef = useRef(null);
   const draftFileInputRef = useRef(null);
   const draftTypeItems = DRAFT_TYPE_ITEMS;
+
+  useEffect(() => {
+    const normalizedProject = String(project || '').trim().toLowerCase();
+    setCampaignProjectFilter(normalizedProject);
+  }, [project]);
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
@@ -3013,8 +3018,8 @@ export default function PremiumDashboardShell({
                 </div>
               </div>
               <div className="premium-timeline-summary">
-                <strong>{inlineTimelineCards.length} campaign activities</strong>
-                <span>Running, pending, paused, completed, failed, and draft campaign actions.</span>
+                <strong>{inlineTimelineCards.length} dashboard activities</strong>
+                <span>Mailing, meetings, campaigns, drafts, client data, and sender activity.</span>
               </div>
               <div className="premium-timeline-stack">
                 {Object.entries(

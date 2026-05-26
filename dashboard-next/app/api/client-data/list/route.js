@@ -93,6 +93,8 @@ export async function GET(req) {
 
     const ownerQuery = buildAuthOwnerFilter(auth);
     await moveExpiredUploadsToBin(LeadList, ownerQuery);
+    const url = new URL(req.url);
+    const requestedProject = normalizeProject(url.searchParams.get('project') || '');
     const query = activeListFilter(ownerQuery);
 
     const projection = [
@@ -135,7 +137,8 @@ export async function GET(req) {
       return map;
     }, new Map());
     const rows = [];
-    for (const list of lists) {
+    const scopedLists = requestedProject ? lists.filter((list) => listProjectKey(list, campaignsByListId) === requestedProject) : lists;
+    for (const list of scopedLists) {
       const leads = Array.isArray(list?.leads) ? list.leads : [];
       const project = listProjectKey(list, campaignsByListId);
       leads.forEach((lead, index) => {
@@ -148,7 +151,7 @@ export async function GET(req) {
     return NextResponse.json({
       ok: true,
       rows,
-      lists: lists.map((list) => ({
+      lists: scopedLists.map((list) => ({
         _id: String(list._id),
         name: list.name,
         sourceFile: list.sourceFile,

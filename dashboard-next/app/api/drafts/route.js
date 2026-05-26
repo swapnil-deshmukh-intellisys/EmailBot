@@ -28,7 +28,7 @@ export async function GET(req) {
     const requestedProject = String(searchParams.get('project') || '').trim().toLowerCase();
     const query = buildAuthOwnerFilter(auth);
     if (['tec', 'tut'].includes(requestedProject)) {
-      query.project = { $in: [requestedProject, ''] };
+      query.project = requestedProject;
     }
     const drafts = (await EmailDraft.find(query).sort({ updatedAt: -1, createdAt: -1 }).lean())
       .map(withResolvedDraftType)

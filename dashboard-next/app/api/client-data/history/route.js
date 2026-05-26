@@ -62,6 +62,34 @@ function clientStage(log = null) {
   return log.status || 'Pending';
 }
 
+function logActivityTime(log = {}) {
+  return log.lastActivityAt || log.lastReplyAt || log.lastSentAt || log.updatedAt || null;
+}
+
+function formatCampaignHistory(log = {}) {
+  return {
+    id: String(log._id || ''),
+    campaignId: String(log.campaignId || ''),
+    campaignName: log.campaignName || 'Campaign',
+    projectName: log.projectName || '',
+    status: log.status || 'Pending',
+    stage: clientStage(log),
+    sentCount: Number(log.sentCount || 0),
+    failedCount: Number(log.failedCount || 0),
+    openCount: Number(log.openCount || 0),
+    replyCount: Number(log.replyCount || 0),
+    replyReceived: Boolean(log.replyReceived),
+    replyType: log.replyType || '',
+    replyPreview: log.replyPreview || '',
+    followUpStopped: Boolean(log.followUpStopped || log.replyReceived),
+    followUpStopReason: log.followUpStopReason || (log.replyReceived ? 'Client replied - follow-up stopped' : ''),
+    lastSentAt: log.lastSentAt || null,
+    lastReplyAt: log.lastReplyAt || null,
+    lastActivityAt: logActivityTime(log),
+    steps: STEP_LABELS.map((label, index) => formatStep(log.stepLogs?.[index] || { stepNumber: index + 1 }, index))
+  };
+}
+
 export async function GET(req) {
   try {
     const auth = await requireAuth(req);
@@ -80,7 +108,12 @@ export async function GET(req) {
     const leads = Array.isArray(list.leads) ? list.leads : [];
     const emails = Array.from(new Set(leads.map(leadEmail).filter(Boolean)));
     const logs = emails.length
-      ? await CampaignRecipientLog.find(buildAuthOwnerFilter(auth, { email: { $in: emails } }))
+      ? await CampaignRecipientLog.find(buildAuthOwnerFilter(auth, {
+        $or: [
+          { email: { $in: emails } },
+          { recipientEmail: { $in: emails } }
+        ]
+      }))
         .select('campaignName projectName recipientEmail recipientName clientName email company designation status currentStep totalSteps sentCount failedCount skippedCount openCount replyCount lastSentAt lastReplyAt replyReceived replyType replyPreview followUpStopped followUpStopReason stepLogs lastActivityAt updatedAt')
         .sort({ lastActivityAt: -1, updatedAt: -1 })
         .lean()
@@ -101,6 +134,7 @@ export async function GET(req) {
       const steps = latest?.stepLogs?.length
         ? STEP_LABELS.map((label, index) => formatStep(latest.stepLogs[index] || { stepNumber: index + 1 }, index))
         : emptySteps();
+      const campaignHistory = clientLogs.map(formatCampaignHistory);
       return {
         name: leadName(lead) || latest?.clientName || latest?.recipientName || email || '-',
         email,
@@ -121,6 +155,7 @@ export async function GET(req) {
         campaignName: latest?.campaignName || '',
         projectName: latest?.projectName || '',
         steps,
+        campaignHistory,
         historyCount: clientLogs.length
       };
     });

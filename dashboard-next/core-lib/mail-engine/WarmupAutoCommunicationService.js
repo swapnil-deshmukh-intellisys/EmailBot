@@ -30,10 +30,10 @@ global.__warmupAutoCommunicationScheduler = schedulerState;
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 const isConnectedStatus = (value = '') => ['connected', 'active', 'verified', 'good'].includes(String(value || '').trim().toLowerCase());
 
-export function buildWarmupThreadId({ userId = '', projectId = '', senderEmail = '', receiverEmail = '' }) {
+export function buildWarmupThreadId({ userId = '', projectId = '', senderEmail = '', receiverEmail = '', runId = '' }) {
   return crypto
     .createHash('sha1')
-    .update([userId, projectId, normalizeEmail(senderEmail), normalizeEmail(receiverEmail)].join(':'))
+    .update([userId, projectId, normalizeEmail(senderEmail), normalizeEmail(receiverEmail), runId].join(':'))
     .digest('hex');
 }
 

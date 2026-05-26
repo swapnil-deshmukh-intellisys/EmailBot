@@ -19,6 +19,7 @@ const PROJECT_OPTIONS = [
   { value: 'tec', label: 'TEC' },
   { value: 'tut', label: 'TUT' }
 ];
+const DASHBOARD_SELECTED_PROJECT_KEY = 'dashboard:selected-project:v1';
 const DRAFT_LIBRARY_SECTIONS = [
   { value: 'cover_story', label: 'Cover Story' },
   { value: 'reminder', label: 'Reminder' },
@@ -158,6 +159,30 @@ export default function DraftsPage() {
   const activeSection = showWorkspace ? 'draft-workspace' : 'draft-list';
 
   useEffect(() => {
+    const readProjectScope = () => {
+      try {
+        const savedProject = String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase();
+        setLibraryProjectFilter(savedProject);
+        if (savedProject) setDraftProject(savedProject);
+      } catch (error) {
+        setLibraryProjectFilter('');
+      }
+    };
+    readProjectScope();
+    const onProjectChange = (event) => {
+      const nextProject = String(event?.detail?.project || '').trim().toLowerCase();
+      setLibraryProjectFilter(nextProject);
+      if (nextProject) setDraftProject(nextProject);
+    };
+    window.addEventListener('dashboard-project-change', onProjectChange);
+    window.addEventListener('storage', readProjectScope);
+    return () => {
+      window.removeEventListener('dashboard-project-change', onProjectChange);
+      window.removeEventListener('storage', readProjectScope);
+    };
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     const loadDrafts = async ({ silent = false } = {}) => {
@@ -165,7 +190,8 @@ export default function DraftsPage() {
         if (!silent) {
           setLoading(true);
         }
-        const response = await fetch('/api/drafts?scope=all', { cache: 'no-store' });
+        const projectParam = String(libraryProjectFilter || '').trim().toLowerCase();
+        const response = await fetch(projectParam ? `/api/drafts?scope=all&project=${encodeURIComponent(projectParam)}` : '/api/drafts?scope=all', { cache: 'no-store' });
         const data = await response.json();
 
         if (!response.ok) {
@@ -205,7 +231,7 @@ export default function DraftsPage() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, []);
+  }, [libraryProjectFilter]);
 
   useEffect(() => {
     if (showWorkspace) return undefined;

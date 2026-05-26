@@ -16,6 +16,7 @@ const EMPTY_COUNTS = {
   completed: 0,
   scheduled: 0
 };
+const DASHBOARD_SELECTED_PROJECT_KEY = 'dashboard:selected-project:v1';
 
 const COUNT_CARDS = [
   { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', tone: 'total' },
@@ -602,10 +603,35 @@ export default function CampaignsPage() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [actionLoadingKey, setActionLoadingKey] = useState('');
+  const [selectedProjectScope, setSelectedProjectScope] = useState('');
   const activeSection = 'campaign-list';
 
   useEffect(() => {
     setIsMounted(true);
+    try {
+      setSelectedProjectScope(String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase());
+    } catch (error) {
+      setSelectedProjectScope('');
+    }
+  }, []);
+
+  useEffect(() => {
+    const onProjectChange = (event) => {
+      setSelectedProjectScope(String(event?.detail?.project || '').trim().toLowerCase());
+    };
+    const onStorage = () => {
+      try {
+        setSelectedProjectScope(String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase());
+      } catch (error) {
+        setSelectedProjectScope('');
+      }
+    };
+    window.addEventListener('dashboard-project-change', onProjectChange);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('dashboard-project-change', onProjectChange);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -627,7 +653,10 @@ export default function CampaignsPage() {
       if (!silent) setLoading(true);
 
       console.debug('[campaigns-page:refetch]', { silent, at: new Date().toISOString() });
-      const data = await apiFetchJson('/api/campaigns?limit=100');
+      const url = selectedProjectScope
+        ? `/api/campaigns?limit=100&project=${encodeURIComponent(selectedProjectScope)}`
+        : '/api/campaigns?limit=100';
+      const data = await apiFetchJson(url);
 
       setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
       setCounts({ ...EMPTY_COUNTS, ...(data?.counts || {}) });
@@ -642,7 +671,7 @@ export default function CampaignsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedProjectScope]);
 
   const hasLiveCampaigns = useMemo(
     () => campaigns.some((campaign) => LIVE_CAMPAIGN_STATUSES.has(normalizeText(getDisplayStatus(campaign)))),

@@ -50,6 +50,42 @@ function shouldCountCampaignStats(campaign) {
   return total > 0 || ['scheduled', 'queued', 'running', 'paused', 'completed', 'failed', 'stopped'].includes(status);
 }
 
+function normalizeProject(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw.includes('tut') || raw.includes('unicorn') || raw.includes('theunicorntimes.com')) return 'tut';
+  if (raw.includes('tec') || raw.includes('entrepreneurial') || raw.includes('theentrepreneurialchronicle.com')) return 'tec';
+  return raw;
+}
+
+function rowProjectValue(row = {}) {
+  return normalizeProject([
+    row.project,
+    row.projectId,
+    row.projectName,
+    row.senderFrom,
+    row.senderAccount?.from,
+    row.senderAccount?.user,
+    row.name,
+    row.sourceFile,
+    row.sourceFileName
+  ].filter(Boolean).join(' '));
+}
+
+function listProjectValue(list = {}, campaignsByListId = new Map()) {
+  const explicit = rowProjectValue(list);
+  if (explicit === 'tec' || explicit === 'tut') return explicit;
+  const campaigns = campaignsByListId.get(String(list._id || '')) || [];
+  const counts = campaigns.reduce((acc, campaign) => {
+    const key = rowProjectValue(campaign);
+    if (key === 'tec' || key === 'tut') acc[key] = Number(acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  if (counts.tec || counts.tut) {
+    return Number(counts.tec || 0) >= Number(counts.tut || 0) ? 'tec' : 'tut';
+  }
+  return explicit;
+}
+
 export async function GET(req) {
   const startedAt = Date.now();
   try {
@@ -65,6 +101,7 @@ export async function GET(req) {
     const selectedRange = String(url.searchParams.get('range') || '').trim();
     const customStartDate = String(url.searchParams.get('startDate') || '').trim();
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
+    const requestedProject = normalizeProject(url.searchParams.get('project') || '');
     const ownerQuery = buildAuthOwnerFilter(auth);
     const [lists, campaigns] = await Promise.all([
       LeadList.find(ownerQuery)
@@ -72,6 +109,9 @@ export async function GET(req) {
           name: 1,
           sourceFile: 1,
           kind: 1,
+          project: 1,
+          projectId: 1,
+          projectName: 1,
           uploadedAt: 1,
           uploadDate: 1,
           createdAt: 1,
@@ -86,6 +126,13 @@ export async function GET(req) {
       Campaign.find(ownerQuery)
         .select({
           status: 1,
+          project: 1,
+          projectId: 1,
+          projectName: 1,
+          senderFrom: 1,
+          'senderAccount.from': 1,
+          'senderAccount.user': 1,
+          listId: 1,
           stats: 1,
           totalRecipients: 1,
           sentCount: 1,
@@ -100,6 +147,16 @@ export async function GET(req) {
         .sort({ createdAt: -1 })
         .lean()
     ]);
+
+    const campaignsByListId = campaigns.reduce((map, campaign) => {
+      const listId = String(campaign?.listId || '');
+      if (!listId) return map;
+      if (!map.has(listId)) map.set(listId, []);
+      map.get(listId).push(campaign);
+      return map;
+    }, new Map());
+    const scopedLists = requestedProject ? lists.filter((list) => listProjectValue(list, campaignsByListId) === requestedProject) : lists;
+    const scopedCampaigns = requestedProject ? campaigns.filter((campaign) => rowProjectValue(campaign) === requestedProject) : campaigns;
 
     let total = 0;
     let totalUploaded = 0;
@@ -143,7 +200,7 @@ export async function GET(req) {
       dayCountMap.set(key, 0);
     }
 
-    const campaignSummaries = campaigns.filter((campaign) => (
+    const campaignSummaries = scopedCampaigns.filter((campaign) => (
       shouldCountCampaignStats(campaign) &&
       shouldIncludeCampaignInWindow(campaign, selectedDayStart, selectedDayEnd)
     ));
@@ -157,7 +214,7 @@ export async function GET(req) {
       spam += Math.max(0, Number(campaign?.stats?.spam || 0));
     }
 
-    const normalizedLists = lists.map((list) => {
+    const normalizedLists = scopedLists.map((list) => {
       const meaningfulLeads = Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData) : [];
       const leadCount = meaningfulLeads.length;
       const listUploadedAt = list.uploadedAt ? new Date(list.uploadedAt) : null;
