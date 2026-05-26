@@ -1405,6 +1405,7 @@ export default function PremiumDashboardShell({
         item.pending,
         item.failed,
         item.open,
+        item.replies,
         item.bounced,
         item.spam,
         item.person,
@@ -2813,7 +2814,7 @@ export default function PremiumDashboardShell({
               </div>
               <div className="premium-table-wrap">
                 <div className="premium-table premium-table-head">
-                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
+                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Replies', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
                     <span key={label}>{label}</span>
                   ))}
                 </div>
@@ -2876,6 +2877,7 @@ export default function PremiumDashboardShell({
                     <span data-label="Pending">{campaign.pending}</span>
                     <span data-label="Fail">{campaign.failed}</span>
                     <span data-label="Open">{campaign.open}</span>
+                    <span data-label="Replies">{campaign.replies}</span>
                     <span data-label="Bounce">{campaign.bounced}</span>
                     <span data-label="Spam">{campaign.spam}</span>
                     <span className="premium-tag-stack" data-label="Tags">
@@ -2949,6 +2951,7 @@ export default function PremiumDashboardShell({
                         <span data-label="Pending">—</span>
                         <span data-label="Fail">—</span>
                         <span data-label="Open">—</span>
+                        <span data-label="Replies">—</span>
                         <span data-label="Bounce">—</span>
                         <span data-label="Spam">—</span>
                         <span className="premium-tag-stack" data-label="Tags">

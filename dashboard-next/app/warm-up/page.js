@@ -102,6 +102,9 @@ export default function EmailWarmupPage() {
   const [warmupConversations, setWarmupConversations] = useState([]);
   const [warmupLogs, setWarmupLogs] = useState([]);
   const [warmupSummary, setWarmupSummary] = useState({});
+  const [autoReplySetting, setAutoReplySetting] = useState(null);
+  const [autoReplyStats, setAutoReplyStats] = useState({});
+  const [autoReplyRun, setAutoReplyRun] = useState(null);
   const [selectedLogConversationId, setSelectedLogConversationId] = useState('');
   const [logConversationPage, setLogConversationPage] = useState(1);
   const [drafts, setDrafts] = useState([]);
@@ -143,6 +146,13 @@ export default function EmailWarmupPage() {
     () => warmupSheets.find((sheet) => sheet.id === selectedWarmupSheetId) || null,
     [selectedWarmupSheetId, warmupSheets]
   );
+  const autoReplyLogs = useMemo(
+    () => warmupLogs.filter((log) => log.source === 'auto_reply'),
+    [warmupLogs]
+  );
+  const autoReplyRepliedCount = Number(autoReplyStats.totalReplies ?? autoReplyLogs.filter((log) => log.status === 'replied').length);
+  const autoReplyFailedCount = Number(autoReplyStats.totalFailedReplies ?? autoReplyLogs.filter((log) => log.status === 'failed').length);
+  const autoReplyLatestAt = autoReplySetting?.lastCheckedAt || autoReplySetting?.lastRepliedAt || autoReplyLogs[0]?.sentAt || autoReplyLogs[0]?.createdAt || null;
   const logsByConversation = useMemo(() => {
     const map = new Map();
     warmupLogs.forEach((log) => {
@@ -257,6 +267,8 @@ export default function EmailWarmupPage() {
       if (!response.ok) throw new Error(next?.error || 'Failed to load warmup status');
       const rows = Array.isArray(next.campaigns) ? next.campaigns.map(normalizeCampaign) : [];
       setCampaigns(rows);
+      setAutoReplySetting(next.setting || null);
+      setAutoReplyStats(next.stats || {});
       setSelectedCampaignIds((current) => current.filter((id) => rows.some((campaign) => campaign.id === id)));
       if (!silent) setError('');
       return rows;
@@ -635,7 +647,8 @@ export default function EmailWarmupPage() {
           projectId: selectedProject,
           selectedSenderId,
           warmupSheetId: selectedWarmupSheetId,
-          delayMinutes
+          delayMinutes,
+          totalMessages: 10
         })
       });
       const next = await response.json();
@@ -644,6 +657,38 @@ export default function EmailWarmupPage() {
       setActionMessage(next.message || 'Auto communication started successfully.');
     } catch (err) {
       setActionError(err.message || 'Failed to start auto communication');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const updateWarmupAutoReply = async ({ enabled, runNow = false } = {}) => {
+    try {
+      setStarting(true);
+      const response = await fetch('/api/warmup-auto-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(typeof enabled === 'boolean' ? { enabled } : {}),
+          runNow
+        })
+      });
+      const next = await response.json().catch(() => ({}));
+      if (!response.ok || next?.ok === false) {
+        throw new Error(next?.error || 'Failed to update warmup auto reply');
+      }
+      setAutoReplySetting(next.setting || null);
+      setAutoReplyRun(next.run || null);
+      await Promise.all([
+        loadWarmupStatus({ silent: true }),
+        loadWarmupAutoStatus(selectedProject).catch(() => {})
+      ]);
+      const runText = next.run
+        ? ` Checked ${Number(next.run.processed || 0)} received mail(s), replied ${Number(next.run.replied || 0)}, skipped ${Number(next.run.skipped || 0)}.`
+        : '';
+      setActionMessage(`${typeof enabled === 'boolean' ? `Warmup auto reply ${enabled ? 'enabled' : 'disabled'}.` : 'Warmup auto reply checked.'}${runText}`);
+    } catch (err) {
+      setActionError(err.message || 'Failed to update warmup auto reply');
     } finally {
       setStarting(false);
     }
@@ -715,6 +760,18 @@ export default function EmailWarmupPage() {
             <article className="workspace-stat-card">
               <span>Failed Messages</span>
               <strong>{warmupSummary.failedMessages || 0}</strong>
+            </article>
+            <article className="workspace-stat-card">
+              <span>Auto Reply</span>
+              <strong>{autoReplySetting?.enabled ? 'On' : 'Off'}</strong>
+            </article>
+            <article className="workspace-stat-card">
+              <span>Replies Sent</span>
+              <strong>{autoReplyRepliedCount}</strong>
+            </article>
+            <article className="workspace-stat-card">
+              <span>Reply Failed</span>
+              <strong>{autoReplyFailedCount}</strong>
             </article>
           </div>
 
@@ -844,6 +901,20 @@ export default function EmailWarmupPage() {
                         onChange={(event) => setDelayMinutes(event.target.value)}
                       />
                     </div>
+                    <div>
+                      <div className="workspace-panel-head">
+                        <div>
+                          <h2>Communication Count</h2>
+                          <p>Each conversation alternates sender and receiver up to 10 messages.</p>
+                        </div>
+                      </div>
+                      <input
+                        className="warmup-select"
+                        type="number"
+                        value="10"
+                        readOnly
+                      />
+                    </div>
                   </div>
 
                   <div className="workspace-list" style={{ marginTop: 16 }}>
@@ -870,6 +941,10 @@ export default function EmailWarmupPage() {
                     <div>
                       <strong>Next Scheduled</strong>
                       <span>{formatDateTime(warmupSummary.nextScheduledMessageTime)}</span>
+                    </div>
+                    <div>
+                      <strong>Messages Per Conversation</strong>
+                      <span>10 back-and-forth messages, then stop</span>
                     </div>
                   </div>
 
@@ -916,6 +991,38 @@ export default function EmailWarmupPage() {
                     <Button variant="ghost" loading={starting} disabled={starting || !latestCampaign?.id} onClick={handleStopWarmupCampaign}>
                       Stop Warmup
                     </Button>
+                  </div>
+
+                  <div className="warmup-auto-reply-panel">
+                    <div>
+                      <strong>Auto Reply Receiver</strong>
+                      <span>
+                        {autoReplySetting?.enabled ? 'Enabled' : 'Disabled'} | Last checked: {formatDateTime(autoReplyLatestAt)}
+                      </span>
+                      {autoReplyRun ? (
+                        <small>
+                          Last run: {Number(autoReplyRun.processed || 0)} received checked, {Number(autoReplyRun.replied || 0)} replied, {Number(autoReplyRun.skipped || 0)} skipped.
+                        </small>
+                      ) : null}
+                    </div>
+                    <div className="warmup-panel-actions">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={starting}
+                        onClick={() => updateWarmupAutoReply({ enabled: !autoReplySetting?.enabled })}
+                      >
+                        {autoReplySetting?.enabled ? 'Disable Reply' : 'Enable Reply'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={starting}
+                        onClick={() => updateWarmupAutoReply({ enabled: true, runNow: true })}
+                      >
+                        Check Inbox Now
+                      </Button>
+                    </div>
                   </div>
                 </section>
 

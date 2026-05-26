@@ -62,7 +62,7 @@ export async function POST(req) {
     const warmupSheetId = String(body.warmupSheetId || body.sheetId || '').trim();
     const projectId = normalizeProject(body.projectId || body.project || '') || '';
     const delayMinutes = Math.max(1, Math.floor(Number(body.delayMinutes || body.delay || 1) || 1));
-    const totalMessages = Math.max(1, Math.min(10, Math.floor(Number(body.totalMessages || 10) || 10)));
+    const totalMessages = 10;
     const runId = String(body.runId || crypto.randomUUID()).trim();
 
     if (!selectedSenderId) return jsonError('Please select a sender ID.');
@@ -165,7 +165,7 @@ export async function POST(req) {
           status: 'pending',
           mode,
           delayMinutes,
-          nextMessageAt: new Date(Date.now() + delayMinutes * 60 * 1000),
+          nextMessageAt: new Date(),
           lastError: '',
           failedReason: ''
         });

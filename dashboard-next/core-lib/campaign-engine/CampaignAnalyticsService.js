@@ -279,10 +279,41 @@ export function buildTimeline(campaign = {}, recipientLogs = []) {
   }));
   const recipientEvents = recipientLogs.flatMap((item) => {
     const events = [];
-    if (item.lastSentAt) events.push({ at: item.lastSentAt, type: 'Sent', message: `${item.email} sent`, level: 'success' });
-    if (item.lastOpenedAt) events.push({ at: item.lastOpenedAt, type: 'Open', message: `${item.email} opened`, level: 'info' });
-    if (item.lastReplyAt) events.push({ at: item.lastReplyAt, type: 'Reply received', message: `${item.email} replied`, level: 'success' });
-    if (item.followUpStopped) events.push({ at: item.lastReplyAt || item.updatedAt, type: 'Follow-up stopped', message: item.followUpStopReason, level: 'warning' });
+    const clientLabel = [item.clientName || item.recipientName || item.email, item.company, item.designation]
+      .filter(Boolean)
+      .join(' | ');
+    const meta = {
+      recipientId: item.recipientId || '',
+      email: item.email || item.recipientEmail || '',
+      clientName: item.clientName || item.recipientName || '',
+      company: item.company || '',
+      designation: item.designation || '',
+      campaignName: item.campaignName || campaign.name || '',
+      currentStep: Number(item.currentStep || 1),
+      totalSteps: Number(item.totalSteps || 5),
+      openCount: Number(item.openCount || 0),
+      replyCount: Number(item.replyCount || 0),
+      replyType: item.replyType || '',
+      replyPreview: item.replyPreview || '',
+      failureReason: item.failureReason || item.bounceReason || ''
+    };
+    if (item.lastSentAt) events.push({ at: item.lastSentAt, type: 'Sent', message: `${clientLabel || item.email} sent`, level: 'success', meta });
+    if (item.lastOpenedAt) events.push({ at: item.lastOpenedAt, type: 'Open', message: `${clientLabel || item.email} opened`, level: 'info', meta });
+    if (item.lastReplyAt) events.push({ at: item.lastReplyAt, type: 'Reply received', message: `${clientLabel || item.email} replied`, level: 'success', meta });
+    if (item.followUpStopped) events.push({ at: item.lastReplyAt || item.updatedAt, type: 'Follow-up stopped', message: item.followUpStopReason, level: 'warning', meta });
+    (Array.isArray(item.stepLogs) ? item.stepLogs : []).forEach((step) => {
+      const status = String(step?.status || '').trim();
+      if (!status || status === 'Pending') return;
+      const at = step.repliedAt || step.openedAt || step.sentAt || step.failedAt || step.skippedAt;
+      if (!at) return;
+      events.push({
+        at,
+        type: `Step ${step.stepNumber}: ${status}`,
+        message: `${clientLabel || item.email} - ${step.subject || status}`,
+        level: ['Failed', 'Bounced', 'Spam'].includes(status) ? 'error' : status === 'Opened' ? 'info' : 'success',
+        meta: { ...meta, stepNumber: Number(step.stepNumber || 1), trackingId: step.trackingId || '', messageId: step.messageId || step.internetMessageId || '' }
+      });
+    });
     return events;
   });
   return [...campaignEvents, ...recipientEvents]

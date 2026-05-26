@@ -173,6 +173,25 @@ function dashboardActivityDateParts(value) {
   };
 }
 
+function dashboardTimelineCardTime(item = {}) {
+  const dateText = String(item?.date || '').trim();
+  const slashMatch = dateText.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const timeText = String(item?.time || '').trim();
+  const timeMatch = timeText.match(/(\d{1,2}):(\d{2})/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    if (timeMatch) {
+      date.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+    }
+    return date.getTime();
+  }
+  const parsed = new Date(`${dateText} ${timeText}`.trim());
+  if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+  const fallback = new Date(dateText);
+  return Number.isNaN(fallback.getTime()) ? 0 : fallback.getTime();
+}
+
 function RichTextEditorLegacy({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
   const changeTimerRef = useRef(null);
@@ -1733,8 +1752,19 @@ const handleDeleteDraft = async (draft) => {
         return cards;
       });
 
-    const combinedActivityCards = [...dashboardActivityCards, ...campaignActivityCards];
-    if (combinedActivityCards.length) return combinedActivityCards.slice(0, 24);
+    const combinedActivityCards = [...dashboardActivityCards, ...campaignActivityCards]
+      .reduce((items, item) => {
+        const key = item.id || `${item.title}-${item.date}-${item.time}`;
+        if (items.seen.has(key)) return items;
+        items.seen.add(key);
+        items.rows.push(item);
+        return items;
+      }, { seen: new Set(), rows: [] })
+      .rows
+      .sort((a, b) => {
+        return dashboardTimelineCardTime(b) - dashboardTimelineCardTime(a);
+      });
+    if (combinedActivityCards.length) return combinedActivityCards.slice(0, 40);
     if (campaignActivityCards.length) return campaignActivityCards.slice(0, 16);
 
     return [{
@@ -1763,7 +1793,8 @@ const handleDeleteDraft = async (draft) => {
     const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
     const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
     const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
-    const opened = Number(campaign?.stats?.opened || campaign?.stats?.opens || campaign?.trackingStats?.openCount || 0);
+    const opened = Number(campaign?.stats?.opened || campaign?.stats?.opens || campaign?.trackingStats?.openCount || campaign?.openCount || 0);
+    const replied = Number(campaign?.stats?.replied || campaign?.stats?.replies || campaign?.trackingStats?.replyCount || campaign?.replyCount || 0);
     const bounced = Number(campaign?.stats?.bounced || campaign?.stats?.bounce || 0);
     const spam = Number(campaign?.stats?.spam || 0);
     const campaignProjectKey = inferProjectKeyFromCampaign(campaign, project);
@@ -1800,6 +1831,7 @@ const handleDeleteDraft = async (draft) => {
       pending,
       failed,
       open: opened,
+      replies: replied,
       bounced,
       spam,
       tag: status,

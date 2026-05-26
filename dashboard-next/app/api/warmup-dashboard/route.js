@@ -26,6 +26,7 @@ export async function GET(req) {
     const { userEmail, errorResponse } = requireUser(req);
     if (errorResponse) return errorResponse;
     await connectDB();
+    await processWarmupAutoReplies(userEmail).catch(() => null);
 
     const [setting, oauthAccounts, senderAccounts, logs] = await Promise.all([
       getWarmupAutoReplySetting(userEmail, { lean: true }),

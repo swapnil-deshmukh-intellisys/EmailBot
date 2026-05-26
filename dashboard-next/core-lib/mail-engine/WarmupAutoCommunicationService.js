@@ -8,15 +8,15 @@ import { getPresetSenderEmails, resolveSenderAccountById } from './SenderAccount
 import { sendEmailForLead } from './GraphAndSmtpMailSender.js';
 
 export const WARMUP_SEQUENCE = [
-  'Hi {name}, just checking this warmup thread.',
-  'Received, everything looks fine.',
-  'Great, confirming once more.',
-  'Confirmed from my side.',
-  'Thanks, sending another check.',
-  'Received properly.',
-  'Perfect, thread looks active.',
-  'Yes, all good.',
-  'Thanks for confirming.',
+  'Hi {name}, just checking this thread.',
+  'Received your note, everything looks fine here.',
+  'Great, sending one more quick confirmation.',
+  'Confirmed from my side, the message came through.',
+  'Thanks, I am checking the thread flow again.',
+  'Got it clearly, no issue on this side.',
+  'Perfect, this exchange looks active now.',
+  'Yes, the conversation is still coming through.',
+  'Thanks for confirming the final check.',
   'Ok thanks'
 ];
 

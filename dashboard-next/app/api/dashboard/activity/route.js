@@ -4,6 +4,7 @@ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import ActivityLog from '@/models/ActivityLogModel';
 import CalendarEvent from '@/models/CalendarEvent';
 import Campaign from '@/models/Campaign';
+import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import EmailDraft from '@/models/EmailDraft';
 import LeadList from '@/models/LeadList';
 import MailMessageCache from '@/models/MailMessageCache';
@@ -32,6 +33,27 @@ function numberValue(...values) {
   return 0;
 }
 
+function cleanText(value = '') {
+  return String(value || '').trim();
+}
+
+function leadValue(lead = {}, keys = []) {
+  for (const key of keys) {
+    const direct = lead?.[key];
+    if (direct !== undefined && direct !== null && cleanText(direct)) return cleanText(direct);
+    const nested = lead?.data?.[key];
+    if (nested !== undefined && nested !== null && cleanText(nested)) return cleanText(nested);
+  }
+  return '';
+}
+
+function leadName(lead = {}) {
+  return [leadValue(lead, ['Name', 'name', 'First Name', 'firstName']), leadValue(lead, ['Surname', 'surname', 'Last Name', 'lastName'])]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
 function projectValue(row = {}) {
   const text = [
     row.projectId,
@@ -42,6 +64,8 @@ function projectValue(row = {}) {
     row.senderAccount?.user,
     row.fromEmail,
     row.from,
+    row.email,
+    row.company,
     row.subject,
     row.name,
     row.sourceFile
@@ -123,10 +147,23 @@ export async function GET(req) {
         .limit(30)
         .lean()
     ]);
+    const scopedCampaigns = scopedSender(scopedProject(campaigns));
+    const campaignIds = scopedCampaigns.map((campaign) => campaign._id).filter(Boolean);
+    const campaignById = scopedCampaigns.reduce((map, campaign) => {
+      map.set(String(campaign._id), campaign);
+      return map;
+    }, new Map());
+    const recipientLogs = campaignIds.length
+      ? await CampaignRecipientLog.find({ campaignId: { $in: campaignIds } })
+        .select('campaignId campaignName projectId projectName recipientEmail recipientName clientName email company designation status currentStep totalSteps sentCount failedCount skippedCount openCount replyCount lastSentAt lastOpenedAt firstOpenedAt lastReplyAt replyReceived replyType replyPreview followUpStopped followUpStopReason failureReason bounceReason stepLogs lastActivityAt updatedAt createdAt')
+        .sort({ lastActivityAt: -1, updatedAt: -1 })
+        .limit(80)
+        .lean()
+      : [];
 
     const activities = [];
 
-    scopedSender(scopedProject(campaigns)).forEach((campaign) => {
+    scopedCampaigns.forEach((campaign) => {
       const status = String(campaign.status || 'Pending').trim() || 'Pending';
       const total = numberValue(campaign.totalRecipients, campaign.stats?.total);
       const sent = numberValue(campaign.sentCount, campaign.stats?.sent);
@@ -194,14 +231,61 @@ export async function GET(req) {
     });
 
     scopedProject(lists).forEach((list) => {
+      const leadCount = Array.isArray(list.leads) ? list.leads.length : 0;
+      const sampleClients = (Array.isArray(list.leads) ? list.leads : [])
+        .slice(0, 3)
+        .map((lead) => {
+          const name = leadName(lead);
+          const email = leadValue(lead, ['Email', 'email', 'E-mail', 'Mail', 'mail']);
+          const company = leadValue(lead, ['Company', 'company', 'Organisation', 'Organization']);
+          return [name || email || 'Client', company].filter(Boolean).join(' - ');
+        })
+        .filter(Boolean);
       pushActivity(activities, {
         id: `client-list-${list._id}`,
         date: list.uploadedAt || list.updatedAt || list.createdAt,
         title: `Client data uploaded: ${list.name || list.sourceFile || 'Client list'}`,
         type: 'Client Data',
-        text: `${Array.isArray(list.leads) ? list.leads.length : 0} client records available.`,
+        text: `${leadCount} client records available${sampleClients.length ? `: ${sampleClients.join(', ')}${leadCount > sampleClients.length ? ', ...' : ''}` : '.'}`,
         status: 'done',
         done: true
+      });
+    });
+
+    recipientLogs.forEach((log) => {
+      const campaign = campaignById.get(String(log.campaignId)) || {};
+      const status = cleanText(log.status || 'Pending');
+      const client = cleanText(log.clientName || log.recipientName || log.email || log.recipientEmail || 'Client');
+      const company = cleanText(log.company);
+      const designation = cleanText(log.designation);
+      const email = cleanText(log.email || log.recipientEmail);
+      const step = numberValue(log.currentStep, 1);
+      const totalSteps = numberValue(log.totalSteps, 5);
+      const meta = [
+        email,
+        company,
+        designation,
+        `Step ${step}/${totalSteps}`,
+        numberValue(log.openCount) ? `${numberValue(log.openCount)} open${numberValue(log.openCount) === 1 ? '' : 's'}` : '',
+        numberValue(log.replyCount) ? `${numberValue(log.replyCount)} repl${numberValue(log.replyCount) === 1 ? 'y' : 'ies'}` : '',
+        log.replyType ? `Reply: ${log.replyType}` : '',
+        log.failureReason || log.bounceReason || log.followUpStopReason || ''
+      ].filter(Boolean);
+      const eventDate =
+        log.lastReplyAt ||
+        log.lastOpenedAt ||
+        log.lastSentAt ||
+        log.lastActivityAt ||
+        log.updatedAt ||
+        log.createdAt;
+      pushActivity(activities, {
+        id: `client-mail-${log._id}`,
+        date: eventDate,
+        title: `${status}: ${client}`,
+        type: 'Client Mail',
+        text: `${campaign.name || log.campaignName || 'Campaign'}${meta.length ? ` - ${meta.join(' | ')}` : ''}`,
+        status: ['sent', 'opened', 'replied', 'follow-up stopped'].includes(status.toLowerCase()) ? 'done' : status.toLowerCase(),
+        done: ['sent', 'opened', 'replied', 'follow-up stopped'].includes(status.toLowerCase())
       });
     });
 

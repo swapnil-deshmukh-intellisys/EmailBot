@@ -23,6 +23,19 @@ function AlertBadge({ severity }) {
   return <span className={`alert-severity alert-${String(severity || 'info').toLowerCase()}`}>{severity}</span>;
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString();
+}
+
+function SummaryMetric({ label, value, tone = '' }) {
+  return (
+    <article className={`report-summary-metric ${tone ? `tone-${tone}` : ''}`}>
+      <span>{label}</span>
+      <strong>{formatNumber(value)}</strong>
+    </article>
+  );
+}
+
 export default function ReportPage() {
   const [overview, setOverview] = useState(null);
   const [projectWise, setProjectWise] = useState(null);
@@ -73,6 +86,7 @@ export default function ReportPage() {
     const counts = senderHealth?.providerCounts || {};
     return `Graph ${counts.graph || 0} / SMTP ${counts.smtp || 0}`;
   }, [senderHealth]);
+  const warmupHealth = warmup?.health || '-';
 
   return (
     <AppLayout>
@@ -101,71 +115,6 @@ export default function ReportPage() {
           ))}
         </div>
 
-        <div className="report-section-grid">
-          <section className="report-panel">
-            <h2>Campaign Counts</h2>
-            <div className="report-mini-grid">
-              {['total', 'running', 'completed', 'failed', 'paused', 'stopped'].map((key) => (
-                <article key={key}><span>{key.replace(/^\w/, (c) => c.toUpperCase())}</span><strong>{campaigns[key] || 0}</strong></article>
-              ))}
-            </div>
-          </section>
-
-          <section className="report-panel">
-            <h2>Project Wise</h2>
-            {['tec', 'tut'].map((key) => (
-              <div key={key} className="report-project-row">
-                <strong>{key.toUpperCase()}</strong>
-                <span>{projects[key]?.campaigns || 0} campaigns</span>
-                <span>{projects[key]?.clients || 0} clients</span>
-                <span>{projects[key]?.sent || 0} sent</span>
-              </div>
-            ))}
-          </section>
-
-          <section className="report-panel">
-            <h2>Client Counts</h2>
-            <div className="report-mini-grid">
-              <article><span>TEC clients</span><strong>{clientCounts.tec || 0}</strong></article>
-              <article><span>TUT clients</span><strong>{clientCounts.tut || 0}</strong></article>
-              <article><span>Total clients</span><strong>{clientCounts.total || 0}</strong></article>
-            </div>
-          </section>
-
-          <section className="report-panel">
-            <h2>Sender ID Health</h2>
-            <div className="report-mini-grid">
-              <article><span>Total senders</span><strong>{senderHealth?.total || 0}</strong></article>
-              <article><span>Active</span><strong>{senderHealth?.active || 0}</strong></article>
-              <article><span>Failed</span><strong>{senderHealth?.failed || 0}</strong></article>
-            </div>
-            <p>{senderProviderText}</p>
-          </section>
-
-          <section className="report-panel">
-            <h2>Warmup</h2>
-            <div className="report-mini-grid">
-              <article><span>Active accounts</span><strong>{warmup?.activeAccounts || 0}</strong></article>
-              <article><span>Sent</span><strong>{warmup?.sent || 0}</strong></article>
-              <article><span>Received</span><strong>{warmup?.received || 0}</strong></article>
-              <article><span>Failed</span><strong>{warmup?.failed || 0}</strong></article>
-            </div>
-            <p>Health: {warmup?.health || '-'}</p>
-          </section>
-
-          <section className="report-panel">
-            <h2>Credits</h2>
-            <div className="report-mini-grid">
-              <article><span>Total</span><strong>{credits?.totalCredits || 0}</strong></article>
-              <article><span>Used</span><strong>{credits?.usedCredits || 0}</strong></article>
-              <article><span>Remaining</span><strong>{credits?.remainingCredits || 0}</strong></article>
-              <article><span>Used today</span><strong>{credits?.usedToday || 0}</strong></article>
-              <article><span>TEC used</span><strong>{credits?.projectWise?.tec || 0}</strong></article>
-              <article><span>TUT used</span><strong>{credits?.projectWise?.tut || 0}</strong></article>
-            </div>
-          </section>
-        </div>
-
         <section className="report-panel report-alert-panel">
           <h2>Alerts</h2>
           <div className="alert-list">
@@ -178,6 +127,100 @@ export default function ReportPage() {
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="report-operations-section" aria-label="Report operations summary">
+          <div className="report-section-title">
+            <span>Operations Summary</span>
+            <h2>Counts, clients, sender health, warmup, and credits</h2>
+          </div>
+
+          <div className="report-summary-strip">
+            <article className="report-summary-card tone-campaigns">
+              <div className="report-summary-card-head">
+                <span>Campaign Counts</span>
+                <strong>{formatNumber(campaigns.total)}</strong>
+              </div>
+              <div className="report-summary-metrics">
+                <SummaryMetric label="Running" value={campaigns.running} tone="live" />
+                <SummaryMetric label="Completed" value={campaigns.completed} tone="success" />
+                <SummaryMetric label="Failed" value={campaigns.failed} tone="danger" />
+                <SummaryMetric label="Paused" value={campaigns.paused} />
+                <SummaryMetric label="Stopped" value={campaigns.stopped} />
+              </div>
+            </article>
+
+            <article className="report-summary-card tone-projects">
+              <div className="report-summary-card-head">
+                <span>Project Wise</span>
+                <strong>{formatNumber((projects.tec?.campaigns || 0) + (projects.tut?.campaigns || 0))}</strong>
+              </div>
+              <div className="report-project-stack">
+                {['tec', 'tut'].map((key) => (
+                  <div key={key} className="report-project-pill">
+                    <strong>{key.toUpperCase()}</strong>
+                    <span>{formatNumber(projects[key]?.campaigns)} campaigns</span>
+                    <span>{formatNumber(projects[key]?.clients)} clients</span>
+                    <span>{formatNumber(projects[key]?.sent)} sent</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="report-summary-card tone-clients">
+              <div className="report-summary-card-head">
+                <span>Client Counts</span>
+                <strong>{formatNumber(clientCounts.total)}</strong>
+              </div>
+              <div className="report-summary-metrics three">
+                <SummaryMetric label="TEC clients" value={clientCounts.tec} tone="success" />
+                <SummaryMetric label="TUT clients" value={clientCounts.tut} tone="live" />
+                <SummaryMetric label="Total clients" value={clientCounts.total} />
+              </div>
+            </article>
+
+            <article className="report-summary-card tone-senders">
+              <div className="report-summary-card-head">
+                <span>Sender ID Health</span>
+                <strong>{formatNumber(senderHealth?.total)}</strong>
+              </div>
+              <div className="report-summary-metrics three">
+                <SummaryMetric label="Active" value={senderHealth?.active} tone="success" />
+                <SummaryMetric label="Failed" value={senderHealth?.failed} tone="danger" />
+                <SummaryMetric label="Total senders" value={senderHealth?.total} />
+              </div>
+              <p>{senderProviderText}</p>
+            </article>
+
+            <article className="report-summary-card tone-warmup">
+              <div className="report-summary-card-head">
+                <span>Warmup</span>
+                <strong>{formatNumber(warmup?.activeAccounts)}</strong>
+              </div>
+              <div className="report-summary-metrics">
+                <SummaryMetric label="Sent" value={warmup?.sent} tone="success" />
+                <SummaryMetric label="Received" value={warmup?.received} tone="live" />
+                <SummaryMetric label="Failed" value={warmup?.failed} tone="danger" />
+                <SummaryMetric label="Active accounts" value={warmup?.activeAccounts} />
+              </div>
+              <p className={String(warmupHealth).toLowerCase().includes('attention') ? 'is-warning' : ''}>Health: {warmupHealth}</p>
+            </article>
+
+            <article className="report-summary-card tone-credits">
+              <div className="report-summary-card-head">
+                <span>Credits</span>
+                <strong>{formatNumber(credits?.remainingCredits)}</strong>
+              </div>
+              <div className="report-summary-metrics">
+                <SummaryMetric label="Total" value={credits?.totalCredits} />
+                <SummaryMetric label="Used" value={credits?.usedCredits} tone="danger" />
+                <SummaryMetric label="Remaining" value={credits?.remainingCredits} tone="success" />
+                <SummaryMetric label="Used today" value={credits?.usedToday} tone="live" />
+                <SummaryMetric label="TEC used" value={credits?.projectWise?.tec} />
+                <SummaryMetric label="TUT used" value={credits?.projectWise?.tut} />
+              </div>
+            </article>
           </div>
         </section>
       </section>
