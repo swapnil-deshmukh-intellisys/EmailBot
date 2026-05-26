@@ -1,5 +1,6 @@
 import connectDB from '../database-config/MongoDatabaseConnection.js';
 import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
+import ConnectedMailAccount from '../../database-models/ConnectedMailAccount.js';
 import { getDelegatedAccessToken } from './GraphAndSmtpMailSender.js';
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
@@ -10,6 +11,14 @@ function normalizeEmail(value = '') {
 
 function jsonHeaderValue(value = '') {
   return String(value || '').replace(/[\r\n]+/g, ' ').trim();
+}
+
+function normalizeTenantId(value, fallback = 'organizations') {
+  const tenant = String(value || '').trim();
+  if (!tenant || tenant.toLowerCase() === 'undefined' || tenant.toLowerCase() === 'null') {
+    return fallback || 'organizations';
+  }
+  return tenant;
 }
 
 export function getMailboxUserEmail(auth = {}) {
@@ -26,7 +35,38 @@ export async function getCurrentUserMailboxAccount(auth = {}) {
   }
 
   await connectDB();
-  const account = await GraphOAuthAccount.findOne({ userEmail }).sort({ updatedAt: -1 });
+  let account = await GraphOAuthAccount.findOne({ userEmail }).sort({ updatedAt: -1 });
+  if (!account?._id) {
+    const connected = await ConnectedMailAccount.findOne({
+      userEmail,
+      provider: 'outlook',
+      refreshTokenEncrypted: { $ne: '' }
+    }).sort({ updatedAt: -1 }).lean();
+
+    if (connected?._id) {
+      const tenantId = normalizeTenantId(connected.tenantId);
+      account = await GraphOAuthAccount.findOneAndUpdate(
+        { userEmail, email: connected.email, tenantId },
+        {
+          $set: {
+            userId: connected.userId || null,
+            userEmail,
+            provider: 'microsoft',
+            email: connected.email,
+            displayName: connected.displayName || connected.email,
+            tenantId,
+            scopes: Array.isArray(connected.scopes) ? connected.scopes : [],
+            accessTokenEnc: connected.accessTokenEncrypted,
+            refreshTokenEnc: connected.refreshTokenEncrypted,
+            expiresAt: connected.expiresAt || new Date(Date.now() - 1000),
+            lastConnectedAt: connected.updatedAt || new Date(),
+            status: connected.status || 'Connected'
+          }
+        },
+        { upsert: true, new: true }
+      );
+    }
+  }
   if (!account?._id) {
     const error = new Error('Mailbox not connected');
     error.code = 'MAILBOX_NOT_CONNECTED';

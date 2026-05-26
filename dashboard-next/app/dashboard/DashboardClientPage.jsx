@@ -3568,7 +3568,7 @@ const normalizeSelectedListEmails = async () => {
 
   if (!isMounted) {
     return (
-      <main className="dashboard-shell">
+      <main className="dashboard-shell user-dashboard-page">
         <section
           className="card"
           style={{
@@ -3588,7 +3588,7 @@ const normalizeSelectedListEmails = async () => {
   }
 
   return (
-    <main className="dashboard-shell">
+    <main className="dashboard-shell user-dashboard-page">
       <div
         className={`dashboard-sidebar-backdrop ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
@@ -3736,7 +3736,7 @@ const normalizeSelectedListEmails = async () => {
         </div>
 
         <div className="dashboard-topbar-actions">
-          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Theme" />
+          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Select Theme" />
           <button
             type="button"
             className="dashboard-topbar-pill dashboard-topbar-range-pill"

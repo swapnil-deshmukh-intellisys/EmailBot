@@ -127,6 +127,14 @@ function inferProjectFromEmail(email = '') {
   return '';
 }
 
+function normalizeTenantId(value = '') {
+  const tenant = String(value || '').trim();
+  if (!tenant || tenant.toLowerCase() === 'undefined' || tenant.toLowerCase() === 'null') {
+    return 'organizations';
+  }
+  return tenant;
+}
+
 export function getRuntimeSenderAccounts(project = '') {
   const normalizedProject = String(project || '').trim().toLowerCase();
   if (!normalizedProject) {
@@ -234,7 +242,7 @@ export async function resolveSenderAccountById(id, options = {}) {
       label: 'Outlook / Microsoft 365',
       from: doc.email,
       oauthAccountId: String(doc._id),
-      tenantId: doc.tenantId
+      tenantId: normalizeTenantId(doc.tenantId)
     };
   }
 

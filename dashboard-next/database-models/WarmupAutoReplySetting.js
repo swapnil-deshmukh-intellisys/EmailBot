@@ -7,7 +7,7 @@ const WarmupAutoReplySettingSchema = new mongoose.Schema(
     replyTemplate: {
       type: String,
       default:
-        "<div style=\"font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;\"><p style=\"margin:0 0 12px;\">Hi,</p><p style=\"margin:0 0 12px;\">Thank you for your email. This mailbox is active and warming up normally.</p><p style=\"margin:0;\">Best regards</p></div>"
+        "<div style=\"font-family:'Times New Roman', Times, serif;font-size:15px;line-height:1.6;\"><p style=\"margin:0 0 12px;\">Hi,</p><p style=\"margin:0 0 12px;\">Thank you for your email. I received it and everything looks good from my side.</p><p style=\"margin:0;\">Best regards</p></div>"
     },
     keywords: {
       type: [String],

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
+import ConnectedMailAccount from '@/models/ConnectedMailAccount';
 import { encryptString } from '@/lib/tokenCrypto';
 import { requireAuth } from '@/lib/apiAuth';
 import { DELEGATED_MAILBOX_SCOPE } from '@/core-lib/mail-engine/MicrosoftGraphOAuthScopes';
@@ -10,6 +11,14 @@ function base64UrlDecodeToJson(part) {
   const b64 = (part + pad).replace(/-/g, '+').replace(/_/g, '/');
   const json = Buffer.from(b64, 'base64').toString('utf8');
   return JSON.parse(json);
+}
+
+function normalizeTenantId(value, fallback = 'organizations') {
+  const tenant = String(value || '').trim();
+  if (!tenant || tenant.toLowerCase() === 'undefined' || tenant.toLowerCase() === 'null') {
+    return fallback || 'organizations';
+  }
+  return tenant;
 }
 
 export async function GET(req) {
@@ -103,7 +112,7 @@ export async function GET(req) {
     return res;
   }
   const displayName = me.displayName || '';
-  const tid = tokenClaims.tid || tenant;
+  const tid = normalizeTenantId(tokenClaims.tid, tenant);
 
   const expiresAt = new Date(Date.now() + (Number(tokenData.expires_in || 3600) * 1000));
 
@@ -121,6 +130,25 @@ export async function GET(req) {
         refreshTokenEnc: encryptString(tokenData.refresh_token),
         expiresAt,
         lastConnectedAt: new Date()
+      }
+    },
+    { upsert: true, new: true }
+  );
+  await ConnectedMailAccount.findOneAndUpdate(
+    { email, tenantId: tid, userEmail },
+    {
+      $set: {
+        userId: auth.currentUser?._id || null,
+        userEmail,
+        provider: 'outlook',
+        displayName,
+        scopes: String(tokenData.scope || '').split(' ').filter(Boolean),
+        accessTokenEncrypted: encryptString(accessToken),
+        refreshTokenEncrypted: encryptString(tokenData.refresh_token),
+        expiresAt,
+        tenantId: tid,
+        status: 'Connected',
+        lastSyncAt: new Date()
       }
     },
     { upsert: true, new: true }

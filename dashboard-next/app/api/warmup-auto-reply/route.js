@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/apiAuth';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
+const neutralizeMailText = (value = '') => String(value || '')
+  .replace(/warm[\s-]*up/gi, 'follow up')
+  .replace(/warming/gi, 'active')
+  .replace(/mailwarm/gi, 'mail check');
+
 export async function GET(req) {
   try {
     const { userEmail, errorResponse } = requireUser(req);
@@ -26,7 +31,7 @@ export async function POST(req) {
       setting.enabled = Boolean(body.enabled);
     }
     if (typeof body.replyTemplate === 'string') {
-      setting.replyTemplate = body.replyTemplate.trim() || setting.replyTemplate;
+      setting.replyTemplate = neutralizeMailText(body.replyTemplate).trim() || setting.replyTemplate;
     }
     if (Array.isArray(body.keywords)) {
       setting.keywords = body.keywords.map((item) => String(item || '').trim()).filter(Boolean);

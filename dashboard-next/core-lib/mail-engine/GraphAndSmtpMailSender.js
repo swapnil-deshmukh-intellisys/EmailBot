@@ -221,6 +221,14 @@ function sanitizeSubject(value = '') {
 const tokenCache = global.graphTokenCache || new Map();
 global.graphTokenCache = tokenCache;
 
+function normalizeTenantId(value, fallback = 'organizations') {
+  const tenant = String(value || '').trim();
+  if (!tenant || tenant.toLowerCase() === 'undefined' || tenant.toLowerCase() === 'null') {
+    return fallback || 'organizations';
+  }
+  return tenant;
+}
+
 function getGraphTokenCacheKey(account = {}) {
   return [
     String(account.tenantId || '').trim().toLowerCase(),
@@ -292,7 +300,8 @@ export async function getDelegatedAccessToken(oauthAccountId) {
     ? doc.scopes.join(' ')
     : DELEGATED_MAILBOX_SCOPE;
 
-  const tokenUrl = `https://login.microsoftonline.com/${doc.tenantId || tenant}/oauth2/v2.0/token`;
+  const tokenTenant = normalizeTenantId(doc.tenantId, tenant);
+  const tokenUrl = `https://login.microsoftonline.com/${tokenTenant}/oauth2/v2.0/token`;
   const params = new URLSearchParams();
   params.set('client_id', clientId);
   params.set('client_secret', clientSecret);

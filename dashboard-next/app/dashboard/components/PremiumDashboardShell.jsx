@@ -2831,31 +2831,37 @@ export default function PremiumDashboardShell({
                         const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
                         const isDraftCampaign = normalizedStatus === 'draft';
                         const isQueuedCampaign = normalizedStatus === 'queued';
+                        const statusLabel = campaign.status || campaign.tag || 'Unknown';
+                        const senderMeta = [campaign.person, campaign.broadcast].filter(Boolean).join(' | ');
+                        const locationMeta = [campaign.country, campaign.sector].filter(Boolean).join(' | ');
                         return (
-                          <>
-                      <strong>{campaign.name}</strong>
-                      <small>Status: {campaign.status || campaign.tag || 'Unknown'}</small>
-                      {isDraftCampaign ? (
-                        <button
-                          type="button"
-                          className="campaign-resume-badge"
-                          onClick={() => resumeCampaignDraft(campaign)}
-                        >
-                          Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
-                        </button>
-                      ) : null}
-                      {isQueuedCampaign ? (
-                        <button
-                          type="button"
-                          className="campaign-resume-badge"
-                          onClick={() => handleViewCampaign(campaign)}
-                        >
-                          Queued for worker
-                        </button>
-                      ) : null}
-                      <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
-                      <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
-                          </>
+                          <div className="premium-campaign-cell">
+                            <div className="premium-campaign-cell-main">
+                              <strong title={campaign.name}>{campaign.name}</strong>
+                              {(isDraftCampaign || isQueuedCampaign) ? (
+                                <button
+                                  type="button"
+                                  className="campaign-resume-badge"
+                                  onClick={() => {
+                                    if (isQueuedCampaign) {
+                                      handleViewCampaign(campaign);
+                                      return;
+                                    }
+                                    resumeCampaignDraft(campaign);
+                                  }}
+                                >
+                                  {isQueuedCampaign ? 'Queued for worker' : `Resume: ${campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}`}
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="premium-campaign-cell-meta" title={senderMeta || 'Campaign details not set'}>
+                              {senderMeta || 'No sender details'}
+                            </div>
+                            <div className="premium-campaign-cell-tags">
+                              <em className={`status-${normalizedStatus || 'unknown'}`}>{statusLabel}</em>
+                              <em>{locationMeta || 'Location not set'}</em>
+                            </div>
+                          </div>
                         );
                       })()}
                     </span>

@@ -6,6 +6,8 @@ if (!cached) {
 }
 let schedulerInitPromise = global.__schedulerInitPromise || null;
 global.__schedulerInitPromise = schedulerInitPromise;
+let warmupSchedulerInitPromise = global.__warmupSchedulerInitPromise || null;
+global.__warmupSchedulerInitPromise = warmupSchedulerInitPromise;
 
 function shouldAutoStartCampaignScheduler() {
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
@@ -31,6 +33,20 @@ async function ensureSchedulerInitialized() {
   await schedulerInitPromise;
 }
 
+async function ensureWarmupSchedulerInitialized() {
+  if (warmupSchedulerInitPromise) {
+    await warmupSchedulerInitPromise;
+    return;
+  }
+
+  warmupSchedulerInitPromise = (async () => {
+    const { initWarmupAutoCommunicationScheduler } = await import('../mail-engine/WarmupAutoCommunicationService.js');
+    initWarmupAutoCommunicationScheduler();
+  })();
+  global.__warmupSchedulerInitPromise = warmupSchedulerInitPromise;
+  await warmupSchedulerInitPromise;
+}
+
 export default async function connectDB() {
   const mongoUri = String(process.env.MONGODB_URI || '').trim();
   if (!mongoUri) {
@@ -49,6 +65,7 @@ export default async function connectDB() {
 
   if (cached.conn) {
     await ensureSchedulerInitialized();
+    await ensureWarmupSchedulerInitialized();
     return cached.conn;
   }
 
@@ -62,5 +79,6 @@ export default async function connectDB() {
 
   cached.conn = await cached.promise;
   await ensureSchedulerInitialized();
+  await ensureWarmupSchedulerInitialized();
   return cached.conn;
 }

@@ -52,8 +52,15 @@ function isWarmupCandidate(message, accountEmail, keywords) {
 
 function normalizeSubjectForReply(subject = '') {
   const trimmed = String(subject || '').trim();
-  if (!trimmed) return 'Re: Warmup reply';
+  if (!trimmed) return 'Re: Quick note';
   return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+function sanitizeOutboundReply(value = '') {
+  return String(value || '')
+    .replace(/warm[\s-]*up/gi, 'follow up')
+    .replace(/warming/gi, 'active')
+    .replace(/mailwarm/gi, 'mail check');
 }
 
 function isGmailAccount(account = {}) {
@@ -75,7 +82,7 @@ async function fetchInboxMessages(token, top = DEFAULT_SCAN_LIMIT) {
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    throw new Error(data?.error?.message || 'Failed to fetch inbox messages for warmup auto reply');
+    throw new Error(data?.error?.message || 'Failed to fetch inbox messages for auto reply');
   }
   return Array.isArray(data?.value) ? data.value : [];
 }
@@ -91,7 +98,7 @@ async function createReplyDraft(token, graphMessageId) {
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok || !data?.id) {
-    throw new Error(data?.error?.message || 'Failed to create warmup reply draft');
+    throw new Error(data?.error?.message || 'Failed to create reply draft');
   }
   return data;
 }
@@ -112,7 +119,7 @@ async function updateDraftBody(token, draftId, bodyHtml) {
   });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({}));
-    throw new Error(data?.error?.message || 'Failed to update warmup reply body');
+    throw new Error(data?.error?.message || 'Failed to update reply body');
   }
 }
 
@@ -125,13 +132,13 @@ async function sendDraft(token, draftId) {
   });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({}));
-    throw new Error(data?.error?.message || 'Failed to send warmup reply');
+    throw new Error(data?.error?.message || 'Failed to send reply');
   }
 }
 
 async function sendWarmupReply(token, message, replyTemplate) {
   const draft = await createReplyDraft(token, message.id);
-  await updateDraftBody(token, draft.id, replyTemplate);
+  await updateDraftBody(token, draft.id, sanitizeOutboundReply(replyTemplate));
   await sendDraft(token, draft.id);
 }
 
@@ -196,7 +203,7 @@ async function sendWarmupReplyViaGmail(account, message, replyTemplate) {
     from: account.from,
     to: message.fromEmail,
     subject: normalizeSubjectForReply(message.subject),
-    html: replyTemplate,
+    html: sanitizeOutboundReply(replyTemplate),
     inReplyTo: message.internetMessageId || undefined,
     references: message.internetMessageId ? [message.internetMessageId] : undefined
   });
@@ -269,7 +276,8 @@ async function processGraphWarmupReplies({ normalizedUserEmail, setting, account
     if (!isWarmupCandidate(message, mailboxEmail, keywords)) continue;
 
     try {
-      await sendWarmupReply(token, message, String(setting.replyTemplate || ''));
+      const replyBody = sanitizeOutboundReply(setting.replyTemplate || '');
+      await sendWarmupReply(token, message, replyBody);
         await WarmupAutoReplyLog.create({
           userEmail: normalizedUserEmail,
           mailboxEmail,
@@ -280,7 +288,7 @@ async function processGraphWarmupReplies({ normalizedUserEmail, setting, account
           subject: String(message?.subject || ''),
           status: 'replied',
           note: stripHtml(message?.bodyPreview || '').slice(0, 200),
-          replyBody: String(setting.replyTemplate || ''),
+          replyBody,
           repliedAt: new Date()
         });
       replied += 1;
@@ -294,7 +302,7 @@ async function processGraphWarmupReplies({ normalizedUserEmail, setting, account
         fromEmail: normalizeEmail(message?.from?.emailAddress?.address || ''),
         subject: String(message?.subject || ''),
         status: 'failed',
-        note: String(error?.message || 'Warmup reply failed').slice(0, 300),
+        note: String(error?.message || 'Auto reply failed').slice(0, 300),
         repliedAt: new Date()
       }).catch(() => {});
     }
@@ -356,7 +364,8 @@ async function processGmailWarmupReplies({ normalizedUserEmail, setting, gmailAc
       if (!isWarmupCandidate(message, mailboxEmail, keywords)) continue;
 
       try {
-        await sendWarmupReplyViaGmail(account, message, String(setting.replyTemplate || ''));
+        const replyBody = sanitizeOutboundReply(setting.replyTemplate || '');
+        await sendWarmupReplyViaGmail(account, message, replyBody);
         await WarmupAutoReplyLog.create({
           userEmail: normalizedUserEmail,
           mailboxEmail,
@@ -367,7 +376,7 @@ async function processGmailWarmupReplies({ normalizedUserEmail, setting, gmailAc
           subject: String(message?.subject || ''),
           status: 'replied',
           note: stripHtml(message?.preview || '').slice(0, 200),
-          replyBody: String(setting.replyTemplate || ''),
+          replyBody,
           repliedAt: new Date()
         });
         replied += 1;
@@ -381,7 +390,7 @@ async function processGmailWarmupReplies({ normalizedUserEmail, setting, gmailAc
           fromEmail: normalizeEmail(message?.fromEmail || ''),
           subject: String(message?.subject || ''),
           status: 'failed',
-          note: String(error?.message || 'Gmail warmup reply failed').slice(0, 300),
+          note: String(error?.message || 'Gmail auto reply failed').slice(0, 300),
           repliedAt: new Date()
         }).catch(() => {});
       }

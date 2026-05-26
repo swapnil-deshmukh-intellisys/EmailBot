@@ -9,6 +9,8 @@ import { requireUser } from '@/lib/apiAuth';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
+const WARMUP_DRAFT_TYPE = 'cover_story';
+
 function toPublicAccount(a) {
   return {
     id: a.id,
@@ -39,9 +41,11 @@ export async function GET(req) {
         userEmail,
         $or: [
           { project: 'warmup' },
-          { name: /^Warmup\b/i }
+          { name: /^Warmup\b/i },
+          { type: WARMUP_DRAFT_TYPE },
+          { draftType: WARMUP_DRAFT_TYPE }
         ]
-      }).sort({ createdAt: -1 }).limit(25).lean(),
+      }).sort({ updatedAt: -1, createdAt: -1 }).limit(50).lean(),
       savedListId ? LeadList.findOne({ _id: savedListId, userEmail }).lean() : Promise.resolve(null)
     ]);
 
@@ -138,6 +142,7 @@ export async function GET(req) {
         pending: Number(campaign?.stats?.pending || 0),
         failed: Number(campaign?.stats?.failed || 0),
         createdAt: campaign.createdAt || null,
+        updatedAt: campaign.updatedAt || campaign.lastActivityAt || campaign.createdAt || null,
         lastLog: Array.isArray(campaign.logs) && campaign.logs.length ? campaign.logs[campaign.logs.length - 1] : null,
         logs: Array.isArray(campaign.logs) ? campaign.logs.slice(-10).reverse() : []
       })),

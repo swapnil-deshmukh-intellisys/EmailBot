@@ -7,6 +7,7 @@ import {
   normalizeGraphError,
   normalizeMessage
 } from '@/core-lib/mail-engine/MicrosoftGraphMailboxService';
+import { syncCampaignRepliesFromMessages } from '@/core-lib/mail-engine/CampaignReplyMatcher';
 
 const MESSAGE_SELECT = [
   'id',
@@ -77,6 +78,7 @@ export async function GET(req) {
     const messages = Array.isArray(data?.value)
       ? data.value.map((message) => normalizeMessage(message, { id: folder }))
       : [];
+    await syncCampaignRepliesFromMessages({ auth, account, messages }).catch(() => null);
 
     return NextResponse.json({
       success: true,

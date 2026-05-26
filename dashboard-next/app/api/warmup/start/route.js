@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Campaign from '@/models/Campaign';
+import WarmupSheet from '@/models/WarmupSheet';
 import { requireAuth } from '@/lib/apiAuth';
 import { triggerCampaignSchedulerTick } from '@/lib/campaignScheduler';
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import {
   cloneWarmupLeadListForCampaign,
-  ensureWarmupLeadList,
   getWarmupDrafts,
   getWarmupSenders,
   normalizeProject,
@@ -24,6 +24,45 @@ function jsonError(message, status = 400) {
   return NextResponse.json({ success: false, error: message, message }, { status, headers: NO_STORE_HEADERS });
 }
 
+const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+const neutralizeMailText = (value = '') => String(value || '')
+  .replace(/warm[\s-]*up/gi, 'follow up')
+  .replace(/warming/gi, 'active')
+  .replace(/mailwarm/gi, 'mail check');
+
+function warmupSheetToLeadList(sheet = {}) {
+  const seen = new Set();
+  const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+  const leads = [];
+  for (const row of rows) {
+    if (!row?.warmupApproved) continue;
+    const email = normalizeEmail(row.email || row.data?.Email || row.data?.email || '');
+    if (!email || !SIMPLE_EMAIL_PATTERN.test(email) || seen.has(email)) continue;
+    seen.add(email);
+    const raw = row.data || {};
+    leads.push({
+      ...raw,
+      Name: row.name || raw.Name || raw.name || email.split('@')[0],
+      Email: email,
+      email,
+      status: 'Pending',
+      error: '',
+      sentAt: null,
+      failedAt: null,
+      sendingStartedAt: null,
+      data: { ...raw, email, warmupApproved: row.warmupApproved }
+    });
+  }
+  return {
+    _id: sheet._id,
+    sourceFile: sheet.sheetName || 'warmup-sheet',
+    sourceFileName: sheet.sheetName || 'warmup-sheet',
+    columns: ['Name', 'Email', 'warmupApproved'],
+    leads
+  };
+}
+
 export async function POST(req) {
   try {
     const auth = await requireAuth(req);
@@ -34,12 +73,14 @@ export async function POST(req) {
     const project = normalizeProject(body.project);
     const senderId = String(body.senderId || body.senderAccountId || '').trim();
     const draftId = String(body.draftId || '').trim();
+    const warmupSheetId = String(body.warmupSheetId || body.sheetId || '').trim();
     const editedSubject = String(body.subject || '').trim();
     const editedBody = String(body.body || '').trim();
 
     if (!project) return jsonError('Select a valid project.');
     if (!senderId) return jsonError('Select a sender ID.');
     if (!draftId) return jsonError('Select a warmup draft.');
+    if (!warmupSheetId) return jsonError('Please select a warmup sheet.');
 
     const senderOptions = await getWarmupSenders({ userEmail, project });
     const selectedSender = senderOptions.find((sender) => sender.id === senderId);
@@ -59,7 +100,7 @@ export async function POST(req) {
       status: { $in: ['Queued', 'Running', 'Scheduled'] }
     }).lean();
     if (duplicateRunning) {
-      return jsonError('A warmup campaign is already running or queued for this sender ID.');
+      return jsonError(`A warmup campaign is already ${duplicateRunning.status || 'active'} for this sender ID. Stop, pause, resume, or delete it from the Warmup Campaign Status table.`);
     }
 
     const drafts = await getWarmupDrafts({ userEmail, project, senderId });
@@ -67,14 +108,15 @@ export async function POST(req) {
     if (!selectedDraft?.subject || !selectedDraft?.body) {
       return jsonError('Selected warmup draft is missing or empty.', 404);
     }
-    const campaignSubject = editedSubject || selectedDraft.subject;
-    const campaignBody = editedBody || selectedDraft.body;
+    const campaignSubject = neutralizeMailText(editedSubject || selectedDraft.subject);
+    const campaignBody = neutralizeMailText(editedBody || selectedDraft.body);
     if (!campaignSubject || !campaignBody) {
       return jsonError('Warmup draft subject and body are required.');
     }
 
-    const { list: masterList, missing } = await ensureWarmupLeadList({ userEmail, userId: auth.currentUser._id || null });
-    if (missing || !masterList || !Array.isArray(masterList.leads) || masterList.leads.length < WARMUP_MIN_LEADS) {
+    const selectedSheet = await WarmupSheet.findOne({ _id: warmupSheetId, userEmail, projectId: project }).lean();
+    const masterList = selectedSheet ? warmupSheetToLeadList(selectedSheet) : null;
+    if (!masterList || !Array.isArray(masterList.leads) || masterList.leads.length < WARMUP_MIN_LEADS) {
       return jsonError('Upload a warmup sheet with at least one valid email client.');
     }
 
