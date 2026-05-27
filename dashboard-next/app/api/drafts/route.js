@@ -4,6 +4,16 @@ import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function shouldUseDevFallback() {
   return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
 }
@@ -35,7 +45,7 @@ export async function GET(req) {
       .filter((draft) => !normalizedDraftType || draft.draftType === normalizedDraftType);
     return NextResponse.json(
       { drafts },
-      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      { headers: NO_STORE_HEADERS }
     );
   } catch (error) {
     if (shouldUseDevFallback()) {
@@ -52,9 +62,9 @@ export async function GET(req) {
           }
         ],
         error: error.message || 'Failed to fetch drafts'
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
-    return NextResponse.json({ drafts: [], error: error.message || 'Failed to fetch drafts' });
+    return NextResponse.json({ drafts: [], error: error.message || 'Failed to fetch drafts' }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -83,8 +93,8 @@ export async function POST(req) {
       subject,
       body
     });
-    return NextResponse.json({ draft: withResolvedDraftType(draft.toObject()) });
+    return NextResponse.json({ draft: withResolvedDraftType(draft.toObject()) }, { headers: NO_STORE_HEADERS });
   } catch (error) {
-    return NextResponse.json({ error: error.message || 'Failed to create draft' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to create draft' }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }

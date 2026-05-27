@@ -5,6 +5,16 @@ import EmailDraft from '@/models/EmailDraft';
 import EmailThread from '@/models/EmailThread';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 export async function GET(req) {
   try {
     const auth = await requireAuth(req);
@@ -20,11 +30,11 @@ export async function GET(req) {
       EmailThread.find(ownerQuery).sort({ updatedAt: -1 }).lean()
     ]);
 
-    return NextResponse.json({ campaigns, drafts, threads });
+    return NextResponse.json({ campaigns, drafts, threads }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return NextResponse.json(
       { campaigns: [], drafts: [], threads: [], error: error.message || 'Failed to load mail overview' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }

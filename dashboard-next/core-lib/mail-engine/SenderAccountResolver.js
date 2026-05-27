@@ -93,26 +93,26 @@ export function getProjectGraphConfig(project = '') {
   if (normalizedProject === 'tut') {
     return {
       project: 'tut',
-      tenantId: process.env.TUT_TENANT_ID || '',
-      clientId: process.env.TUT_CLIENT_ID || '',
-      clientSecret: process.env.TUT_CLIENT_SECRET || '',
-      defaultFrom: process.env.TUT_GRAPH_SENDER_EMAIL || ''
+      tenantId: process.env.TUT_TENANT_ID || process.env.TENANT_ID || process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || '',
+      clientId: process.env.TUT_CLIENT_ID || process.env.CLIENT_ID || process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.TUT_CLIENT_SECRET || process.env.CLIENT_SECRET || process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || '',
+      defaultFrom: process.env.TUT_GRAPH_SENDER_EMAIL || process.env.GRAPH_SENDER_EMAIL || ''
     };
   }
   if (normalizedProject === 'tec') {
     return {
       project: 'tec',
-      tenantId: process.env.TEC_TENANT_ID || process.env.TENANT_ID || '',
-      clientId: process.env.TEC_CLIENT_ID || process.env.CLIENT_ID || '',
-      clientSecret: process.env.TEC_CLIENT_SECRET || process.env.CLIENT_SECRET || '',
+      tenantId: process.env.TEC_TENANT_ID || process.env.TENANT_ID || process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || '',
+      clientId: process.env.TEC_CLIENT_ID || process.env.CLIENT_ID || process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.TEC_CLIENT_SECRET || process.env.CLIENT_SECRET || process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || '',
       defaultFrom: process.env.TEC_GRAPH_SENDER_EMAIL || process.env.GRAPH_SENDER_EMAIL || ''
     };
   }
   return {
     project: '',
-    tenantId: process.env.TENANT_ID || '',
-    clientId: process.env.CLIENT_ID || '',
-    clientSecret: process.env.CLIENT_SECRET || '',
+    tenantId: process.env.TENANT_ID || process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT || '',
+    clientId: process.env.CLIENT_ID || process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.CLIENT_SECRET || process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || '',
     defaultFrom: process.env.GRAPH_SENDER_EMAIL || ''
   };
 }
@@ -133,6 +133,23 @@ function normalizeTenantId(value = '') {
     return 'organizations';
   }
   return tenant;
+}
+
+function buildGraphAppAccount(email = '', project = '') {
+  if (!isGraphAppOnlyEnabled()) return null;
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  const graphConfig = getProjectGraphConfig(project || inferProjectFromEmail(normalizedEmail));
+  if (!graphConfig.tenantId || !graphConfig.clientId || !graphConfig.clientSecret) return null;
+  return {
+    id: `graphapp:${normalizedEmail}`,
+    provider: 'graph',
+    label: 'Outlook / Microsoft 365 (Graph App)',
+    from: normalizedEmail,
+    tenantId: graphConfig.tenantId,
+    clientId: graphConfig.clientId,
+    clientSecret: graphConfig.clientSecret
+  };
 }
 
 export function getRuntimeSenderAccounts(project = '') {
@@ -234,7 +251,12 @@ export async function resolveSenderAccountById(id, options = {}) {
     await connectDB();
     const query = userEmail ? { _id: oauthId, userEmail } : { _id: oauthId };
     const doc = await GraphOAuthAccount.findOne(query).lean();
-    if (!doc) return null;
+    if (!doc) {
+      // Shared preset sender fallback. Campaigns created by another user can carry
+      // an old oauth:<id> value, but app-only Graph can still send for approved
+      // project sender mailboxes.
+      return buildGraphAppAccount(senderFrom, project);
+    }
 
     return {
       id: `oauth:${String(doc._id)}`,
@@ -247,21 +269,8 @@ export async function resolveSenderAccountById(id, options = {}) {
   }
 
   if (raw.startsWith('graphapp:')) {
-    if (!isGraphAppOnlyEnabled()) return null;
-
     const email = raw.slice('graphapp:'.length).trim().toLowerCase();
-    if (!email) return null;
-    const graphConfig = getProjectGraphConfig(project || inferProjectFromEmail(email));
-    if (!graphConfig.tenantId || !graphConfig.clientId || !graphConfig.clientSecret) return null;
-    return {
-      id: `graphapp:${email}`,
-      provider: 'graph',
-      label: 'Outlook / Microsoft 365 (Graph App)',
-      from: email,
-      tenantId: graphConfig.tenantId,
-      clientId: graphConfig.clientId,
-      clientSecret: graphConfig.clientSecret
-    };
+    return buildGraphAppAccount(email, project);
   }
 
   if (raw.startsWith('db:')) {

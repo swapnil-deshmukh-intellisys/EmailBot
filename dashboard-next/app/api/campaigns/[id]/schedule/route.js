@@ -198,7 +198,7 @@ export async function POST(req, { params }) {
       !isInAppCampaignSchedulerEnabled()
         ? 'In-app campaign scheduler is disabled on this process. Ensure the PM2 campaign worker is running, or this scheduled campaign will not auto-start.'
         : '';
-    if (shouldQueueImmediately) {
+    if (shouldQueueImmediately && isInAppCampaignSchedulerEnabled()) {
       await startCampaignRunner(String(campaignId), { trigger: 'scheduler' });
     } else if (activate || normalizedScheduleMode === 'send_now') {
       await triggerCampaignSchedulerTick();

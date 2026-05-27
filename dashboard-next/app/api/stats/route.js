@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
-import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -86,6 +86,154 @@ function listProjectValue(list = {}, campaignsByListId = new Map()) {
   return explicit;
 }
 
+function buildListProjectMatch(project = '') {
+  const normalized = normalizeProject(project);
+  if (!normalized) return {};
+  if (normalized === 'tec') {
+    return {
+      $or: [
+        { project: /^tec$/i },
+        { projectId: /^tec$/i },
+        { projectName: /^tec$/i },
+        { projectName: /entrepreneurial/i },
+        { sourceFile: /tec|entrepreneurial/i },
+        { sourceFileName: /tec|entrepreneurial/i }
+      ]
+    };
+  }
+  if (normalized === 'tut') {
+    return {
+      $or: [
+        { project: /^tut$/i },
+        { projectId: /^tut$/i },
+        { projectName: /^tut$/i },
+        { projectName: /unicorn/i },
+        { sourceFile: /tut|unicorn/i },
+        { sourceFileName: /tut|unicorn/i }
+      ]
+    };
+  }
+  return {
+    $or: [
+      { project: new RegExp(`^${normalized}$`, 'i') },
+      { projectId: new RegExp(`^${normalized}$`, 'i') },
+      { projectName: new RegExp(`^${normalized}$`, 'i') }
+    ]
+  };
+}
+
+function asAggregationMatch(query = {}) {
+  return query && Object.keys(query).length ? query : {};
+}
+
+function trimmedStringLengthExpr(valueExpr) {
+  return {
+    $strLenCP: {
+      $trim: {
+        input: {
+          $toString: {
+            $ifNull: [valueExpr, '']
+          }
+        }
+      }
+    }
+  };
+}
+
+function meaningfulLeadExpr() {
+  return {
+    $or: [
+      { $gt: [trimmedStringLengthExpr('$$lead.Email'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.email'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.Name'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.name'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.Company'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.company'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.data.Email'), 0] },
+      { $gt: [trimmedStringLengthExpr('$$lead.data.email'), 0] }
+    ]
+  };
+}
+
+async function loadListStats({ ownerQuery, requestedProject, selectedDayEnd, tenDaysAgo }) {
+  const listMatch = {
+    ...asAggregationMatch(ownerQuery),
+    ...(requestedProject ? buildListProjectMatch(requestedProject) : {})
+  };
+  const uploadedUntil = selectedDayEnd || new Date('9999-12-31T23:59:59.999Z');
+  const rows = await LeadList.aggregate([
+    { $match: listMatch },
+    {
+      $project: {
+        name: 1,
+        sourceFile: 1,
+        kind: 1,
+        uploadedAt: 1,
+        uploadDate: 1,
+        createdAt: 1,
+        meaningfulLeads: {
+          $filter: {
+            input: { $ifNull: ['$leads', []] },
+            as: 'lead',
+            cond: meaningfulLeadExpr()
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        name: 1,
+        sourceFile: 1,
+        kind: 1,
+        uploadedAt: 1,
+        uploadDate: 1,
+        createdAt: 1,
+        leadCount: { $size: '$meaningfulLeads' },
+        sentDates: {
+          $map: {
+            input: {
+              $filter: {
+                input: '$meaningfulLeads',
+                as: 'lead',
+                cond: {
+                  $and: [
+                    { $eq: ['$$lead.status', 'Sent'] },
+                    { $gte: ['$$lead.sentAt', tenDaysAgo] }
+                  ]
+                }
+              }
+            },
+            as: 'lead',
+            in: '$$lead.sentAt'
+          }
+        }
+      }
+    },
+    { $sort: { createdAt: -1 } }
+  ]).allowDiskUse(true);
+
+  let totalUploaded = 0;
+  const normalizedLists = rows.map((list) => {
+    const uploadedAt = list.uploadedAt ? new Date(list.uploadedAt) : null;
+    if (!selectedDayEnd || (uploadedAt && uploadedAt <= uploadedUntil)) {
+      totalUploaded += Number(list.leadCount || 0);
+    }
+    return {
+      _id: String(list._id),
+      name: list.name,
+      sourceFile: list.sourceFile,
+      kind: list.kind || 'uploaded',
+      leadCount: Number(list.leadCount || 0),
+      uploadedAt: list.uploadedAt,
+      uploadDate: list.uploadDate || null,
+      createdAt: list.createdAt || null,
+      sentDates: list.sentDates || []
+    };
+  });
+
+  return { totalUploaded, normalizedLists };
+}
+
 export async function GET(req) {
   const startedAt = Date.now();
   try {
@@ -103,27 +251,7 @@ export async function GET(req) {
     const customEndDate = String(url.searchParams.get('endDate') || '').trim();
     const requestedProject = normalizeProject(url.searchParams.get('project') || '');
     const ownerQuery = buildAuthOwnerFilter(auth);
-    const [lists, campaigns] = await Promise.all([
-      LeadList.find(ownerQuery)
-        .select({
-          name: 1,
-          sourceFile: 1,
-          kind: 1,
-          project: 1,
-          projectId: 1,
-          projectName: 1,
-          uploadedAt: 1,
-          uploadDate: 1,
-          createdAt: 1,
-          'leads.Email': 1,
-          'leads.status': 1,
-          'leads.sentAt': 1,
-          'leads.failedAt': 1,
-          'leads.data': 1
-        })
-        .sort({ createdAt: -1 })
-        .lean(),
-      Campaign.find(ownerQuery)
+    const campaigns = await Campaign.find(ownerQuery)
         .select({
           status: 1,
           project: 1,
@@ -145,8 +273,7 @@ export async function GET(req) {
           createdAt: 1
         })
         .sort({ createdAt: -1 })
-        .lean()
-    ]);
+        .lean();
 
     const campaignsByListId = campaigns.reduce((map, campaign) => {
       const listId = String(campaign?.listId || '');
@@ -155,7 +282,14 @@ export async function GET(req) {
       map.get(listId).push(campaign);
       return map;
     }, new Map());
-    const scopedLists = requestedProject ? lists.filter((list) => listProjectValue(list, campaignsByListId) === requestedProject) : lists;
+    const scopedListProjectFallbackIds = requestedProject
+      ? new Set(
+          campaigns
+            .filter((campaign) => rowProjectValue(campaign) === requestedProject)
+            .map((campaign) => String(campaign?.listId || ''))
+            .filter(Boolean)
+        )
+      : null;
     const scopedCampaigns = requestedProject ? campaigns.filter((campaign) => rowProjectValue(campaign) === requestedProject) : campaigns;
 
     let total = 0;
@@ -214,20 +348,30 @@ export async function GET(req) {
       spam += Math.max(0, Number(campaign?.stats?.spam || 0));
     }
 
-    const normalizedLists = scopedLists.map((list) => {
-      const meaningfulLeads = Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData) : [];
-      const leadCount = meaningfulLeads.length;
-      const listUploadedAt = list.uploadedAt ? new Date(list.uploadedAt) : null;
-
-      if (!selectedDayEnd || (listUploadedAt && listUploadedAt <= selectedDayEnd)) {
-        totalUploaded += leadCount;
+    const listStats = await loadListStats({ ownerQuery, requestedProject, selectedDayEnd, tenDaysAgo });
+    totalUploaded = listStats.totalUploaded;
+    let normalizedLists = listStats.normalizedLists;
+    if (requestedProject && scopedListProjectFallbackIds?.size) {
+      const existingListIds = new Set(normalizedLists.map((list) => String(list._id)));
+      const missingListIds = [...scopedListProjectFallbackIds].filter((id) => !existingListIds.has(id));
+      if (missingListIds.length) {
+        const missingObjectIds = missingListIds
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id));
+        const fallbackStats = await loadListStats({
+          ownerQuery: buildAuthOwnerFilter(auth, { _id: { $in: missingObjectIds } }),
+          requestedProject: '',
+          selectedDayEnd,
+          tenDaysAgo
+        });
+        totalUploaded += fallbackStats.totalUploaded;
+        normalizedLists = [...normalizedLists, ...fallbackStats.normalizedLists];
       }
-
-      for (const lead of meaningfulLeads) {
-        const sentAt = lead.sentAt ? new Date(lead.sentAt) : null;
-        const failedAt = lead.failedAt ? new Date(lead.failedAt) : null;
-
-        if (lead.status === 'Sent' && sentAt && sentAt >= tenDaysAgo) {
+    }
+    for (const list of normalizedLists) {
+      for (const rawSentAt of list.sentDates || []) {
+        const sentAt = rawSentAt ? new Date(rawSentAt) : null;
+        if (sentAt && sentAt >= tenDaysAgo) {
           last10DaysStats += 1;
           const sentDate = new Date(sentAt);
           sentDate.setHours(0, 0, 0, 0);
@@ -237,18 +381,8 @@ export async function GET(req) {
           }
         }
       }
-
-      return {
-        _id: String(list._id),
-        name: list.name,
-        sourceFile: list.sourceFile,
-        kind: list.kind || 'uploaded',
-        leadCount,
-        uploadedAt: list.uploadedAt,
-        uploadDate: list.uploadDate || null,
-        createdAt: list.createdAt || null
-      };
-    });
+      delete list.sentDates;
+    }
 
     const dailyMailCounts = Array.from(dayCountMap.entries()).map(([date, count]) => ({ date, count }));
 
@@ -272,7 +406,7 @@ export async function GET(req) {
     console.info('[api/stats] response', {
       ms: Date.now() - startedAt,
       campaigns: campaigns.length,
-      lists: lists.length,
+      lists: normalizedLists.length,
       range: selectedRange || selectedDate || 'all'
     });
 
@@ -312,6 +446,6 @@ export async function GET(req) {
       customEndDate: '',
       lists: [],
       error: error.message || 'Failed to load stats'
-    }, { headers: NO_STORE_HEADERS });
+    }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }

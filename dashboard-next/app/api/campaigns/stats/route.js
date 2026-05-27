@@ -23,6 +23,34 @@ function escapeRegex(value = '') {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function buildProjectFilter(project = '') {
+  const normalized = String(project || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const projectRegex = new RegExp(`^${escapeRegex(normalized)}$`, 'i');
+  const clauses = [
+    { project: projectRegex },
+    { projectId: projectRegex },
+    { projectName: projectRegex }
+  ];
+  if (normalized === 'tec') {
+    clauses.push(
+      { projectName: /entrepreneurial/i },
+      { senderFrom: /@theentrepreneurialchronicle\.com$/i },
+      { 'senderAccount.from': /@theentrepreneurialchronicle\.com$/i },
+      { 'senderAccount.user': /@theentrepreneurialchronicle\.com$/i }
+    );
+  }
+  if (normalized === 'tut') {
+    clauses.push(
+      { projectName: /unicorn/i },
+      { senderFrom: /@theunicorntimes\.com$/i },
+      { 'senderAccount.from': /@theunicorntimes\.com$/i },
+      { 'senderAccount.user': /@theunicorntimes\.com$/i }
+    );
+  }
+  return { $or: clauses };
+}
+
 export async function GET(req) {
   const startedAt = Date.now();
   try {
@@ -36,15 +64,18 @@ export async function GET(req) {
     const project = String(url.searchParams.get('project') || '').trim().toLowerCase();
     const sender = String(url.searchParams.get('sender') || '').trim().toLowerCase();
 
-    if (project) filters.project = project;
+    const andClauses = [];
+    const projectFilter = buildProjectFilter(project);
+    if (projectFilter) andClauses.push(projectFilter);
     if (sender) {
       const senderRegex = new RegExp(`^${escapeRegex(sender)}$`, 'i');
-      filters.$or = [
+      andClauses.push({ $or: [
         { senderFrom: senderRegex },
         { 'senderAccount.from': senderRegex },
         { 'senderAccount.user': senderRegex }
-      ];
+      ] });
     }
+    if (andClauses.length) filters.$and = andClauses;
     const query = buildAuthOwnerFilter(auth, filters);
 
     const campaigns = await Campaign.find(query).select('status listId templateId inlineTemplate senderAccountId senderFrom senderAccount stats').lean();

@@ -21,6 +21,7 @@ export function isInAppCampaignSchedulerEnabled() {
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
   if (configured === 'true') return true;
   if (configured === 'false') return false;
+  if (process.env.VERCEL) return false;
   return true;
 }
 
@@ -82,6 +83,7 @@ async function recoverStaleCampaigns(now = new Date()) {
 }
 
 export async function runCampaignSchedulerTick() {
+  if (!isInAppCampaignSchedulerEnabled()) return;
   if (mongoose.connection.readyState !== 1) return;
   schedulerState.lastTickAt = new Date();
   schedulerState.lastTickStatus = 'running';

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 
 import connectDB from '@/lib/mongodb';
 
@@ -284,7 +285,7 @@ export async function GET(req) {
     const emptyCounts = getEmptyCampaignCounts();
     return NextResponse.json(
       { success: false, counts: emptyCounts, campaigns: [], summary: buildLegacyCampaignSummary(emptyCounts), code: 'CAMPAIGNS_LOAD_FAILED', message: errorMessage, error: errorMessage },
-      { headers: NO_STORE_HEADERS }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
 
   }
@@ -337,7 +338,20 @@ export async function POST(req) {
 
 
 
-    const list = await LeadList.findOne({ _id: listId, userEmail }).lean();
+    if (!mongoose.Types.ObjectId.isValid(listId)) {
+      return jsonError({ status: 400, code: 'INVALID_LEAD_LIST_ID', message: 'Invalid lead list id.' });
+    }
+
+    const [list] = await LeadList.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(listId), userEmail } },
+      {
+        $project: {
+          _id: 1,
+          userEmail: 1,
+          totalLeads: { $size: { $ifNull: ['$leads', []] } }
+        }
+      }
+    ]);
 
     if (!list) {
 
@@ -430,7 +444,7 @@ export async function POST(req) {
     const campaignType = normalizeCampaignType(type || draftType);
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
-    const total = list.leads.length;
+    const total = Number(list.totalLeads || 0);
     const batchSize = Math.max(1, Math.floor(parsedBatchSize));
     const duplicateCampaign = await Campaign.findOne({
       userEmail,

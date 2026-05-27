@@ -13,6 +13,7 @@ function shouldAutoStartCampaignScheduler() {
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
   if (configured === 'true') return true;
   if (configured === 'false') return false;
+  if (process.env.VERCEL) return false;
   return true;
 }
 

@@ -279,6 +279,23 @@ export async function POST(req, { params }) {
       campaign.queueReason = 'Queued because no active worker was found for a Running campaign';
       campaign.logs.push({ level: 'info', message: 'Campaign re-queued because no active worker was found', at: new Date() });
       await campaign.save();
+      if (!isInAppCampaignSchedulerEnabled()) {
+        return NextResponse.json({
+          success: true,
+          ok: true,
+          queued: true,
+          started: false,
+          status: campaign.status,
+          displayStatus: computeCampaignDisplayStatus(campaign),
+          workerStatus: campaign.workerStatus || '',
+          queueReason: campaign.queueReason,
+          sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+          pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+          failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+          warning: 'Campaign queued. Start the campaign worker process to send queued mails.',
+          message: 'Campaign queued for worker.'
+        }, { headers: NO_STORE_HEADERS });
+      }
       await startCampaignRunner(String(campaign._id), { trigger: 'manual' });
       return NextResponse.json({
         success: true,
@@ -341,6 +358,23 @@ export async function POST(req, { params }) {
     campaign.queueReason = 'Queued by user start request';
     campaign.logs.push({ level: 'info', message: 'Campaign queued for server worker', at: new Date() });
     await campaign.save();
+    if (!isInAppCampaignSchedulerEnabled()) {
+      return NextResponse.json({
+        success: true,
+        ok: true,
+        queued: true,
+        started: false,
+        status: campaign.status,
+        displayStatus: computeCampaignDisplayStatus(campaign),
+        workerStatus: campaign.workerStatus || '',
+        queueReason: campaign.queueReason,
+        sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
+        pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
+        failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
+        warning: 'Campaign queued. Start the campaign worker process to send queued mails.',
+        message: 'Campaign queued for worker.'
+      }, { headers: NO_STORE_HEADERS });
+    }
     const runnerResult = await startCampaignRunner(String(campaign._id), { trigger: 'manual' });
     const latestCampaign = await Campaign.findById(campaign._id).lean();
     return NextResponse.json({

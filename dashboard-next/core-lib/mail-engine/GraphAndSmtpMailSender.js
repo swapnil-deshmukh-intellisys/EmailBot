@@ -25,9 +25,9 @@ function buildGraphAccount() {
     return null;
   }
 
-  const tenantId = process.env.TENANT_ID;
-  const clientId = process.env.CLIENT_ID;
-  const clientSecret = process.env.CLIENT_SECRET;
+  const tenantId = process.env.TENANT_ID || process.env.MS_TENANT_ID || process.env.MS_OAUTH_TENANT;
+  const clientId = process.env.CLIENT_ID || process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.CLIENT_SECRET || process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET;
   const sender = process.env.GRAPH_SENDER_EMAIL;
 
   const normalizedSender = String(sender || '').trim().toLowerCase();
@@ -229,6 +229,28 @@ function normalizeTenantId(value, fallback = 'organizations') {
   return tenant;
 }
 
+function inferProjectFromEmail(email = '') {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail.endsWith('@theunicorntimes.com')) return 'tut';
+  if (normalizedEmail.endsWith('@theentrepreneurialchronicle.com')) return 'tec';
+  return '';
+}
+
+function getDelegatedOAuthConfig(accountDoc = {}) {
+  const project = inferProjectFromEmail(accountDoc.email || accountDoc.from || '');
+  const projectPrefix = project.toUpperCase();
+  const projectTenant = projectPrefix ? process.env[`${projectPrefix}_TENANT_ID`] : '';
+  const projectClientId = projectPrefix ? process.env[`${projectPrefix}_CLIENT_ID`] : '';
+  const projectClientSecret = projectPrefix ? process.env[`${projectPrefix}_CLIENT_SECRET`] : '';
+
+  return {
+    project,
+    clientId: process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || projectClientId || process.env.CLIENT_ID,
+    clientSecret: process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || projectClientSecret || process.env.CLIENT_SECRET,
+    tenant: process.env.MS_OAUTH_TENANT || process.env.MS_TENANT_ID || projectTenant || process.env.TENANT_ID || 'organizations'
+  };
+}
+
 function getGraphTokenCacheKey(account = {}) {
   return [
     String(account.tenantId || '').trim().toLowerCase(),
@@ -275,18 +297,16 @@ async function getGraphAccessToken(account) {
 }
 
 export async function getDelegatedAccessToken(oauthAccountId) {
-  const clientId = process.env.MS_CLIENT_ID || process.env.MS_OAUTH_CLIENT_ID || process.env.CLIENT_ID;
-  const clientSecret = process.env.MS_CLIENT_SECRET || process.env.MS_OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
-  const tenant = process.env.MS_OAUTH_TENANT || process.env.MS_TENANT_ID || process.env.TENANT_ID || 'organizations';
-
-  if (!clientId || !clientSecret) {
-    throw new Error('MS_CLIENT_ID/MS_CLIENT_SECRET (or MS_OAUTH_CLIENT_ID/MS_OAUTH_CLIENT_SECRET or CLIENT_ID/CLIENT_SECRET) are not set');
-  }
-
   await connectDB();
   const doc = await GraphOAuthAccount.findById(oauthAccountId);
   if (!doc) {
     throw new Error('OAuth account not found');
+  }
+
+  const { clientId, clientSecret, tenant, project } = getDelegatedOAuthConfig(doc);
+  if (!clientId || !clientSecret) {
+    const projectHint = project ? ` or ${project.toUpperCase()}_CLIENT_ID/${project.toUpperCase()}_CLIENT_SECRET` : '';
+    throw new Error(`Microsoft OAuth client credentials are not set. Configure MS_CLIENT_ID/MS_CLIENT_SECRET, MS_OAUTH_CLIENT_ID/MS_OAUTH_CLIENT_SECRET, CLIENT_ID/CLIENT_SECRET${projectHint}.`);
   }
 
   const now = Date.now();
