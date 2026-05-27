@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
+import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import { apiFetchJson } from '@/app/lib/apiClient';
@@ -16,7 +17,6 @@ const EMPTY_COUNTS = {
   completed: 0,
   scheduled: 0
 };
-const DASHBOARD_SELECTED_PROJECT_KEY = 'dashboard:selected-project:v1';
 
 const COUNT_CARDS = [
   { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', tone: 'total' },
@@ -603,35 +603,10 @@ export default function CampaignsPage() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [actionLoadingKey, setActionLoadingKey] = useState('');
-  const [selectedProjectScope, setSelectedProjectScope] = useState('');
   const activeSection = 'campaign-list';
 
   useEffect(() => {
     setIsMounted(true);
-    try {
-      setSelectedProjectScope(String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase());
-    } catch (error) {
-      setSelectedProjectScope('');
-    }
-  }, []);
-
-  useEffect(() => {
-    const onProjectChange = (event) => {
-      setSelectedProjectScope(String(event?.detail?.project || '').trim().toLowerCase());
-    };
-    const onStorage = () => {
-      try {
-        setSelectedProjectScope(String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase());
-      } catch (error) {
-        setSelectedProjectScope('');
-      }
-    };
-    window.addEventListener('dashboard-project-change', onProjectChange);
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('dashboard-project-change', onProjectChange);
-      window.removeEventListener('storage', onStorage);
-    };
   }, []);
 
   useEffect(() => {
@@ -653,10 +628,7 @@ export default function CampaignsPage() {
       if (!silent) setLoading(true);
 
       console.debug('[campaigns-page:refetch]', { silent, at: new Date().toISOString() });
-      const url = selectedProjectScope
-        ? `/api/campaigns?limit=100&project=${encodeURIComponent(selectedProjectScope)}`
-        : '/api/campaigns?limit=100';
-      const data = await apiFetchJson(url);
+      const data = await apiFetchJson('/api/campaigns?limit=100');
 
       setCampaigns(Array.isArray(data?.campaigns) ? data.campaigns : []);
       setCounts({ ...EMPTY_COUNTS, ...(data?.counts || {}) });
@@ -671,7 +643,7 @@ export default function CampaignsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedProjectScope]);
+  }, []);
 
   const hasLiveCampaigns = useMemo(
     () => campaigns.some((campaign) => LIVE_CAMPAIGN_STATUSES.has(normalizeText(getDisplayStatus(campaign)))),
@@ -772,27 +744,30 @@ export default function CampaignsPage() {
   if (!isMounted) {
     return (
       <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-        <main className="campaigns-page-shell campaigns-modern-page">
-          <section className="campaigns-modern-hero">
-            <div>
-              <span className="campaigns-page-kicker">Live campaign operations</span>
-              <h1>Campaigns</h1>
+        <PageContainer>
+          <main className="campaigns-page-shell campaigns-modern-page">
+            <section className="campaigns-modern-hero">
+              <div>
+                <span className="campaigns-page-kicker">Live campaign operations</span>
+                <h1>Campaigns</h1>
+              </div>
+            </section>
+            <div className="campaign-table-loading">
+              <div />
+              <div />
+              <div />
+              <div />
             </div>
-          </section>
-          <div className="campaign-table-loading">
-            <div />
-            <div />
-            <div />
-            <div />
-          </div>
-        </main>
+          </main>
+        </PageContainer>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-      <main className="campaigns-page-shell campaigns-modern-page">
+      <PageContainer>
+        <main className="campaigns-page-shell campaigns-modern-page">
           <section className="campaigns-modern-hero">
             <div>
               <span className="campaigns-page-kicker">Live campaign operations</span>
@@ -909,7 +884,8 @@ export default function CampaignsPage() {
               onActionCompleted={() => loadCampaigns({ silent: true })}
             />
           ) : null}
-      </main>
+        </main>
+      </PageContainer>
     </AppLayout>
   );
 }

@@ -127,19 +127,6 @@ function formatDateTime(value) {
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
 }
 
-function formatCompactDateTime(value) {
-  if (!value) return '-';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
 function formatDateOnly(value) {
   if (!value) return '';
   const date = value instanceof Date ? value : new Date(value);
@@ -353,7 +340,6 @@ const EDITABLE_ROW_FIELDS = [
 ];
 const GRID_EDITABLE_FIELDS = [...EDITABLE_ROW_FIELDS];
 const CLIENT_ROWS_PER_PAGE = 100;
-const DASHBOARD_SELECTED_PROJECT_KEY = 'dashboard:selected-project:v1';
 
 function mergeRowWithEdits(row, edits = {}) {
   return {
@@ -505,34 +491,11 @@ export default function ClientListPage() {
   const [historyClients, setHistoryClients] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast] = useState(null);
-  const [selectedProjectScope, setSelectedProjectScope] = useState('');
   const toastTimeoutRef = useRef(null);
   const cellRefs = useRef({});
   const createdSheetsPickerRef = useRef(null);
   const clientListRef = useRef(null);
   const activeSection = activeTab;
-
-  useEffect(() => {
-    const readProjectScope = () => {
-      try {
-        setSelectedProjectScope(String(window.localStorage.getItem(DASHBOARD_SELECTED_PROJECT_KEY) || '').trim().toLowerCase());
-      } catch (error) {
-        setSelectedProjectScope('');
-      }
-    };
-    readProjectScope();
-    const onProjectChange = (event) => {
-      const nextProject = String(event?.detail?.project || '').trim().toLowerCase();
-      setSelectedProjectScope(nextProject);
-      setRefreshNonce((value) => value + 1);
-    };
-    window.addEventListener('dashboard-project-change', onProjectChange);
-    window.addEventListener('storage', readProjectScope);
-    return () => {
-      window.removeEventListener('dashboard-project-change', onProjectChange);
-      window.removeEventListener('storage', readProjectScope);
-    };
-  }, []);
 
   const switchClientDataTab = (tab) => {
     setActiveTab(tab);
@@ -581,8 +544,7 @@ export default function ClientListPage() {
           setError('');
           return;
         }
-        const endpointBase = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/sheets';
-        const endpoint = selectedProjectScope ? `${endpointBase}?project=${encodeURIComponent(selectedProjectScope)}` : endpointBase;
+        const endpoint = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/sheets';
         const response = await fetch(endpoint, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) {
@@ -607,7 +569,7 @@ export default function ClientListPage() {
     return () => {
       active = false;
     };
-  }, [activeTab, refreshNonce, selectedProjectScope]);
+  }, [activeTab, refreshNonce]);
 
   const uploadedFiles = useMemo(
     () => lists.filter((list) => !['custom', 'selected_client_sheet'].includes(String(list?.kind || 'uploaded'))),
@@ -1395,8 +1357,6 @@ export default function ClientListPage() {
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to load client history');
       setHistoryClients(Array.isArray(data?.clients) ? data.clients : []);
     } catch (err) {
-      setHistorySheetId('');
-      setHistoryClients([]);
       showToast('error', err.message || 'Failed to load client history');
     } finally {
       setLoadingHistory(false);
@@ -1783,61 +1743,48 @@ export default function ClientListPage() {
                 </div>
               </div>
                 <div className="ui-card-content">
-                  <div className="client-data-health-list client-data-customize-list">
-                    {customizeSheets.length ? customizeSheets.map((list) => {
-                      const listId = String(list._id);
-                      const leadCount = Number(list.leadCount || list.leads?.length || 0);
-                      const isHistoryActive = historySheetId === listId;
-                      const isWarmupSheet = String(list.kind || '').toLowerCase().includes('warmup');
-                      return (
-                      <article key={listId} className={`client-data-customize-card ${listId === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''} ${isHistoryActive ? 'active' : ''}`}>
-                        <div className="client-data-customize-card-main">
-                          <div className="client-data-customize-title-row">
-                            <div>
-                              <strong>{list.name || 'Selected client sheet'}</strong>
-                              <span>{list.sourceFile || 'No source file'}</span>
-                            </div>
-                            <Badge variant={isWarmupSheet ? 'warning' : 'success'}>{String(list.kind || 'uploaded')}</Badge>
-                          </div>
-                          <div className="client-data-customize-meta-grid">
-                            <span><b>{leadCount}</b> clients</span>
-                            <span>Created <b>{formatCompactDateTime(list.uploadedAt || list.createdAt)}</b></span>
-                            <span>Source <b>{list.sourceFile || '-'}</b></span>
-                            {list.autoDeleteAt ? <span>Auto bin <b>{formatCompactDateTime(list.autoDeleteAt)}</b></span> : null}
-                          </div>
-                        </div>
-                        <div className="client-data-customize-actions">
+                  <div className="client-data-health-list">
+                    {customizeSheets.length ? customizeSheets.map((list) => (
+                      <div key={list._id} className={String(list._id) === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''}>
+                        <strong>{list.name || 'Selected client sheet'}</strong>
+                        <span>
+                          {Number(list.leadCount || list.leads?.length || 0)} clients | {String(list.kind || 'uploaded')} | created {formatDateTime(list.uploadedAt || list.createdAt)} | source {list.sourceFile || '-'}
+                          {list.autoDeleteAt ? ` | auto bin ${formatDateTime(list.autoDeleteAt)}` : ''}
+                        </span>
+                        <div style={{ marginTop: 8 }}>
                           <Button
                             type="button"
                             size="sm"
                             variant="secondary"
                             onClick={() => handleUseForCampaign(list._id)}
-                            disabled={usingCampaignListId === listId}
+                            disabled={usingCampaignListId === String(list._id)}
                           >
-                            {usingCampaignListId === listId ? 'Opening...' : 'Use For Campaign'}
+                            {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(listId)}&autoUpload=1`)}
+                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                            style={{ marginLeft: 8 }}
                           >
                             Upload This Sheet
                           </Button>
                           <Button
                             type="button"
                             size="sm"
-                            variant={isHistoryActive ? 'secondary' : 'ghost'}
-                            onClick={() => loadSheetHistory(listId)}
-                            disabled={loadingHistory && isHistoryActive}
+                            variant="ghost"
+                            onClick={() => loadSheetHistory(list._id)}
+                            style={{ marginLeft: 8 }}
                           >
-                            {loadingHistory && isHistoryActive ? 'Loading...' : 'Client History'}
+                            Client History
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
                             onClick={() => handleRenameCustomSheet(list)}
+                            style={{ marginLeft: 8 }}
                           >
                             Rename
                           </Button>
@@ -1846,12 +1793,13 @@ export default function ClientListPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDeleteCustomSheet(list)}
+                            style={{ marginLeft: 8 }}
                           >
                             Delete
                           </Button>
                         </div>
-                      </article>
-                    ); }) : (
+                      </div>
+                    )) : (
                       <div>
                         <strong>No custom sheets yet.</strong>
                       </div>
@@ -1888,25 +1836,6 @@ export default function ClientListPage() {
                                 {client.followUpStopped ? <span>{client.followUpStopReason || 'Follow-up stopped'}</span> : null}
                               </div>
                               {client.replyPreview ? <p className="client-data-history-reply">{client.replyPreview}</p> : null}
-                              {client.campaignHistory?.length ? (
-                                <div className="client-data-history-campaigns">
-                                  {client.campaignHistory.map((history) => (
-                                    <div key={history.id || `${client.email}-${history.campaignName}`} className="client-data-history-campaign">
-                                      <div>
-                                        <strong>{history.campaignName}</strong>
-                                        <span>{history.projectName || 'Project'} | {history.stage}</span>
-                                      </div>
-                                      <div className="client-data-history-campaign-stats">
-                                        <span>Sent {history.sentCount}</span>
-                                        <span>Open {history.openCount}</span>
-                                        <span>Reply {history.replyCount}</span>
-                                        <span>Failed {history.failedCount}</span>
-                                      </div>
-                                      {history.replyPreview ? <p>{history.replyPreview}</p> : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
                               <div className="client-data-history-steps">
                                 {client.steps.map((step) => (
                                   <div key={`${client.email}-${step.stepNumber}`} className={`client-data-history-step client-data-history-step-${String(step.status || '').toLowerCase().replace(/\s+/g, '-')}`}>

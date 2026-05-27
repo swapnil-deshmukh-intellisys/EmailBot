@@ -846,11 +846,6 @@ export default function PremiumDashboardShell({
   const draftTypeDropdownRef = useRef(null);
   const draftFileInputRef = useRef(null);
   const draftTypeItems = DRAFT_TYPE_ITEMS;
-
-  useEffect(() => {
-    const normalizedProject = String(project || '').trim().toLowerCase();
-    setCampaignProjectFilter(normalizedProject);
-  }, [project]);
   const uploadedLists = [];
   const customLists = [];
   const savedDrafts = [];
@@ -1405,7 +1400,6 @@ export default function PremiumDashboardShell({
         item.pending,
         item.failed,
         item.open,
-        item.replies,
         item.bounced,
         item.spam,
         item.person,
@@ -2814,7 +2808,7 @@ export default function PremiumDashboardShell({
               </div>
               <div className="premium-table-wrap">
                 <div className="premium-table premium-table-head">
-                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Replies', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
+                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
                     <span key={label}>{label}</span>
                   ))}
                 </div>
@@ -2837,37 +2831,31 @@ export default function PremiumDashboardShell({
                         const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
                         const isDraftCampaign = normalizedStatus === 'draft';
                         const isQueuedCampaign = normalizedStatus === 'queued';
-                        const statusLabel = campaign.status || campaign.tag || 'Unknown';
-                        const senderMeta = [campaign.person, campaign.broadcast].filter(Boolean).join(' | ');
-                        const locationMeta = [campaign.country, campaign.sector].filter(Boolean).join(' | ');
                         return (
-                          <div className="premium-campaign-cell">
-                            <div className="premium-campaign-cell-main">
-                              <strong title={campaign.name}>{campaign.name}</strong>
-                              {(isDraftCampaign || isQueuedCampaign) ? (
-                                <button
-                                  type="button"
-                                  className="campaign-resume-badge"
-                                  onClick={() => {
-                                    if (isQueuedCampaign) {
-                                      handleViewCampaign(campaign);
-                                      return;
-                                    }
-                                    resumeCampaignDraft(campaign);
-                                  }}
-                                >
-                                  {isQueuedCampaign ? 'Queued for worker' : `Resume: ${campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}`}
-                                </button>
-                              ) : null}
-                            </div>
-                            <div className="premium-campaign-cell-meta" title={senderMeta || 'Campaign details not set'}>
-                              {senderMeta || 'No sender details'}
-                            </div>
-                            <div className="premium-campaign-cell-tags">
-                              <em className={`status-${normalizedStatus || 'unknown'}`}>{statusLabel}</em>
-                              <em>{locationMeta || 'Location not set'}</em>
-                            </div>
-                          </div>
+                          <>
+                      <strong>{campaign.name}</strong>
+                      <small>Status: {campaign.status || campaign.tag || 'Unknown'}</small>
+                      {isDraftCampaign ? (
+                        <button
+                          type="button"
+                          className="campaign-resume-badge"
+                          onClick={() => resumeCampaignDraft(campaign)}
+                        >
+                          Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
+                        </button>
+                      ) : null}
+                      {isQueuedCampaign ? (
+                        <button
+                          type="button"
+                          className="campaign-resume-badge"
+                          onClick={() => handleViewCampaign(campaign)}
+                        >
+                          Queued for worker
+                        </button>
+                      ) : null}
+                      <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
+                      <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
+                          </>
                         );
                       })()}
                     </span>
@@ -2877,7 +2865,6 @@ export default function PremiumDashboardShell({
                     <span data-label="Pending">{campaign.pending}</span>
                     <span data-label="Fail">{campaign.failed}</span>
                     <span data-label="Open">{campaign.open}</span>
-                    <span data-label="Replies">{campaign.replies}</span>
                     <span data-label="Bounce">{campaign.bounced}</span>
                     <span data-label="Spam">{campaign.spam}</span>
                     <span className="premium-tag-stack" data-label="Tags">
@@ -2909,24 +2896,16 @@ export default function PremiumDashboardShell({
                               Resume Draft
                             </button>
                           ) : null}
-                          <button
-                            type="button"
-                            disabled={!canPauseCampaign}
-                            onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}
-                          >
-                            Pause
-                          </button>
+                          {canPauseCampaign ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                          ) : null}
                           {canStopCampaign ? (
                             <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
                           ) : null}
-                          <button
-                            type="button"
-                            disabled={!canResumeCampaign}
-                            onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}
-                          >
-                            Resume
-                          </button>
-                          <button type="button" onClick={() => { setOpenActionMenu(null); handleDeleteCampaignClick(campaign); }}>Delete</button>
+                          {canResumeCampaign ? (
+                            <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
+                          ) : null}
+                          <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
                         </div>
                         );
                       })() : null}
@@ -2951,7 +2930,6 @@ export default function PremiumDashboardShell({
                         <span data-label="Pending">—</span>
                         <span data-label="Fail">—</span>
                         <span data-label="Open">—</span>
-                        <span data-label="Replies">—</span>
                         <span data-label="Bounce">—</span>
                         <span data-label="Spam">—</span>
                         <span className="premium-tag-stack" data-label="Tags">
@@ -3021,8 +2999,8 @@ export default function PremiumDashboardShell({
                 </div>
               </div>
               <div className="premium-timeline-summary">
-                <strong>{inlineTimelineCards.length} dashboard activities</strong>
-                <span>Mailing, meetings, campaigns, drafts, client data, and sender activity.</span>
+                <strong>{inlineTimelineCards.length} campaign activities</strong>
+                <span>Running, pending, paused, completed, failed, and draft campaign actions.</span>
               </div>
               <div className="premium-timeline-stack">
                 {Object.entries(
@@ -4767,7 +4745,7 @@ export default function PremiumDashboardShell({
         showDraftSummaryPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
           <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-template-head premium-summary-template-head">
+            <div className="premium-template-head">
               <div>
                 <span className="premium-popup-step-badge">5</span>
                 <h3>Summary</h3>
