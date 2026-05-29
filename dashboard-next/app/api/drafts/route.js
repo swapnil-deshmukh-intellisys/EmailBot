@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
+import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -20,8 +21,12 @@ function shouldUseDevFallback() {
 
 function withResolvedDraftType(draft = {}) {
   const draftType = inferDraftTypeFromDraft(draft);
+  const html = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
   return {
     ...draft,
+    html,
+    bodyHtml: html,
+    body: html,
     draftType,
     category: draftType
   };
@@ -73,10 +78,11 @@ export async function POST(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-    const { category, draftType, title, subject, body, bodyHtml, bodyText, sector, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
-    if (!normalizedDraftType || !title || !subject || !body) {
-      return NextResponse.json({ error: 'draftType, title, subject, and body are required' }, { status: 400 });
+    const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
+    if (!normalizedDraftType || !title || !subject || !draftHtml) {
+      return NextResponse.json({ error: 'draftType, title, subject, and html are required' }, { status: 400 });
     }
     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
@@ -91,8 +97,9 @@ export async function POST(req) {
       sector: String(sector || '').trim(),
       domain: String(domain || '').trim().toLowerCase(),
       subject,
-      body,
-      bodyHtml: bodyHtml || body || '',
+      html: draftHtml,
+      body: draftHtml,
+      bodyHtml: draftHtml,
       bodyText: bodyText || ''
     });
     return NextResponse.json({ draft: withResolvedDraftType(draft.toObject()) }, { headers: NO_STORE_HEADERS });

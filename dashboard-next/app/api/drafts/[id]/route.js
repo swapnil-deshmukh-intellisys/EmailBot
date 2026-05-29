@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
+import { buildEmailHtml } from '../../../../components/email/EmailRenderingSystem';
 
 export async function GET(req, { params }) {
   try {
@@ -14,7 +15,8 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
     const resolvedDraftType = inferDraftTypeFromDraft(draft);
-    return NextResponse.json({ draft: { ...draft, draftType: resolvedDraftType, category: resolvedDraftType } });
+    const html = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
+    return NextResponse.json({ draft: { ...draft, html, bodyHtml: html, body: html, draftType: resolvedDraftType, category: resolvedDraftType } });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to load draft' }, { status: 500 });
   }
@@ -26,10 +28,11 @@ export async function PATCH(req, { params }) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, draftType, title, subject, body, bodyHtml, bodyText, sector, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
-    if (!normalizedDraftType || !title || !subject || !body) {
-      return NextResponse.json({ error: 'draftType, title, subject, and body are required' }, { status: 400 });
+    const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
+    if (!normalizedDraftType || !title || !subject || !draftHtml) {
+      return NextResponse.json({ error: 'draftType, title, subject, and html are required' }, { status: 400 });
     }
     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
@@ -44,8 +47,9 @@ export async function PATCH(req, { params }) {
         sector: String(sector || '').trim(),
         domain: String(domain || '').trim().toLowerCase(),
         subject,
-        body,
-        bodyHtml: bodyHtml || body || '',
+        html: draftHtml,
+        body: draftHtml,
+        bodyHtml: draftHtml,
         bodyText: bodyText || ''
       },
       { new: true, runValidators: true }
@@ -54,7 +58,8 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
     const resolvedDraftType = inferDraftTypeFromDraft(draft);
-    return NextResponse.json({ draft: { ...draft, draftType: resolvedDraftType, category: resolvedDraftType } });
+    const resolvedHtml = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
+    return NextResponse.json({ draft: { ...draft, html: resolvedHtml, bodyHtml: resolvedHtml, body: resolvedHtml, draftType: resolvedDraftType, category: resolvedDraftType } });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to update draft' }, { status: 500 });
   }

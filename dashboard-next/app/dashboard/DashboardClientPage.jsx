@@ -32,6 +32,7 @@ import PremiumDashboardShell from './components/PremiumDashboardShell';
 import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 import ThemeToggle from '@/shared-components/layout-components/SharedThemeToggleControl';
+import { buildEmailHtml } from '../../components/email/EmailRenderingSystem';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
@@ -112,16 +113,7 @@ function normalizeDraftBody(value = '') {
 function normalizeEmailDraftHtml(value = '') {
   const input = String(value || '').trim();
   if (!input) return '';
-  const html = /<[a-z][\s\S]*>/i.test(input) ? input : normalizeDraftBody(input);
-  const cleaned = html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
-    .replace(/<meta[\s\S]*?>/gi, '')
-    .replace(/<link[\s\S]*?>/gi, '')
-    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
-    .replace(/<p>\s*<\/p>/gi, '<p><br></p>')
-    .trim();
-  return `<div style="font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.55;color:#111827;">${cleaned}</div>`;
+  return buildEmailHtml(/<[a-z][\s\S]*>/i.test(input) ? input : normalizeDraftBody(input));
 }
 
 function normalizeDraft(draft = {}) {
@@ -131,7 +123,9 @@ function normalizeDraft(draft = {}) {
     category: draftType,
     draftType,
     subject: String(draft?.subject || ''),
-    body: normalizeDraftBody(draft?.body || '')
+    bodyHtml: normalizeEmailDraftHtml(draft?.bodyHtml || draft?.html || draft?.body || ''),
+    bodyText: String(draft?.bodyText || ''),
+    body: normalizeEmailDraftHtml(draft?.bodyHtml || draft?.html || draft?.body || '')
   };
 }
 
@@ -1273,7 +1267,9 @@ const handleDeleteDraft = async (draft) => {
         draftType: normalizeDraftType(newDraftCategory),
         title: baseTitle,
         subject: newDraftSubject,
-        body: normalizeEmailDraftHtml(newDraftBody)
+        body: normalizeEmailDraftHtml(newDraftBody),
+        bodyHtml: normalizeEmailDraftHtml(newDraftBody),
+        bodyText: ''
       };
       const isEditing = Boolean(editingDraftId);
       const url = isEditing ? `/api/drafts/${editingDraftId}` : '/api/drafts';
@@ -1337,7 +1333,9 @@ const handleDeleteDraft = async (draft) => {
           draftType: category,
           title: baseTitle,
           subject: draftSubject,
-          body: normalizeEmailDraftHtml(draftBody)
+          body: normalizeEmailDraftHtml(draftBody),
+          bodyHtml: normalizeEmailDraftHtml(draftBody),
+          bodyText: ''
         })
       });
 
@@ -2816,7 +2814,12 @@ const handleDeleteDraft = async (draft) => {
           type: normalizeDraftType(selectedDraft),
           draftType: normalizeDraftType(selectedDraft),
           draftId: activeSavedDraftId,
-          inlineTemplate: { subject: draftSubject, body: normalizeEmailDraftHtml(draftBody) },
+          inlineTemplate: {
+            subject: draftSubject,
+            body: normalizeEmailDraftHtml(draftBody),
+            bodyHtml: normalizeEmailDraftHtml(draftBody),
+            bodyText: ''
+          },
           senderAccountId: selectedAccount || null,
           scheduleMode: effectiveSchedule.scheduleMode,
           scheduledAt: effectiveSchedule.scheduledAt ? effectiveSchedule.scheduledAt.toISOString() : null,

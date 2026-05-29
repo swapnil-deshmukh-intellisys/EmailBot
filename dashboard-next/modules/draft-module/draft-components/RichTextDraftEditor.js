@@ -81,7 +81,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
 
   const extensions = useMemo(() => [
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: { levels: [1, 2, 3, 4] },
       link: false
     }),
     TextStyle,
@@ -237,6 +237,10 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
           <option value="h2">H2</option>
           <option value="h3">H3</option>
         </select>
+
+        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 1 }).run())}>H1</ToolbarButton>
+        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 2 }).run())}>H2</ToolbarButton>
+        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 3 }).run())}>H3</ToolbarButton>
 
         <select
           className="select wysiwyg-select"

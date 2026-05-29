@@ -4,6 +4,7 @@ import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
 import { decryptString, encryptString } from '../auth-config/TokenCryptoService.js';
 import { DELEGATED_MAILBOX_SCOPE, isGraphAppOnlyEnabled } from './MicrosoftGraphOAuthScopes.js';
 import { htmlToText } from 'html-to-text';
+import { buildEmailHtml } from '../../components/email/EmailRenderingSystem.js';
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -509,7 +510,7 @@ async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, text, 
 
 export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null, trackingPixelHtml = '' }) {
   const { subject, body: renderedBody, plainText: renderedPlainText } = renderTemplate(template, lead);
-  const body = trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody;
+  const body = buildEmailHtml(trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody);
   
   let finalPlainText = renderedPlainText;
   if (!finalPlainText && body) {

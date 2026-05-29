@@ -25,6 +25,7 @@ const EmailDraftSchema = new mongoose.Schema(
     sector: { type: String, default: '', index: true },
     domain: { type: String, default: '', index: true },
     subject: { type: String, required: true },
+    html: { type: String, default: '' },
     body: { type: String, required: true },
     bodyHtml: { type: String, default: '' },
     bodyText: { type: String, default: '' },

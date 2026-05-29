@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import EmailRenderer from '../../../components/email/EmailRenderer';
 import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
 import {
   buildScheduledDateTimeInZone,
@@ -1139,7 +1140,7 @@ export default function PremiumDashboardShell({
     selectedPreviewDraft?.subject || ''
   ).trim();
   const selectedDraftPreviewBody = String(
-    selectedPreviewDraft?.body || ''
+    selectedPreviewDraft?.bodyHtml || selectedPreviewDraft?.html || selectedPreviewDraft?.body || ''
   ).trim();
   const relatedDraftsForSelectedType = useMemo(() => {
     const target = selectedDraftType ? normalizeDraftType(selectedDraftType) : '';
@@ -2300,7 +2301,7 @@ export default function PremiumDashboardShell({
     onSelectList?.(String(campaign.listId || ''));
     onSelectedDraftTypeChange?.(String(campaign.draftType || campaign.type || ''));
     onDraftSubjectChange?.(String(campaign.inlineTemplate?.subject || ''));
-    onDraftBodyChange?.(String(campaign.inlineTemplate?.body || ''));
+    onDraftBodyChange?.(String(campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body || ''));
     onBatchSizeChange?.(String(campaign.options?.batchSize || '1'));
     onDelaySecondsChange?.(String(campaign.options?.delayInterval ?? campaign.options?.delaySeconds ?? '60'));
     setDurationUnit(normalizeDurationUnit(campaign.options?.durationUnit || 'seconds'));
@@ -4435,11 +4436,9 @@ export default function PremiumDashboardShell({
                           <span>Subject</span>
                           <strong>{selectedDraftPreviewSubject || 'No subject available'}</strong>
                         </div>
-                        <div
+                        <EmailRenderer
+                          html={selectedDraftPreviewBody || '<p>No message available.</p>'}
                           className="premium-select-draft-preview-message"
-                          dangerouslySetInnerHTML={{
-                            __html: selectedDraftPreviewBody || '<p>No message available.</p>'
-                          }}
                         />
                       </>
                     ) : (
@@ -4634,26 +4633,35 @@ export default function PremiumDashboardShell({
                   <div className="premium-test-email-device-toggle">
                     <button
                       type="button"
-                      className={testPreviewMode === 'mobile' ? 'active' : ''}
-                      onClick={() => setTestPreviewMode('mobile')}
+                      className={testPreviewMode === 'desktop' ? 'active' : ''}
+                      onClick={() => setTestPreviewMode('desktop')}
+                      title="Desktop Preview"
                     >
-                      📱
+                      🖥
                     </button>
                     <button
                       type="button"
-                      className={testPreviewMode === 'desktop' ? 'active' : ''}
-                      onClick={() => setTestPreviewMode('desktop')}
+                      className={testPreviewMode === 'tablet' ? 'active' : ''}
+                      onClick={() => setTestPreviewMode('tablet')}
+                      title="Tablet Preview"
                     >
-                      🖥
+                      ▭
+                    </button>
+                    <button
+                      type="button"
+                      className={testPreviewMode === 'mobile' ? 'active' : ''}
+                      onClick={() => setTestPreviewMode('mobile')}
+                      title="Mobile Preview"
+                    >
+                      📱
                     </button>
                   </div>
                 </div>
                 <div className={`premium-test-email-message ${testPreviewMode}`}>
-                  {effectiveDraftMessage ? (
-                    <div dangerouslySetInnerHTML={{ __html: effectiveDraftMessage }} />
-                  ) : (
-                    <p>Your test preview will appear here after you add a draft message.</p>
-                  )}
+                  <EmailRenderer
+                    html={effectiveDraftMessage}
+                    empty={<p>Your test preview will appear here after you add a draft message.</p>}
+                  />
                 </div>
               </section>
 

@@ -7283,6 +7283,14 @@ p { margin: 0; color: var(--muted); }
   max-width: 280px;
 }
 
+.premium-test-email-message.desktop {
+  max-width: 100%;
+}
+
+.premium-test-email-message.tablet {
+  max-width: 768px;
+}
+
 .premium-test-email-message p {
   margin: 0 0 10px;
   font-size: 13px;
@@ -20295,6 +20303,115 @@ b {
   height: 0;
   color: #94a3b8;
   pointer-events: none;
+}
+
+.email-renderer,
+.email-renderer :where(p, div, span, li, td, th),
+.tiptap-editor .ProseMirror,
+.tiptap-editor .ProseMirror :where(p, div, span, li, td, th) {
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.email-renderer {
+  color: #111827;
+  font-weight: 400 !important;
+  overflow-wrap: anywhere;
+}
+
+.email-renderer :where(p, div, span, li, td, th, a, em, i, u, s, mark, sub, sup) {
+  font-weight: 400 !important;
+}
+
+.email-renderer :where(strong, b),
+.email-renderer :where(strong, b) :where(span, em, i, u, s, mark, sub, sup) {
+  font-weight: 700 !important;
+}
+
+.email-renderer p,
+.tiptap-editor .ProseMirror p {
+  margin: 0 0 16px;
+}
+
+.email-renderer :where(h1, h2, h3, h4),
+.tiptap-editor .ProseMirror :where(h1, h2, h3, h4) {
+  color: #111827;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 20px 0 12px;
+}
+
+.email-renderer h1,
+.tiptap-editor .ProseMirror h1 { font-size: 30px; }
+
+.email-renderer h2,
+.tiptap-editor .ProseMirror h2 { font-size: 24px; }
+
+.email-renderer h3,
+.tiptap-editor .ProseMirror h3 { font-size: 20px; }
+
+.email-renderer h4,
+.tiptap-editor .ProseMirror h4 { font-size: 17px; }
+
+.email-renderer :where(ul, ol),
+.tiptap-editor .ProseMirror :where(ul, ol) {
+  margin: 0 0 16px 24px;
+  padding: 0;
+}
+
+.email-renderer ul[data-type='taskList'],
+.tiptap-editor .ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  margin-left: 0;
+}
+
+.email-renderer ul[data-type='taskList'] li,
+.tiptap-editor .ProseMirror ul[data-type='taskList'] li {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+}
+
+.email-renderer a,
+.tiptap-editor .ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.email-renderer img,
+.tiptap-editor .ProseMirror img {
+  height: auto;
+  max-width: 100%;
+}
+
+.email-renderer table,
+.tiptap-editor .ProseMirror table {
+  border-collapse: collapse;
+  margin: 16px 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.email-renderer :where(th, td),
+.tiptap-editor .ProseMirror :where(th, td) {
+  border: 1px solid #cbd5e1;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.email-renderer th,
+.tiptap-editor .ProseMirror th {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.email-renderer hr,
+.tiptap-editor .ProseMirror hr {
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+  margin: 18px 0;
 }
 
 html[data-theme='dark'] .premium-dashboard-shell .tiptap-toolbar,

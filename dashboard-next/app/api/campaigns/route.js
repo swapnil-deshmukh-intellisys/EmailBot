@@ -28,6 +28,7 @@ import {
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 import { normalizeDraftType } from '@/app/lib/draftTypes';
+import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -146,7 +147,9 @@ export async function GET(req) {
           'senderAccount.from': 1,
           'senderAccount.user': 1,
           'inlineTemplate.subject': 1,
-          'inlineTemplate.body': 1
+          'inlineTemplate.body': 1,
+          'inlineTemplate.bodyHtml': 1,
+          'inlineTemplate.bodyText': 1
         })
         .lean(),
       Campaign.find(query)
@@ -164,6 +167,8 @@ export async function GET(req) {
         draftId: 1,
         draftType: 1,
         'inlineTemplate.subject': 1,
+        'inlineTemplate.bodyHtml': 1,
+        'inlineTemplate.bodyText': 1,
         senderAccountId: 1,
         'senderAccount.provider': 1,
         'senderAccount.label': 1,
@@ -193,6 +198,7 @@ export async function GET(req) {
         stopReason: 1,
         lastError: 1,
         lastErrorAt: 1,
+        'inlineTemplate.body': 1,
         lastActivityAt: 1,
         options: 1,
         scheduledStart: 1,
@@ -363,7 +369,7 @@ export async function POST(req) {
 
     let resolvedTemplateId = templateId || null;
 
-    if (!resolvedTemplateId && (!inlineTemplate?.subject || !inlineTemplate?.body)) {
+    if (!resolvedTemplateId && (!inlineTemplate?.subject || !(inlineTemplate?.bodyHtml || inlineTemplate?.body))) {
 
       const fallback = await EmailTemplate.findOne({ userEmail }).sort({ createdAt: -1 }).lean();
 
@@ -442,6 +448,7 @@ export async function POST(req) {
     }
 
     const campaignType = normalizeCampaignType(type || draftType);
+    const inlineTemplateHtml = buildEmailHtml(inlineTemplate?.bodyHtml || inlineTemplate?.body || '');
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
     const total = Number(list.totalLeads || 0);
@@ -455,7 +462,8 @@ export async function POST(req) {
       draftId: draftId || null,
       type: campaignType,
       'inlineTemplate.subject': String(inlineTemplate?.subject || '').trim(),
-      'inlineTemplate.body': String(inlineTemplate?.body || '').trim(),
+      'inlineTemplate.body': inlineTemplateHtml,
+      'inlineTemplate.bodyHtml': inlineTemplateHtml,
       'options.batchSize': batchSize,
       'options.delayInterval': storedDelayInterval,
       'options.durationUnit': normalizedDurationUnit,
@@ -489,7 +497,11 @@ export async function POST(req) {
 
         subject: inlineTemplate?.subject || '',
 
-        body: inlineTemplate?.body || ''
+        body: inlineTemplateHtml,
+
+        bodyHtml: inlineTemplateHtml,
+
+        bodyText: inlineTemplate?.bodyText || ''
 
       },
       senderAccountId: senderAccountId || '',

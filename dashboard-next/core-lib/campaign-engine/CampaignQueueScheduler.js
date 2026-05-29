@@ -15,7 +15,7 @@ const schedulerState =
     lastError: '',
     recoveredCount: 0
   });
-const WORKER_LOCK_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 10 * 60 * 1000));
+const WORKER_LOCK_STALE_MS = Math.max(90 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 2 * 60 * 1000));
 
 export function isInAppCampaignSchedulerEnabled() {
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();

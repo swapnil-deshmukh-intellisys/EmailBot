@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sendEmailForLead } from '@/lib/emailSender';
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { requireUser } from '@/lib/apiAuth';
+import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
 
 function stripHtml(value = '') {
   return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -42,7 +43,7 @@ export async function POST(req) {
     }
     const result = await sendEmailForLead({
       account,
-      template: { subject, body },
+      template: { subject, body: buildEmailHtml(body), bodyHtml: buildEmailHtml(body), bodyText: '' },
       lead: { Email: to, Name: 'Test Recipient', FirstName: 'Test', firstName: 'Test' }
     });
 
