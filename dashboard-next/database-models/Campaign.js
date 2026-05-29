@@ -16,13 +16,13 @@ const CampaignSchema = new mongoose.Schema(
     draftId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailDraft', default: null, index: true },
     inlineTemplate: {
       subject: { type: String, default: '' },
-      body: { type: String, default: '' }
+      body: { type: String, default: '' },
+      bodyHtml: { type: String, default: '' },
+      bodyText: { type: String, default: '' }
     },
 
-    // Optional: reference an account from /api/accounts (db:<id> or env id)
     senderAccountId: { type: String, default: '' },
 
-    // Snapshot for UI; campaigns can still run via senderAccountId resolution.
     senderAccount: {
       provider: { type: String, default: '' },
       label: { type: String, default: '' },

@@ -72,7 +72,19 @@ function readRowsFromWorkbook(buffer) {
   if (!firstSheet || !workbook.Sheets[firstSheet]) {
     throw new Error('Uploaded file does not contain a readable sheet');
   }
-  const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+  const sheets = workbook.SheetNames.map((sheetName) => {
+    const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+    if (sheetRows.length > MAX_ROWS) {
+      throw new Error(`Sheet "${sheetName}" has too many rows. Maximum allowed rows is ${MAX_ROWS}.`);
+    }
+    const sheetColumns = new Set();
+    sheetRows.forEach((row) => Object.keys(row || {}).forEach((key) => sheetColumns.add(String(key || '').trim())));
+    if (sheetColumns.size > MAX_COLUMNS) {
+      throw new Error(`Sheet "${sheetName}" has too many columns. Maximum allowed columns is ${MAX_COLUMNS}.`);
+    }
+    return { sheetName, rawRows: sheetRows, columns: Array.from(sheetColumns).filter(Boolean) };
+  });
+  const rawRows = sheets[0]?.rawRows || [];
   if (rawRows.length > MAX_ROWS) {
     throw new Error(`Too many rows. Maximum allowed rows is ${MAX_ROWS}.`);
   }
@@ -81,7 +93,7 @@ function readRowsFromWorkbook(buffer) {
   if (columnSet.size > MAX_COLUMNS) {
     throw new Error(`Too many columns. Maximum allowed columns is ${MAX_COLUMNS}.`);
   }
-  return { rawRows, columns: Array.from(columnSet).filter(Boolean) };
+  return { rawRows, columns: Array.from(columnSet).filter(Boolean), sheets };
 }
 
 export async function POST(req) {
@@ -109,6 +121,7 @@ export async function POST(req) {
       const parsed = readRowsFromWorkbook(buffer);
       rawRows = parsed.rawRows;
       columns = parsed.columns;
+      var workbookSheets = parsed.sheets;
     } else {
       const body = await req.json().catch(() => ({}));
       fileName = String(body.fileName || 'upload-sheet').trim() || 'upload-sheet';
@@ -135,13 +148,22 @@ export async function POST(req) {
       };
     });
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
       fileName,
       columns,
       ...result,
       rows: rowsWithMatches
-    });
+    };
+    if (Array.isArray(workbookSheets) && workbookSheets.length) {
+      payload.workbookSheetCount = workbookSheets.length;
+      payload.sheets = workbookSheets.map((sheet) => ({
+        sheetName: sheet.sheetName,
+        columns: sheet.columns,
+        rowCount: sheet.rawRows.length
+      }));
+    }
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to preview upload' }, { status: 400 });
   }

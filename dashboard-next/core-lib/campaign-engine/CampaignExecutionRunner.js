@@ -761,8 +761,8 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
       throw new Error('Template does not belong to campaign owner');
     }
   }
-  const inlineTemplate = campaign.inlineTemplate?.subject && campaign.inlineTemplate?.body
-    ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body }
+  const inlineTemplate = campaign.inlineTemplate?.subject && (campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body)
+    ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body, bodyHtml: campaign.inlineTemplate.bodyHtml, bodyText: campaign.inlineTemplate.bodyText }
     : null;
   if (!inlineTemplate && !templateFromDb) {
     throw new Error('Template not found');
@@ -824,12 +824,13 @@ export async function startCampaignRunner(campaignId, options = {}) {
   if (!campaign) {
     throw new Error('Campaign not found');
   }
+
   appendLog(campaign, `Runner start requested (${trigger})`);
 
   const list = await LeadList.findById(campaign.listId);
   const templateFromDb = campaign.templateId ? await EmailTemplate.findById(campaign.templateId) : null;
-  const inlineTemplate = campaign.inlineTemplate?.subject && campaign.inlineTemplate?.body
-    ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body }
+  const inlineTemplate = campaign.inlineTemplate?.subject && (campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body)
+    ? { subject: campaign.inlineTemplate.subject, body: campaign.inlineTemplate.body, bodyHtml: campaign.inlineTemplate.bodyHtml, bodyText: campaign.inlineTemplate.bodyText }
     : null;
 
   if (!list || (!inlineTemplate && !templateFromDb)) {

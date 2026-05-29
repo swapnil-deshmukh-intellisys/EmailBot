@@ -217,8 +217,8 @@ export function Topbar({
                     />
                     <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
                       <strong style={{ display: 'block' }}>{profileName}</strong>
-                      {profileEmail ? <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.56)', marginTop: 2 }}>{profileEmail}</small> : null}
-                      {profileRole ? <small style={{ display: 'block', color: 'rgba(15, 23, 42, 0.52)', marginTop: 2 }}>Role: {profileRole}</small> : null}
+                      {profileEmail ? <small style={{ display: 'block', color: 'var(--text-muted)', marginTop: 2 }}>{profileEmail}</small> : null}
+                      {profileRole ? <small style={{ display: 'block', color: 'var(--text-muted)', marginTop: 2 }}>Role: {profileRole}</small> : null}
                     </div>
                     <button
                       type="button"

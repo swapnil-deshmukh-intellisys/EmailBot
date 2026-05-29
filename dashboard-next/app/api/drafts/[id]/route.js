@@ -26,7 +26,7 @@ export async function PATCH(req, { params }) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, draftType, title, subject, body, sector, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, bodyHtml, bodyText, sector, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     if (!normalizedDraftType || !title || !subject || !body) {
       return NextResponse.json({ error: 'draftType, title, subject, and body are required' }, { status: 400 });
@@ -44,7 +44,9 @@ export async function PATCH(req, { params }) {
         sector: String(sector || '').trim(),
         domain: String(domain || '').trim().toLowerCase(),
         subject,
-        body
+        body,
+        bodyHtml: bodyHtml || body || '',
+        bodyText: bodyText || ''
       },
       { new: true, runValidators: true }
     ).lean();

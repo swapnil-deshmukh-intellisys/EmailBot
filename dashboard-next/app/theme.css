@@ -176,6 +176,50 @@ html[data-theme] {
   --glass-border-medium: var(--border-glass);
 }
 
+:root,
+html[data-theme],
+html.theme-light,
+html.theme-dark,
+html.theme-colorful {
+  --font-main: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --page-title-size: clamp(28px, 2.4vw, 34px);
+  --section-title-size: clamp(20px, 1.8vw, 24px);
+  --card-title-size: clamp(16px, 1.15vw, 18px);
+  --body-size: 14.5px;
+  --label-size: 13.5px;
+  --helper-size: 12.5px;
+  --button-text-size: 14px;
+  --table-head-size: 12.5px;
+  --table-body-size: 14px;
+  --heading-weight: 800;
+  --section-weight: 750;
+  --card-weight: 700;
+  --body-weight: 450;
+  --label-weight: 650;
+  --button-weight: 750;
+  --line-tight: 1.18;
+  --line-normal: 1.55;
+  --line-relaxed: 1.7;
+  --space-xs: 6px;
+  --space-sm: 10px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --section-gap: var(--space-lg);
+  --card-padding: clamp(16px, 1.55vw, 24px);
+  --button-height: 40px;
+  --surface-main: var(--bg-main);
+  --surface-card: var(--bg-card);
+  --surface-elevated: var(--bg-elevated);
+  --surface-glass: var(--bg-glass);
+  --primary: var(--accent-secondary);
+  --primary-strong: var(--accent-primary);
+  --primary-soft: color-mix(in srgb, var(--accent-secondary) 13%, transparent);
+  --primary-border: color-mix(in srgb, var(--accent-secondary) 28%, transparent);
+  --shadow-modal: var(--shadow-floating);
+  --focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent-secondary) 18%, transparent);
+}
+
 html,
 body {
   max-width: 100%;
@@ -339,7 +383,7 @@ body {
 
 :where(.premium-kpi-row, .premium-summary-grid, .dashboard-stats-grid) {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: clamp(10px, 1.2vw, 16px);
 }
 

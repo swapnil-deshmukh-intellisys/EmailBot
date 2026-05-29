@@ -1,260 +1,305 @@
-import { useEffect, useRef } from 'react';
+'use client';
 
-export default function RichTextEditor({ value, onChange, placeholder }) {
-  const editorRef = useRef(null);
-  const changeTimerRef = useRef(null);
-  const selectionRef = useRef(null);
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import { Selection } from '@tiptap/pm/state';
+import StarterKit from '@tiptap/starter-kit';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import FontFamily from '@tiptap/extension-font-family';
+import { FontSize } from '@tiptap/extension-text-style/font-size';
+import { BackgroundColor } from '@tiptap/extension-text-style/background-color';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
+import { Table } from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Superscript from '@tiptap/extension-superscript';
+import Subscript from '@tiptap/extension-subscript';
+import Placeholder from '@tiptap/extension-placeholder';
 
-  useEffect(() => {
-    if (!editorRef.current) return;
-    if (editorRef.current.innerHTML !== (value || '')) {
-      editorRef.current.innerHTML = value || '';
-    }
-  }, [value]);
+const FONT_FAMILIES = [
+  { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+  { label: 'Inter', value: 'Inter, Arial, sans-serif' },
+  { label: 'Roboto', value: 'Roboto, Arial, sans-serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { label: 'Poppins', value: 'Poppins, Arial, sans-serif' },
+  { label: 'Montserrat', value: 'Montserrat, Arial, sans-serif' }
+];
 
-  useEffect(() => {
-    return () => {
-      if (changeTimerRef.current) {
-        clearTimeout(changeTimerRef.current);
-      }
-    };
-  }, []);
+const FONT_SIZES = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
+const COLOR_SWATCHES = ['#111827', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#f97316'];
+const HIGHLIGHT_SWATCHES = ['transparent', '#fef3c7', '#dcfce7', '#dbeafe', '#fae8ff', '#fee2e2'];
 
-  const updateValue = (immediate = false) => {
-    const next = editorRef.current?.innerHTML || '';
-    if (immediate) {
-      if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+const plainTextToHtml = (text = '') => String(text || '')
+  .replace(/\r\n/g, '\n')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .split(/\n{2,}/)
+  .map((block) => `<p>${block.replace(/\n/g, '<br>') || '<br>'}</p>`)
+  .join('');
+
+const sanitizeEditorHtml = (html = '') => {
+  if (typeof window === 'undefined') return html;
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  doc.querySelectorAll('script, iframe, object, embed').forEach((node) => node.remove());
+  // Preserve all inline styles and TipTap classes.
+  return doc.body.innerHTML;
+};
+
+function ToolbarButton({ active = false, disabled = false, children, title, onClick, onSaveSelection }) {
+  return (
+    <button
+      type="button"
+      className={`button secondary wysiwyg-tool${active ? ' is-active' : ''}`}
+      title={title}
+      aria-pressed={active ? 'true' : 'false'}
+      disabled={disabled}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onSaveSelection?.();
+      }}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function RichTextEditor({ value, onChange, placeholder, normalizeDefaultWeight = false }) {
+  const lastEmittedValueRef = useRef('');
+  const selectionJsonRef = useRef(null);
+  const editorIdRef = useRef(`editor-${Math.random().toString(36).slice(2)}`);
+  const [, setToolbarVersion] = useState(0);
+
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3] },
+      link: false
+    }),
+    TextStyle,
+    Color,
+    BackgroundColor,
+    FontFamily,
+    FontSize,
+    Underline,
+    Superscript,
+    Subscript,
+    Link.configure({
+      openOnClick: false,
+      autolink: true,
+      HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' }
+    }),
+    Image.configure({ inline: false, allowBase64: true }),
+    TextAlign.configure({ types: ['heading', 'paragraph', 'listItem', 'taskItem'] }),
+    Highlight.configure({ multicolor: true }),
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Placeholder.configure({ placeholder: placeholder || 'Compose your draft here...' })
+  ], [placeholder]);
+
+  const editor = useEditor({
+    extensions,
+    content: value || '',
+    editorProps: {
+      attributes: {
+        class: 'wysiwyg-prosemirror',
+        id: editorIdRef.current,
+        spellcheck: 'true'
+      },
+      transformPastedHTML: (html) => sanitizeEditorHtml(html)
+    },
+    immediatelyRender: false,
+    onUpdate: ({ editor: activeEditor }) => {
+      const next = sanitizeEditorHtml(activeEditor.getHTML());
+      lastEmittedValueRef.current = next;
       onChange(next);
-      return;
     }
-    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
-    changeTimerRef.current = setTimeout(() => onChange(next), 220);
-  };
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    const incoming = value || '';
+    if (incoming !== lastEmittedValueRef.current && incoming !== editor.getHTML()) {
+      editor.commands.setContent(incoming, false);
+    }
+  }, [editor, normalizeDefaultWeight, value]);
+
+  useEffect(() => {
+    if (!editor) return undefined;
+    const refreshToolbar = () => setToolbarVersion((version) => version + 1);
+    editor.on('selectionUpdate', refreshToolbar);
+    editor.on('transaction', refreshToolbar);
+    editor.on('focus', refreshToolbar);
+    editor.on('blur', refreshToolbar);
+    return () => {
+      editor.off('selectionUpdate', refreshToolbar);
+      editor.off('transaction', refreshToolbar);
+      editor.off('focus', refreshToolbar);
+      editor.off('blur', refreshToolbar);
+    };
+  }, [editor]);
+
+  if (!editor) {
+    return (
+      <div className="wysiwyg-wrap">
+        <div className="wysiwyg-editor is-loading">Loading editor...</div>
+      </div>
+    );
+  }
 
   const saveSelection = () => {
-    if (!editorRef.current || typeof window === 'undefined') return;
-    const selection = window.getSelection?.();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
-    if (editorRef.current.contains(range.commonAncestorContainer)) {
-      selectionRef.current = range.cloneRange();
-    }
+    selectionJsonRef.current = editor.state.selection.toJSON();
   };
 
   const restoreSelection = () => {
-    if (!selectionRef.current || typeof window === 'undefined') return;
-    const selection = window.getSelection?.();
-    if (!selection) return;
-    selection.removeAllRanges();
-    selection.addRange(selectionRef.current);
+    if (!selectionJsonRef.current) return;
+    try {
+      const selection = Selection.fromJSON(editor.state.doc, selectionJsonRef.current);
+      editor.view.dispatch(editor.state.tr.setSelection(selection));
+    } catch (error) {
+      selectionJsonRef.current = null;
+    }
   };
 
-  const selectNodeContents = (node) => {
-    if (!node || typeof window === 'undefined') return;
-    const selection = window.getSelection?.();
-    if (!selection) return;
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    selectionRef.current = range.cloneRange();
-  };
-
-  const applyInlineFormat = (command, val = null) => {
+  const runCommand = (callback) => {
     restoreSelection();
-    const selection = window.getSelection?.();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      document.execCommand(command, false, val);
+    const result = callback(editor.chain().focus());
+    setToolbarVersion((version) => version + 1);
+    return result;
+  };
+
+  const setLink = () => {
+    restoreSelection();
+    const previousUrl = editor.getAttributes('link').href || '';
+    const rawUrl = window.prompt('Enter link URL', previousUrl);
+    if (rawUrl === null) return;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+      runCommand((chain) => chain.extendMarkRange('link').unsetLink().run());
       return;
     }
-
-    const range = selection.getRangeAt(0);
-    if (!editorRef.current?.contains(range.commonAncestorContainer)) {
+    const url = /^(https?:|mailto:|tel:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      new URL(url);
+    } catch (error) {
+      window.alert('Please enter a valid URL.');
       return;
     }
-
-    const wrapperMap = {
-      bold: 'span',
-      italic: 'span',
-      underline: 'span',
-      fontName: 'span',
-      fontSize: 'span'
-    };
-    const wrapper = document.createElement(wrapperMap[command] || 'span');
-
-    if (command === 'bold') {
-      wrapper.style.fontWeight = '700';
-    }
-    if (command === 'italic') {
-      wrapper.style.fontStyle = 'italic';
-    }
-    if (command === 'underline') {
-      wrapper.style.textDecoration = 'underline';
-    }
-    if (command === 'fontName') {
-      wrapper.style.fontFamily = val;
-    }
-    if (command === 'fontSize') {
-      const sizeMap = {
-        2: '13px',
-        3: '15px',
-        4: '17px',
-        5: '20px',
-        6: '24px'
-      };
-      wrapper.style.fontSize = sizeMap[val] || `${val}px`;
-    }
-
-    wrapper.appendChild(range.extractContents());
-    range.insertNode(wrapper);
-    selectNodeContents(wrapper);
+    runCommand((chain) => chain.extendMarkRange('link').setLink({ href: url }).run());
   };
 
-  const plainTextToEditorHtml = (text = '') => {
-    const escaped = String(text || '')
-      .replace(/\r\n/g, '\n')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return escaped
-      .split(/\n{2,}/)
-      .map((block) => `<p>${block.replace(/\n/g, '<br>') || '<br>'}</p>`)
-      .join('');
-  };
-
-  const runCommand = (command, val = null) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    if (command === 'removeFormat') {
-      restoreSelection();
-      const selection = window.getSelection?.();
-      const hasSelection =
-        selection &&
-        selection.rangeCount > 0 &&
-        !selection.isCollapsed &&
-        editorRef.current.contains(selection.getRangeAt(0).commonAncestorContainer);
-
-      if (hasSelection) {
-        document.execCommand('removeFormat', false, null);
-      } else {
-        editorRef.current.innerHTML = plainTextToEditorHtml(editorRef.current.innerText || editorRef.current.textContent || '');
-        selectNodeContents(editorRef.current);
-      }
-      saveSelection();
-      updateValue(true);
+  const addImage = () => {
+    restoreSelection();
+    const rawUrl = window.prompt('Enter image URL');
+    if (!rawUrl?.trim()) return;
+    try {
+      new URL(rawUrl.trim());
+    } catch (error) {
+      window.alert('Please enter a valid image URL.');
       return;
     }
-    if (['bold', 'italic', 'underline', 'fontName', 'fontSize'].includes(command)) {
-      applyInlineFormat(command, val);
-    } else {
-      restoreSelection();
-      document.execCommand(command, false, val);
-    }
-    saveSelection();
-    updateValue(true);
+    runCommand((chain) => chain.setImage({ src: rawUrl.trim(), alt: 'Draft image' }).run());
   };
 
-  const handleToolbarCommand = (event, command, val = null) => {
-    event.preventDefault();
-    runCommand(command, val);
-  };
-
-  const sanitizePastedHtml = (html = '') => {
-    if (typeof window === 'undefined') return '';
-    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
-    doc.querySelectorAll('script, style, meta, link, iframe, object, embed').forEach((node) => node.remove());
-    doc.body.querySelectorAll('*').forEach((node) => {
-      const tag = node.tagName.toLowerCase();
-      const allowed = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a']);
-      if (!allowed.has(tag)) {
-        node.replaceWith(...Array.from(node.childNodes));
-        return;
-      }
-      Array.from(node.attributes).forEach((attribute) => {
-        if (attribute.name === 'href' && tag === 'a') return;
-        node.removeAttribute(attribute.name);
-      });
-      if (tag === 'div') {
-        const paragraph = document.createElement('p');
-        paragraph.innerHTML = node.innerHTML || '<br>';
-        node.replaceWith(paragraph);
-      }
-    });
-    return doc.body.innerHTML
-      .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
-      .replace(/<p>\s*<\/p>/gi, '<p><br></p>');
-  };
-
-  const textToDraftHtml = (text = '') => {
-    const normalized = String(text || '').replace(/\r\n/g, '\n').trimEnd();
-    const escaped = normalized
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return escaped
-      .split(/\n{2,}/)
-      .map((block) => `<p>${block.replace(/\n/g, '<br>') || '<br>'}</p>`)
-      .join('');
-  };
-
-  const onPaste = (e) => {
-    const html = e.clipboardData?.getData('text/html');
-    if (html) {
-      e.preventDefault();
-      runCommand('insertHTML', sanitizePastedHtml(html));
-      return;
-    }
-
-    const text = e.clipboardData?.getData('text/plain');
-    if (text) {
-      e.preventDefault();
-      runCommand('insertHTML', textToDraftHtml(text));
-    }
-  };
+  const textStyle = editor.getAttributes('textStyle');
+  const selectedHeading = [1, 2, 3].find((level) => editor.isActive('heading', { level }));
+  const currentBlock = selectedHeading ? `h${selectedHeading}` : 'paragraph';
 
   return (
-    <div className="wysiwyg-wrap">
-      <div className="wysiwyg-toolbar row">
-        <select className="select wysiwyg-select" defaultValue="" onMouseDown={saveSelection} onChange={(e) => runCommand('fontName', e.target.value)}>
-          <option value="" disabled>Font</option>
-          <option value="Arial">Arial</option>
-          <option value="'Times New Roman'">Times New Roman</option>
-          <option value="Calibri">Calibri</option>
-          <option value="Georgia">Georgia</option>
-          <option value="Verdana">Verdana</option>
+    <div className="wysiwyg-wrap tiptap-editor-wrap">
+      <div className="wysiwyg-toolbar row tiptap-toolbar">
+        <select
+          className="select wysiwyg-select"
+          value={currentBlock}
+          onMouseDown={saveSelection}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next === 'paragraph') runCommand((chain) => chain.setParagraph().run());
+            if (next === 'h1') runCommand((chain) => chain.setHeading({ level: 1 }).run());
+            if (next === 'h2') runCommand((chain) => chain.setHeading({ level: 2 }).run());
+            if (next === 'h3') runCommand((chain) => chain.setHeading({ level: 3 }).run());
+          }}
+        >
+          <option value="paragraph">Paragraph</option>
+          <option value="h1">H1</option>
+          <option value="h2">H2</option>
+          <option value="h3">H3</option>
         </select>
-        <select className="select wysiwyg-select" defaultValue="" onMouseDown={saveSelection} onChange={(e) => runCommand('fontSize', e.target.value)}>
-          <option value="" disabled>Size</option>
-          <option value="2">13</option>
-          <option value="3">15</option>
-          <option value="4">17</option>
-          <option value="5">20</option>
-          <option value="6">24</option>
+
+        <select
+          className="select wysiwyg-select"
+          value={textStyle.fontFamily || ''}
+          onMouseDown={saveSelection}
+          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontFamily(event.target.value).run() : chain.unsetFontFamily().run())}
+        >
+          <option value="">Font</option>
+          {FONT_FAMILIES.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
         </select>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'bold')}>B</button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'italic')}><i>I</i></button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'underline')}><u>U</u></button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'insertUnorderedList')}>List</button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyLeft')}>Left</button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyCenter')}>Center</button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'justifyRight')}>Right</button>
-        <button type="button" className="button secondary" onMouseDown={(event) => handleToolbarCommand(event, 'removeFormat')}>Clear Format</button>
+
+        <select
+          className="select wysiwyg-select compact"
+          value={textStyle.fontSize || ''}
+          onMouseDown={saveSelection}
+          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontSize(event.target.value).run() : chain.unsetFontSize().run())}
+        >
+          <option value="">Size</option>
+          {FONT_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+        </select>
+
+        <ToolbarButton title="Undo" disabled={!editor.can().undo()} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.undo().run())}>Undo</ToolbarButton>
+        <ToolbarButton title="Redo" disabled={!editor.can().redo()} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.redo().run())}>Redo</ToolbarButton>
+        <ToolbarButton title="Bold" active={editor.isActive('bold')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleBold().run())}>B</ToolbarButton>
+        <ToolbarButton title="Italic" active={editor.isActive('italic')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleItalic().run())}><i>I</i></ToolbarButton>
+        <ToolbarButton title="Underline" active={editor.isActive('underline')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleUnderline().run())}><u>U</u></ToolbarButton>
+        <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleStrike().run())}>S</ToolbarButton>
+        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSubscript().toggleSuperscript().run())}>x^2</ToolbarButton>
+        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSuperscript().toggleSubscript().run())}>x_2</ToolbarButton>
+
+        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run())}>Left</ToolbarButton>
+        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run())}>Center</ToolbarButton>
+        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run())}>Right</ToolbarButton>
+        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run())}>Justify</ToolbarButton>
+
+        <ToolbarButton title="Bullet List" active={editor.isActive('bulletList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleBulletList().run())}>List</ToolbarButton>
+        <ToolbarButton title="Number List" active={editor.isActive('orderedList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleOrderedList().run())}>1. List</ToolbarButton>
+        <ToolbarButton title="Checklist" active={editor.isActive('taskList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleTaskList().run())}>Check</ToolbarButton>
+
+        <ToolbarButton title="Link" active={editor.isActive('link')} onSaveSelection={saveSelection} onClick={setLink}>Link</ToolbarButton>
+        <ToolbarButton title="Image" onSaveSelection={saveSelection} onClick={addImage}>Image</ToolbarButton>
+        <ToolbarButton title="Table" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}>Table</ToolbarButton>
+        <ToolbarButton title="Horizontal line" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHorizontalRule().run())}>Line</ToolbarButton>
+
+        <label className="wysiwyg-color-control" title="Text color">
+          <span>A</span>
+          <input type="color" value={textStyle.color || '#111827'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setColor(event.target.value).run())} />
+        </label>
+        <label className="wysiwyg-color-control" title="Highlight color">
+          <span>HL</span>
+          <input type="color" value={textStyle.backgroundColor || '#fef3c7'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setBackgroundColor(event.target.value).run())} />
+        </label>
+        {COLOR_SWATCHES.map((color) => (
+          <button key={color} type="button" className="wysiwyg-swatch" style={{ background: color }} title={`Text ${color}`} onMouseDown={(event) => { event.preventDefault(); saveSelection(); }} onClick={() => runCommand((chain) => chain.setColor(color).run())} />
+        ))}
+        {HIGHLIGHT_SWATCHES.map((color) => (
+          <button key={color} type="button" className="wysiwyg-swatch highlight" style={{ background: color }} title={`Highlight ${color}`} onMouseDown={(event) => { event.preventDefault(); saveSelection(); }} onClick={() => runCommand((chain) => color === 'transparent' ? chain.unsetBackgroundColor().run() : chain.setBackgroundColor(color).run())} />
+        ))}
+
+        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run())}>Clear</ToolbarButton>
       </div>
-      <div
-        ref={editorRef}
-        className="wysiwyg-editor"
-        contentEditable
-        suppressContentEditableWarning
-        data-placeholder={placeholder || 'Compose your draft here...'}
-        onInput={() => updateValue(false)}
-        onKeyUp={saveSelection}
-        onMouseUp={saveSelection}
-        onBlur={() => {
-          saveSelection();
-          updateValue(true);
-        }}
-        onPaste={onPaste}
-      />
+
+      <EditorContent editor={editor} className="wysiwyg-editor tiptap-editor" />
     </div>
   );
 }

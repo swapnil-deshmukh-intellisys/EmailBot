@@ -473,6 +473,7 @@ export default function ClientListPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
+  const [activeSourceSheetId, setActiveSourceSheetId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
@@ -583,9 +584,28 @@ export default function ClientListPage() {
 
   const customizeSheets = useMemo(() => lists, [lists]);
 
-  const clientRows = useMemo(
+  const allClientRows = useMemo(
     () => clientRowsData.filter(hasVisibleClientData),
     [clientRowsData]
+  );
+
+  const clientRows = useMemo(
+    () => (
+      activeSourceSheetId
+        ? allClientRows.filter((row) => String(row.sourceListId || '') === String(activeSourceSheetId))
+        : allClientRows
+    ),
+    [activeSourceSheetId, allClientRows]
+  );
+
+  const sheetTabs = useMemo(
+    () => uploadedFiles.map((list) => ({
+      id: String(list._id || ''),
+      name: normalizeText(list.name) || normalizeText(list.sourceFile) || 'Client Sheet',
+      sourceFile: normalizeText(list.sourceFile),
+      count: Number(list.leadCount || 0)
+    })),
+    [uploadedFiles]
   );
 
   const filterOptions = useMemo(() => ({
@@ -697,6 +717,13 @@ export default function ClientListPage() {
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    if (!activeSourceSheetId) return;
+    if (!sheetTabs.some((sheet) => sheet.id === activeSourceSheetId)) {
+      setActiveSourceSheetId('');
+    }
+  }, [activeSourceSheetId, sheetTabs]);
 
   const showToast = (tone, text) => {
     setToast({ tone, message: text });
@@ -1104,6 +1131,41 @@ export default function ClientListPage() {
     setCurrentPage(1);
   }, []);
 
+  const handleSheetTabChange = (sheetId = '') => {
+    setActiveSourceSheetId(String(sheetId || ''));
+    setSelectedClientIds([]);
+    setRowEdits({});
+    setSelectionError('');
+    setSelectionMessage('');
+    setCurrentPage(1);
+  };
+
+  const handleRenameSourceSheet = async (sheet) => {
+    const currentName = normalizeText(sheet?.name) || normalizeText(sheet?.sourceFile) || 'Client Sheet';
+    const nextName = window.prompt('Rename Excel sheet', currentName);
+    if (nextName === null) return;
+    const trimmedName = normalizeText(nextName);
+    if (!trimmedName || trimmedName === currentName) return;
+    try {
+      const response = await fetch(`/api/lists/${encodeURIComponent(String(sheet.id))}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to rename sheet');
+      }
+      setLists((current) => current.map((item) => (
+        String(item._id) === String(sheet.id) ? { ...item, name: trimmedName } : item
+      )));
+      showToast('success', 'Excel sheet renamed.');
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to rename sheet');
+      showToast('error', err.message || 'Failed to rename sheet');
+    }
+  };
+
   const handleAddNewRow = async () => {
     const sourceListId =
       (uploadedFiles.find((list) => String(list?.kind || 'uploaded') !== 'custom')?._id)
@@ -1499,8 +1561,31 @@ export default function ClientListPage() {
                     onApply={handleApplyFilters}
                     onReset={handleClearFilters}
                   />
+                  <div className="client-data-source-sheet-tabs" aria-label="Uploaded Excel sheet tabs">
+                    <button
+                      type="button"
+                      className={`client-data-source-sheet-tab ${!activeSourceSheetId ? 'active' : ''}`}
+                      onClick={() => handleSheetTabChange('')}
+                    >
+                      <strong>All Clients</strong>
+                      <span>{allClientRows.length} clients</span>
+                    </button>
+                    {sheetTabs.map((sheet) => (
+                      <button
+                        key={sheet.id}
+                        type="button"
+                        className={`client-data-source-sheet-tab ${activeSourceSheetId === sheet.id ? 'active' : ''}`}
+                        onClick={() => handleSheetTabChange(sheet.id)}
+                        onDoubleClick={() => handleRenameSourceSheet(sheet)}
+                        title={`${sheet.name}${sheet.sourceFile ? ` | ${sheet.sourceFile}` : ''}. Double click to rename.`}
+                      >
+                        <strong>{sheet.name}</strong>
+                        <span>{sheet.count || allClientRows.filter((row) => String(row.sourceListId || '') === sheet.id).length} clients</span>
+                      </button>
+                    ))}
+                  </div>
                   <p className="ui-card-description" style={{ marginBottom: 12 }}>
-                    Showing {filteredClientRows.length} of {clientRows.length} clients.
+                    Showing {filteredClientRows.length} of {clientRows.length} clients{activeSourceSheetId ? ' in selected sheet' : ''}.
                   </p>
                   {totalPages > 1 ? (
                     <div className="client-data-filter-actions" style={{ marginBottom: 12 }}>

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { createPortal } from 'react-dom';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -648,7 +648,7 @@ export default function DashboardPage() {
   };
   const selectedAccountLabel =
     projectAccounts.find((account) => account.id === selectedAccount)?.from ||
-    'Select Mail ID';
+    'Select Sender';
   const profileDisplayName = profileUser.displayName || displayNameFromEmail(profileUser.email);
   const profileInitials = initialsFromName(profileDisplayName);
   const profileRoleLabel = profileUser.role ? String(profileUser.role).replace(/_/g, ' ') : 'User';
@@ -895,7 +895,7 @@ export default function DashboardPage() {
     setSelectedAccount(value);
     setActiveAccount(selectedMail?.from || '');
     setShowTopbarMailDropdown(false);
-    notify(`Working mail set to ${selectedMail?.from || 'selected account'}.`, 'success');
+    notify(`Active sender set to ${selectedMail?.from || 'selected account'}.`, 'success');
   };
 
   const loadSelectedDraftUploadedFile = async () => {
@@ -912,9 +912,9 @@ export default function DashboardPage() {
       setBlankWordPad(buildWordPadTableHtml(columns, rows));
       setShowBlankWordPad(true);
       setShowDraftUploadedFilesDropdown(false);
-      notify('Uploaded file opened in Edit Word File.', 'success');
+      notify('Uploaded file opened in Edit Content.', 'success');
     } catch (e) {
-      notify(e.message || 'Failed to load uploaded file into Edit Word File', 'error');
+      notify(e.message || 'Failed to load uploaded file into Edit Content', 'error');
     }
   };
 
@@ -1289,7 +1289,7 @@ const handleDeleteDraft = async (draft) => {
       setShowAddDraft(false);
       setEditingDraftId(null);
       setSavedDraftFilterCategory(newDraftCategory);
-      notify('Draft script added successfully.', 'success');
+      notify('Draft added successfully.', 'success');
       const saved = result.draft;
       if (isEditing && saved) {
         setSavedDrafts((prev) => prev.map((d) => (d._id === saved._id ? saved : d)));
@@ -1343,7 +1343,7 @@ const handleDeleteDraft = async (draft) => {
 
       setSavedDraftFilterCategory(category);
       await loadSavedDrafts();
-      notify('Draft script added successfully.', 'success');
+      notify('Draft added successfully.', 'success');
       return { ok: true };
     } catch (err) {
       notify(err.message || 'Failed to save draft', 'error');
@@ -1397,7 +1397,7 @@ const handleDeleteDraft = async (draft) => {
       summary: `summary filter project client active project working mail select mail id quick range starting date today total mails sent pending failed ${project} ${selectedAccountLabel} ${(stats.dailyMailCounts || []).map((item) => `${item.date} ${item.count}`).join(' ')}`,
       upload: `upload client files uploaded file preview show table normalize emails list add column add row save changes ${selectedListName} ${lists.map((list) => list.name).join(' ')}`,
       campaignManagement: `campaign management campaign name campaign type client list batch size delay seconds create campaign ${campaignName} ${selectedDraft} ${selectedListName}`,
-      draftEditing: `draft editing and setting select draft type give draft name create script uploaded files choose uploaded file saved draft scripts edit word file draft email body subject line test email ${draftSubject} ${changeInDraftValue} ${savedDrafts.map((draft) => `${draft.title} ${draft.category}`).join(' ')}`,
+      draftEditing: `draft editing and setting select draft type draft name save draft uploaded files choose uploaded file saved drafts edit content draft email body subject line test email ${draftSubject} ${changeInDraftValue} ${savedDrafts.map((draft) => `${draft.title} ${draft.category}`).join(' ')}`,
       schedule: `schedule time slot country time slot add select time scheduled start ${scheduledCountry} ${scheduledSlot} ${manualScheduledSlot} ${scheduledStartLabel}`,
       campaigns: `campaigns campaign history live logs ${campaigns.map((campaign) => `${campaign.name} ${campaign.status}`).join(' ')}`
     }),
@@ -1514,7 +1514,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Total',
       value: Number(stats?.total || 0),
       percent: 100,
-      meta: 'Backend count',
+      meta: 'All emails',
       tone: 'total',
       color: '#f59e0b',
       icon: '◉'
@@ -1523,7 +1523,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Sent',
       value: Number(stats?.sent || 0),
       percent: completionRate,
-      meta: 'Live status',
+      meta: 'Delivered',
       tone: 'sent',
       color: '#4f46e5',
       icon: '✓'
@@ -1541,7 +1541,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Failed',
       value: Number(stats?.failed || 0),
       percent: Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100),
-      meta: 'Delivery error',
+      meta: 'Failed',
       tone: 'failed',
       color: '#ef4444',
       icon: '✖'
@@ -1550,7 +1550,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Bounced',
       value: Number(stats?.bounced || 0),
       percent: Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100),
-      meta: 'Delivery bounce',
+      meta: 'Bounced',
       tone: 'bounced',
       color: '#14b8a6',
       icon: '↺'
@@ -1559,7 +1559,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Spam',
       value: Number(stats?.spam || 0),
       percent: Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100),
-      meta: 'Blocked / policy',
+      meta: 'Spam',
       tone: 'spam',
       color: '#fb7185',
       icon: '!'
@@ -2713,7 +2713,7 @@ const handleDeleteDraft = async (draft) => {
     scheduleConfig = null
   } = {}) => {
     if (!selectedAccount) {
-      notify('Select Mail ID before creating a campaign.', 'info');
+      notify('Select Sender before creating a campaign.', 'info');
       return null;
     }
     const selectedAccountRecord = accounts.find((account) => account.id === selectedAccount);
@@ -3020,7 +3020,7 @@ const handleDeleteDraft = async (draft) => {
 
   const connectSelectedAccount = async () => {
     const acc = accounts.find((a) => a.id === selectedAccount);
-    if (!acc) return notify('Select Mail ID.', 'info');
+    if (!acc) return notify('Select Sender.', 'info');
     if (acc.provider === "graph_oauth" && String(acc.status || "").toLowerCase() !== "connected") {
       startGraphOAuth(acc.from || "");
       return;
@@ -3045,7 +3045,7 @@ const handleDeleteDraft = async (draft) => {
   const normalizedBody = normalizeEmailDraftHtml(draftBody);
   const accountStatus = String(acc?.status || '').trim().toLowerCase();
   if (!acc) {
-    const message = 'Select Mail ID.';
+    const message = 'Select Sender.';
     notify(message, 'info');
     return { ok: false, error: message };
   }

@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import UploadFile from '@/models/UploadFile';
+import ClientSheet from '@/models/ClientSheet';
+import ClientRecord from '@/models/ClientRecord';
 import { requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+import {
+  applyDuplicateFlags,
+  collectProjectEmailCounts,
+  normalizeProject,
+  rawRowToRecord,
+  recordToLead,
+  summarizeRecords
+} from '@/app/api/client-sheets/_sheetUtils';
 
 function inferUploadStatus(summary = {}) {
   if (Number(summary.invalidRecords || 0) > 0) return 'Invalid';
@@ -21,6 +31,7 @@ export async function POST(req) {
     const fileName = String(body.fileName || '').trim();
     const columns = Array.isArray(body.columns) ? body.columns.map((item) => String(item || '').trim()).filter(Boolean) : [];
     const rows = Array.isArray(body.rows) ? body.rows.filter(hasMeaningfulLeadData) : [];
+    const sheets = Array.isArray(body.sheets) ? body.sheets : [];
     const summary = body.summary && typeof body.summary === 'object' ? body.summary : {};
     const duplicateAction = String(body.duplicateAction || 'skip').trim().toLowerCase();
     const validRows = rows.filter((row) => String(row?.validationStatus || row?.status || '') === 'Valid');
@@ -28,7 +39,7 @@ export async function POST(req) {
     if (!fileName) {
       return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
     }
-    if (!validRows.length && duplicateAction !== 'update_existing') {
+    if (!validRows.length && !sheets.length && duplicateAction !== 'update_existing') {
       return NextResponse.json({ error: 'No valid rows available to save' }, { status: 400 });
     }
 
@@ -98,6 +109,83 @@ export async function POST(req) {
         reasons: Array.isArray(row?.reasons) ? row.reasons.map((item) => String(item || '')) : []
       }))
     });
+
+    if (sheets.length) {
+      const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
+      const project = normalizeProject(body.project || body.projectId || '');
+      const createdSheets = [];
+      for (const item of sheets) {
+        const sheetName = String(item.sheetName || item.name || fileName).trim() || fileName;
+        const sheetRows = Array.isArray(item.rows) ? item.rows.filter(hasMeaningfulLeadData) : [];
+        const sheetColumns = Array.isArray(item.columns) && item.columns.length ? item.columns.map(String) : columns;
+        const clientSheet = await ClientSheet.create({
+          userId: auth.currentUser._id,
+          userEmail,
+          project,
+          projectId: project,
+          sheetName,
+          originalFileName: fileName,
+          kind: 'uploaded',
+          columns: sheetColumns,
+          createdBy: userEmail
+        });
+        const records = sheetRows.map((row, index) => rawRowToRecord(row, {
+          userId: auth.currentUser._id,
+          userEmail,
+          project,
+          projectId: project,
+          sheetId: clientSheet._id,
+          rowIndex: index,
+          originalFileName: fileName,
+          sheetName,
+          uploadedAt: uploadRecord.uploadedDate
+        }));
+        const globalCounts = await collectProjectEmailCounts(auth, project);
+        const flaggedRecords = applyDuplicateFlags(records, globalCounts);
+        if (flaggedRecords.length) await ClientRecord.insertMany(flaggedRecords);
+        const sheetSummary = summarizeRecords(flaggedRecords);
+        Object.assign(clientSheet, sheetSummary);
+
+        const leadList = await LeadList.create({
+          userId: auth.currentUser._id,
+          userEmail,
+          name: `${sheetName} - ${new Date().toLocaleString()}`,
+          project,
+          projectId: project,
+          sourceFile: fileName,
+          sourceFileId: String(uploadRecord._id),
+          sourceFileName: fileName,
+          uploadDate: uploadRecord.uploadedDate,
+          validationStatus: inferUploadStatus(sheetSummary),
+          kind: 'uploaded',
+          columns: sheetColumns,
+          dataCenterMeta: {
+            sourceType: 'client_sheet_upload',
+            clientSheetId: String(clientSheet._id),
+            workbookSheetName: sheetName,
+            ...sheetSummary
+          },
+          leads: flaggedRecords.filter((record) => !record.isInvalid && !record.isRepeated).map(recordToLead)
+        });
+        clientSheet.sourceListId = leadList._id;
+        await clientSheet.save();
+        createdSheets.push({ _id: String(clientSheet._id), sheetName, ...sheetSummary });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        uploadFileId: String(uploadRecord._id),
+        fileName,
+        sheets: createdSheets,
+        summary: {
+          totalRecords: createdSheets.reduce((sum, sheet) => sum + Number(sheet.totalRows || 0), 0),
+          validRecords: createdSheets.reduce((sum, sheet) => sum + Number(sheet.freshCount || 0), 0),
+          duplicateRecords: createdSheets.reduce((sum, sheet) => sum + Number(sheet.repeatedCount || 0), 0),
+          invalidRecords: createdSheets.reduce((sum, sheet) => sum + Number(sheet.invalidCount || 0), 0),
+          updatedDuplicates
+        }
+      });
+    }
 
     let list = null;
     if (validRows.length) {

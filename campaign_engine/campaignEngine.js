@@ -368,6 +368,24 @@ async function runDailyCampaign() {
 }
 
 // API Routes
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Batch Email Campaign Engine',
+    status: 'running',
+    docs: [
+      '/api/health',
+      '/api/campaign-stats',
+      '/api/leads',
+      '/api/run-daily-campaign'
+    ]
+  });
+});
+
+// Chrome DevTools may request this metadata path; return no content to avoid noisy 404/CSP errors.
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
+  res.status(204).end();
+});
+
 app.post('/api/run-daily-campaign', async (req, res) => {
   try {
     if (campaignStats.lastExecutionDate && 

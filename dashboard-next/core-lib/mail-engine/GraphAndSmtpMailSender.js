@@ -3,6 +3,7 @@ import connectDB from '../database-config/MongoDatabaseConnection.js';
 import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
 import { decryptString, encryptString } from '../auth-config/TokenCryptoService.js';
 import { DELEGATED_MAILBOX_SCOPE, isGraphAppOnlyEnabled } from './MicrosoftGraphOAuthScopes.js';
+import { htmlToText } from 'html-to-text';
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -173,8 +174,9 @@ function renderTemplate(template, lead) {
   const customSubject = String(lead?.data?.title || '').trim();
   const subjectTemplate = customSubject || (template.subject || '');
   const subject = subjectTemplate.replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer());
-  const body = (template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
-  return { subject, body };
+  const body = (template.bodyHtml || template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
+  const plainText = (template.bodyText || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
+  return { subject, body, plainText };
 }
 
 function normalizeRecipient(raw) {
@@ -480,7 +482,7 @@ function normalizeSubjectForReply(subject = '') {
   return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`.slice(0, MAX_SUBJECT_LENGTH);
 }
 
-async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inReplyTo, references = [] }) {
+async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, text, inReplyTo, references = [] }) {
   const transport = nodemailer.createTransport({
     host: account.host,
     port: account.port,
@@ -497,6 +499,7 @@ async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inRepl
     cc: cc.length ? cc : undefined,
     subject,
     html: body,
+    text: text || '',
     inReplyTo: inReplyTo || undefined,
     references: references.length ? references : undefined
   });
@@ -505,8 +508,13 @@ async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, inRepl
 }
 
 export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null, trackingPixelHtml = '' }) {
-  const { subject, body: renderedBody } = renderTemplate(template, lead);
+  const { subject, body: renderedBody, plainText: renderedPlainText } = renderTemplate(template, lead);
   const body = trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody;
+  
+  let finalPlainText = renderedPlainText;
+  if (!finalPlainText && body) {
+    finalPlainText = htmlToText(body, { wordwrap: 130 });
+  }
   const to = normalizeRecipient(lead.Email || lead.email);
 
   if (!to || !isValidEmailAddress(to)) {
@@ -543,6 +551,7 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
       cc: ccRecipients,
       subject: finalSubject,
       body,
+      text: finalPlainText,
       inReplyTo: isReply ? previousMessageId : undefined,
       references: isReply ? [previousMessageId] : []
     });
