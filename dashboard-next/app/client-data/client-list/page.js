@@ -67,34 +67,34 @@ const EMPTY_FILTERS = {
 };
 
 const ALL_COUNTRIES = [
-  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
-  'Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia',
-  'Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia',
-  'Cameroon','Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica',
-  "Cote d'Ivoire",'Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic',
-  'Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland',
-  'France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana',
-  'Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan',
-  'Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya',
-  'Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands',
-  'Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique',
-  'Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea',
-  'North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru',
-  'Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia',
-  'Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia',
-  'Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea',
-  'South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania',
-  'Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda',
-  'Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City',
-  'Venezuela','Vietnam','Yemen','Zambia','Zimbabwe'
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
+  'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia',
+  'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia',
+  'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica',
+  "Cote d'Ivoire", 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic',
+  'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland',
+  'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+  'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan',
+  'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya',
+  'Liechtenstein', 'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands',
+  'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique',
+  'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea',
+  'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru',
+  'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia',
+  'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia',
+  'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea',
+  'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania',
+  'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda',
+  'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City',
+  'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
 ];
 
 const ALL_SECTORS = [
-  'Aerospace','Agriculture','Automotive','Banking','Biotechnology','Chemicals','Construction','Consulting',
-  'Consumer Goods','Defense','Education','Energy','Engineering','Entertainment','Fashion','Finance','Food and Beverage',
-  'Government','Healthcare','Hospitality','Human Resources','Information Technology','Insurance','Legal','Logistics',
-  'Manufacturing','Marketing','Media','Mining','Nonprofit','Oil and Gas','Pharmaceuticals','Real Estate','Retail',
-  'Sales','Software','Telecommunications','Textiles','Transportation','Travel','Utilities'
+  'Aerospace', 'Agriculture', 'Automotive', 'Banking', 'Biotechnology', 'Chemicals', 'Construction', 'Consulting',
+  'Consumer Goods', 'Defense', 'Education', 'Energy', 'Engineering', 'Entertainment', 'Fashion', 'Finance', 'Food and Beverage',
+  'Government', 'Healthcare', 'Hospitality', 'Human Resources', 'Information Technology', 'Insurance', 'Legal', 'Logistics',
+  'Manufacturing', 'Marketing', 'Media', 'Mining', 'Nonprofit', 'Oil and Gas', 'Pharmaceuticals', 'Real Estate', 'Retail',
+  'Sales', 'Software', 'Telecommunications', 'Textiles', 'Transportation', 'Travel', 'Utilities'
 ];
 
 function normalizeText(value = '') {
@@ -231,6 +231,35 @@ function normalizeHeader(value = '') {
   return normalizeText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function isCountry(text) {
+  const t = text.trim().toLowerCase();
+  if (t === 'uk' || t === 'us' || t === 'usa' || t === 'uae' || t === 'in' || t === 'netherlands' || t === 'canada') return true;
+  return ALL_COUNTRIES.some((c) => c.toLowerCase() === t);
+}
+
+function autoDetectSector(row) {
+  const text = `${row.cmpName || ''} ${row.designation || ''} ${row.email || ''}`.toLowerCase();
+  if (text.includes('learning') || text.includes('education') || text.includes('design') || text.includes('training') || text.includes('school') || text.includes('course') || text.includes('teach')) {
+    return 'Education';
+  }
+  if (text.includes('medical') || text.includes('hospital') || text.includes('healthcare') || text.includes('neurology') || text.includes('clinical') || text.includes('clinic')) {
+    return 'Healthcare';
+  }
+  if (text.includes('consultant') || text.includes('consulting') || text.includes('foresight') || text.includes('advisor')) {
+    return 'Consulting';
+  }
+  if (text.includes('pwc') || text.includes('bank') || text.includes('finance') || text.includes('invest') || text.includes('spglobal') || text.includes('s&p') || text.includes('strategist')) {
+    return 'Consulting';
+  }
+  if (text.includes('software') || text.includes('developer') || text.includes('tech') || text.includes('data') || text.includes('information technology')) {
+    return 'Software';
+  }
+  if (text.includes('marketing') || text.includes('media') || text.includes('speaker') || text.includes('pr') || text.includes('conference')) {
+    return 'Marketing';
+  }
+  return 'Consulting';
+}
+
 function parsePastedRows(rawText = '') {
   const lines = String(rawText || '')
     .replace(/\r\n/g, '\n')
@@ -238,24 +267,132 @@ function parsePastedRows(rawText = '') {
     .map((line) => line.trimEnd())
     .filter((line) => line.trim());
   if (!lines.length) return [];
-  const parsed = lines.map(splitDelimitedLine);
-  const headerMap = new Map(PASTE_COLUMNS.map((column) => [normalizeHeader(column.label), column.key]));
-  const firstLineKeys = parsed[0].map((cell) => headerMap.get(normalizeHeader(cell)));
-  const hasHeader = firstLineKeys.filter(Boolean).length >= 2;
-  const rows = hasHeader ? parsed.slice(1) : parsed;
-  return rows.map((cells, rowIndex) => {
-    const row = { _rowId: `paste-${Date.now()}-${rowIndex}` };
-    cells.forEach((cell, index) => {
-      const field = hasHeader ? firstLineKeys[index] : PASTE_COLUMNS[index]?.key;
-      if (!field) return;
-      row[field] = normalizeText(cell);
+
+  // Check if it's a vertical/block paste
+  const hasTabsOrCommasPerLine = lines.slice(0, 5).some(line => line.includes('\t') || line.split(',').length >= 3);
+  const hasEmails = lines.some(line => line.includes('@') && !line.includes(' '));
+
+  if (!hasTabsOrCommasPerLine && hasEmails) {
+    const emailIndices = [];
+    lines.forEach((line, idx) => {
+      if (line.includes('@') && !line.includes(' ')) {
+        emailIndices.push(idx);
+      }
     });
-    PASTE_COLUMNS.forEach((column) => {
-      if (typeof row[column.key] !== 'string') row[column.key] = '';
+
+    const blocks = [];
+    let lastClaimedIndex = -1;
+
+    emailIndices.forEach((emailIdx, loopIdx) => {
+      const subLines = lines.slice(lastClaimedIndex + 1, emailIdx);
+      
+      let country = '';
+      let cmpName = '';
+      let fullName = '';
+      let designation = '';
+      const email = lines[emailIdx];
+      let sourcer = '';
+      
+      let countryIdx = -1;
+      for (let j = 0; j < subLines.length; j++) {
+        if (isCountry(subLines[j])) {
+          country = subLines[j];
+          countryIdx = j;
+          break;
+        }
+      }
+      
+      const candidates = subLines.filter((_, idx) => idx !== countryIdx);
+      
+      if (candidates.length === 3) {
+        cmpName = candidates[0];
+        fullName = candidates[1];
+        designation = candidates[2];
+      } else if (candidates.length === 2) {
+        const hasDesignationKeywords = (str) => {
+          const s = str.toLowerCase();
+          return s.includes('founder') || s.includes('consultant') || s.includes('director') || 
+                 s.includes('head') || s.includes('strategist') || s.includes('manager') || 
+                 s.includes('speaker') || s.includes('assistant') || s.includes('officer') ||
+                 s.includes('curious') || s.includes('lead') || s.includes('vp');
+        };
+        if (hasDesignationKeywords(candidates[1])) {
+          fullName = candidates[0];
+          designation = candidates[1];
+        } else {
+          cmpName = candidates[0];
+          fullName = candidates[1];
+        }
+      } else if (candidates.length === 1) {
+        fullName = candidates[0];
+      } else if (candidates.length > 3) {
+        cmpName = candidates[0];
+        fullName = candidates[1];
+        designation = candidates.slice(2).join(' | ');
+      }
+      
+      const nextEmailIdx = emailIndices[loopIdx + 1] ?? lines.length;
+      const trailingLines = lines.slice(emailIdx + 1, nextEmailIdx);
+      
+      if (trailingLines.length > 0) {
+        const firstTrailing = trailingLines[0];
+        if (firstTrailing.toLowerCase().includes('valeria') || firstTrailing.toLowerCase().includes('brown') || !isCountry(firstTrailing)) {
+          sourcer = firstTrailing;
+          lastClaimedIndex = emailIdx + 1;
+        } else {
+          lastClaimedIndex = emailIdx;
+        }
+      } else {
+        lastClaimedIndex = emailIdx;
+      }
+      
+      const nameParts = fullName.trim().split(/\s+/);
+      const name = nameParts[0] || '';
+      const surname = nameParts.slice(1).join(' ') || '';
+      
+      const row = {
+        _rowId: `paste-${Date.now()}-${loopIdx}`,
+        name,
+        surname,
+        designation,
+        cmpName,
+        country,
+        email: normalizeText(email).toLowerCase(),
+        sourcer,
+        leadType: 'TUT',
+        source: 'Pasted Block'
+      };
+      
+      PASTE_COLUMNS.forEach((column) => {
+        if (typeof row[column.key] !== 'string') row[column.key] = '';
+      });
+      row.sector = autoDetectSector(row);
+      blocks.push(row);
     });
-    row.email = normalizeText(row.email).toLowerCase();
-    return row;
-  }).filter(hasVisibleClientData);
+
+    return blocks;
+  } else {
+    // Normal horizontal spreadsheet row parsing
+    const parsed = lines.map(splitDelimitedLine);
+    const headerMap = new Map(PASTE_COLUMNS.map((column) => [normalizeHeader(column.label), column.key]));
+    const firstLineKeys = parsed[0].map((cell) => headerMap.get(normalizeHeader(cell)));
+    const hasHeader = firstLineKeys.filter(Boolean).length >= 2;
+    const rows = hasHeader ? parsed.slice(1) : parsed;
+    return rows.map((cells, rowIndex) => {
+      const row = { _rowId: `paste-${Date.now()}-${rowIndex}` };
+      cells.forEach((cell, index) => {
+        const field = hasHeader ? firstLineKeys[index] : PASTE_COLUMNS[index]?.key;
+        if (!field) return;
+        row[field] = normalizeText(cell);
+      });
+      PASTE_COLUMNS.forEach((column) => {
+        if (typeof row[column.key] !== 'string') row[column.key] = '';
+      });
+      row.email = normalizeText(row.email).toLowerCase();
+      row.sector = autoDetectSector(row);
+      return row;
+    }).filter(hasVisibleClientData);
+  }
 }
 
 function createEmptyPasteRows(count = 8) {
@@ -479,12 +616,15 @@ export default function ClientListPage() {
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [creatingRow, setCreatingRow] = useState(false);
   const [activeCell, setActiveCell] = useState(null);
-  const [showPastePanel, setShowPastePanel] = useState(false);
+  const [showPastePanel, setShowPastePanel] = useState(true);
   const [pasteRawText, setPasteRawText] = useState('');
   const [pasteRows, setPasteRows] = useState([]);
   const [selectedPasteRowIds, setSelectedPasteRowIds] = useState([]);
   const [savingPastedData, setSavingPastedData] = useState(false);
   const [creatingPasteSheet, setCreatingPasteSheet] = useState(false);
+  const [workspaceSaving, setWorkspaceSaving] = useState(false);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const workspaceSaveTimerRef = useRef(null);
   const [usingCampaignListId, setUsingCampaignListId] = useState('');
   const [binSheets, setBinSheets] = useState([]);
   const [loadingBin, setLoadingBin] = useState(false);
@@ -518,7 +658,48 @@ export default function ClientListPage() {
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
+    if (workspaceSaveTimerRef.current) window.clearTimeout(workspaceSaveTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadWorkspace = async () => {
+      try {
+        const response = await fetch('/api/client-data/paste-workspace', { cache: 'no-store' });
+        const data = await response.json();
+        if (!active) return;
+        if (data?.ok && Array.isArray(data.rows) && data.rows.length > 0) {
+          setPasteRows(data.rows);
+        } else {
+          setPasteRows(createEmptyPasteRows(6));
+        }
+      } catch {
+        if (active) setPasteRows(createEmptyPasteRows(6));
+      } finally {
+        if (active) setWorkspaceLoaded(true);
+      }
+    };
+    loadWorkspace();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLoaded) return;
+    if (workspaceSaveTimerRef.current) window.clearTimeout(workspaceSaveTimerRef.current);
+    workspaceSaveTimerRef.current = window.setTimeout(async () => {
+      const filled = pasteRows.filter(hasVisibleClientData);
+      try {
+        setWorkspaceSaving(true);
+        await fetch('/api/client-data/paste-workspace', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: filled })
+        });
+      } catch { /* silent */ } finally {
+        setWorkspaceSaving(false);
+      }
+    }, 1500);
+  }, [pasteRows, workspaceLoaded]);
 
   useEffect(() => {
     if (activeSection !== 'client-list') return undefined;
@@ -850,10 +1031,7 @@ export default function ClientListPage() {
       if (!response.ok || data?.ok === false) {
         throw new Error(data?.error || 'Failed to save pasted data');
       }
-      setPasteRawText('');
-      setPasteRows(createEmptyPasteRows(8));
       setSelectedPasteRowIds([]);
-      setShowPastePanel(false);
       setRefreshNonce((value) => value + 1);
       setSelectionMessage(`${data.message || 'Pasted data saved.'} ${data.summary?.repeatedClients || 0} repeated, ${data.summary?.invalidClients || 0} invalid.`);
       showToast('success', data.message || 'Pasted data saved to Client Directory.');
@@ -878,7 +1056,22 @@ export default function ClientListPage() {
       showToast('error', 'Fix invalid email rows before creating a sheet.');
       return;
     }
-    const defaultName = normalizeText(newSheetName) || `Selected Clients ${formatDisplayDate()}`;
+    const sectorCounts = {};
+    selectedRows.forEach((row) => {
+      const s = String(row.sector || '').trim();
+      if (s && s !== '-') {
+        sectorCounts[s] = (sectorCounts[s] || 0) + 1;
+      }
+    });
+    let mostCommonSector = '';
+    let maxCount = 0;
+    Object.entries(sectorCounts).forEach(([s, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommonSector = s;
+      }
+    });
+    const defaultName = normalizeText(newSheetName) || `${mostCommonSector || 'Selected'} Clients ${formatDisplayDate()}`;
     const promptedName = window.prompt('Rename selected client sheet', defaultName);
     if (promptedName === null) return;
     const trimmedName = normalizeText(promptedName) || defaultName;
@@ -912,6 +1105,11 @@ export default function ClientListPage() {
       setLists((current) => [nextList, ...current.filter((item) => String(item._id) !== String(nextList._id))]);
       setRecentCreatedSheetId(String(nextList._id));
       setActiveTab('customize');
+      const createdRowIds = new Set(selectedRows.map((r) => r._rowId));
+      setPasteRows((current) => {
+        const remaining = current.filter((r) => !createdRowIds.has(r._rowId));
+        return remaining.length ? remaining : createEmptyPasteRows(6);
+      });
       setSelectedPasteRowIds([]);
       setSelectionMessage(data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
       showToast('success', data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
@@ -1226,7 +1424,22 @@ export default function ClientListPage() {
       return;
     }
 
-    const defaultName = normalizeText(newSheetName) || `Selected Clients ${formatDisplayDate()}`;
+    const sectorCounts = {};
+    selectedRows.forEach((row) => {
+      const s = String(row.sector || '').trim();
+      if (s && s !== '-') {
+        sectorCounts[s] = (sectorCounts[s] || 0) + 1;
+      }
+    });
+    let mostCommonSector = '';
+    let maxCount = 0;
+    Object.entries(sectorCounts).forEach(([s, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostCommonSector = s;
+      }
+    });
+    const defaultName = normalizeText(newSheetName) || `${mostCommonSector || 'Selected'} Clients ${formatDisplayDate()}`;
     const promptedName = window.prompt('Rename selected client sheet', defaultName);
     if (promptedName === null) return;
     const trimmedName = normalizeText(promptedName) || defaultName;
@@ -1451,382 +1664,385 @@ export default function ClientListPage() {
                     />
                   </div>
                 </section>
-            <section className={`client-data-panel client-data-paste-panel ${showPastePanel ? '' : 'client-data-paste-panel-closed'}`}>
-              <div className="client-data-panel-head">
-                <div>
-                  <h2 className="ui-card-title">Paste Extracted Data</h2>
-                </div>
-                <div className="client-data-panel-head-actions">
-                  {showPastePanel ? (
-                    <Button type="button" variant="ghost" onClick={() => setShowPastePanel(false)}>
-                      Close
-                    </Button>
-                  ) : (
-                    <Button type="button" onClick={openPastePanel}>
-                      Open Sheet
-                    </Button>
-                  )}
-                </div>
-              </div>
-              {showPastePanel ? (
-                <div className="ui-card-content client-data-paste-workspace">
-                  <div className="client-data-paste-actions">
-                    <Button type="button" onClick={handleSavePastedData} disabled={savingPastedData || !pasteRows.length}>
-                      {savingPastedData ? 'Saving...' : 'Save Pasted Data'}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={handleAddPasteRows}>
-                      Create Row
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedPasteRowIds.length}>
-                      {creatingPasteSheet ? 'Creating...' : 'Create Selected Client Sheet'}
-                    </Button>
-                    <span>{filledPasteRows.length} filled rows | {selectedPasteRowIds.length} selected | {pasteInvalidRowIndexes.size} invalid | {pasteDuplicateRowIndexes.size} repeated</span>
+                <section className={`client-data-panel client-data-paste-panel ${showPastePanel ? '' : 'client-data-paste-panel-closed'}`}>
+                  <div className="client-data-panel-head">
+                    <div>
+                      <h2 className="ui-card-title">Paste Extracted Data</h2>
+                    </div>
+                    <div className="client-data-panel-head-actions">
+                      {showPastePanel ? (
+                        <Button type="button" variant="ghost" onClick={() => setShowPastePanel(false)}>
+                          Close
+                        </Button>
+                      ) : (
+                        <Button type="button" onClick={openPastePanel}>
+                          Open Sheet
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {pasteRows.length ? (
-                    <div className="client-data-table client-data-table-scroll client-data-paste-preview-table client-data-paste-excel-table">
-                      <div className="client-data-table-head">
-                        <span>No.</span>
-                        <span>
-                          <input
-                            type="checkbox"
-                            checked={filledPasteRows.length > 0 && filledPasteRows.every((row) => selectedPasteRowIds.includes(row._rowId))}
-                            onChange={toggleAllPasteRows}
-                            aria-label="Select all pasted rows"
-                          />
-                        </span>
-                        {PASTE_COLUMNS.map((column) => <span key={column.key}>{column.label}</span>)}
+                  {showPastePanel ? (
+                    <div className="ui-card-content client-data-paste-workspace">
+                      <div className="client-data-paste-actions">
+                        <Button type="button" onClick={handleSavePastedData} disabled={savingPastedData || !pasteRows.length}>
+                          {savingPastedData ? 'Saving...' : 'Save Pasted Data'}
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={handleAddPasteRows}>
+                          Create Row
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedPasteRowIds.length}>
+                          {creatingPasteSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => { setPasteRows(createEmptyPasteRows(6)); setSelectedPasteRowIds([]); showToast('success', 'Workspace cleared.'); }} style={{ color: '#ef4444', marginLeft: 4 }}>
+                          Clear All
+                        </Button>
+                        <span>{filledPasteRows.length} filled rows | {selectedPasteRowIds.length} selected | {pasteInvalidRowIndexes.size} invalid | {pasteDuplicateRowIndexes.size} repeated{workspaceSaving ? ' | saving...' : ''}</span>
                       </div>
-                      {pasteRows.map((row, rowIndex) => {
-                        const invalid = pasteInvalidRowIndexes.has(rowIndex);
-                        const duplicate = pasteDuplicateRowIndexes.has(rowIndex);
-                        const hasData = hasVisibleClientData(row);
-                        return (
-                          <div key={row._rowId || rowIndex} className={`client-data-table-row ${invalid ? 'client-data-invalid-row' : ''} ${duplicate ? 'client-directory-duplicate-row' : ''}`}>
-                            <span>{rowIndex + 1}</span>
+                      {pasteRows.length ? (
+                        <div className="client-data-table client-data-table-scroll client-data-paste-preview-table client-data-paste-excel-table">
+                          <div className="client-data-table-head">
+                            <span>No.</span>
                             <span>
                               <input
                                 type="checkbox"
-                                checked={selectedPasteRowIds.includes(row._rowId)}
-                                disabled={!hasData}
-                                onChange={() => togglePasteRowSelection(row._rowId)}
-                                aria-label={`Select pasted row ${rowIndex + 1}`}
+                                checked={filledPasteRows.length > 0 && filledPasteRows.every((row) => selectedPasteRowIds.includes(row._rowId))}
+                                onChange={toggleAllPasteRows}
+                                aria-label="Select all pasted rows"
                               />
                             </span>
-                            {PASTE_COLUMNS.map((column) => (
-                              <span key={`${rowIndex}-${column.key}`} className="client-data-paste-cell">
-                                <input
-                                  className={`input ${column.key === 'email' && (invalid || duplicate) ? 'invalid' : ''}`}
-                                  value={row[column.key] || ''}
-                                  onChange={(event) => handlePasteRowChange(rowIndex, column.key, event.target.value)}
-                                  onPaste={(event) => handlePasteGridPaste(event, rowIndex, PASTE_COLUMNS.findIndex((item) => item.key === column.key))}
-                                />
-                              </span>
-                            ))}
+                            {PASTE_COLUMNS.map((column) => <span key={column.key}>{column.label}</span>)}
                           </div>
-                        );
-                      })}
+                          {pasteRows.map((row, rowIndex) => {
+                            const invalid = pasteInvalidRowIndexes.has(rowIndex);
+                            const duplicate = pasteDuplicateRowIndexes.has(rowIndex);
+                            const hasData = hasVisibleClientData(row);
+                            return (
+                              <div key={row._rowId || rowIndex} className={`client-data-table-row ${invalid ? 'client-data-invalid-row' : ''} ${duplicate ? 'client-directory-duplicate-row' : ''}`}>
+                                <span>{rowIndex + 1}</span>
+                                <span>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPasteRowIds.includes(row._rowId)}
+                                    disabled={!hasData}
+                                    onChange={() => togglePasteRowSelection(row._rowId)}
+                                    aria-label={`Select pasted row ${rowIndex + 1}`}
+                                  />
+                                </span>
+                                {PASTE_COLUMNS.map((column) => (
+                                  <span key={`${rowIndex}-${column.key}`} className="client-data-paste-cell">
+                                    <input
+                                      className={`input ${column.key === 'email' && (invalid || duplicate) ? 'invalid' : ''}`}
+                                      value={row[column.key] || ''}
+                                      onChange={(event) => handlePasteRowChange(rowIndex, column.key, event.target.value)}
+                                      onPaste={(event) => handlePasteGridPaste(event, rowIndex, PASTE_COLUMNS.findIndex((item) => item.key === column.key))}
+                                    />
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
-                </div>
-              ) : null}
-            </section>
+                </section>
               </>
             ) : null}
             {activeTab === 'client-list' ? (
-            <section className="client-data-panel" ref={clientListRef}>
-              <div className="client-data-panel-head">
-                <div>
-                  <h2 className="ui-card-title">Client Directory</h2>
-                  <p className="ui-card-description client-directory-summary">
-                    {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {repeatedClientCount} repeated | {contactedCount} contacted
-                  </p>
-                  {repeatedClientCount ? (
-                    <p className="client-directory-duplicate-summary">
-                      Repeated clients found: {repeatedClientCount}. Rows are highlighted in red.
+              <section className="client-data-panel" ref={clientListRef}>
+                <div className="client-data-panel-head">
+                  <div>
+                    <h2 className="ui-card-title">Client Directory</h2>
+                    <p className="ui-card-description client-directory-summary">
+                      {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {repeatedClientCount} repeated | {contactedCount} contacted
                     </p>
-                  ) : null}
-                </div>
-                  <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
-                </div>
-              </div>
-              {selectionError ? <p className="client-data-custom-note error">{selectionError}</p> : null}
-              {selectionMessage ? <p className="client-data-custom-note success">{selectionMessage}</p> : null}
-              {showClientDirectory ? (
-                <div className="ui-card-content">
-                  <ClientDirectoryFilters
-                    initialFilters={filters}
-                    filterOptions={filterOptions}
-                    hasAppliedFilters={hasAppliedFilters}
-                    isApplyingFilters={isApplyingFilters}
-                    onApply={handleApplyFilters}
-                    onReset={handleClearFilters}
-                  />
-                  <div className="client-data-source-sheet-tabs" aria-label="Uploaded Excel sheet tabs">
-                    <button
-                      type="button"
-                      className={`client-data-source-sheet-tab ${!activeSourceSheetId ? 'active' : ''}`}
-                      onClick={() => handleSheetTabChange('')}
-                    >
-                      <strong>All Clients</strong>
-                      <span>{allClientRows.length} clients</span>
-                    </button>
-                    {sheetTabs.map((sheet) => (
-                      <button
-                        key={sheet.id}
-                        type="button"
-                        className={`client-data-source-sheet-tab ${activeSourceSheetId === sheet.id ? 'active' : ''}`}
-                        onClick={() => handleSheetTabChange(sheet.id)}
-                        onDoubleClick={() => handleRenameSourceSheet(sheet)}
-                        title={`${sheet.name}${sheet.sourceFile ? ` | ${sheet.sourceFile}` : ''}. Double click to rename.`}
-                      >
-                        <strong>{sheet.name}</strong>
-                        <span>{sheet.count || allClientRows.filter((row) => String(row.sourceListId || '') === sheet.id).length} clients</span>
-                      </button>
-                    ))}
+                    {repeatedClientCount ? (
+                      <p className="client-directory-duplicate-summary">
+                        Repeated clients found: {repeatedClientCount}. Rows are highlighted in red.
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="ui-card-description" style={{ marginBottom: 12 }}>
-                    Showing {filteredClientRows.length} of {clientRows.length} clients{activeSourceSheetId ? ' in selected sheet' : ''}.
-                  </p>
-                  {totalPages > 1 ? (
-                    <div className="client-data-filter-actions" style={{ marginBottom: 12 }}>
-                      <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
-                        Previous
-                      </Button>
-                      <span className="ui-card-description">Page {currentPage} of {totalPages}</span>
-                      <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
-                        Next
-                      </Button>
+                  <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
+                  </div>
+                </div>
+                {selectionError ? <p className="client-data-custom-note error">{selectionError}</p> : null}
+                {selectionMessage ? <p className="client-data-custom-note success">{selectionMessage}</p> : null}
+                {showClientDirectory ? (
+                  <div className="ui-card-content">
+                    <ClientDirectoryFilters
+                      initialFilters={filters}
+                      filterOptions={filterOptions}
+                      hasAppliedFilters={hasAppliedFilters}
+                      isApplyingFilters={isApplyingFilters}
+                      onApply={handleApplyFilters}
+                      onReset={handleClearFilters}
+                    />
+                    <div className="client-data-source-sheet-tabs" aria-label="Uploaded Excel sheet tabs">
+                      <button
+                        type="button"
+                        className={`client-data-source-sheet-tab ${!activeSourceSheetId ? 'active' : ''}`}
+                        onClick={() => handleSheetTabChange('')}
+                      >
+                        <strong>All Clients</strong>
+                        <span>{allClientRows.length} clients</span>
+                      </button>
+                      {sheetTabs.map((sheet) => (
+                        <button
+                          key={sheet.id}
+                          type="button"
+                          className={`client-data-source-sheet-tab ${activeSourceSheetId === sheet.id ? 'active' : ''}`}
+                          onClick={() => handleSheetTabChange(sheet.id)}
+                          onDoubleClick={() => handleRenameSourceSheet(sheet)}
+                          title={`${sheet.name}${sheet.sourceFile ? ` | ${sheet.sourceFile}` : ''}. Double click to rename.`}
+                        >
+                          <strong>{sheet.name}</strong>
+                          <span>{sheet.count || allClientRows.filter((row) => String(row.sourceListId || '') === sheet.id).length} clients</span>
+                        </button>
+                      ))}
                     </div>
-                  ) : null}
-                  <div className="client-data-sheet-savebar" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div className="client-data-filter-actions">
-                      <div ref={createdSheetsPickerRef} style={{ position: 'relative' }}>
+                    <p className="ui-card-description" style={{ marginBottom: 12 }}>
+                      Showing {filteredClientRows.length} of {clientRows.length} clients{activeSourceSheetId ? ' in selected sheet' : ''}.
+                    </p>
+                    {totalPages > 1 ? (
+                      <div className="client-data-filter-actions" style={{ marginBottom: 12 }}>
+                        <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
+                          Previous
+                        </Button>
+                        <span className="ui-card-description">Page {currentPage} of {totalPages}</span>
+                        <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
+                          Next
+                        </Button>
+                      </div>
+                    ) : null}
+                    <div className="client-data-sheet-savebar" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div className="client-data-filter-actions">
+                        <div ref={createdSheetsPickerRef} style={{ position: 'relative' }}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setShowCreatedSheetsPicker((prev) => !prev)}
+                          >
+                            Created Sheets
+                          </Button>
+                          {showCreatedSheetsPicker ? (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: 'calc(100% + 8px)',
+                                left: 0,
+                                zIndex: 50,
+                                minWidth: 360,
+                                maxHeight: 320,
+                                overflowY: 'auto',
+                                border: '1px solid var(--button-border)',
+                                borderRadius: 10,
+                                background: 'var(--panel-strong)',
+                                padding: 10,
+                                boxShadow: '0 12px 30px var(--shadow-color)'
+                              }}
+                            >
+                              {selectedClientSheets.length ? selectedClientSheets.map((list) => (
+                                <div key={`picker-${list._id}`} style={{ padding: '8px 6px', borderBottom: '1px solid var(--border-color)' }}>
+                                  <strong style={{ display: 'block' }}>{list.name || 'Selected client sheet'}</strong>
+                                  <small style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                    {Number(list.leadCount || list.leads?.length || 0)} clients
+                                  </small>
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                                    >
+                                      Upload This Sheet
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleUseForCampaign(list._id)}
+                                      disabled={usingCampaignListId === String(list._id)}
+                                    >
+                                      {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )) : (
+                                <p style={{ margin: 0 }}>No created sheets yet.</p>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleCreateSheet}
+                          disabled={creatingSheet || !selectedCount}
+                        >
+                          {creatingSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleSaveDirectoryEdits}
+                          disabled={savingDirectory || !editedRowIds.length || hasEditedEmailErrors || hasEditedDuplicateEmails}
+                        >
+                          {savingDirectory ? 'Saving...' : 'Save Directory Changes'}
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => setShowCreatedSheetsPicker((prev) => !prev)}
+                          onClick={handleCancelDirectoryEdits}
+                          disabled={savingDirectory || !editedRowIds.length}
                         >
-                          Created Sheets
+                          Cancel Changes
                         </Button>
-                        {showCreatedSheetsPicker ? (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: 'calc(100% + 8px)',
-                              left: 0,
-                              zIndex: 50,
-                              minWidth: 360,
-                              maxHeight: 320,
-                              overflowY: 'auto',
-                              border: '1px solid var(--button-border)',
-                              borderRadius: 10,
-                              background: 'var(--panel-strong)',
-                              padding: 10,
-                              boxShadow: '0 12px 30px var(--shadow-color)'
-                            }}
-                          >
-                            {selectedClientSheets.length ? selectedClientSheets.map((list) => (
-                              <div key={`picker-${list._id}`} style={{ padding: '8px 6px', borderBottom: '1px solid var(--border-color)' }}>
-                                <strong style={{ display: 'block' }}>{list.name || 'Selected client sheet'}</strong>
-                                <small style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                                  {Number(list.leadCount || list.leads?.length || 0)} clients
-                                </small>
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
-                                  >
-                                    Upload This Sheet
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleUseForCampaign(list._id)}
-                                    disabled={usingCampaignListId === String(list._id)}
-                                  >
-                                    {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
-                                  </Button>
-                                </div>
-                              </div>
-                            )) : (
-                              <p style={{ margin: 0 }}>No created sheets yet.</p>
-                            )}
-                          </div>
-                        ) : null}
                       </div>
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={handleCreateSheet}
-                        disabled={creatingSheet || !selectedCount}
+                        onClick={handleAddNewRow}
+                        disabled={creatingRow}
                       >
-                        {creatingSheet ? 'Creating...' : 'Create Selected Client Sheet'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleSaveDirectoryEdits}
-                        disabled={savingDirectory || !editedRowIds.length || hasEditedEmailErrors || hasEditedDuplicateEmails}
-                      >
-                        {savingDirectory ? 'Saving...' : 'Save Directory Changes'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={handleCancelDirectoryEdits}
-                        disabled={savingDirectory || !editedRowIds.length}
-                      >
-                        Cancel Changes
+                        {creatingRow ? 'Adding...' : 'Add New Row'}
                       </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleAddNewRow}
-                      disabled={creatingRow}
-                    >
-                      {creatingRow ? 'Adding...' : 'Add New Row'}
-                    </Button>
-                  </div>
-                  <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
-                    <div className="client-data-table-head client-directory-excel-head" style={{ position: 'sticky', top: 0, zIndex: 3 }}>
-                      <span className="client-directory-excel-head-cell">#</span>
-                      <span className="client-directory-excel-head-cell">
-                        <input
-                          type="checkbox"
-                          checked={allVisibleSelected}
-                          onChange={toggleSelectAllVisible}
-                          aria-label="Select all visible clients"
-                        />
-                      </span>
-                      {TABLE_COLUMNS.slice(2).map((column) => (
-                        <span key={column} className="client-directory-excel-head-cell">{column}</span>
-                      ))}
-                    </div>
-                    {loading ? (
-                      <div className="client-data-table-row client-directory-excel-row">
-                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>Loading client data...</span>
-                      </div>
-                    ) : null}
-                    {!loading && error ? (
-                      <div className="client-data-table-row client-directory-excel-row">
-                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>{error}</span>
-                      </div>
-                    ) : null}
-                    {!loading && !error && !filteredClientRows.length ? (
-                      <div className="client-data-table-row client-directory-excel-row">
-                        <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>No client data found.</span>
-                      </div>
-                    ) : null}
-                    {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
-                      const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
-                      return (
-                      <div key={row.id} className={`client-data-table-row client-directory-excel-row ${rowHasDuplicateEmail ? 'client-directory-duplicate-row' : ''}`}>
-                        <span className="client-directory-excel-cell">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</span>
-                        <span className="client-directory-excel-cell">
+                    <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
+                      <div className="client-data-table-head client-directory-excel-head" style={{ position: 'sticky', top: 0, zIndex: 3 }}>
+                        <span className="client-directory-excel-head-cell">#</span>
+                        <span className="client-directory-excel-head-cell">
                           <input
                             type="checkbox"
-                            checked={selectedClientIds.includes(row.id)}
-                            onChange={() => toggleClientSelection(row.id)}
-                            aria-label={`Select ${row.name}`}
+                            checked={allVisibleSelected}
+                            onChange={toggleSelectAllVisible}
+                            aria-label="Select all visible clients"
                           />
                         </span>
-                        {GRID_EDITABLE_FIELDS.map((field, fieldIndex) => {
-                          const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
-                          const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
-                          const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
-                          const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
-                          return (
-                            <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
+                        {TABLE_COLUMNS.slice(2).map((column) => (
+                          <span key={column} className="client-directory-excel-head-cell">{column}</span>
+                        ))}
+                      </div>
+                      {loading ? (
+                        <div className="client-data-table-row client-directory-excel-row">
+                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>Loading client data...</span>
+                        </div>
+                      ) : null}
+                      {!loading && error ? (
+                        <div className="client-data-table-row client-directory-excel-row">
+                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>{error}</span>
+                        </div>
+                      ) : null}
+                      {!loading && !error && !filteredClientRows.length ? (
+                        <div className="client-data-table-row client-directory-excel-row">
+                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>No client data found.</span>
+                        </div>
+                      ) : null}
+                      {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
+                        const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
+                        return (
+                          <div key={row.id} className={`client-data-table-row client-directory-excel-row ${rowHasDuplicateEmail ? 'client-directory-duplicate-row' : ''}`}>
+                            <span className="client-directory-excel-cell">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</span>
+                            <span className="client-directory-excel-cell">
                               <input
-                                ref={(node) => {
-                                  cellRefs.current[`${row.id}:${field}`] = node;
-                                }}
-                                type={field === 'listAddedDate' ? 'date' : 'text'}
-                                className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
-                                value={value}
-                                onFocus={() => setActiveCell({ rowId: row.id, field })}
-                                onClick={() => setActiveCell({ rowId: row.id, field })}
-                                onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
-                                onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
-                                onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
-                                aria-label={`${field} row ${rowIndex + 1}`}
+                                type="checkbox"
+                                checked={selectedClientIds.includes(row.id)}
+                                onChange={() => toggleClientSelection(row.id)}
+                                aria-label={`Select ${row.name}`}
                               />
                             </span>
-                          );
-                        })}
-                      </div>
-                      );
-                    }) : null}
+                            {GRID_EDITABLE_FIELDS.map((field, fieldIndex) => {
+                              const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                              const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
+                              const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
+                              const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
+                              return (
+                                <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
+                                  <input
+                                    ref={(node) => {
+                                      cellRefs.current[`${row.id}:${field}`] = node;
+                                    }}
+                                    type={field === 'listAddedDate' ? 'date' : 'text'}
+                                    className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                    value={value}
+                                    onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                    onClick={() => setActiveCell({ rowId: row.id, field })}
+                                    onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
+                                    onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
+                                    onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
+                                    aria-label={`${field} row ${rowIndex + 1}`}
+                                  />
+                                </span>
+                              );
+                            })}
+                          </div>
+                        );
+                      }) : null}
+                    </div>
+                    {hasEditedEmailErrors ? (
+                      <div className="client-data-custom-note error">Invalid email format detected in edited rows. Fix before saving.</div>
+                    ) : null}
+                    {hasEditedDuplicateEmails ? (
+                      <div className="client-data-custom-note error">Duplicate email rows detected. Resolve duplicates before saving.</div>
+                    ) : null}
+                    <div className="client-data-mobile-list">
+                      {loading ? (
+                        <article className="client-data-mobile-card">
+                          <strong>Loading client data...</strong>
+                        </article>
+                      ) : null}
+                      {!loading && error ? (
+                        <article className="client-data-mobile-card">
+                          <strong>{error}</strong>
+                        </article>
+                      ) : null}
+                      {!loading && !error && !filteredClientRows.length ? (
+                        <article className="client-data-mobile-card">
+                          <strong>No client data found.</strong>
+                        </article>
+                      ) : null}
+                      {!loading && !error ? paginatedClientRows.map((row) => (
+                        <article key={`${row.id}-mobile`} className={`client-data-mobile-card ${duplicateEmailRowIds.has(row.id) ? 'client-directory-duplicate-card' : ''}`}>
+                          <label className="client-data-mobile-select">
+                            <input
+                              type="checkbox"
+                              checked={selectedClientIds.includes(row.id)}
+                              onChange={() => toggleClientSelection(row.id)}
+                              aria-label={`Select ${row.name}`}
+                            />
+                            <span>Select client</span>
+                          </label>
+                          <div className="client-data-mobile-head">
+                            <strong>{row.name} {row.surname !== '-' ? row.surname : ''}</strong>
+                            <Badge variant={badgeToneMap[row.status] || 'default'}>{row.status}</Badge>
+                          </div>
+                          <div className="client-data-mobile-grid">
+                            <div><span>Cmp Name</span><strong>{row.cmpName}</strong></div>
+                            <div><span>Designation</span><strong>{row.designation}</strong></div>
+                            <div><span>Sector</span><strong>{row.sector}</strong></div>
+                            <div><span>Country</span><strong>{row.country}</strong></div>
+                            <div><span>Email</span><strong>{row.email}</strong></div>
+                            <div><span>List Added</span><strong>{row.listAddedDate}</strong></div>
+                            <div><span>Source</span><strong>{row.source}</strong></div>
+                            <div><span>Lead Type</span><strong>{row.leadType}</strong></div>
+                            <div><span>Sourcer</span><strong>{row.sourcer}</strong></div>
+                            <div><span>User ID</span><strong>{row.userId}</strong></div>
+                            <div><span>Project Approach</span><strong>{row.projectApproach}</strong></div>
+                            <div><span>Sender ID</span><strong>{row.senderId}</strong></div>
+                          </div>
+                        </article>
+                      )) : null}
+                    </div>
                   </div>
-                  {hasEditedEmailErrors ? (
-                    <div className="client-data-custom-note error">Invalid email format detected in edited rows. Fix before saving.</div>
-                  ) : null}
-                  {hasEditedDuplicateEmails ? (
-                    <div className="client-data-custom-note error">Duplicate email rows detected. Resolve duplicates before saving.</div>
-                  ) : null}
-                  <div className="client-data-mobile-list">
-                    {loading ? (
-                      <article className="client-data-mobile-card">
-                        <strong>Loading client data...</strong>
-                      </article>
-                    ) : null}
-                    {!loading && error ? (
-                      <article className="client-data-mobile-card">
-                        <strong>{error}</strong>
-                      </article>
-                    ) : null}
-                    {!loading && !error && !filteredClientRows.length ? (
-                      <article className="client-data-mobile-card">
-                        <strong>No client data found.</strong>
-                      </article>
-                    ) : null}
-                    {!loading && !error ? paginatedClientRows.map((row) => (
-                      <article key={`${row.id}-mobile`} className={`client-data-mobile-card ${duplicateEmailRowIds.has(row.id) ? 'client-directory-duplicate-card' : ''}`}>
-                        <label className="client-data-mobile-select">
-                          <input
-                            type="checkbox"
-                            checked={selectedClientIds.includes(row.id)}
-                            onChange={() => toggleClientSelection(row.id)}
-                            aria-label={`Select ${row.name}`}
-                          />
-                          <span>Select client</span>
-                        </label>
-                        <div className="client-data-mobile-head">
-                          <strong>{row.name} {row.surname !== '-' ? row.surname : ''}</strong>
-                          <Badge variant={badgeToneMap[row.status] || 'default'}>{row.status}</Badge>
-                        </div>
-                        <div className="client-data-mobile-grid">
-                          <div><span>Cmp Name</span><strong>{row.cmpName}</strong></div>
-                          <div><span>Designation</span><strong>{row.designation}</strong></div>
-                          <div><span>Sector</span><strong>{row.sector}</strong></div>
-                          <div><span>Country</span><strong>{row.country}</strong></div>
-                          <div><span>Email</span><strong>{row.email}</strong></div>
-                          <div><span>List Added</span><strong>{row.listAddedDate}</strong></div>
-                          <div><span>Source</span><strong>{row.source}</strong></div>
-                          <div><span>Lead Type</span><strong>{row.leadType}</strong></div>
-                          <div><span>Sourcer</span><strong>{row.sourcer}</strong></div>
-                          <div><span>User ID</span><strong>{row.userId}</strong></div>
-                          <div><span>Project Approach</span><strong>{row.projectApproach}</strong></div>
-                          <div><span>Sender ID</span><strong>{row.senderId}</strong></div>
-                        </div>
-                      </article>
-                    )) : null}
-                  </div>
-                </div>
-              ) : null}
-            </section>
+                ) : null}
+              </section>
             ) : null}
             {activeTab === 'customize' ? (
-            <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
-              <div className="client-data-panel-head">
-                <div>
-                  <h2 className="ui-card-title">Customize List</h2>
+              <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
+                <div className="client-data-panel-head">
+                  <div>
+                    <h2 className="ui-card-title">Customize List</h2>
+                  </div>
                 </div>
-              </div>
                 <div className="ui-card-content">
                   <div className="client-data-health-list">
                     {customizeSheets.length ? customizeSheets.map((list) => (
@@ -1963,43 +2179,43 @@ export default function ClientListPage() {
                     ) : null}
                   </div>
                 </div>
-            </section>
+              </section>
             ) : null}
             {activeTab === 'bin' ? (
-            <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
-              <div className="client-data-panel-head">
-                <div>
-                  <h2 className="ui-card-title">Bin Storage</h2>
-                  <p className="ui-card-description">Deleted sheets and files auto-moved after their 7-day timer appear here.</p>
+              <section className="client-data-panel client-data-clientlist-secondary client-data-panel-compact">
+                <div className="client-data-panel-head">
+                  <div>
+                    <h2 className="ui-card-title">Bin Storage</h2>
+                    <p className="ui-card-description">Deleted sheets and files auto-moved after their 7-day timer appear here.</p>
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" onClick={loadBinSheets} disabled={loadingBin}>
+                    {loadingBin ? 'Loading...' : 'Refresh Bin'}
+                  </Button>
                 </div>
-                <Button type="button" variant="secondary" size="sm" onClick={loadBinSheets} disabled={loadingBin}>
-                  {loadingBin ? 'Loading...' : 'Refresh Bin'}
-                </Button>
-              </div>
-              <div className="ui-card-content">
-                {loadingBin ? <p className="ui-card-description">Loading bin storage...</p> : null}
-                {!loadingBin && !binSheets.length ? (
-                  <div className="client-data-bin-empty">
-                    <strong>No deleted sheets in bin.</strong>
-                    <span>Your active sheets are still available in Client List and Customize List.</span>
-                  </div>
-                ) : null}
-                {binSheets.length ? (
-                  <div className="client-data-bin-list">
-                    {binSheets.map((sheet) => (
-                      <article key={`bin-page-${sheet._id}`} className="client-data-bin-card">
-                        <strong>{sheet.name || sheet.sourceFile || 'Deleted sheet'}</strong>
-                        <span>{Number(sheet.leadCount || 0)} clients | deleted {formatDateTime(sheet.deletedAt)}</span>
-                        <small>{sheet.deleteReason || 'Deleted'}</small>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => restoreBinSheet(sheet._id)}>
-                          Restore
-                        </Button>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </section>
+                <div className="ui-card-content">
+                  {loadingBin ? <p className="ui-card-description">Loading bin storage...</p> : null}
+                  {!loadingBin && !binSheets.length ? (
+                    <div className="client-data-bin-empty">
+                      <strong>No deleted sheets in bin.</strong>
+                      <span>Your active sheets are still available in Client List and Customize List.</span>
+                    </div>
+                  ) : null}
+                  {binSheets.length ? (
+                    <div className="client-data-bin-list">
+                      {binSheets.map((sheet) => (
+                        <article key={`bin-page-${sheet._id}`} className="client-data-bin-card">
+                          <strong>{sheet.name || sheet.sourceFile || 'Deleted sheet'}</strong>
+                          <span>{Number(sheet.leadCount || 0)} clients | deleted {formatDateTime(sheet.deletedAt)}</span>
+                          <small>{sheet.deleteReason || 'Deleted'}</small>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => restoreBinSheet(sheet._id)}>
+                            Restore
+                          </Button>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </section>
             ) : null}
           </div>
         </section>

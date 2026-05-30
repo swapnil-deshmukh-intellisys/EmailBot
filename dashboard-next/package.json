@@ -47,6 +47,8 @@
     "@tiptap/extension-underline": "^3.23.6",
     "@tiptap/react": "^3.23.6",
     "@tiptap/starter-kit": "^3.23.6",
+    "ag-grid-community": "^35.3.0",
+    "ag-grid-react": "^35.3.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "html-to-text": "^10.0.0",

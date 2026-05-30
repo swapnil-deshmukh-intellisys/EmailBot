@@ -33,6 +33,12 @@ function normalizeDelayInputValue(value, unit = 'minutes') {
   return String(Math.max(1, Math.min(getDelayInputLimit(unit), numeric)));
 }
 
+function isRowRangeInputValid(value = '') {
+  const match = String(value || '').trim().match(/^\[?\s*(\d+)\s*-\s*(\d+)\s*\]?$/);
+  if (!match) return false;
+  return Number(match[1]) <= Number(match[2]);
+}
+
 function getTemplateForDraftType(value = '') {
   const draftType = normalizeDraftType(value);
   const templateKey = draftType === 'followup' ? 'follow_up' : draftType;
@@ -468,6 +474,8 @@ export default function PremiumDashboardShell({
   onSelectedDraftTypeChange,
   batchSize = '1',
   onBatchSizeChange,
+  rowRange = '',
+  onRowRangeChange,
   delaySeconds = 60,
   onDelaySecondsChange,
   initialScheduleMode = 'send_now',
@@ -809,6 +817,7 @@ export default function PremiumDashboardShell({
   const [scheduleTimezone, setScheduleTimezone] = useState(initialScheduleTimezone || 'Asia/Kolkata');
   const [scheduledDateValue, setScheduledDateValue] = useState(initialScheduledDateValue || '');
   const [scheduledTimeValue, setScheduledTimeValue] = useState(initialScheduledTimeValue || '');
+  const [rowLimitMode, setRowLimitMode] = useState(String(rowRange || '').trim() ? 'custom' : 'all');
   const [campaignName, setCampaignName] = useState('');
   const [campaignTags, setCampaignTags] = useState([]);
   const [campaignTagDraft, setCampaignTagDraft] = useState('');

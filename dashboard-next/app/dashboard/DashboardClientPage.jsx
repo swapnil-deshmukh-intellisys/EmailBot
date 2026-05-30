@@ -41,6 +41,12 @@ const LeadList = dynamic(() => import('@/modules/lead-module/lead-components/Lea
 const ActivityPanel = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardActivityPanel'));
 
 const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
+
+function isRowRangeInputValid(value = '') {
+  const match = String(value || '').trim().match(/^\[?\s*(\d+)\s*-\s*(\d+)\s*\]?$/);
+  if (!match) return false;
+  return Number(match[1]) <= Number(match[2]);
+}
 const MAX_SCHEDULE_DELAY_MINUTES = 1440;
 const MAX_SCHEDULE_DELAY_HOURS = 24;
 const MAX_SCHEDULE_DELAY_SECONDS = 86400;
@@ -437,6 +443,7 @@ export default function DashboardPage() {
   const [campaignName, setCampaignName] = useState('');
   const [delaySeconds, setDelaySeconds] = useState(60);
   const [batchSize, setBatchSize] = useState('1');
+  const [rowRange, setRowRange] = useState('');
   const [loading, setLoading] = useState(false);
   const [campaignRefreshing, setCampaignRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -739,6 +746,7 @@ export default function DashboardPage() {
     const nextTimeValue = String(input.scheduledTime || scheduledTimeValue || '').trim();
     const nextDurationUnit = normalizeDurationUnit(input.durationUnit || durationUnit || 'seconds');
     const nextBatchSize = Math.max(1, Math.floor(Number(input.batchSize ?? batchSize ?? 1) || 1));
+    const nextRowRange = String(input.rowRange ?? rowRange ?? '').trim();
     const parsedDelayInterval = Math.min(
       getScheduleDelayLimit(nextDurationUnit),
       Math.max(1, Math.floor(Number(input.delayInterval ?? delaySeconds ?? MIN_CAMPAIGN_SEND_GAP_SECONDS) || MIN_CAMPAIGN_SEND_GAP_SECONDS))
@@ -763,6 +771,7 @@ export default function DashboardPage() {
       scheduledTime: nextTimeValue,
       normalizedSlot,
       batchSize: nextBatchSize,
+      rowRange: nextRowRange,
       delayInterval: nextDelayInterval,
       durationUnit: nextDurationUnit,
       delaySeconds: nextDelaySeconds,
@@ -922,6 +931,7 @@ export default function DashboardPage() {
         setCampaignName(String(saved.campaignName || ''));
         setDelaySeconds(Number(saved.delaySeconds || 60));
         setBatchSize(String(saved.batchSize || '1'));
+        setRowRange('');
         setSelectedAccount(String(saved.selectedAccount || ''));
         setActiveAccount('');
         setTestEmailTo(String(saved.testEmailTo || ''));
@@ -1085,6 +1095,7 @@ export default function DashboardPage() {
       campaignName,
       delaySeconds,
       batchSize,
+      rowRange,
       selectedAccount,
       activeAccount,
       testEmailTo,
@@ -1110,6 +1121,7 @@ export default function DashboardPage() {
     campaignName,
     delaySeconds,
     batchSize,
+    rowRange,
     selectedAccount,
     activeAccount,
     testEmailTo,
@@ -2829,6 +2841,7 @@ const handleDeleteDraft = async (draft) => {
           country: effectiveSchedule.country,
           options: {
             batchSize: effectiveSchedule.batchSize,
+            rowRange: effectiveSchedule.rowRange,
             delayInterval: effectiveSchedule.delayInterval,
             durationUnit: effectiveSchedule.durationUnit,
             delaySeconds: effectiveSchedule.delaySeconds,
@@ -2879,6 +2892,10 @@ const handleDeleteDraft = async (draft) => {
 
     if (config.batchSize < 1) {
       notify('Batch size must be greater than or equal to 1.', 'warning');
+      return { ok: false };
+    }
+    if (config.rowRange && !isRowRangeInputValid(config.rowRange)) {
+      notify('Sheet row limit must use format like 20-50.', 'warning');
       return { ok: false };
     }
     if (config.delayInterval < 1) {
@@ -2940,6 +2957,7 @@ const handleDeleteDraft = async (draft) => {
           timezone: config.timezone,
           slot: config.normalizedSlot,
           batchSize: config.batchSize,
+          rowRange: config.rowRange,
           delayInterval: config.delayInterval,
           durationUnit: config.durationUnit,
           persistOnly: true,
@@ -3158,6 +3176,7 @@ const normalizeSelectedListEmails = async () => {
         scheduleMode: scheduleConfig.scheduleMode,
         scheduledAt: scheduleConfig.scheduledAt ? scheduleConfig.scheduledAt.toISOString() : null,
         batchSize: scheduleConfig.batchSize,
+        rowRange: scheduleConfig.rowRange,
         delayInterval: scheduleConfig.delayInterval,
         durationUnit: scheduleConfig.durationUnit
       });
@@ -3185,6 +3204,7 @@ const normalizeSelectedListEmails = async () => {
           scheduledTime: scheduleConfig.scheduledTime,
           scheduledAt: scheduleConfig.scheduledAt ? scheduleConfig.scheduledAt.toISOString() : null,
           batchSize: scheduleConfig.batchSize,
+          rowRange: scheduleConfig.rowRange,
           delayInterval: scheduleConfig.delayInterval,
           durationUnit: scheduleConfig.durationUnit,
           replyMode: isReplyModeCampaignType
@@ -4308,6 +4328,8 @@ const normalizeSelectedListEmails = async () => {
         onApplyReportRange={applyRangeSelection}
         batchSize={batchSize}
         onBatchSizeChange={setBatchSize}
+        rowRange={rowRange}
+        onRowRangeChange={setRowRange}
         delaySeconds={delaySeconds}
         onDelaySecondsChange={setDelaySeconds}
         initialScheduleMode={scheduleMode}

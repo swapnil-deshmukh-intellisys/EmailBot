@@ -10,6 +10,9 @@ export function activeListFilter(extra = {}) {
           { deletedAt: null },
           { deletedAt: { $exists: false } }
         ]
+      },
+      {
+        kind: { $ne: 'paste_workspace' }
       }
     ]
   };

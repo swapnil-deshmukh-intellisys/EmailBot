@@ -261,6 +261,10 @@ async function reserveCampaignCredit(userEmail = '', campaignMeta = {}) {
   const normalizedUserEmail = normalizeEmail(userEmail);
   if (!normalizedUserEmail) return { ok: true, skipped: true };
 
+  if (process.env.NODE_ENV === 'development') {
+    return { ok: true, devBypass: true };
+  }
+
   const { summary } = await getOrCreateSubscriptionSummary(normalizedUserEmail);
   if (summary.status !== 'active') {
     return { ok: false, message: 'Subscription is not active' };
@@ -391,6 +395,10 @@ async function reserveCampaignCredit(userEmail = '', campaignMeta = {}) {
 async function refundCampaignCredit(userEmail = '', campaignMeta = {}) {
   const normalizedUserEmail = normalizeEmail(userEmail);
   if (!normalizedUserEmail) return;
+
+  if (process.env.NODE_ENV === 'development') {
+    return;
+  }
 
   const updated = await UserProfile.findOneAndUpdate(
     { identifier: normalizedUserEmail },
@@ -744,13 +752,25 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
   if (campaignUserEmail && hasPendingRecipients) {
     const { summary } = await getOrCreateSubscriptionSummary(campaignUserEmail, profile);
     if (summary.status !== 'active') {
-      throw new Error('Subscription is not active');
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Dev Mode Bypass] Subscription status is not active for ${campaignUserEmail}, but allowing execution.`);
+      } else {
+        throw new Error('Subscription is not active');
+      }
     }
     if (summary.dailyRemainingCredits <= 0) {
-      throw new Error('Daily mail limit reached. You can send again tomorrow.');
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Dev Mode Bypass] Daily limit is reached for ${campaignUserEmail}, but allowing execution.`);
+      } else {
+        throw new Error('Daily mail limit reached. You can send again tomorrow.');
+      }
     }
     if (summary.sendingDisabled) {
-      throw new Error('Sending is disabled for this account.');
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Dev Mode Bypass] Sending is disabled for ${campaignUserEmail}, but allowing execution.`);
+      } else {
+        throw new Error('Sending is disabled for this account.');
+      }
     }
   }
 
