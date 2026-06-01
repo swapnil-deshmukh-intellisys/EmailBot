@@ -21,6 +21,8 @@ export default function DraftDetailClientPage({ draftId }) {
   const [draftSubject, setDraftSubject] = useState('');
   const [draftCategory, setDraftCategory] = useState('cover_story');
   const [draftSector, setDraftSector] = useState('');
+  const [draftCity, setDraftCity] = useState('');
+  const [draftCampaignName, setDraftCampaignName] = useState('');
   const [draftProject, setDraftProject] = useState('tec');
   const [editorHtml, setEditorHtml] = useState('');
 
@@ -38,6 +40,8 @@ export default function DraftDetailClientPage({ draftId }) {
         setDraftSubject(String(draft.subject || ''));
         setDraftCategory(normalizeDraftType(draft.draftType || draft.category || 'cover_story'));
         setDraftSector(String(draft.sector || ''));
+        setDraftCity(String(draft.city || ''));
+        setDraftCampaignName(String(draft.campaignName || draft.campaign || ''));
         setDraftProject(['tec', 'tut'].includes(String(draft.project || '').toLowerCase()) ? String(draft.project).toLowerCase() : 'tec');
         setEditorHtml(String(draft.body || ''));
         setMessage('');
@@ -69,6 +73,8 @@ export default function DraftDetailClientPage({ draftId }) {
           category: normalizeDraftType(draftCategory),
           draftType: normalizeDraftType(draftCategory),
           sector: draftSector.trim(),
+          city: draftCity.trim(),
+          campaignName: draftCampaignName.trim(),
           project: draftProject,
           body: editorHtml
         })
@@ -104,7 +110,7 @@ export default function DraftDetailClientPage({ draftId }) {
             <section className="draft-workspace-pane">
               <div className="draft-workspace-meta-grid">
                 <label className="draft-workspace-title-field">
-                  <span>Draft Title</span>
+                  <span>Draft Name</span>
                   <input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="Enter draft name" />
                 </label>
                 <label className="draft-workspace-title-field">
@@ -118,6 +124,10 @@ export default function DraftDetailClientPage({ draftId }) {
                   </select>
                 </label>
                 <label className="draft-workspace-title-field">
+                  <span>Campaign Name</span>
+                  <input value={draftCampaignName} onChange={(event) => setDraftCampaignName(event.target.value)} placeholder="Enter campaign name" />
+                </label>
+                <label className="draft-workspace-title-field">
                   <span>Project</span>
                   <select value={draftProject} onChange={(event) => setDraftProject(event.target.value)}>
                     {PROJECT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -127,7 +137,12 @@ export default function DraftDetailClientPage({ draftId }) {
                   <span>Sector</span>
                   <input value={draftSector} onChange={(event) => setDraftSector(event.target.value)} placeholder="Enter sector" />
                 </label>
+                <label className="draft-workspace-title-field">
+                  <span>City</span>
+                  <input value={draftCity} onChange={(event) => setDraftCity(event.target.value)} placeholder="Enter city" />
+                </label>
               </div>
+              <div className="draft-body-label">Draft Body</div>
               <RichTextEditor value={editorHtml} onChange={setEditorHtml} placeholder="Paste or write your draft here..." />
               {message ? <p className="client-data-custom-note">{message}</p> : null}
             </section>

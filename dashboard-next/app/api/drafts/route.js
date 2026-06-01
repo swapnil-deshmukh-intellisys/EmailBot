@@ -78,7 +78,7 @@ export async function POST(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
     if (!normalizedDraftType || !title || !subject || !draftHtml) {
@@ -95,6 +95,8 @@ export async function POST(req) {
       title,
       project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
       sector: String(sector || '').trim(),
+      city: String(city || '').trim(),
+      campaignName: String(campaignName || '').trim(),
       domain: String(domain || '').trim().toLowerCase(),
       subject,
       html: draftHtml,

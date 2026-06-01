@@ -83,8 +83,12 @@ export async function POST(req) {
     if (!warmupSheetId) return jsonError('Please select a warmup sheet.');
 
     const senderOptions = await getWarmupSenders({ userEmail, project });
-    const selectedSender = senderOptions.find((sender) => sender.id === senderId);
+    const selectedSender = senderOptions.find((sender) => sender.id === senderId || sender.id === `db:${senderId}` || sender.id === `oauth:${senderId}`);
     if (!selectedSender) return jsonError('Selected sender ID does not belong to the selected project.', 404);
+    
+    // Normalize senderId to contain correct DB prefix (e.g. db:) for resolveSenderAccountById
+    const normalizedSenderId = selectedSender.id;
+
     if (String(selectedSender.status || '').toLowerCase() !== 'connected') {
       return jsonError('Selected sender ID is not connected.');
     }
@@ -94,7 +98,7 @@ export async function POST(req) {
 
     const duplicateRunning = await Campaign.findOne({
       userEmail,
-      senderAccountId: senderId,
+      senderAccountId: normalizedSenderId,
       project,
       type: WARMUP_DRAFT_TYPE,
       status: { $in: ['Queued', 'Running', 'Scheduled'] }
@@ -103,7 +107,7 @@ export async function POST(req) {
       return jsonError(`A warmup campaign is already ${duplicateRunning.status || 'active'} for this sender ID. Stop, pause, resume, or delete it from the Warmup Campaign Status table.`);
     }
 
-    const drafts = await getWarmupDrafts({ userEmail, project, senderId });
+    const drafts = await getWarmupDrafts({ userEmail, project, senderId: normalizedSenderId });
     const selectedDraft = drafts.find((draft) => String(draft._id) === draftId);
     if (!selectedDraft?.subject || !selectedDraft?.body) {
       return jsonError('Selected warmup draft is missing or empty.', 404);
@@ -120,7 +124,7 @@ export async function POST(req) {
       return jsonError('Upload a warmup sheet with at least one valid email client.');
     }
 
-    const resolvedSender = await resolveSenderAccountById(senderId, { userEmail, project });
+    const resolvedSender = await resolveSenderAccountById(normalizedSenderId, { userEmail, project });
     if (!resolvedSender) return jsonError('Selected sender account cannot be resolved.');
 
     const campaignList = await cloneWarmupLeadListForCampaign({
@@ -148,7 +152,7 @@ export async function POST(req) {
         subject: campaignSubject,
         body: campaignBody
       },
-      senderAccountId: senderId,
+      senderAccountId: normalizedSenderId,
       senderAccount: {
         provider: resolvedSender.provider,
         label: resolvedSender.label,

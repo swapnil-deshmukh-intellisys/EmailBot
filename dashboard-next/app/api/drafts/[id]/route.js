@@ -28,7 +28,7 @@ export async function PATCH(req, { params }) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
     if (!normalizedDraftType || !title || !subject || !draftHtml) {
@@ -45,6 +45,8 @@ export async function PATCH(req, { params }) {
         title,
         project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
         sector: String(sector || '').trim(),
+        city: String(city || '').trim(),
+        campaignName: String(campaignName || '').trim(),
         domain: String(domain || '').trim().toLowerCase(),
         subject,
         html: draftHtml,

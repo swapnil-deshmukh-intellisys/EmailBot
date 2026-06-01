@@ -1,0 +1,83 @@
+import React from 'react';
+
+const STATS = [
+  { label: 'Total emails', key: 'total', icon: 'ti-mail', color: '#4f5bd5', bg: '#eef0fd', ring: true },
+  { label: 'Delivered', key: 'sent', icon: 'ti-circle-check', color: '#059669', bg: '#ecfdf5' },
+  { label: 'Waiting to send', key: 'pending', icon: 'ti-clock-hour-3', color: '#d97706', bg: '#fffbeb' },
+  { label: 'Failed', key: 'failed', icon: 'ti-circle-x', color: '#e11d48', bg: '#fff1f2' },
+  { label: 'Bounced', key: 'bounced', icon: 'ti-arrow-back-up', color: '#0ea5e9', bg: '#f0f9ff' },
+  { label: 'Spam', key: 'spam', icon: 'ti-alert-triangle', color: '#a855f7', bg: '#fdf4ff' }
+];
+
+function DonutRing({ pct = 100, color = '#4f5bd5' }) {
+  const r = 15;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+  return (
+    <svg className="ring" viewBox="0 0 36 36" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+      <circle cx="18" cy="18" r={r} fill="none" stroke="var(--border,#e8ecf1)" strokeWidth="3" />
+      <circle
+        cx="18"
+        cy="18"
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="3"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDashoffset={circ * 0.25}
+        strokeLinecap="round"
+      />
+      <text x="18" y="22" textAnchor="middle" fontSize="8" fontWeight="600" fill={color} fontFamily="DM Sans,sans-serif">
+        {pct}%
+      </text>
+    </svg>
+  );
+}
+
+function normalizeStats(stats) {
+  if (!Array.isArray(stats)) return stats || {};
+  const map = {};
+  stats.forEach((item) => {
+    const title = String(item?.title || '').toLowerCase();
+    const key =
+      title.includes('total') ? 'total' :
+      title.includes('delivered') || title.includes('sent') ? 'sent' :
+      title.includes('waiting') || title.includes('pending') ? 'pending' :
+      title.includes('failed') ? 'failed' :
+      title.includes('bounced') ? 'bounced' :
+      title.includes('spam') ? 'spam' : '';
+    if (!key) return;
+    map[key] = Number(item?.value || 0);
+    map[`${key}Pct`] = Number(item?.percent ?? item?.trend ?? (key === 'total' ? 100 : 0));
+  });
+  return map;
+}
+
+export default function StatStrip({ stats = {} }) {
+  const normalized = normalizeStats(stats);
+  return (
+    <div className="stat-strip stats-grid">
+      {STATS.map((stat) => {
+        const value = normalized[stat.key] ?? 0;
+        const pct = normalized[`${stat.key}Pct`] ?? (stat.key === 'total' ? 100 : 0);
+        return (
+          <div key={stat.key} className={`stat-card si-${stat.key === 'sent' ? 'sent' : stat.key}`}>
+            <div className="stat-top">
+              <span className="stat-label">{stat.label}</span>
+              <div className="stat-icon">
+                <i className={`ti ${stat.icon}`} />
+              </div>
+            </div>
+            <div style={stat.ring ? { display: 'flex', alignItems: 'center', gap: 10 } : undefined}>
+              <div>
+                <div className="stat-value">{Number(value || 0).toLocaleString()}</div>
+                <div className="stat-pct">{stat.ring ? 'All emails' : `${pct}% ${stat.key}`}</div>
+              </div>
+              {stat.ring && <DonutRing pct={Math.max(0, Math.min(100, Math.round(pct)))} color={stat.color} />}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

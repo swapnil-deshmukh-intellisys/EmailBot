@@ -55,6 +55,16 @@ function formatRelativeDate(value) {
   return date.toLocaleDateString();
 }
 
+function formatSavedParts(value) {
+  if (!value) return { date: 'No saved date', time: 'No saved time' };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: 'No saved date', time: 'No saved time' };
+  return {
+    date: date.toLocaleDateString(),
+    time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+}
+
 function getDraftStatus(draft) {
   const raw = String(draft?.status || draft?.approvalStatus || draft?.stage || '').trim();
   if (raw) return raw;
@@ -104,6 +114,14 @@ function resolveDraftProject(draft = {}) {
   return '';
 }
 
+function resolveDraftCampaign(draft = {}) {
+  return String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim();
+}
+
+function resolveDraftCity(draft = {}) {
+  return String(draft?.city || draft?.City || draft?.location || '').trim();
+}
+
 function renderCell(cell, column) {
   const text = String(cell || '');
   if (column === 'Status') {
@@ -140,6 +158,8 @@ export default function DraftsPage() {
   const [draftSubject, setDraftSubject] = useState('');
   const [draftCategory, setDraftCategory] = useState(CATEGORY_OPTIONS[0].value);
   const [draftSector, setDraftSector] = useState('');
+  const [draftCity, setDraftCity] = useState('');
+  const [draftCampaignName, setDraftCampaignName] = useState('');
   const [draftProject, setDraftProject] = useState('tec');
   const [draftTitle, setDraftTitle] = useState('');
   const [editorHtml, setEditorHtml] = useState('');
@@ -253,7 +273,7 @@ export default function DraftsPage() {
       Array.from(
         new Set(
           drafts
-            .map((draft) => String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim())
+            .map((draft) => resolveDraftCampaign(draft))
             .filter(Boolean)
         )
       ).sort((a, b) => a.localeCompare(b)),
@@ -264,10 +284,11 @@ export default function DraftsPage() {
     () =>
       drafts.filter((draft) => {
         const sector = String(draft?.sector || '').trim().toLowerCase();
+        const city = resolveDraftCity(draft).toLowerCase();
         const project = resolveDraftProject(draft);
         const draftType = resolveDraftLibraryType(draft);
-        const campaign = String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim().toLowerCase();
-        const searchBlob = `${draft?.title || ''} ${draft?.subject || ''} ${draft?.body || ''}`.toLowerCase();
+        const campaign = resolveDraftCampaign(draft).toLowerCase();
+        const searchBlob = `${draft?.title || ''} ${draft?.subject || ''} ${draft?.body || ''} ${draftTypeLabel(draftType)} ${sector} ${city} ${project} ${campaign}`.toLowerCase();
         const typeFilter = normalizeDraftType(libraryTypeFilter);
         const sectorFilter = String(librarySectorFilter || '').trim().toLowerCase();
         const projectFilter = String(libraryProjectFilter || '').trim().toLowerCase();
@@ -306,6 +327,8 @@ export default function DraftsPage() {
     setDraftTitle('');
     setDraftSubject('');
     setDraftSector('');
+    setDraftCity('');
+    setDraftCampaignName('');
     setDraftProject('tec');
     setDraftCategory(CATEGORY_OPTIONS[0].value);
     setEditorHtml('');
@@ -327,6 +350,8 @@ export default function DraftsPage() {
     setDraftTitle(String(draft?.title || ''));
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
+    setDraftCity(resolveDraftCity(draft));
+    setDraftCampaignName(resolveDraftCampaign(draft));
     setDraftProject(resolveDraftProject(draft) || 'tec');
     setDraftCategory(resolveDraftLibraryType(draft) || CATEGORY_OPTIONS[0].value);
     setEditorHtml(String(draft?.body || ''));
@@ -348,6 +373,8 @@ export default function DraftsPage() {
         draftType: normalizeDraftType(draftCategory),
         title: draftTitle.trim(),
         sector: draftSector.trim(),
+        city: draftCity.trim(),
+        campaignName: draftCampaignName.trim(),
         project: ['tec', 'tut'].includes(String(draftProject || '').trim().toLowerCase()) ? String(draftProject || '').trim().toLowerCase() : '',
         subject: draftSubject.trim(),
         body: editorHtml
@@ -414,7 +441,6 @@ export default function DraftsPage() {
             <h1>Drafts</h1>
           </div>
           <div className="workspace-hero-actions">
-            <Button variant="secondary" className="workspace-secondary" onClick={handleCustomizeDraft}>Customize Draft</Button>
             <Button className="workspace-primary" onClick={handleCreateDraft}>Create Draft</Button>
           </div>
         </div>
@@ -440,7 +466,7 @@ export default function DraftsPage() {
                 </div>
 
                 <label className="draft-workspace-title-field">
-                  <span>Draft Title</span>
+                  <span>Draft Name</span>
                   <input
                     type="text"
                     value={draftTitle}
@@ -470,12 +496,32 @@ export default function DraftsPage() {
                   </label>
 
                   <label className="draft-workspace-title-field">
+                    <span>Campaign Name</span>
+                    <input
+                      type="text"
+                      value={draftCampaignName}
+                      onChange={(event) => setDraftCampaignName(event.target.value)}
+                      placeholder="Enter campaign name"
+                    />
+                  </label>
+
+                  <label className="draft-workspace-title-field">
                     <span>Sector</span>
                     <input
                       type="text"
                       value={draftSector}
                       onChange={(event) => setDraftSector(event.target.value)}
                       placeholder="Enter sector"
+                    />
+                  </label>
+
+                  <label className="draft-workspace-title-field">
+                    <span>City</span>
+                    <input
+                      type="text"
+                      value={draftCity}
+                      onChange={(event) => setDraftCity(event.target.value)}
+                      placeholder="Enter city"
                     />
                   </label>
 
@@ -489,6 +535,7 @@ export default function DraftsPage() {
                   </label>
                 </div>
 
+                <div className="draft-body-label">Draft Body</div>
                 <RichTextEditor
                   value={editorHtml}
                   onChange={setEditorHtml}
@@ -512,12 +559,6 @@ export default function DraftsPage() {
         {!showWorkspace ? (
         <div className="workspace-grid draft-library-grid" ref={draftListRef}>
           <section className="workspace-panel workspace-panel-large">
-            <div className="workspace-panel-head">
-              <div>
-                <h2>Draft Library</h2>
-              </div>
-            </div>
-
             <div className="draft-library-filters">
               <label className="draft-library-filter-field">
                 <span>Draft Type</span>
@@ -557,15 +598,6 @@ export default function DraftsPage() {
                   ))}
                 </select>
               </label>
-              <label className="draft-library-filter-field">
-                <span>Search</span>
-                <input
-                  type="search"
-                  value={librarySearchQuery}
-                  onChange={(event) => setLibrarySearchQuery(event.target.value)}
-                  placeholder="Name or subject"
-                />
-              </label>
               <div className="draft-library-filter-actions">
                 <span>{filteredDrafts.length} drafts</span>
                 <Button
@@ -599,20 +631,31 @@ export default function DraftsPage() {
                   </div>
                   <div className="draft-card-grid">
                     {section.drafts.map((draft) => (
-                      <article key={draft?._id || draft?.id} className="draft-type-card">
-                        <div className="draft-type-card-head">
-                          <strong>{draft?.title || 'Untitled Draft'}</strong>
-                          <span>{draftTypeLabel(resolveDraftLibraryType(draft))} Draft</span>
-                        </div>
-                        <p>{draft?.subject || '-'}</p>
-                        <div className="draft-type-card-meta">
-                          <small>{draft?.sector || 'No sector'}</small>
-                          <small>{resolveDraftProject(draft) ? resolveDraftProject(draft).toUpperCase() : 'No project'}</small>
-                          <small>{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</small>
-                          <small>{getDraftStatus(draft).toLowerCase() === 'approved' ? 'Approved by TL' : 'Not approved by TL'}</small>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => handleEditDraft(draft)}>Edit</Button>
-                      </article>
+                      (() => {
+                        const savedParts = formatSavedParts(draft?.updatedAt || draft?.createdAt);
+                        return (
+                          <article key={draft?._id || draft?.id} className="draft-type-card">
+                            <div className="draft-type-card-head">
+                              <strong>{draft?.title || 'Untitled Draft'}</strong>
+                              <span>{draftTypeLabel(resolveDraftLibraryType(draft))} Draft</span>
+                            </div>
+                            <p>{draft?.subject || '-'}</p>
+                            <div className="draft-type-card-details">
+                              <span><b>Campaign</b>{resolveDraftCampaign(draft) || 'No campaign'}</span>
+                              <span><b>Sector</b>{draft?.sector || 'No sector'}</span>
+                              <span><b>City</b>{resolveDraftCity(draft) || 'No city'}</span>
+                              <span><b>Project</b>{resolveDraftProject(draft) ? resolveDraftProject(draft).toUpperCase() : 'No project'}</span>
+                              <span><b>Date</b>{savedParts.date}</span>
+                              <span><b>Time</b>{savedParts.time}</span>
+                            </div>
+                            <div className="draft-type-card-meta">
+                              <small>{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</small>
+                              <small>{getDraftStatus(draft).toLowerCase() === 'approved' ? 'Approved by TL' : 'Not approved by TL'}</small>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => handleEditDraft(draft)}>Edit</Button>
+                          </article>
+                        );
+                      })()
                     ))}
                   </div>
                 </section>

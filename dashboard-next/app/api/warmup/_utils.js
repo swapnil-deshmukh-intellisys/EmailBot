@@ -93,6 +93,7 @@ export async function getWarmupSenders({ userEmail, project }) {
     provider: account.provider,
     label: account.label || 'Sender',
     from: account.from,
+    project: account.project || '', // ← pass stored project so filter works for Gmail/Outlook IDs
     status: account.status || 'Connected',
     dailyLimit: account.dailyLimit,
     sentToday: account.sentToday
@@ -118,7 +119,11 @@ export async function getWarmupSenders({ userEmail, project }) {
   [...runtime, ...db, ...oauth, ...preset].forEach((account) => {
     const from = String(account.from || '').trim().toLowerCase();
     const accountProject = normalizeProject(account.project) || inferProjectFromEmail(from);
-    if (!from || accountProject !== normalizedProject) return;
+    // For db: accounts, also allow if stored project matches (covers Gmail/custom SMTP added via Add ID modal)
+    const isDbAccount = String(account.id || '').startsWith('db:');
+    const projectMatches = accountProject === normalizedProject ||
+      (isDbAccount && normalizeProject(account.project) === normalizedProject);
+    if (!from || !projectMatches) return;
     if (!allowed.has(from) && String(account.id || '').startsWith('graphapp:')) return;
     if (!map.has(account.id)) map.set(account.id, { ...account, project: normalizedProject });
   });

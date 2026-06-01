@@ -69,17 +69,17 @@ function plainTextToEmailHtml(text = '') {
 
 export default function EmailWarmupPage() {
   const [projects, setProjects] = useState([]);
-  const [senders, setSenders] = useState([]);
+  const [senderIds, setSenderIds] = useState([]);
   const [drafts, setDrafts] = useState([]);
   const [leadList, setLeadList] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
-  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
   const [selectedSenderId, setSelectedSenderId] = useState('');
   const [selectedDraftId, setSelectedDraftId] = useState('');
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const [loadingSenders, setLoadingSenders] = useState(false);
+  const [loadingIds, setLoadingIds] = useState(false);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(true);
   const [uploadingSheet, setUploadingSheet] = useState(false);
@@ -90,9 +90,16 @@ export default function EmailWarmupPage() {
   const [activeCampaignId, setActiveCampaignId] = useState('');
   const toastTimeoutRef = useRef(null);
 
+  // Add ID Modal states
+  const [isAddIdModalOpen, setIsAddIdModalOpen] = useState(false);
+  const [newIdName, setNewIdName] = useState('');
+  const [newIdEmail, setNewIdEmail] = useState('');
+  const [newIdPassword, setNewIdPassword] = useState('');
+  const [newIdProvider, setNewIdProvider] = useState('Gmail');
+
   const selectedSender = useMemo(
-    () => senders.find((sender) => sender.id === selectedSenderId) || null,
-    [senders, selectedSenderId]
+    () => senderIds.find((sender) => String(sender._id || sender.id) === selectedSenderId) || null,
+    [senderIds, selectedSenderId]
   );
   const selectedDraft = useMemo(
     () => drafts.find((draft) => String(draft._id) === selectedDraftId) || null,
@@ -168,13 +175,13 @@ export default function EmailWarmupPage() {
       try {
         setLoadingProjects(true);
         setLoadingLeads(true);
-        const projectResponse = await fetch('/api/warmup/projects', { cache: 'no-store' });
+        const projectResponse = await fetch('/api/projects', { cache: 'no-store' });
         const projectData = await projectResponse.json();
         if (!active) return;
-        if (!projectResponse.ok) throw new Error(projectData?.error || 'Failed to load projects');
+        if (!projectResponse.ok || !projectData.success) throw new Error(projectData?.message || 'Failed to load projects');
         const nextProjects = Array.isArray(projectData.projects) ? projectData.projects : [];
         setProjects(nextProjects);
-        if (!selectedProject && nextProjects.length) setSelectedProject(nextProjects[0].value);
+        if (nextProjects.length) setSelectedProject(nextProjects[0]);
         await loadWarmupLeads();
         setError('');
       } catch (err) {
@@ -229,54 +236,99 @@ export default function EmailWarmupPage() {
     }
   };
 
-  useEffect(() => {
-    let active = true;
-    const loadSenders = async () => {
-      if (!selectedProject) {
-        setSenders([]);
-        setSelectedSenderId('');
-        return;
-      }
-      try {
-        setLoadingSenders(true);
-        const response = await fetch(`/api/warmup/senders?project=${encodeURIComponent(selectedProject)}`, { cache: 'no-store' });
-        const next = await response.json();
-        if (!response.ok) throw new Error(next?.error || 'Failed to load sender IDs');
-        if (!active) return;
-        const rows = Array.isArray(next.senders) ? next.senders : [];
-        setSenders(rows);
-        setSelectedSenderId((current) => (rows.some((row) => row.id === current) ? current : rows[0]?.id || ''));
-        setError('');
-      } catch (err) {
-        if (active) {
-          setSenders([]);
-          setSelectedSenderId('');
-          setError(err.message || 'Failed to load sender IDs');
-        }
-      } finally {
-        if (active) setLoadingSenders(false);
-      }
-    };
+  const fetchSenderIdsByProject = async (projectId) => {
+    setLoadingIds(true);
 
-    void loadSenders();
-    setDrafts([]);
-    setSelectedDraftId('');
-    return () => {
-      active = false;
-    };
-  }, [selectedProject]);
+    try {
+      const res = await fetch(`/api/sender-ids?projectId=${projectId}`, {
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to fetch sender IDs");
+      }
+
+      setSenderIds(data.senderIds || []);
+      setSelectedSenderId((current) => (data.senderIds.some((row) => String(row._id || row.id) === current) ? current : String(data.senderIds[0]?._id || '')));
+    } catch (error) {
+      console.error("Sender ID fetch error:", error);
+      setSenderIds([]);
+      setSelectedSenderId('');
+      setActionError(error.message || "Failed to load sender IDs");
+    } finally {
+      setLoadingIds(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedProject?._id) {
+      setSenderIds([]);
+      return;
+    }
+
+    fetchSenderIdsByProject(selectedProject._id);
+  }, [selectedProject?._id]);
+
+  const closeAddIdModal = () => {
+    setIsAddIdModalOpen(false);
+    setNewIdName('');
+    setNewIdEmail('');
+    setNewIdPassword('');
+    setNewIdProvider('Gmail');
+  };
+
+  const handleSaveNewId = async () => {
+    if (!selectedProject?._id) {
+      setActionError("Please select project first");
+      return;
+    }
+    if (!newIdName || !newIdEmail || !newIdPassword) {
+      setActionError("Please fill out all fields");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sender-ids', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newIdName,
+          email: newIdEmail.toLowerCase().trim(),
+          password: newIdPassword,
+          provider: newIdProvider,
+          projectId: selectedProject._id,
+          projectName: selectedProject.name
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to add sender ID');
+      }
+
+      setSenderIds((prev) => [data.senderId, ...prev]);
+      setSelectedSenderId(String(data.senderId._id));
+      closeAddIdModal();
+      setActionMessage("Sender ID added successfully");
+    } catch (err) {
+      setActionError(err.message || 'Failed to save sender ID');
+    }
+  };
 
   useEffect(() => {
     let active = true;
     const loadDrafts = async () => {
-      if (!selectedProject || !selectedSenderId) {
+      const selectedProjectCode = selectedProject?.code || '';
+      if (!selectedProjectCode || !selectedSenderId) {
         setDrafts([]);
         setSelectedDraftId('');
         return;
       }
       try {
         setLoadingDrafts(true);
-        const params = new URLSearchParams({ project: selectedProject, senderId: selectedSenderId });
+        const params = new URLSearchParams({ project: selectedProjectCode, senderId: selectedSenderId });
         const response = await fetch(`/api/warmup/drafts?${params.toString()}`, { cache: 'no-store' });
         const next = await response.json();
         if (!response.ok) throw new Error(next?.error || 'Failed to load warmup drafts');
@@ -300,7 +352,7 @@ export default function EmailWarmupPage() {
     return () => {
       active = false;
     };
-  }, [selectedProject, selectedSenderId]);
+  }, [selectedProject?.code, selectedSenderId]);
 
   useEffect(() => {
     setDraftSubject(String(selectedDraft?.subject || ''));
@@ -323,7 +375,7 @@ export default function EmailWarmupPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject,
+          project: selectedProject?.code || '',
           senderId: selectedSenderId,
           draftId: selectedDraftId,
           subject: draftSubject,
@@ -369,7 +421,7 @@ export default function EmailWarmupPage() {
             </article>
             <article className="workspace-stat-card">
               <span>Sender IDs</span>
-              <strong>{loadingSenders ? '...' : senders.length}</strong>
+              <strong>{loadingIds ? '...' : senderIds.length}</strong>
             </article>
             <article className="workspace-stat-card">
               <span>Warmup Drafts</span>
@@ -417,13 +469,16 @@ export default function EmailWarmupPage() {
                       </div>
                       <select
                         className="warmup-select"
-                        value={selectedProject}
+                        value={selectedProject?._id || ''}
                         disabled={loadingProjects}
-                        onChange={(event) => setSelectedProject(event.target.value)}
+                        onChange={(event) => {
+                          const proj = projects.find((p) => p._id === event.target.value);
+                          setSelectedProject(proj || null);
+                        }}
                       >
                         <option value="">{loadingProjects ? 'Loading projects...' : 'Select project'}</option>
                         {projects.map((project) => (
-                          <option key={project.value} value={project.value}>{project.label}</option>
+                          <option key={project._id} value={project._id}>{project.name}</option>
                         ))}
                       </select>
                     </div>
@@ -435,19 +490,51 @@ export default function EmailWarmupPage() {
                           <p>Only sender IDs for the selected project are listed.</p>
                         </div>
                       </div>
-                      <select
-                        className="warmup-select"
-                        value={selectedSenderId}
-                        disabled={!selectedProject || loadingSenders}
-                        onChange={(event) => setSelectedSenderId(event.target.value)}
-                      >
-                        <option value="">{loadingSenders ? 'Loading sender IDs...' : 'Select sender ID'}</option>
-                        {senders.map((sender) => (
-                          <option key={sender.id} value={sender.id}>
-                            {sender.from} ({sender.provider})
-                          </option>
-                        ))}
-                      </select>
+                      {!selectedProject?._id ? (
+                        <div className="warmup-select-message" style={{ padding: '8px 12px', background: 'var(--card-bg-subtle, #f3f4f6)', borderRadius: 4, color: 'var(--text-muted, #4b5563)' }}>
+                          Please select a project first to view sender IDs.
+                        </div>
+                      ) : loadingIds ? (
+                        <select className="warmup-select" disabled>
+                          <option>Loading sender IDs...</option>
+                        </select>
+                      ) : senderIds.length === 0 ? (
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <div className="warmup-select-message" style={{ padding: '8px 12px', background: 'var(--card-bg-subtle, #f3f4f6)', borderRadius: 4, color: 'var(--text-muted, #4b5563)' }}>
+                            No sender IDs found for {selectedProject.name}. Click Add ID to create one.
+                          </div>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={() => setIsAddIdModalOpen(true)}
+                          >
+                            Add ID
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <select
+                            className="warmup-select"
+                            value={selectedSenderId}
+                            onChange={(event) => setSelectedSenderId(event.target.value)}
+                          >
+                            <option value="">Select sender ID</option>
+                            {senderIds.map((sender) => (
+                              <option key={sender._id} value={sender._id}>
+                                {sender.name} ({sender.email})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            style={{ padding: '6px 12px', width: 'fit-content' }}
+                            onClick={() => setIsAddIdModalOpen(true)}
+                          >
+                            Add ID
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -476,11 +563,11 @@ export default function EmailWarmupPage() {
                   <div className="workspace-list" style={{ marginTop: 16 }}>
                     <div>
                       <strong>Selected Project</strong>
-                      <span>{selectedProject ? selectedProject.toUpperCase() : 'Not selected'}</span>
+                      <span>{selectedProject ? selectedProject.name : 'Not selected'}</span>
                     </div>
                     <div>
                       <strong>Selected Sender</strong>
-                      <span>{selectedSender?.from || 'Not selected'}</span>
+                      <span>{selectedSender ? `${selectedSender.name} (${selectedSender.email})` : 'Not selected'}</span>
                     </div>
                     <div>
                       <strong>Selected Draft</strong>
@@ -520,7 +607,7 @@ export default function EmailWarmupPage() {
                   </div>
 
                   <div className="warmup-guide-actions">
-                    <Button loading={starting} disabled={starting || loadingProjects || loadingSenders || loadingDrafts || loadingLeads || uploadingSheet} onClick={handleStartWarmup}>
+                    <Button loading={starting} disabled={starting || loadingProjects || loadingIds || loadingDrafts || loadingLeads || uploadingSheet} onClick={handleStartWarmup}>
                       Start Warmup
                     </Button>
                   </div>
@@ -617,6 +704,48 @@ export default function EmailWarmupPage() {
           </div>
         </div>
       </PageSection>
+
+      {isAddIdModalOpen ? (
+        <div className="modal-backdrop" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: 'var(--card-bg, #fff)', padding: 24, borderRadius: 8, width: '100%', maxWidth: 450, display: 'grid', gap: 16 }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Add New Sender ID</h3>
+            
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Selected Project (Read-only)</label>
+              <input className="input" type="text" readOnly value={selectedProject?.name || ''} style={{ background: 'var(--bg-subtle, #f9fafb)', cursor: 'not-allowed' }} />
+            </div>
+
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Sender Name</label>
+              <input className="input" type="text" value={newIdName} onChange={(e) => setNewIdName(e.target.value)} placeholder="e.g. John Doe" />
+            </div>
+
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Email ID</label>
+              <input className="input" type="email" value={newIdEmail} onChange={(e) => setNewIdEmail(e.target.value)} placeholder="e.g. john@example.com" />
+            </div>
+
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Password / App Password</label>
+              <input className="input" type="password" value={newIdPassword} onChange={(e) => setNewIdPassword(e.target.value)} placeholder="••••••••" />
+            </div>
+
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Provider</label>
+              <select className="select" value={newIdProvider} onChange={(e) => setNewIdProvider(e.target.value)}>
+                <option value="Gmail">Gmail</option>
+                <option value="Outlook">Outlook</option>
+                <option value="SMTP">SMTP</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'end', marginTop: 12 }}>
+              <button className="button secondary" onClick={closeAddIdModal}>Cancel</button>
+              <button className="button" onClick={handleSaveNewId}>Save</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppLayout>
   );
 }

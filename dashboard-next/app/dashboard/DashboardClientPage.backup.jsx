@@ -28,10 +28,11 @@ import {
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 import { buildWordPadTableHtml } from '@/modules/draft-module/draft-utils/DraftWordPadTableBuilder';
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
+import './dashboard-design.css';
 import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
+import ThemeToggle from '@/shared-components/layout-components/SharedThemeToggleControl';
 import { buildEmailHtml } from '../../components/email/EmailRenderingSystem';
-import PremiumDashboardShell from './components/PremiumDashboardShell';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
@@ -50,23 +51,6 @@ const MAX_SCHEDULE_DELAY_MINUTES = 1440;
 const MAX_SCHEDULE_DELAY_HOURS = 24;
 const MAX_SCHEDULE_DELAY_SECONDS = 86400;
 
-function useBreakpoint() {
-  const [width, setWidth] = useState(1200);
-
-  useEffect(() => {
-    const updateWidth = () => setWidth(window.innerWidth);
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-
-  return useMemo(() => {
-    if (width >= 1200) return { width, name: 'desktop' };
-    if (width >= 768) return { width, name: 'tablet' };
-    return { width, name: 'mobile' };
-  }, [width]);
-}
-
 function getScheduleDelayLimit(unit = 'minutes') {
   const normalizedUnit = normalizeDurationUnit(unit);
   if (normalizedUnit === 'hours') return MAX_SCHEDULE_DELAY_HOURS;
@@ -81,9 +65,9 @@ function FancyStatCardLegacy({ title, value, percent = 0, trend = 0, color = '#2
     <div className="fancy-stat-card">
       <div className="fancy-stat-top">
         <span className={`fancy-stat-badge ${positive ? 'up' : 'down'}`}>
-          {positive ? 'â†‘' : 'â†“'} {Math.abs(trend).toFixed(1)}%
+          {positive ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
         </span>
-        <span className="fancy-stat-menu">â‹¯</span>
+        <span className="fancy-stat-menu">⋯</span>
       </div>
       <div className="fancy-stat-body">
         <div>
@@ -140,20 +124,10 @@ function normalizeEmailDraftHtml(value = '') {
 
 function normalizeDraft(draft = {}) {
   const draftType = inferDraftTypeFromDraft(draft);
-  const savedAt = draft?.updatedAt || draft?.createdAt || '';
-  const savedDate = savedAt ? new Date(savedAt).toLocaleDateString() : 'No saved date';
-  const savedTime = savedAt ? new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No saved time';
   return {
     ...draft,
     category: draftType,
     draftType,
-    sector: String(draft?.sector || ''),
-    city: String(draft?.city || ''),
-    project: String(draft?.project || ''),
-    campaignName: String(draft?.campaignName || draft?.campaign || ''),
-    savedDate,
-    savedTime,
-    updated: savedAt ? new Date(savedAt).toLocaleString() : 'Saved draft',
     subject: String(draft?.subject || ''),
     bodyHtml: normalizeEmailDraftHtml(draft?.bodyHtml || draft?.html || draft?.body || ''),
     bodyText: String(draft?.bodyText || ''),
@@ -441,8 +415,6 @@ const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const breakpoint = useBreakpoint();
-  const isMobileViewport = breakpoint.name === 'mobile';
   const defaultProjectOptions = ['tec', 'tut'];
   const [isMounted, setIsMounted] = useState(false);
   const [stats, setStats] = useState({
@@ -486,7 +458,6 @@ export default function DashboardPage() {
   const [showTopbarRangeDropdown, setShowTopbarRangeDropdown] = useState(false);
   const [showTopbarMailDropdown, setShowTopbarMailDropdown] = useState(false);
   const [showTopbarProfileDropdown, setShowTopbarProfileDropdown] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [userRangeOptions, setUserRangeOptions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
@@ -525,13 +496,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (breakpoint.width >= 768) {
-      setSidebarOpen(false);
-      setShowMobileFilters(false);
-    }
-  }, [breakpoint.width]);
   const [creditTransactions, setCreditTransactions] = useState([]);
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
   const [subscriptionDetailsLoading, setSubscriptionDetailsLoading] = useState(false);
@@ -600,8 +564,6 @@ export default function DashboardPage() {
   const topbarProjectDropdownRef = useRef(null);
   const topbarRangeDropdownRef = useRef(null);
   const topbarMailDropdownRef = useRef(null);
-  const topbarProfileDropdownRef = useRef(null);
-  const topbarMobileFiltersRef = useRef(null);
   const topbarProfilePhotoInputRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const loadAllRef = useRef(null);
@@ -1316,8 +1278,6 @@ const handleDeleteDraft = async (draft) => {
         category: normalizeDraftType(newDraftCategory),
         draftType: normalizeDraftType(newDraftCategory),
         title: baseTitle,
-        campaignName,
-        project: String(project || '').trim().toLowerCase(),
         subject: newDraftSubject,
         body: normalizeEmailDraftHtml(newDraftBody),
         bodyHtml: normalizeEmailDraftHtml(newDraftBody),
@@ -1384,8 +1344,6 @@ const handleDeleteDraft = async (draft) => {
           category,
           draftType: category,
           title: baseTitle,
-          campaignName,
-          project: String(project || '').trim().toLowerCase(),
           subject: draftSubject,
           body: normalizeEmailDraftHtml(draftBody),
           bodyHtml: normalizeEmailDraftHtml(draftBody),
@@ -1563,31 +1521,31 @@ const handleDeleteDraft = async (draft) => {
   }, [stats?.dailyMailCounts]);
   const reportMetricCards = [
     {
-      title: 'Total emails',
+      title: 'Total',
       value: Number(stats?.total || 0),
       percent: 100,
       meta: 'All emails',
       tone: 'total',
       color: '#f59e0b',
-      icon: 'â—‰'
+      icon: '◉'
     },
     {
-      title: 'Delivered',
+      title: 'Sent',
       value: Number(stats?.sent || 0),
       percent: completionRate,
       meta: 'Delivered',
       tone: 'sent',
       color: '#4f46e5',
-      icon: 'âœ“'
+      icon: '✓'
     },
     {
-      title: 'Waiting to send',
+      title: 'Pending',
       value: Number(stats?.pending || 0),
       percent: Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100),
       meta: 'Waiting to send',
       tone: 'pending',
       color: '#3b82f6',
-      icon: 'â—”'
+      icon: '◔'
     },
     {
       title: 'Failed',
@@ -1596,7 +1554,7 @@ const handleDeleteDraft = async (draft) => {
       meta: 'Failed',
       tone: 'failed',
       color: '#ef4444',
-      icon: 'âœ–'
+      icon: '✖'
     },
     {
       title: 'Bounced',
@@ -1605,7 +1563,7 @@ const handleDeleteDraft = async (draft) => {
       meta: 'Bounced',
       tone: 'bounced',
       color: '#14b8a6',
-      icon: 'â†º'
+      icon: '↺'
     },
     {
       title: 'Spam',
@@ -2651,12 +2609,6 @@ const handleDeleteDraft = async (draft) => {
       if (!topbarMailDropdownRef.current?.contains(event.target)) {
         setShowTopbarMailDropdown(false);
       }
-      if (!topbarProfileDropdownRef.current?.contains(event.target)) {
-        setShowTopbarProfileDropdown(false);
-      }
-      if (!topbarMobileFiltersRef.current?.contains(event.target)) {
-        setShowMobileFilters(false);
-      }
     };
 
     document.addEventListener('pointerdown', handleOutsideClick);
@@ -3612,20 +3564,6 @@ const normalizeSelectedListEmails = async () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const getSidebarIconClass = (label = '') => {
-    const icons = {
-      Dashboard: 'ti-layout-grid',
-      Leads: 'ti-users',
-      'Draft & Templates': 'ti-file-text',
-      Mailbox: 'ti-mail',
-      'Sender Emails': 'ti-mail-plus',
-      'Warm-Up': 'ti-flame',
-      Campaigns: 'ti-speakerphone',
-      Report: 'ti-chart-line'
-    };
-    return icons[label] || 'ti-circle';
-  };
-
   const renderSidebarNode = (item, depth = 0) => (
     <div
       key={`${item.label}-${depth}`}
@@ -3634,12 +3572,12 @@ const normalizeSelectedListEmails = async () => {
     >
       <a
         href={item.href}
-        className={depth === 0 ? 'nav-item dashboard-sidebar-link' : 'nav-item dashboard-sidebar-subitem-link'}
+        className={depth === 0 ? 'dashboard-sidebar-link' : 'dashboard-sidebar-subitem-link'}
         onClick={(event) => openSidebarBlankView(item, event)}
       >
-        {depth === 0 ? <i className={`ti ${getSidebarIconClass(item.label)} dashboard-link-icon soft`} aria-hidden="true" /> : null}
+        {depth === 0 ? <span className="dashboard-link-icon soft">{item.icon}</span> : null}
         <span>{item.label}</span>
-        {depth === 0 && sidebarLiveBadges[item.label] ? <em className="dashboard-sidebar-badge nav-badge warm">{sidebarLiveBadges[item.label]}</em> : null}
+        {depth === 0 && sidebarLiveBadges[item.label] ? <em className="dashboard-sidebar-badge">{sidebarLiveBadges[item.label]}</em> : null}
       </a>
       {item.items?.length ? (
         <div className="dashboard-sidebar-submenu">
@@ -3673,1369 +3611,20 @@ const normalizeSelectedListEmails = async () => {
   }
 
   return (
-    <main
-      className={`dashboard-shell dashboard-breakpoint-${breakpoint.name} ${sidebarOpen ? 'sidebar-open' : ''}`}
-      data-breakpoint={breakpoint.name}
-    >
-      <style>{`
-        html,
-        body {
-          margin: 0 !important;
-          padding: 0 !important;
-          width: 100% !important;
-          min-height: 100% !important;
-        }
-
-        body {
-          overflow-x: hidden !important;
-        }
-
-        body main.dashboard-shell {
-          --dash-sidebar-width: 232px;
-          --dash-tablet-sidebar-width: 64px;
-          --dash-mobile-sidebar-width: min(232px, 88vw);
-          --dash-topbar-height: 56px;
-          position: relative !important;
-          display: block !important;
-          width: 100vw !important;
-          min-height: 100vh !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow-x: hidden !important;
-          background: #f5f6f8 !important;
-          color: #111827 !important;
-          font-family: 'DM Sans', system-ui, sans-serif !important;
-          font-size: 15px !important;
-        }
-
-        body main.dashboard-shell *,
-        body main.dashboard-shell button,
-        body main.dashboard-shell input,
-        body main.dashboard-shell select,
-        body main.dashboard-shell textarea {
-          box-sizing: border-box !important;
-          font-family: 'DM Sans', system-ui, sans-serif !important;
-          letter-spacing: 0 !important;
-        }
-
-        body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-          position: fixed !important;
-          inset: 0 auto 0 0 !important;
-          width: var(--dash-sidebar-width) !important;
-          min-width: var(--dash-sidebar-width) !important;
-          height: 100vh !important;
-          z-index: 1000 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          transform: none !important;
-          border: 0 !important;
-          border-right: 1px solid #e8ecf1 !important;
-          border-radius: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-          margin: 0 !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-card {
-          width: 100% !important;
-          height: 100vh !important;
-          min-height: 0 !important;
-          max-height: none !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          padding: 0 !important;
-          border: 0 !important;
-          border-radius: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-          backdrop-filter: none !important;
-          -webkit-backdrop-filter: none !important;
-        }
-
-        body main.dashboard-shell .sidebar-logo.reference-brand {
-          height: 67px !important;
-          min-height: 67px !important;
-          flex: 0 0 67px !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 10px !important;
-          margin: 0 !important;
-          padding: 18px 20px 16px !important;
-          border: 0 !important;
-          border-bottom: 1px solid #f0f2f5 !important;
-          border-radius: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .logo-mark {
-          width: 32px !important;
-          height: 32px !important;
-          flex: 0 0 32px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          border-radius: 8px !important;
-          color: #ffffff !important;
-          background: linear-gradient(135deg, #4f5bd5 0%, #667eea 100%) !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .logo-mark i {
-          color: #ffffff !important;
-          font-size: 16px !important;
-        }
-
-        body main.dashboard-shell .reference-brand-copy {
-          min-width: 0 !important;
-          display: block !important;
-          white-space: nowrap !important;
-        }
-
-        body main.dashboard-shell .logo-text {
-          display: block !important;
-          color: #111827 !important;
-          font-size: 15px !important;
-          line-height: 18px !important;
-          font-weight: 600 !important;
-        }
-
-        body main.dashboard-shell .logo-sub {
-          display: block !important;
-          margin: 0 !important;
-          color: #98a2b3 !important;
-          font-size: 10px !important;
-          line-height: 12px !important;
-          font-weight: 400 !important;
-          letter-spacing: 0.08em !important;
-          text-transform: uppercase !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-stack {
-          flex: 0 0 auto !important;
-          display: flex !important;
-          flex-direction: column !important;
-          min-height: 0 !important;
-          padding: 16px 18px 12px !important;
-          gap: 0 !important;
-        }
-
-        body main.dashboard-shell .sidebar-search.dashboard-sidebar-search {
-          flex: 0 0 auto !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          border: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .search-wrap {
-          position: relative !important;
-          height: 34px !important;
-          display: flex !important;
-          align-items: center !important;
-        }
-
-        body main.dashboard-shell .search-wrap .si-icon {
-          position: absolute !important;
-          left: 9px !important;
-          top: 50% !important;
-          z-index: 1 !important;
-          transform: translateY(-50%) !important;
-          color: #9aa5b4 !important;
-          font-size: 14px !important;
-        }
-
-        body main.dashboard-shell .search-input {
-          width: 100% !important;
-          height: 34px !important;
-          min-height: 0 !important;
-          padding: 7px 10px 7px 32px !important;
-          border: 1px solid #e8ecf1 !important;
-          border-radius: 10px !important;
-          background: #f8f9fb !important;
-          color: #111827 !important;
-          box-shadow: none !important;
-          outline: none !important;
-          font-size: 13px !important;
-          font-weight: 400 !important;
-        }
-
-        body main.dashboard-shell .search-input::placeholder {
-          color: #98a2b3 !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-nav {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          overflow: hidden !important;
-          margin: 0 !important;
-          padding: 0 18px 12px !important;
-          border: 0 !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-menu {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          overflow-y: auto !important;
-          overflow-x: hidden !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 4px !important;
-          padding: 0 !important;
-          scrollbar-width: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-menu::-webkit-scrollbar {
-          display: none !important;
-        }
-
-        body main.dashboard-shell .nav-section-label.reference-nav-label,
-        body main.dashboard-shell .nav-section-label {
-          flex: 0 0 auto !important;
-          margin: 0 !important;
-          padding: 14px 8px 6px !important;
-          color: #9aa5b4 !important;
-          font-size: 11px !important;
-          line-height: 14px !important;
-          font-weight: 600 !important;
-          letter-spacing: 0.1em !important;
-          text-transform: uppercase !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-item {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        body main.dashboard-shell .nav-item,
-        body main.dashboard-shell .dashboard-primary-link,
-        body main.dashboard-shell .dashboard-sidebar-link {
-          height: 36px !important;
-          min-height: 36px !important;
-          width: auto !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: flex-start !important;
-          gap: 12px !important;
-          margin: 0 !important;
-          padding: 0 12px !important;
-          border: 0 !important;
-          border-radius: 10px !important;
-          background: transparent !important;
-          color: #536172 !important;
-          box-shadow: none !important;
-          text-decoration: none !important;
-          cursor: pointer !important;
-          font-size: 14.5px !important;
-          line-height: 20px !important;
-          font-weight: 400 !important;
-        }
-
-        body main.dashboard-shell .nav-item:hover,
-        body main.dashboard-shell .dashboard-primary-link:hover,
-        body main.dashboard-shell .dashboard-sidebar-link:hover {
-          background: #f8f9fb !important;
-          color: #111827 !important;
-        }
-
-        body main.dashboard-shell .nav-item.active,
-        body main.dashboard-shell .dashboard-primary-link.active {
-          background: #eef0fd !important;
-          color: #4f5bd5 !important;
-          font-weight: 500 !important;
-        }
-
-        body main.dashboard-shell .dashboard-link-icon,
-        body main.dashboard-shell .nav-item i {
-          width: 20px !important;
-          min-width: 20px !important;
-          height: 20px !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          color: inherit !important;
-          font-size: 18px !important;
-          line-height: 1 !important;
-          background: transparent !important;
-          border: 0 !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-badge,
-        body main.dashboard-shell .nav-badge.warm {
-          margin-left: auto !important;
-          padding: 2px 8px !important;
-          border-radius: 999px !important;
-          background: #fff2c7 !important;
-          color: #e78b00 !important;
-          font-size: 12px !important;
-          line-height: 16px !important;
-          font-weight: 700 !important;
-          font-style: normal !important;
-        }
-
-        body main.dashboard-shell .plan-card.dashboard-upgrade-card {
-          flex: 0 0 auto !important;
-          margin: 0 18px 54px !important;
-          width: auto !important;
-          max-width: none !important;
-          min-height: 96px !important;
-          height: 96px !important;
-          display: block !important;
-          gap: normal !important;
-          position: relative !important;
-          overflow: visible !important;
-          padding: 12px !important;
-          border: 1px solid #d5d9f8 !important;
-          border-radius: 14px !important;
-          background: #eef0fd !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .plan-header {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          gap: 8px !important;
-          margin-bottom: 8px !important;
-        }
-
-        body main.dashboard-shell .plan-name {
-          color: #4f5bd5 !important;
-          font-size: 12px !important;
-          line-height: 16px !important;
-          font-weight: 600 !important;
-        }
-
-        body main.dashboard-shell .plan-tag {
-          padding: 2px 6px !important;
-          border-radius: 4px !important;
-          background: #fee2e2 !important;
-          color: #dc2626 !important;
-          font-size: 10px !important;
-          font-weight: 600 !important;
-        }
-
-        body main.dashboard-shell .plan-credits {
-          color: #111827 !important;
-          font-size: 22px !important;
-          line-height: 22px !important;
-          font-weight: 600 !important;
-        }
-
-        body main.dashboard-shell .plan-credits-label {
-          margin-top: 2px !important;
-          color: #98a2b3 !important;
-          font-size: 12px !important;
-          line-height: 16px !important;
-        }
-
-        body main.dashboard-shell .reference-plan-meta {
-          display: none !important;
-        }
-
-        body main.dashboard-shell .upgrade-btn.dashboard-upgrade-button {
-          position: absolute !important;
-          left: 0 !important;
-          top: calc(100% + 10px) !important;
-          width: calc(100% - 32px) !important;
-          min-height: 34px !important;
-          margin: 0 16px !important;
-          padding: 9px 14px !important;
-          border: 0 !important;
-          border-radius: 10px !important;
-          background: #4f5bd5 !important;
-          color: #ffffff !important;
-          box-shadow: none !important;
-          font-size: 13px !important;
-          font-weight: 500 !important;
-        }
-
-        body main.dashboard-shell .user-row.reference-sidebar-user {
-          flex: 0 0 auto !important;
-          min-height: 54px !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 9px !important;
-          margin: 0 18px 14px !important;
-          padding: 6px 4px !important;
-          border: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .user-avatar,
-        body main.dashboard-shell .dashboard-topbar-avatar {
-          width: 32px !important;
-          height: 32px !important;
-          display: grid !important;
-          place-items: center !important;
-          border-radius: 50% !important;
-          background: #4f5bd5 !important;
-          color: #ffffff !important;
-          font-size: 11px !important;
-          font-weight: 600 !important;
-          overflow: hidden !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-avatar-img {
-          object-fit: cover !important;
-        }
-
-        body main.dashboard-shell .user-copy {
-          min-width: 0 !important;
-        }
-
-        body main.dashboard-shell .user-actions {
-          margin-left: auto !important;
-          display: flex !important;
-          gap: 4px !important;
-        }
-
-        body main.dashboard-shell .user-name {
-          display: block !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          white-space: nowrap !important;
-          color: #111827 !important;
-          font-size: 13px !important;
-          line-height: 16px !important;
-          font-weight: 500 !important;
-        }
-
-        body main.dashboard-shell .user-plan {
-          display: block !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          white-space: nowrap !important;
-          color: #98a2b3 !important;
-          font-size: 12px !important;
-          line-height: 16px !important;
-        }
-
-        body main.dashboard-shell .user-icon-btn {
-          width: 28px !important;
-          height: 28px !important;
-          min-width: 28px !important;
-          padding: 0 !important;
-          border: 0 !important;
-          border-radius: 7px !important;
-          background: transparent !important;
-          color: #98a2b3 !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-sidebar-close {
-          display: none !important;
-        }
-
-        body main.dashboard-shell > div.main.dashboard-main {
-          position: relative !important;
-          z-index: 1 !important;
-          min-width: 0 !important;
-          width: calc(100vw - var(--dash-sidebar-width)) !important;
-          max-width: calc(100vw - var(--dash-sidebar-width)) !important;
-          margin: 0 0 0 var(--dash-sidebar-width) !important;
-          padding: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          background: #f5f6f8 !important;
-          border: 0 !important;
-          border-radius: 0 !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-          position: sticky !important;
-          top: 0 !important;
-          z-index: 50 !important;
-          width: 100% !important;
-          min-width: 0 !important;
-          height: var(--dash-topbar-height) !important;
-          min-height: var(--dash-topbar-height) !important;
-          margin: 0 !important;
-          padding: 0 24px !important;
-          display: flex !important;
-          flex-wrap: nowrap !important;
-          align-items: center !important;
-          gap: 8px !important;
-          border: 0 !important;
-          border-bottom: 1px solid #e8ecf1 !important;
-          border-radius: 0 !important;
-          background: #ffffff !important;
-          box-shadow: none !important;
-          transform: none !important;
-          overflow: visible !important;
-        }
-
-        body main.dashboard-shell .topbar-tabs.dashboard-topbar-tabs {
-          flex: 1 1 auto !important;
-          min-width: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 2px !important;
-          overflow: hidden !important;
-          padding: 0 !important;
-          background: transparent !important;
-          border: 0 !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .tb-tab.dashboard-topbar-tab {
-          flex: 0 0 auto !important;
-          height: 34px !important;
-          min-height: 34px !important;
-          padding: 0 15px !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          border: 0 !important;
-          border-radius: 10px !important;
-          background: transparent !important;
-          box-shadow: none !important;
-          color: #4a5568 !important;
-          font-size: 14.5px !important;
-          line-height: 20px !important;
-          font-weight: 400 !important;
-          cursor: pointer !important;
-        }
-
-        body main.dashboard-shell .tb-tab.dashboard-topbar-tab.active {
-          background: #eef0fd !important;
-          color: #4f5bd5 !important;
-          font-weight: 500 !important;
-        }
-
-        body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
-          flex: 0 1 auto !important;
-          min-width: 0 !important;
-          display: flex !important;
-          flex-wrap: nowrap !important;
-          align-items: center !important;
-          justify-content: flex-end !important;
-          gap: 8px !important;
-          padding: 0 !important;
-          border: 0 !important;
-          background: transparent !important;
-          box-shadow: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-filter-group {
-          min-width: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 8px !important;
-        }
-
-        body main.dashboard-shell .tb-theme-btn,
-          body main.dashboard-shell .tb-select,
-          body main.dashboard-shell .dashboard-mobile-filter-toggle,
-          body main.dashboard-shell .dashboard-topbar-profile {
-          height: 34px !important;
-          min-height: 34px !important;
-          border: 1px solid #e8ecf1 !important;
-          border-radius: 10px !important;
-          background: #ffffff !important;
-          color: #4a5568 !important;
-          box-shadow: none !important;
-          font-size: 13.5px !important;
-          font-weight: 400 !important;
-        }
-
-        body main.dashboard-shell .tb-theme-btn {
-          min-width: auto !important;
-          display: inline-flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          gap: 6px !important;
-          padding: 6px 12px !important;
-          cursor: pointer !important;
-        }
-
-        body main.dashboard-shell .tb-select {
-          min-width: 0 !important;
-          width: auto !important;
-          max-width: 190px !important;
-          padding: 6px 28px 6px 12px !important;
-          cursor: pointer !important;
-          outline: none !important;
-          appearance: none !important;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa5b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
-          background-repeat: no-repeat !important;
-          background-position: right 10px center !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          white-space: nowrap !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-date-select {
-          width: 112px !important;
-          max-width: 112px !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-project-select {
-          width: 128px !important;
-          max-width: 128px !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-sender-select {
-          width: 126px !important;
-          max-width: 126px !important;
-        }
-
-        body main.dashboard-shell .tb-divider {
-          width: 1px !important;
-          height: 20px !important;
-          flex: 0 0 1px !important;
-          margin: 0 4px !important;
-          border: 0 !important;
-          background: #e8ecf1 !important;
-        }
-
-        body main.dashboard-shell .dashboard-legacy-sidebar-toggle,
-        body main.dashboard-shell .dashboard-mobile-sidebar-toggle,
-        body main.dashboard-shell .dashboard-mobile-filter-toggle {
-          display: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-profile-wrap {
-          position: relative !important;
-          flex: 0 0 auto !important;
-          display: block !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-profile {
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 8px !important;
-          width: 138px !important;
-          max-width: 138px !important;
-          padding: 0 10px !important;
-          cursor: pointer !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-profile-name {
-          min-width: 0 !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          white-space: nowrap !important;
-        }
-
-        body main.dashboard-shell .dashboard-profile-photo-input {
-          display: none !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-dropdown-menu {
-          position: absolute !important;
-          top: calc(100% + 10px) !important;
-          right: 0 !important;
-          z-index: 1200 !important;
-          min-width: 240px !important;
-          display: grid !important;
-          gap: 2px !important;
-          padding: 8px !important;
-          border: 1px solid #e8ecf1 !important;
-          border-radius: 14px !important;
-          background: #ffffff !important;
-          box-shadow: 0 20px 44px rgba(15, 23, 42, 0.12) !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-dropdown-item {
-          width: 100% !important;
-          min-height: 36px !important;
-          display: flex !important;
-          align-items: center !important;
-          padding: 8px 10px !important;
-          border: 0 !important;
-          border-radius: 9px !important;
-          background: transparent !important;
-          color: #374151 !important;
-          box-shadow: none !important;
-          text-align: left !important;
-          font-size: 14px !important;
-          font-weight: 500 !important;
-          cursor: pointer !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-dropdown-item:hover {
-          background: #f8f9fb !important;
-        }
-
-        body main.dashboard-shell .dashboard-topbar-dropdown-item.logout {
-          margin-top: 6px !important;
-          padding-top: 10px !important;
-          border-top: 1px solid #f0f2f5 !important;
-          color: #e11d48 !important;
-          font-weight: 700 !important;
-        }
-
-        body main.dashboard-shell .page-body {
-          padding: 24px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 20px !important;
-          min-width: 0 !important;
-        }
-
-        body main.dashboard-shell .stats-grid,
-        body main.dashboard-shell .stat-strip {
-          display: grid !important;
-          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-          gap: 12px !important;
-        }
-
-        body main.dashboard-shell .middle-grid,
-        body main.dashboard-shell .grid-3 {
-          display: grid !important;
-          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-          align-items: stretch !important;
-          gap: 16px !important;
-        }
-
-        body main.dashboard-shell .bottom-grid {
-          display: grid !important;
-          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          gap: 16px !important;
-        }
-
-        body main.dashboard-shell .workflow-steps {
-          display: grid !important;
-          grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-        }
-
-        html body main.dashboard-shell {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        html body main.dashboard-shell > div.main.dashboard-main {
-          margin-top: 0 !important;
-          padding-top: 0 !important;
-        }
-
-        html body main.dashboard-shell #dashboard-top {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-          top: 0 !important;
-          margin-top: 0 !important;
-        }
-
-        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar > .dashboard-sidebar-card {
-          height: 100vh !important;
-          min-height: 100vh !important;
-          max-height: 100vh !important;
-          gap: 0 !important;
-          overflow: hidden !important;
-        }
-
-        html body main.dashboard-shell .dashboard-sidebar-stack {
-          padding: 16px 18px 12px !important;
-          margin: 0 !important;
-        }
-
-        html body main.dashboard-shell .sidebar-logo.reference-brand {
-          height: 68px !important;
-          min-height: 68px !important;
-          flex-basis: 68px !important;
-        }
-
-        html body main.dashboard-shell .sidebar-search.dashboard-sidebar-search {
-          margin: 0 !important;
-          position: relative !important;
-          top: 0 !important;
-        }
-
-        html body main.dashboard-shell .dashboard-sidebar-nav {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-        }
-
-        html body main.dashboard-shell .dashboard-sidebar-menu {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 4px !important;
-          overflow-y: auto !important;
-        }
-
-        html body main.dashboard-shell .dashboard-sidebar-menu .nav-item,
-        html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-primary-link,
-        html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-sidebar-link,
-        html body main.dashboard-shell .dashboard-sidebar-menu .nav-item.active,
-        html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-primary-link.active {
-          width: auto !important;
-          height: 36px !important;
-          min-height: 36px !important;
-          margin: 0 !important;
-          padding: 0 12px !important;
-          gap: 12px !important;
-          align-items: center !important;
-          border-radius: 10px !important;
-          font-size: 14.5px !important;
-          line-height: 20px !important;
-        }
-
-        html body main.dashboard-shell .plan-card.dashboard-upgrade-card {
-          margin-top: 0 !important;
-          margin-right: 0 !important;
-          margin-left: 0 !important;
-        }
-
-        html body main.dashboard-shell .user-row.reference-sidebar-user {
-          margin-right: 0 !important;
-          margin-left: 0 !important;
-        }
-
-        @media (min-width: 768px) and (max-width: 1199px) {
-          body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-            width: var(--dash-tablet-sidebar-width) !important;
-            min-width: var(--dash-tablet-sidebar-width) !important;
-          }
-
-          body main.dashboard-shell > div.main.dashboard-main {
-            width: calc(100vw - var(--dash-tablet-sidebar-width)) !important;
-            max-width: calc(100vw - var(--dash-tablet-sidebar-width)) !important;
-            margin-left: var(--dash-tablet-sidebar-width) !important;
-          }
-
-          body main.dashboard-shell .reference-brand-copy,
-          body main.dashboard-shell .sidebar-search,
-          body main.dashboard-shell .nav-section-label,
-          body main.dashboard-shell .nav-item span,
-          body main.dashboard-shell .dashboard-sidebar-badge,
-          body main.dashboard-shell .plan-card.dashboard-upgrade-card,
-          body main.dashboard-shell .user-copy,
-          body main.dashboard-shell .user-icon-btn {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .sidebar-logo.reference-brand {
-            height: 64px !important;
-            min-height: 64px !important;
-            flex-basis: 64px !important;
-            justify-content: center !important;
-            padding: 0 !important;
-          }
-
-          body main.dashboard-shell .logo-mark {
-            width: 36px !important;
-            height: 36px !important;
-            flex-basis: 36px !important;
-          }
-
-          body main.dashboard-shell .dashboard-sidebar-nav {
-            padding: 8px 0 12px !important;
-          }
-
-          body main.dashboard-shell .dashboard-sidebar-menu {
-            align-items: center !important;
-            padding: 0 0 8px !important;
-          }
-
-          body main.dashboard-shell .nav-item,
-          body main.dashboard-shell .dashboard-primary-link,
-          body main.dashboard-shell .dashboard-sidebar-link {
-            width: 48px !important;
-            min-width: 48px !important;
-            height: 42px !important;
-            min-height: 42px !important;
-            margin: 2px 0 !important;
-            padding: 0 !important;
-            justify-content: center !important;
-            gap: 0 !important;
-          }
-
-          html body main.dashboard-shell .dashboard-sidebar-menu .nav-item,
-          html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-primary-link,
-          html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-sidebar-link,
-          html body main.dashboard-shell .dashboard-sidebar-menu .nav-item.active,
-          html body main.dashboard-shell .dashboard-sidebar-menu .dashboard-primary-link.active {
-            width: 48px !important;
-            min-width: 48px !important;
-            height: 42px !important;
-            min-height: 42px !important;
-            margin: 2px 0 !important;
-            padding: 0 !important;
-            gap: 0 !important;
-            justify-content: center !important;
-          }
-
-          body main.dashboard-shell .user-row.reference-sidebar-user {
-            display: flex !important;
-            justify-content: center !important;
-            grid-template-columns: none !important;
-            margin: 0 0 12px !important;
-          }
-
-          body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-            padding: 0 16px !important;
-            gap: 10px !important;
-          }
-
-          body main.dashboard-shell .tb-tab.dashboard-topbar-tab {
-            padding: 0 12px !important;
-            font-size: 14.5px !important;
-          }
-
-          body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
-            gap: 8px !important;
-            margin-left: auto !important;
-          }
-
-          body main.dashboard-shell .tb-theme-btn {
-            min-width: 42px !important;
-            width: 42px !important;
-            padding: 0 !important;
-          }
-
-          body main.dashboard-shell .tb-theme-btn span {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .dashboard-mobile-filter-toggle {
-            width: 42px !important;
-            min-width: 42px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            cursor: pointer !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-filter-group {
-            position: absolute !important;
-            top: calc(100% + 8px) !important;
-            right: 16px !important;
-            z-index: 80 !important;
-            display: none !important;
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
-            width: 260px !important;
-            padding: 10px !important;
-            border: 1px solid #e8ecf1 !important;
-            border-radius: 14px !important;
-            background: #ffffff !important;
-            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-filter-group.open {
-            display: grid !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-filter-group .tb-theme-btn,
-          body main.dashboard-shell .dashboard-topbar-filter-group .tb-select {
-            width: 100% !important;
-            max-width: none !important;
-          }
-
-          body main.dashboard-shell .tb-select {
-            max-width: 150px !important;
-            font-size: 13px !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-profile-name {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-profile {
-            width: 42px !important;
-            min-width: 42px !important;
-            padding: 0 4px !important;
-          }
-
-          body main.dashboard-shell .stats-grid,
-          body main.dashboard-shell .stat-strip {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-
-          body main.dashboard-shell .middle-grid,
-          body main.dashboard-shell .grid-3 {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-
-          body main.dashboard-shell .bottom-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          body main.dashboard-shell .workflow-steps {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-            row-gap: 16px !important;
-          }
-
-          body main.dashboard-shell .workflow-connector {
-            display: none !important;
-          }
-        }
-
-        @media (max-width: 767px) {
-          body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-            width: var(--dash-mobile-sidebar-width) !important;
-            min-width: var(--dash-mobile-sidebar-width) !important;
-            transform: translateX(-100%) !important;
-            transition: transform 180ms ease !important;
-            box-shadow: 18px 0 40px rgba(15, 23, 42, 0.22) !important;
-          }
-
-          body main.dashboard-shell > aside.sidebar.dashboard-sidebar.mobile-open {
-            transform: translateX(0) !important;
-          }
-
-          body main.dashboard-shell > div.main.dashboard-main {
-            width: 100vw !important;
-            max-width: 100vw !important;
-            margin-left: 0 !important;
-          }
-
-          body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-            height: var(--dash-topbar-height) !important;
-            min-height: var(--dash-topbar-height) !important;
-            padding: 0 12px !important;
-            gap: 10px !important;
-          }
-
-          body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
-            flex: 0 0 auto !important;
-            margin-left: auto !important;
-            gap: 8px !important;
-          }
-
-          body main.dashboard-shell .dashboard-mobile-sidebar-toggle.dashboard-hamburger-button {
-            position: static !important;
-            flex: 0 0 40px !important;
-            width: 40px !important;
-            height: 40px !important;
-            min-width: 40px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            border: 1px solid #e8ecf1 !important;
-            border-radius: 12px !important;
-            background: #ffffff !important;
-            color: #1f2937 !important;
-            box-shadow: none !important;
-            font-size: 20px !important;
-          }
-
-          body main.dashboard-shell .dashboard-mobile-filter-toggle {
-            width: 40px !important;
-            min-width: 40px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            cursor: pointer !important;
-          }
-
-          body main.dashboard-shell .dashboard-sidebar-backdrop.open {
-            position: fixed !important;
-            inset: 0 !important;
-            z-index: 900 !important;
-            display: block !important;
-            background: rgba(15, 23, 42, 0.52) !important;
-          }
-
-          body main.dashboard-shell .dashboard-sidebar-close {
-            position: absolute !important;
-            top: 14px !important;
-            right: 12px !important;
-            z-index: 2 !important;
-            width: 34px !important;
-            height: 34px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            border: 1px solid #e8ecf1 !important;
-            border-radius: 10px !important;
-            background: #ffffff !important;
-            color: #1f2937 !important;
-          }
-
-          body main.dashboard-shell .topbar-tabs.dashboard-topbar-tabs {
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-            overflow: hidden !important;
-          }
-
-          body main.dashboard-shell .tb-tab.dashboard-topbar-tab:not(.active) {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .tb-tab.dashboard-topbar-tab.active {
-            max-width: 100% !important;
-            padding: 0 8px !important;
-            background: transparent !important;
-            color: #111827 !important;
-            font-size: 17px !important;
-            font-weight: 700 !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-filter-group {
-            position: absolute !important;
-            top: calc(100% + 8px) !important;
-            right: 12px !important;
-            left: 12px !important;
-            z-index: 80 !important;
-            display: none !important;
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
-            padding: 10px !important;
-            border: 1px solid #e8ecf1 !important;
-            border-radius: 14px !important;
-            background: #ffffff !important;
-            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-filter-group.open {
-            display: grid !important;
-          }
-
-          body main.dashboard-shell .tb-divider {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .tb-theme-btn,
-          body main.dashboard-shell .tb-select,
-          body main.dashboard-shell .dashboard-topbar-sender-select {
-            width: 100% !important;
-            max-width: none !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-profile-name {
-            display: none !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-profile-wrap {
-            width: 40px !important;
-            min-width: 40px !important;
-            flex: 0 0 40px !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-profile {
-            width: 40px !important;
-            height: 40px !important;
-            min-width: 40px !important;
-            padding: 0 3px !important;
-          }
-
-          body main.dashboard-shell .dashboard-topbar-dropdown-menu {
-            right: 0 !important;
-            min-width: 220px !important;
-          }
-
-          body main.dashboard-shell .page-body {
-            padding: 16px !important;
-            gap: 16px !important;
-          }
-
-          body main.dashboard-shell .stats-grid,
-          body main.dashboard-shell .stat-strip {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-
-          body main.dashboard-shell .middle-grid,
-          body main.dashboard-shell .grid-3,
-          body main.dashboard-shell .bottom-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          body main.dashboard-shell .workflow-steps {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            row-gap: 16px !important;
-          }
-
-          body main.dashboard-shell .workflow-connector {
-            display: none !important;
-          }
-        }
-
-        @media (max-width: 420px) {
-          body main.dashboard-shell .stats-grid,
-          body main.dashboard-shell .stat-strip,
-          body main.dashboard-shell .workflow-steps {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
-        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar .dashboard-sidebar-nav > nav.dashboard-sidebar-menu {
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 4px !important;
-          overflow-y: auto !important;
-        }
-
-        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar .dashboard-sidebar-stack {
-          flex: 0 0 auto !important;
-          height: auto !important;
-          min-height: 0 !important;
-          padding: 16px 18px 12px !important;
-        }
-
-        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar .dashboard-sidebar-nav {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          padding: 0 18px 12px !important;
-          gap: 0 !important;
-        }
-
-        html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-          flex-direction: row !important;
-          flex-wrap: nowrap !important;
-          align-items: center !important;
-        }
-
-        html body main.dashboard-shell .dashboard-mobile-sidebar-toggle.dashboard-hamburger-button {
-          order: 0 !important;
-        }
-
-        html body main.dashboard-shell .topbar-tabs.dashboard-topbar-tabs {
-          order: 1 !important;
-        }
-
-        html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
-          order: 2 !important;
-          flex-wrap: nowrap !important;
-          align-items: center !important;
-        }
-
-        @media (max-width: 767px) {
-          html body main.dashboard-shell .dashboard-mobile-sidebar-toggle.dashboard-hamburger-button {
-            position: static !important;
-            flex: 0 0 40px !important;
-          }
-
-          html body main.dashboard-shell .topbar-tabs.dashboard-topbar-tabs {
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-          }
-
-          html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
-            width: auto !important;
-            min-width: 0 !important;
-            flex: 0 0 auto !important;
-            margin-left: auto !important;
-          }
-        }
-
-        @media (min-width: 768px) and (max-width: 1199px) {
-          html body main.dashboard-shell > aside.sidebar.dashboard-sidebar .dashboard-sidebar-stack {
-            display: none !important;
-          }
-
-          html body main.dashboard-shell > aside.sidebar.dashboard-sidebar .dashboard-sidebar-nav {
-            padding: 8px 0 12px !important;
-          }
-        }
-
-        html body main.dashboard-shell {
-          --dash-sidebar-width: 232px !important;
-          --dash-tablet-sidebar-width: 64px !important;
-          --dash-mobile-sidebar-width: min(232px, 88vw) !important;
-          --dash-topbar-height: 56px !important;
-        }
-
-        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          bottom: 0 !important;
-          width: var(--dash-sidebar-width) !important;
-          min-width: var(--dash-sidebar-width) !important;
-          max-width: var(--dash-sidebar-width) !important;
-          height: 100vh !important;
-          z-index: 1000 !important;
-        }
-
-        html body main.dashboard-shell > div.main.dashboard-main {
-          width: calc(100% - var(--dash-sidebar-width)) !important;
-          max-width: calc(100% - var(--dash-sidebar-width)) !important;
-          min-width: 0 !important;
-          margin-left: var(--dash-sidebar-width) !important;
-          padding-top: var(--dash-topbar-height) !important;
-          position: relative !important;
-          left: 0 !important;
-          transform: none !important;
-        }
-
-        html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-          position: fixed !important;
-          top: 0 !important;
-          left: var(--dash-sidebar-width) !important;
-          right: auto !important;
-          width: calc(100% - var(--dash-sidebar-width)) !important;
-          max-width: calc(100% - var(--dash-sidebar-width)) !important;
-          height: var(--dash-topbar-height) !important;
-          min-height: var(--dash-topbar-height) !important;
-          z-index: 950 !important;
-          margin: 0 !important;
-        }
-
-        @media (min-width: 768px) and (max-width: 1199px) {
-          html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-            width: var(--dash-tablet-sidebar-width) !important;
-            min-width: var(--dash-tablet-sidebar-width) !important;
-            max-width: var(--dash-tablet-sidebar-width) !important;
-          }
-
-          html body main.dashboard-shell > div.main.dashboard-main {
-            width: calc(100% - var(--dash-tablet-sidebar-width)) !important;
-            max-width: calc(100% - var(--dash-tablet-sidebar-width)) !important;
-            margin-left: var(--dash-tablet-sidebar-width) !important;
-          }
-
-          html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-            left: var(--dash-tablet-sidebar-width) !important;
-            width: calc(100% - var(--dash-tablet-sidebar-width)) !important;
-            max-width: calc(100% - var(--dash-tablet-sidebar-width)) !important;
-          }
-        }
-
-        @media (max-width: 767px) {
-          html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
-            width: var(--dash-mobile-sidebar-width) !important;
-            min-width: var(--dash-mobile-sidebar-width) !important;
-            max-width: var(--dash-mobile-sidebar-width) !important;
-          }
-
-          html body main.dashboard-shell > div.main.dashboard-main {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-left: 0 !important;
-          }
-
-          html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar {
-            left: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-        }
-      `}</style>
+    <main className="dashboard-shell">
       <div
-        className={`dashboard-sidebar-backdrop ${sidebarOpen && isMobileViewport ? 'open' : ''}`}
+        className={`dashboard-sidebar-backdrop ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
       />
       <button
         type="button"
-        className="dashboard-legacy-sidebar-toggle"
+        className="dashboard-mobile-sidebar-toggle dashboard-hamburger-button"
         onClick={() => setSidebarOpen(true)}
         aria-label="Open navigation menu"
       >
-        â˜°
+        ☰
       </button>
-      <aside className={`sidebar dashboard-sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
+      <aside className={`dashboard-sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
           <div className="dashboard-sidebar-card">
             <button
               type="button"
@@ -5043,50 +3632,45 @@ const normalizeSelectedListEmails = async () => {
               onClick={() => setSidebarOpen(false)}
               aria-label="Close navigation menu"
             >
-              Ã—
+              ×
             </button>
-            <div className="sidebar-logo dashboard-brand reference-brand">
-              <div className="logo-mark" aria-hidden="true"><i className="ti ti-mail-bolt" /></div>
-              <span className="reference-brand-copy">
-                <strong className="logo-text">IntelliMail</strong>
-                <small className="logo-sub">MAIL PILOT</small>
-              </span>
+            <div className="dashboard-brand">
+              <img
+                src="/intellimailpilot-logo.png"
+                alt="Intelli Mail Pilot"
+                className="dashboard-brand-logo"
+              />
             </div>
 
           <div className="dashboard-sidebar-stack">
-            <div className={`sidebar-search dashboard-sidebar-search ${normalizedSearchQuery ? 'active' : ''}`}>
-              <div className="search-wrap">
-              <i className="ti ti-search si-icon" aria-hidden="true" />
+            <div className={`dashboard-topbar-search dashboard-sidebar-search ${normalizedSearchQuery ? 'active' : ''}`}>
+              <span className="dashboard-topbar-search-icon">⌕</span>
               <input
-                className="search-input"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 aria-label="Search"
-                placeholder="Search anything..."
+                placeholder="Search"
               />
             </div>
-            </div>
+            {SIDEBAR_PRIMARY_ITEMS.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`dashboard-primary-link ${item.tone}`}
+                onClick={(event) => openSidebarBlankView(item, event)}
+              >
+                <span className="dashboard-link-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
           </div>
-          <div className="dashboard-sidebar-nav">
+          <div className="dashboard-sidebar-nav" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #e5e7eb' }}>
             <nav className="dashboard-sidebar-menu">
-              <div className="nav-section-label reference-nav-label">Main</div>
-              {SIDEBAR_PRIMARY_ITEMS.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className={`nav-item dashboard-primary-link ${item.tone} ${(!activeSidebarView && item.label === 'Dashboard') || activeSidebarView === item.label ? 'active' : ''}`}
-                  onClick={(event) => openSidebarBlankView(item, event)}
-                >
-                  <i className={`ti ${getSidebarIconClass(item.label)} dashboard-link-icon`} aria-hidden="true" />
-                  <span>{item.label}</span>
-                </a>
-              ))}
-              <div className="nav-section-label reference-nav-label">Campaigns</div>
               {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
             </nav>
             <div
-              className={`plan-card dashboard-upgrade-card dashboard-subscription-card usage-${profileCredits.warningLevel || 'healthy'}`}
+              className={`dashboard-upgrade-card dashboard-subscription-card usage-${profileCredits.warningLevel || 'healthy'}`}
               role="button"
               tabIndex={0}
               onClick={openSubscriptionDetails}
@@ -5098,59 +3682,64 @@ const normalizeSelectedListEmails = async () => {
               }}
               aria-label="Open subscription and credit details"
             >
-              <div className="plan-header">
-                <span className="plan-name">Basic Plan</span>
-                <span className="plan-tag">Active</span>
+              <div className="dashboard-upgrade-head">
+                <span className="dashboard-upgrade-icon" aria-hidden="true">↯</span>
+                <strong>Upgrade plan</strong>
+                <span className="dashboard-upgrade-refresh" aria-hidden="true">↻</span>
               </div>
-              <div className="plan-credits">300</div>
-              <div className="plan-credits-label">credits remaining</div>
-              <div className="dashboard-upgrade-meta reference-plan-meta">
-                <span>Basic · Free forever</span>
+              <div className="dashboard-upgrade-credit-strip">
+                <span>
+                  <small>{profileCredits.planName || 'Basic'} plan</small>
+                  <strong>{Number(profileCredits.remainingCredits || 0).toLocaleString()} credits left</strong>
+                </span>
+                <em>{Number(profileCredits.remainingCredits || 0) <= 0 ? 'Empty' : 'Active'}</em>
+              </div>
+              <div className="dashboard-upgrade-meta">
+                <span>
+                  <small>Current plan</small>
+                  <strong>{profileCredits.planName || 'Basic'}</strong>
+                  <b>Free forever</b>
+                </span>
+                <span>
+                  <small>Next plan</small>
+                  <strong>{profileCredits.upgradeTargetPlan || 'Starter'}</strong>
+                  <b>{Number(profileCredits.upgradeTargetDailyLimit || profileCredits.dailyLimit || 500).toLocaleString()} credits</b>
+                </span>
               </div>
               <button
                 type="button"
-                className="upgrade-btn dashboard-upgrade-button"
+                className="dashboard-upgrade-button"
                 onClick={(event) => {
                   event.stopPropagation();
                   handleUpgradePlan();
                 }}
               >
-                Pending Enterprise
+                {profileCredits.upgradeRequestPending
+                  ? `Pending ${profileCredits.requestedUpgradePlan || profileCredits.upgradeTargetPlan}`
+                  : profileCredits.upgradeTargetPlan && profileCredits.upgradeTargetPlan !== profileCredits.planName
+                  ? `Upgrade to ${profileCredits.upgradeTargetPlan || 'Starter'}`
+                  : 'Manage Plan'} <span aria-hidden="true">→</span>
               </button>
             </div>
 
-            <div className="user-row reference-sidebar-user">
-              <div className="user-avatar">AM</div>
-              <div className="user-copy">
-                <strong className="user-name">Akshay More</strong>
-                <small className="user-plan">Basic · Free forever</small>
-              </div>
-              <div className="user-actions">
-                <button type="button" className="icon-btn user-icon-btn" onClick={() => router.push('/dashboard/user/profile/settings')} aria-label="Settings"><i className="ti ti-settings" /></button>
-                <button type="button" className="icon-btn user-icon-btn" onClick={logout} aria-label="Log out"><i className="ti ti-logout" /></button>
-              </div>
-            </div>
+            <button type="button" className="dashboard-logout-link" onClick={logout}>
+              <span aria-hidden="true" style={{ width: 28, height: 28, flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ visibility: 'hidden' }}>Log out</span>
+              <span className="dashboard-logout-text">Log out</span>
+            </button>
           </div>
         </div>
       </aside>
 
-      <div className="main dashboard-main">
+      <div className="container grid dashboard-main">
       <div id="dashboard-top" />
-      <header className="topbar dashboard-topbar">
-        <button
-          type="button"
-          className="dashboard-mobile-sidebar-toggle dashboard-hamburger-button"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open navigation menu"
-        >
-          <i className="ti ti-menu-2" aria-hidden="true" />
-        </button>
-        <div className="topbar-tabs dashboard-topbar-tabs">
+      <section className="dashboard-topbar">
+        <div className="dashboard-topbar-tabs">
           {TOP_NAV_ITEMS.map((item) => (
             <button
               key={item.label}
               type="button"
-              className={`tb-tab dashboard-topbar-tab ${activeTopNav === item.label ? 'active' : ''}`}
+              className={`dashboard-topbar-tab ${activeTopNav === item.label ? 'active' : ''}`}
               onClick={() => handleTopNavSelect(item)}
             >
               {item.label}
@@ -5158,68 +3747,98 @@ const normalizeSelectedListEmails = async () => {
           ))}
         </div>
 
-        <div className="topbar-actions dashboard-topbar-actions">
+        <div className={`dashboard-topbar-search ${normalizedSearchQuery ? 'active' : ''}`}>
+          <span className="dashboard-topbar-search-icon">⌕</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search"
+            placeholder="Search"
+          />
+        </div>
+
+        <div className="dashboard-topbar-actions">
+          <ThemeToggle className="dashboard-theme-toggle" buttonLabel="Theme" />
           <button
             type="button"
-            className="dashboard-mobile-filter-toggle"
-            onClick={() => setShowMobileFilters((current) => !current)}
-            aria-label="Open dashboard filters"
-            aria-expanded={showMobileFilters}
+            className="dashboard-topbar-pill dashboard-topbar-range-pill"
+            onClick={() => setShowTopbarRangeDropdown((prev) => !prev)}
+            aria-haspopup="dialog"
+            aria-expanded={showTopbarRangeDropdown}
           >
-            <i className="ti ti-adjustments-horizontal" aria-hidden="true" />
+            <span className="dashboard-topbar-pill-label">Select Date</span>
           </button>
-          <div
-            ref={topbarMobileFiltersRef}
-            className={`dashboard-topbar-filter-group ${showMobileFilters ? 'open' : ''}`}
-          >
-          <select
-            className="tb-select dashboard-topbar-date-select"
-            value={selectedStatsRange || ''}
-            onChange={(event) => applyRangeSelection(event.target.value)}
-          >
-            <option value="">Select Date</option>
-            {SUMMARY_RANGES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-            {userRangeOptions.map((item) => (
-              <option key={item.value} value={item.baseValue || '7d'}>{item.label}</option>
-            ))}
-          </select>
-
-          <select
-            className="tb-select dashboard-topbar-project-select"
-            value={project || ''}
-            onChange={(event) => {
-              if (event.target.value === '__add__') {
-                addProjectOption();
-                return;
-              }
-              selectProject(event.target.value);
-            }}
-          >
-            <option value="">Select Project</option>
-            {projectOptions.map((item) => (
-              <option key={item} value={item}>{item.toUpperCase()}</option>
-            ))}
-            <option value="__add__">Add Project</option>
-          </select>
-
-          <select
-            className="tb-select dashboard-topbar-sender-select"
-            value={selectedAccount || ''}
-            onChange={(event) => {
-              if (!event.target.value) return;
-              selectTopbarMail(event.target.value);
-            }}
-          >
-            <option value="">Select Sender</option>
-            {projectAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.from}</option>
-            ))}
-            <option value="__oauth_add__">Add New Mail</option>
-          </select>
+          <div className="dashboard-topbar-dropdown" ref={topbarProjectDropdownRef}>
+            <button
+              type="button"
+              className={`badge dashboard-topbar-select-trigger ${project ? 'sent' : 'failed'}`}
+              onClick={() => setShowTopbarProjectDropdown((prev) => !prev)}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.25, cursor: 'pointer' }}
+            >
+              <span>{project ? String(project).toUpperCase() : 'Select Project'}</span>
+            </button>
+            {showTopbarProjectDropdown ? (
+              <div className="dashboard-topbar-dropdown-menu">
+                {projectOptions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`dashboard-topbar-dropdown-item ${project === item ? 'active' : ''}`}
+                    onClick={() => selectProject(item)}
+                  >
+                    {item.toUpperCase()}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={addProjectOption}
+                >
+                  Add Project
+                </button>
+              </div>
+            ) : null}
           </div>
-          <div className="dashboard-topbar-profile-wrap" ref={topbarProfileDropdownRef}>
+          <div className="dashboard-topbar-dropdown dashboard-topbar-mail-dropdown" ref={topbarMailDropdownRef}>
+            <button
+              type="button"
+              className={`badge dashboard-topbar-select-trigger dashboard-topbar-mail-trigger ${activeAccount ? 'sent' : 'failed'}`}
+              onClick={() => setShowTopbarMailDropdown((prev) => !prev)}
+              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.25, cursor: 'pointer' }}
+            >
+              <span>{selectedAccountLabel}</span>
+            </button>
+            {showTopbarMailDropdown ? (
+              <div
+                className="dashboard-topbar-dropdown-menu dashboard-topbar-mail-menu"
+                style={{ maxHeight: 'min(58vh, 420px)', overflowY: 'auto', overflowX: 'hidden' }}
+              >
+                {projectAccounts.length ? projectAccounts.map((account) => (
+                  <button
+                    key={account.id}
+                    type="button"
+                    className={`dashboard-topbar-dropdown-item dashboard-topbar-mail-item ${selectedAccount === account.id ? 'active' : ''}`}
+                    onClick={() => selectTopbarMail(account.id)}
+                  >
+                    {account.from}
+                  </button>
+                )) : (
+                  <div className="dashboard-topbar-dropdown-item" style={{ cursor: 'default', pointerEvents: 'none' }}>
+                    No sender IDs added for this project.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={() => selectTopbarMail('__oauth_add__')}
+                >
+                  Add New Mail
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div className="dashboard-topbar-profile-wrap" style={{ position: 'relative' }}>
             <button
               type="button"
               className="dashboard-topbar-profile"
@@ -5256,7 +3875,8 @@ const normalizeSelectedListEmails = async () => {
                   type="button"
                   className="dashboard-topbar-dropdown-item"
                   onClick={() => {
-                    topbarProfilePhotoInputRef.current?.click();
+                    setShowTopbarProfileDropdown(false);
+                    router.push('/dashboard/user/profile');
                   }}
                 >
                   Add Profile Photo
@@ -5313,10 +3933,12 @@ const normalizeSelectedListEmails = async () => {
                 </button>
                 <button
                   type="button"
-                  className="dashboard-topbar-dropdown-item logout"
-                  onClick={() => {
+                  className="dashboard-topbar-dropdown-item add"
+                  onClick={async () => {
                     setShowTopbarProfileDropdown(false);
-                    logout();
+                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+                    router.push('/login');
+                    router.refresh();
                   }}
                 >
                   Log out
@@ -5325,7 +3947,7 @@ const normalizeSelectedListEmails = async () => {
             ) : null}
           </div>
         </div>
-      </header>
+      </section>
       {showTopbarRangeDropdown && typeof window !== 'undefined'
         ? createPortal(
             <div className="dashboard-popup-backdrop" onClick={() => setShowTopbarRangeDropdown(false)}>
@@ -5346,7 +3968,7 @@ const normalizeSelectedListEmails = async () => {
                 onClick={() => setShowTopbarRangeDropdown(false)}
                 aria-label="Close timeframe popup"
               >
-                Ã— Close
+                × Close
               </button>
             </div>
 
@@ -5431,7 +4053,7 @@ const normalizeSelectedListEmails = async () => {
                 onClick={() => setShowCustomRangePopup(false)}
                 aria-label="Close custom range popup"
               >
-                Ã— Close
+                × Close
               </button>
             </div>
             <div className="dashboard-range-summary">
@@ -5486,7 +4108,7 @@ const normalizeSelectedListEmails = async () => {
             <p>{toast.message}</p>
           </div>
           <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">
-            Ã— Close
+            × Close
           </button>
         </div>
       ) : null}
@@ -5502,7 +4124,7 @@ const normalizeSelectedListEmails = async () => {
                     <p>{profileUser.email || 'Current user'} has a separate daily mail limit.</p>
                   </div>
                   <button type="button" onClick={() => setShowSubscriptionDetails(false)} aria-label="Close subscription details">
-                    Ã—
+                    ×
                   </button>
                 </div>
 
@@ -5593,7 +4215,7 @@ const normalizeSelectedListEmails = async () => {
                   <button type="button" className="ghost subtle" onClick={() => setShowSubscriptionDetails(false)}>Close</button>
                   <button
                     type="button"
-                    className="upgrade-btn dashboard-upgrade-button"
+                    className="dashboard-upgrade-button"
                     onClick={() => {
                       setShowSubscriptionDetails(false);
                       handleUpgradePlan();

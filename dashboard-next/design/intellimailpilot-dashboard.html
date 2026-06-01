@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntelliMailPilot — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --slate-50: #f8f9fb;
+    --slate-100: #f0f2f5;
+    --slate-200: #e4e8ee;
+    --slate-300: #cbd2dc;
+    --slate-400: #9aa5b4;
+    --slate-500: #6b7787;
+    --slate-600: #4a5568;
+    --slate-700: #374151;
+    --slate-800: #1f2937;
+    --slate-900: #111827;
+
+    --indigo-50: #eef0fd;
+    --indigo-100: #d5d9f8;
+    --indigo-200: #b3b9f1;
+    --indigo-400: #7b83e6;
+    --indigo-500: #5461dc;
+    --indigo-600: #3d4bc8;
+    --indigo-700: #2f3aaa;
+
+    --emerald-50: #ecfdf5;
+    --emerald-100: #d1fae5;
+    --emerald-500: #10b981;
+    --emerald-600: #059669;
+
+    --amber-50: #fffbeb;
+    --amber-100: #fef3c7;
+    --amber-500: #f59e0b;
+    --amber-600: #d97706;
+
+    --rose-50: #fff1f2;
+    --rose-100: #ffe4e6;
+    --rose-500: #f43f5e;
+    --rose-600: #e11d48;
+
+    --sky-50: #f0f9ff;
+    --sky-100: #e0f2fe;
+    --sky-500: #0ea5e9;
+
+    --sidebar-w: 232px;
+    --header-h: 56px;
+    --font: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'DM Mono', monospace;
+
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #f8f9fb;
+    --border: #e8ecf1;
+    --border-subtle: #f0f2f5;
+    --text-1: #111827;
+    --text-2: #4a5568;
+    --text-3: #9aa5b4;
+    --accent: #4f5bd5;
+    --accent-light: #eef0fd;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ─── SIDEBAR ─────────────────────────────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .sidebar-logo {
+    padding: 18px 20px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #4f5bd5 0%, #667eea 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark i { color: #fff; font-size: 16px; }
+  .logo-text { font-size: 15px; font-weight: 600; color: var(--text-1); line-height: 1.2; }
+  .logo-sub { font-size: 10px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .sidebar-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 7px 10px 7px 32px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: var(--font);
+    outline: none;
+    position: relative;
+  }
+  .search-wrap { position: relative; }
+  .search-wrap .si-icon {
+    position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    color: var(--text-3); font-size: 14px; pointer-events: none;
+  }
+  .search-input:focus { border-color: var(--accent); background: #fff; }
+  .search-input::placeholder { color: var(--text-3); }
+
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 20px 4px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 13.5px;
+    font-weight: 400;
+    transition: background 0.15s, color 0.15s;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text-1); }
+  .nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+  .nav-item i { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+  .nav-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--border);
+    color: var(--text-2);
+    padding: 1px 7px;
+    border-radius: 20px;
+  }
+  .nav-badge.warm { background: var(--amber-100); color: var(--amber-600); }
+
+  .sidebar-footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 14px 16px;
+    flex-shrink: 0;
+  }
+  .plan-card {
+    background: var(--accent-light);
+    border: 1px solid #d5d9f8;
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .plan-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .plan-name { font-size: 12px; font-weight: 600; color: var(--accent); }
+  .plan-tag {
+    font-size: 10px; font-weight: 600;
+    background: #fee2e2; color: #dc2626;
+    padding: 2px 6px; border-radius: 4px;
+  }
+  .plan-credits { font-size: 22px; font-weight: 600; color: var(--text-1); line-height: 1; }
+  .plan-credits-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .upgrade-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background 0.15s;
+    margin-bottom: 8px;
+  }
+  .upgrade-btn:hover { background: var(--indigo-700); }
+  .user-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 4px;
+  }
+  .user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--indigo-500);
+    color: #fff; font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .user-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .user-plan { font-size: 11px; color: var(--text-3); }
+  .user-actions { margin-left: auto; display: flex; gap: 4px; }
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    border: none; background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-3); transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text-2); }
+  .icon-btn i { font-size: 15px; }
+
+  /* ─── MAIN AREA ──────────────────────────── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── TOPBAR ─────────────────────────────── */
+  .topbar {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar-tabs {
+    display: flex; align-items: center; gap: 2px;
+    flex: 1;
+  }
+  .tb-tab {
+    padding: 5px 14px;
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    border: none;
+    background: transparent;
+    font-family: var(--font);
+  }
+  .tb-tab:hover { background: var(--surface-2); color: var(--text-1); }
+  .tb-tab.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+  .tb-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text-2);
+    background: var(--surface);
+    font-family: var(--font);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa5b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .tb-select:focus { border-color: var(--accent); }
+  .tb-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .tb-theme-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text-2);
+    background: var(--surface);
+    cursor: pointer;
+    font-family: var(--font);
+  }
+  .tb-theme-btn i { font-size: 14px; }
+
+  /* ─── PAGE BODY ──────────────────────────── */
+  .page-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ─── STAT STRIP ─────────────────────────── */
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: box-shadow 0.15s;
+    cursor: default;
+  }
+  .stat-card:hover { box-shadow: var(--shadow-sm); }
+  .stat-top { display: flex; align-items: center; justify-content: space-between; }
+  .stat-label { font-size: 12px; color: var(--text-3); font-weight: 400; }
+  .stat-icon { width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+  .stat-icon i { font-size: 14px; }
+  .stat-value { font-size: 22px; font-weight: 600; color: var(--text-1); line-height: 1; }
+  .stat-pct { font-size: 12px; color: var(--text-3); }
+  .stat-ring { position: relative; }
+  svg.ring { width: 32px; height: 32px; }
+  .si-total .stat-icon { background: #eef0fd; color: #4f5bd5; }
+  .si-sent .stat-icon { background: #ecfdf5; color: #059669; }
+  .si-pending .stat-icon { background: #fffbeb; color: #d97706; }
+  .si-failed .stat-icon { background: #fff1f2; color: #e11d48; }
+  .si-bounced .stat-icon { background: #f0f9ff; color: #0ea5e9; }
+  .si-spam .stat-icon { background: #fdf4ff; color: #a855f7; }
+
+  /* ─── SECTION HEADER ─────────────────────── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .section-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+  .section-link {
+    font-size: 12.5px; color: var(--accent); font-weight: 500;
+    text-decoration: none; display: flex; align-items: center; gap: 4px;
+  }
+  .section-link:hover { text-decoration: underline; }
+
+  /* ─── CAMPAIGN WORKFLOW ───────────────────── */
+  .workflow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 20px 22px;
+  }
+  .workflow-steps {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .workflow-connector {
+    position: absolute;
+    top: 24px;
+    left: calc(100% / 14);
+    right: calc(100% / 14);
+    height: 1px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .step-item {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 0 6px;
+    position: relative;
+    z-index: 1;
+    cursor: pointer;
+  }
+  .step-circle {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: var(--text-3);
+    transition: all 0.2s;
+    position: relative;
+  }
+  .step-circle i { font-size: 18px; }
+  .step-item:hover .step-circle { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .step-item.active .step-circle { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .step-item.done .step-circle { background: var(--emerald-500); border-color: var(--emerald-500); color: #fff; }
+  .step-num {
+    position: absolute; top: -5px; right: -5px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--surface); border: 1.5px solid var(--border);
+    font-size: 9px; font-weight: 700; color: var(--text-3);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-item.active .step-num, .step-item.done .step-num { border-color: transparent; }
+  .step-item.active .step-num { background: var(--accent); color: #fff; }
+  .step-item.done .step-num { background: var(--emerald-500); color: #fff; }
+  .step-content { text-align: center; }
+  .step-name { font-size: 12px; font-weight: 500; color: var(--text-1); margin-bottom: 4px; }
+  .step-action {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    background: var(--surface);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .step-item:hover .step-action,
+  .step-item.active .step-action { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .step-item.done .step-action { border-color: var(--emerald-500); color: var(--emerald-600); background: var(--emerald-50); }
+
+  /* ─── GRID 3-PANEL ───────────────────────── */
+  .grid-3 { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 16px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 18px 20px;
+    display: flex; flex-direction: column;
+  }
+
+  /* ─── TARGET PANEL ───────────────────────── */
+  .target-selector { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .target-label { font-size: 13px; font-weight: 500; color: var(--text-1); flex: 1; }
+  .mini-select {
+    padding: 4px 24px 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px; color: var(--text-2);
+    background: var(--surface);
+    font-family: var(--font);
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239aa5b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  .target-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tg-item {
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+  }
+  .tg-lbl { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
+  .tg-val { font-size: 20px; font-weight: 700; color: var(--text-1); line-height: 1; }
+  .tg-val.highlight { color: var(--accent); }
+  .tg-val.danger { color: var(--rose-500); }
+  .tg-val.warn { color: var(--amber-500); }
+  .tg-val.success { color: var(--emerald-500); }
+  .tg-sub { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  .target-period-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px; margin-top: 12px;
+  }
+
+  /* ─── CALENDAR PANEL ────────────────────── */
+  .cal-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+  }
+  .cal-month { font-size: 14px; font-weight: 600; color: var(--text-1); }
+  .cal-nav-btns { display: flex; gap: 4px; }
+  .cal-nav { width: 26px; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .cal-nav:hover { background: var(--surface-2); color: var(--text-2); }
+  .cal-nav i { font-size: 13px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-day-name { font-size: 10px; font-weight: 600; color: var(--text-3); text-align: center; padding: 4px 0; text-transform: uppercase; letter-spacing: 0.05em; }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; border-radius: 6px;
+    color: var(--text-2); cursor: pointer; transition: background 0.12s;
+  }
+  .cal-day:hover { background: var(--surface-2); }
+  .cal-day.other-month { color: var(--text-3); }
+  .cal-day.today { background: var(--accent); color: #fff; font-weight: 600; }
+  .cal-day.has-event { position: relative; }
+  .cal-day.has-event::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--emerald-500); }
+  .cal-day.today::after { background: rgba(255,255,255,0.7); }
+
+  /* ─── INBOX PANEL ────────────────────────── */
+  .inbox-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
+  }
+  .inbox-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .inbox-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--indigo-100); color: var(--indigo-600);
+    font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .inbox-text { flex: 1; min-width: 0; }
+  .inbox-sender { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .inbox-preview { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .inbox-time { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+  .inbox-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 12px; }
+
+  /* ─── WRITE NOTE ─────────────────────────── */
+  .note-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .note-input {
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 8px 10px; font-size: 13px; color: var(--text-1);
+    font-family: var(--font); background: var(--surface-2); outline: none;
+  }
+  .note-input:focus { border-color: var(--accent); background: #fff; }
+  .note-input::placeholder { color: var(--text-3); }
+  .note-textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 8px 10px; font-size: 13px; color: var(--text-1);
+    font-family: var(--font); background: var(--surface-2); outline: none;
+    resize: none; min-height: 70px;
+    margin-bottom: 10px;
+  }
+  .note-textarea:focus { border-color: var(--accent); background: #fff; }
+  .note-footer { display: flex; align-items: center; justify-content: space-between; }
+  .note-fields-count { font-size: 11px; color: var(--text-3); }
+  .note-btns { display: flex; gap: 6px; }
+  .btn-ghost {
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-md); font-size: 12px; font-weight: 500;
+    color: var(--text-2); background: var(--surface); cursor: pointer;
+    font-family: var(--font); transition: all 0.12s;
+  }
+  .btn-ghost:hover { border-color: var(--slate-300); color: var(--text-1); }
+  .btn-primary {
+    padding: 6px 14px; border: none;
+    border-radius: var(--radius-md); font-size: 12px; font-weight: 500;
+    color: #fff; background: var(--accent); cursor: pointer;
+    font-family: var(--font); transition: background 0.12s;
+  }
+  .btn-primary:hover { background: var(--indigo-700); }
+
+  /* ─── BROADCAST TABLE ────────────────────── */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+  }
+  .table-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .table-title { font-size: 15px; font-weight: 600; color: var(--text-1); margin-right: 8px; }
+  .tab-pill {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    color: var(--text-2); border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer; font-family: var(--font);
+    transition: all 0.12s;
+  }
+  .tab-pill:hover { background: var(--surface-2); }
+  .tab-pill.active { background: var(--accent-light); color: var(--accent); border-color: #d5d9f8; font-weight: 500; }
+  .table-search {
+    flex: 1; min-width: 180px;
+    padding: 6px 10px 6px 32px;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    font-size: 13px; color: var(--text-1); background: var(--surface-2);
+    font-family: var(--font); outline: none;
+  }
+  .table-search:focus { border-color: var(--accent); background: #fff; }
+  .table-search::placeholder { color: var(--text-3); }
+  .search-wrapper { position: relative; flex: 1; min-width: 180px; }
+  .search-wrapper .si { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 14px; pointer-events: none; }
+  .action-center-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-md); font-size: 12px; font-weight: 500;
+    color: var(--text-2); background: var(--surface); cursor: pointer;
+    font-family: var(--font); margin-left: auto;
+  }
+  .action-center-btn i { font-size: 14px; }
+  .action-center-btn:hover { background: var(--surface-2); }
+
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table thead tr { border-bottom: 1px solid var(--border-subtle); }
+  .data-table th {
+    padding: 10px 12px; text-align: left;
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.07em;
+    white-space: nowrap;
+  }
+  .data-table th:first-child { padding-left: 20px; width: 40px; }
+  .data-table td {
+    padding: 11px 12px;
+    font-size: 13px; color: var(--text-2);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .data-table td:first-child { padding-left: 20px; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: var(--surface-2); }
+  .data-table input[type="checkbox"] { accent-color: var(--accent); }
+
+  .campaign-link { color: var(--text-1); font-weight: 500; text-decoration: none; }
+  .campaign-link:hover { color: var(--accent); }
+  .tag-pill {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .tag-completed { background: var(--emerald-50); color: var(--emerald-600); }
+  .tag-pending { background: var(--amber-50); color: var(--amber-600); }
+  .tag-running { background: var(--sky-50); color: var(--sky-500); }
+  .country-tag {
+    background: var(--surface-2);
+    color: var(--text-2);
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px;
+  }
+  .table-action-btn {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer; color: var(--text-3);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.12s;
+  }
+  .table-action-btn:hover { background: var(--surface-2); color: var(--text-2); }
+  .table-footer {
+    padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .tf-left { display: flex; align-items: center; gap: 8px; }
+  .tf-left label { font-size: 12px; color: var(--text-3); }
+  .pagination { display: flex; align-items: center; gap: 2px; }
+  .page-btn {
+    min-width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid transparent; background: transparent;
+    font-size: 12px; color: var(--text-2); cursor: pointer; font-family: var(--font);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .page-btn:hover { background: var(--surface-2); }
+  .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .page-btn.arrow { color: var(--text-3); font-size: 13px; }
+
+  .empty-row td {
+    color: var(--text-3) !important;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ─── BOTTOM GRID ────────────────────────── */
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* ─── ACTIVITY TIMELINE ──────────────────── */
+  .activity-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+  }
+  .activity-count {
+    font-size: 18px; font-weight: 700; color: var(--text-1);
+  }
+  .activity-desc { font-size: 12px; color: var(--text-3); flex: 1; }
+  .activity-list { display: flex; flex-direction: column; gap: 0; }
+  .activity-section-label {
+    font-size: 10px; color: var(--text-3); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 8px 0 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .activity-section-label::before {
+    content: ''; flex: 1; height: 1px; background: var(--border-subtle);
+  }
+  .activity-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border-subtle); cursor: pointer;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot-col { display: flex; flex-direction: column; align-items: center; padding-top: 3px; }
+  .activity-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .activity-dot.success { background: var(--emerald-500); }
+  .activity-dot.pending { background: var(--amber-500); }
+  .activity-dot.failed { background: var(--rose-500); }
+  .activity-text { flex: 1; min-width: 0; }
+  .activity-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .activity-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .activity-stats { font-size: 11px; color: var(--text-2); margin-top: 4px; }
+  .activity-status-badge {
+    font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .ab-completed { background: var(--emerald-50); color: var(--emerald-600); }
+  .ab-running { background: var(--sky-50); color: var(--sky-500); }
+  .ab-pending { background: var(--amber-50); color: var(--amber-600); }
+  .add-task-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-md); font-size: 12px; font-weight: 500;
+    color: var(--text-2); background: var(--surface); cursor: pointer;
+    font-family: var(--font);
+  }
+  .add-task-btn:hover { background: var(--surface-2); }
+  .add-task-btn i { font-size: 13px; }
+
+  /* ─── WORKSPACE OVERVIEW ─────────────────── */
+  .ws-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .ws-stat {
+    background: var(--surface-2);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+  }
+  .ws-stat-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+  .ws-stat-val { font-size: 26px; font-weight: 700; color: var(--text-1); line-height: 1; }
+  .ws-stat-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .ws-stat-sub .warn { color: var(--rose-500); font-weight: 500; }
+  .ws-stat-sub .ok { color: var(--emerald-600); font-weight: 500; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--slate-300); }
+</style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><i class="ti ti-mail-bolt"></i></div>
+    <div>
+      <div class="logo-text">IntelliMail</div>
+      <div class="logo-sub">Mail Pilot</div>
+    </div>
+  </div>
+
+  <div class="sidebar-search">
+    <div class="search-wrap">
+      <i class="ti ti-search si-icon"></i>
+      <input class="search-input" type="text" placeholder="Search anything…" />
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a class="nav-item active" href="#">
+      <i class="ti ti-layout-dashboard"></i> Dashboard
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-users"></i> Leads
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-files"></i> Draft &amp; Templates
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-inbox"></i> Mailbox
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-mail-cog"></i> Sender Emails
+    </a>
+
+    <div class="nav-section-label">Campaigns</div>
+    <a class="nav-item" href="#">
+      <i class="ti ti-flame"></i> Warm-Up
+      <span class="nav-badge warm">0%</span>
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-speakerphone"></i> Campaigns
+    </a>
+    <a class="nav-item" href="#">
+      <i class="ti ti-chart-line"></i> Report
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="plan-card">
+      <div class="plan-header">
+        <span class="plan-name">Basic Plan</span>
+        <span class="plan-tag">Empty</span>
+      </div>
+      <div class="plan-credits">0</div>
+      <div class="plan-credits-label">credits remaining</div>
+    </div>
+    <button class="upgrade-btn">
+      <i class="ti ti-bolt"></i> Upgrade to Starter
+    </button>
+    <div class="user-row">
+      <div class="user-avatar">AM</div>
+      <div>
+        <div class="user-name">Akshay More</div>
+        <div class="user-plan">Basic · Free forever</div>
+      </div>
+      <div class="user-actions">
+        <button class="icon-btn" title="Settings"><i class="ti ti-settings"></i></button>
+        <button class="icon-btn" title="Log out"><i class="ti ti-logout"></i></button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ─ TOPBAR ──────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-tabs">
+      <button class="tb-tab active">Dashboard</button>
+      <button class="tb-tab">Client Data</button>
+      <button class="tb-tab">Drafts</button>
+      <button class="tb-tab">Campaigns</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="tb-theme-btn"><i class="ti ti-palette"></i> Theme</button>
+      <div class="tb-divider"></div>
+      <select class="tb-select"><option>Select Date</option></select>
+      <select class="tb-select"><option>Select Project</option></select>
+      <select class="tb-select"><option>Select Sender</option></select>
+    </div>
+  </header>
+
+  <!-- ─ PAGE BODY ───────────────────────────────────────── -->
+  <div class="page-body">
+
+    <!-- STAT STRIP -->
+    <div class="stat-strip">
+      <div class="stat-card si-total">
+        <div class="stat-top">
+          <span class="stat-label">Total emails</span>
+          <div class="stat-icon"><i class="ti ti-mail"></i></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div>
+            <div class="stat-value">0</div>
+            <div class="stat-pct">All emails</div>
+          </div>
+          <svg class="ring" viewBox="0 0 36 36" style="margin-left:auto;flex-shrink:0">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#e8ecf1" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#4f5bd5" stroke-width="3"
+              stroke-dasharray="94.2 0" stroke-dashoffset="23.55" stroke-linecap="round"/>
+            <text x="18" y="22" text-anchor="middle" font-size="8" font-weight="600" fill="#4f5bd5" font-family="DM Sans,sans-serif">100%</text>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-card si-sent">
+        <div class="stat-top"><span class="stat-label">Delivered</span><div class="stat-icon"><i class="ti ti-circle-check"></i></div></div>
+        <div class="stat-value">0</div>
+        <div class="stat-pct">0% sent</div>
+      </div>
+      <div class="stat-card si-pending">
+        <div class="stat-top"><span class="stat-label">Waiting to send</span><div class="stat-icon"><i class="ti ti-clock-hour-3"></i></div></div>
+        <div class="stat-value">0</div>
+        <div class="stat-pct">0% pending</div>
+      </div>
+      <div class="stat-card si-failed">
+        <div class="stat-top"><span class="stat-label">Failed</span><div class="stat-icon"><i class="ti ti-circle-x"></i></div></div>
+        <div class="stat-value">0</div>
+        <div class="stat-pct">0% failed</div>
+      </div>
+      <div class="stat-card si-bounced">
+        <div class="stat-top"><span class="stat-label">Bounced</span><div class="stat-icon"><i class="ti ti-arrow-back-up"></i></div></div>
+        <div class="stat-value">0</div>
+        <div class="stat-pct">0% bounce</div>
+      </div>
+      <div class="stat-card si-spam">
+        <div class="stat-top"><span class="stat-label">Spam</span><div class="stat-icon"><i class="ti ti-alert-triangle"></i></div></div>
+        <div class="stat-value">0</div>
+        <div class="stat-pct">0% spam</div>
+      </div>
+    </div>
+
+    <!-- CAMPAIGN WORKFLOW -->
+    <div class="workflow-card">
+      <div class="section-header" style="margin-bottom:18px">
+        <div>
+          <div class="section-title">Campaign Workflow</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px">Complete each step to launch your campaign</div>
+        </div>
+        <button class="btn-ghost" style="font-size:12px;display:flex;align-items:center;gap:5px;"><i class="ti ti-help-circle" style="font-size:14px"></i> How it works</button>
+      </div>
+      <div class="workflow-steps" style="position:relative">
+        <div class="workflow-connector"></div>
+
+        <div class="step-item done">
+          <div class="step-circle"><i class="ti ti-check"></i><div class="step-num">1</div></div>
+          <div class="step-content">
+            <div class="step-name">Upload List</div>
+            <button class="step-action">Upload List</button>
+          </div>
+        </div>
+        <div class="step-item done">
+          <div class="step-circle"><i class="ti ti-check"></i><div class="step-num">2</div></div>
+          <div class="step-content">
+            <div class="step-name">Review</div>
+            <button class="step-action">Review List</button>
+          </div>
+        </div>
+        <div class="step-item active">
+          <div class="step-circle"><i class="ti ti-speakerphone"></i><div class="step-num">3</div></div>
+          <div class="step-content">
+            <div class="step-name">Campaign</div>
+            <button class="step-action">Campaign</button>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-circle"><i class="ti ti-file-text"></i><div class="step-num">4</div></div>
+          <div class="step-content">
+            <div class="step-name">Drafts</div>
+            <button class="step-action">Select Draft</button>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-circle"><i class="ti ti-layout-list"></i><div class="step-num">5</div></div>
+          <div class="step-content">
+            <div class="step-name">Draft Summary</div>
+            <button class="step-action">Summary</button>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-circle"><i class="ti ti-test-pipe"></i><div class="step-num">6</div></div>
+          <div class="step-content">
+            <div class="step-name">Test Email</div>
+            <button class="step-action">Test</button>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-circle"><i class="ti ti-calendar-event"></i><div class="step-num">7</div></div>
+          <div class="step-content">
+            <div class="step-name">Schedule</div>
+            <button class="step-action">Schedule</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-PANEL ROW -->
+    <div class="grid-3">
+
+      <!-- TARGET PANEL -->
+      <div class="panel">
+        <div class="target-selector">
+          <span class="target-label">Sending Target</span>
+          <select class="mini-select"><option>Daily</option><option>Weekly</option><option>Monthly</option></select>
+        </div>
+        <div class="target-grid">
+          <div class="tg-item">
+            <div class="tg-lbl">Target</div>
+            <div class="tg-val highlight">300</div>
+          </div>
+          <div class="tg-item">
+            <div class="tg-lbl">Sent</div>
+            <div class="tg-val success">0</div>
+          </div>
+          <div class="tg-item">
+            <div class="tg-lbl">Remaining</div>
+            <div class="tg-val danger">300</div>
+          </div>
+          <div class="tg-item">
+            <div class="tg-lbl">Period</div>
+            <div class="tg-val" style="font-size:15px;line-height:1.2;color:var(--text-1)">Today</div>
+          </div>
+          <div class="tg-item">
+            <div class="tg-lbl">Progress</div>
+            <div class="tg-val danger">0%</div>
+          </div>
+          <div class="tg-item">
+            <div class="tg-lbl">Mailed</div>
+            <div class="tg-val">0</div>
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Left · 300 mails pending</div>
+          <div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.3s"></div>
+          </div>
+        </div>
+        <div class="target-period-badge" style="margin-top:10px"><i class="ti ti-circle-dotted" style="font-size:12px"></i> Goal pending</div>
+      </div>
+
+      <!-- CALENDAR PANEL -->
+      <div class="panel">
+        <div class="cal-header">
+          <span class="cal-month">May 2026</span>
+          <div class="cal-nav-btns">
+            <button class="cal-nav"><i class="ti ti-chevron-left"></i></button>
+            <button class="cal-nav"><i class="ti ti-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="cal-grid">
+          <div class="cal-day-name">Su</div><div class="cal-day-name">Mo</div><div class="cal-day-name">Tu</div>
+          <div class="cal-day-name">We</div><div class="cal-day-name">Th</div><div class="cal-day-name">Fr</div>
+          <div class="cal-day-name">Sa</div>
+          <!-- Row 1 -->
+          <div class="cal-day other-month">26</div><div class="cal-day other-month">27</div>
+          <div class="cal-day other-month">28</div><div class="cal-day other-month">29</div>
+          <div class="cal-day other-month">30</div><div class="cal-day has-event">1</div>
+          <div class="cal-day">2</div>
+          <!-- Row 2 -->
+          <div class="cal-day">3</div><div class="cal-day">4</div><div class="cal-day">5</div>
+          <div class="cal-day">6</div><div class="cal-day">7</div><div class="cal-day has-event">8</div>
+          <div class="cal-day">9</div>
+          <!-- Row 3 -->
+          <div class="cal-day">10</div><div class="cal-day has-event">11</div><div class="cal-day">12</div>
+          <div class="cal-day">13</div><div class="cal-day">14</div><div class="cal-day">15</div>
+          <div class="cal-day">16</div>
+          <!-- Row 4 -->
+          <div class="cal-day">17</div><div class="cal-day">18</div><div class="cal-day">19</div>
+          <div class="cal-day">20</div><div class="cal-day">21</div><div class="cal-day">22</div>
+          <div class="cal-day">23</div>
+          <!-- Row 5 -->
+          <div class="cal-day">24</div><div class="cal-day">25</div><div class="cal-day">26</div>
+          <div class="cal-day">27</div><div class="cal-day">28</div><div class="cal-day">29</div>
+          <div class="cal-day">30</div>
+          <!-- Row 6 -->
+          <div class="cal-day today">31</div>
+          <div class="cal-day other-month">1</div><div class="cal-day other-month">2</div>
+          <div class="cal-day other-month">3</div><div class="cal-day other-month">4</div>
+          <div class="cal-day other-month">5</div><div class="cal-day other-month">6</div>
+        </div>
+      </div>
+
+      <!-- INBOX + WRITE NOTE stacked -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <!-- INBOX -->
+        <div class="panel" style="flex:1;min-height:0">
+          <div class="section-header">
+            <span class="section-title">Inbox</span>
+            <a class="section-link" href="#">See All <i class="ti ti-arrow-right" style="font-size:12px"></i></a>
+          </div>
+          <div>
+            <div class="inbox-item">
+              <div class="inbox-dot"></div>
+              <div class="inbox-avatar">JD</div>
+              <div class="inbox-text">
+                <div class="inbox-sender">Jane Doe</div>
+                <div class="inbox-preview">Re: Campaign confirmation needed</div>
+              </div>
+              <div class="inbox-time">2m</div>
+            </div>
+            <div class="inbox-item">
+              <div style="width:7px;flex-shrink:0;margin-top:12px"></div>
+              <div class="inbox-avatar" style="background:var(--emerald-50);color:var(--emerald-600)">RK</div>
+              <div class="inbox-text">
+                <div class="inbox-sender">Raj Kumar</div>
+                <div class="inbox-preview">Thanks for the warm-up setup</div>
+              </div>
+              <div class="inbox-time">1h</div>
+            </div>
+            <div class="inbox-item">
+              <div style="width:7px;flex-shrink:0;margin-top:12px"></div>
+              <div class="inbox-avatar" style="background:var(--amber-100);color:var(--amber-600)">ML</div>
+              <div class="inbox-text">
+                <div class="inbox-sender">Maria L.</div>
+                <div class="inbox-preview">Question about delivery rates</div>
+              </div>
+              <div class="inbox-time">3h</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WRITE NOTE -->
+        <div class="panel">
+          <div class="section-title" style="margin-bottom:10px">Write Note</div>
+          <div class="note-row">
+            <input class="note-input" type="text" placeholder="Topic" />
+            <input class="note-input" type="text" placeholder="Tag" />
+          </div>
+          <textarea class="note-textarea" placeholder="Write a quick note…"></textarea>
+          <div class="note-footer">
+            <span class="note-fields-count">0 fields filled</span>
+            <div class="note-btns">
+              <button class="btn-ghost">Show Notes</button>
+              <button class="btn-primary">Save Note</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BROADCAST PERFORMANCE TABLE -->
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-title">All Broadcast Performance</span>
+        <button class="tab-pill active">All Campaigns</button>
+        <button class="tab-pill">All Tags</button>
+        <div class="search-wrapper">
+          <i class="ti ti-search si"></i>
+          <input class="table-search" type="text" placeholder="Search campaigns, person, country, sector…" />
+        </div>
+        <button class="action-center-btn" style="margin-left:auto"><i class="ti ti-layout-grid"></i> Action Center</button>
+        <button class="icon-btn" title="Refresh" style="flex-shrink:0"><i class="ti ti-refresh"></i></button>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" /></th>
+            <th>SR.</th>
+            <th>Campaign</th>
+            <th>Publish Date</th>
+            <th>Total Mails</th>
+            <th>Sent</th>
+            <th>Pending</th>
+            <th>Fail</th>
+            <th>Open</th>
+            <th>Bounce</th>
+            <th>Spam</th>
+            <th>Tags</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><input type="checkbox" /></td><td>1</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr><td><input type="checkbox" /></td><td>2</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr><td><input type="checkbox" /></td><td>3</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr><td><input type="checkbox" /></td><td>4</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr><td><input type="checkbox" /></td><td>5</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr><td><input type="checkbox" /></td><td>6</td><td colspan="11" class="empty-row" style="text-align:left;color:var(--text-3);font-style:italic">No data</td></tr>
+          <tr>
+            <td><input type="checkbox" /></td>
+            <td>7</td>
+            <td><a class="campaign-link" href="#">ak22 victoria | TEC-05</a></td>
+            <td>26/05/2026</td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>2</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>
+              <span class="tag-pill tag-completed">Completed</span>
+              <span class="country-tag" style="margin-left:4px">India</span>
+            </td>
+            <td><button class="table-action-btn"><i class="ti ti-dots-vertical"></i></button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="table-footer">
+        <div class="tf-left">
+          <input type="checkbox" id="selectAll" />
+          <label for="selectAll" style="font-size:12px;color:var(--text-3);">Select all visible rows</label>
+        </div>
+        <div class="pagination">
+          <button class="page-btn arrow"><i class="ti ti-chevron-left" style="font-size:12px"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">4</button>
+          <button class="page-btn">5</button>
+          <span style="font-size:12px;color:var(--text-3);padding:0 4px">…</span>
+          <button class="page-btn">16</button>
+          <button class="page-btn arrow"><i class="ti ti-chevron-right" style="font-size:12px"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM GRID -->
+    <div class="bottom-grid">
+
+      <!-- ACTIVITY TIMELINE -->
+      <div class="panel">
+        <div class="activity-header">
+          <div>
+            <div style="font-size:12px;color:var(--text-3);margin-bottom:2px">Activity Timeline</div>
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span class="activity-count">8</span>
+              <span style="font-size:14px;font-weight:500;color:var(--text-1);">campaign activities</span>
+            </div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <button class="add-task-btn"><i class="ti ti-plus"></i> Add Task</button>
+            <a class="section-link" href="#" style="margin-left:4px">See All <i class="ti ti-arrow-right" style="font-size:12px"></i></a>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:12px">Running, pending, paused, completed, failed, and draft campaign actions.</div>
+
+        <div class="activity-list">
+          <div class="activity-section-label">Earlier</div>
+
+          <div class="activity-item">
+            <div class="activity-dot-col"><div class="activity-dot success"></div></div>
+            <div class="activity-text">
+              <div class="activity-name">Completed: client_warmup-(2)-swapnil</div>
+              <div class="activity-meta">29/05/2026 · 04:11 PM · <strong style="color:var(--text-2)">DONE</strong></div>
+              <div class="activity-stats">41 sent · 0 pending · 0 failed out of 41</div>
+            </div>
+            <span class="activity-status-badge ab-completed">Completed</span>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-dot-col"><div class="activity-dot success"></div></div>
+            <div class="activity-text">
+              <div class="activity-name">Completed: EmailDemo_ek</div>
+              <div class="activity-meta">29/05/2026 · 10:41 AM · <strong style="color:var(--text-2)">DONE</strong></div>
+              <div class="activity-stats">5 sent · 0 pending · 0 failed out of 5</div>
+            </div>
+            <span class="activity-status-badge ab-completed">Completed</span>
+          </div>
+
+          <div class="activity-item">
+            <div class="activity-dot-col"><div class="activity-dot pending"></div></div>
+            <div class="activity-text">
+              <div class="activity-name">Warm-Up: morning_sequence</div>
+              <div class="activity-meta">28/05/2026 · 09:00 AM · <strong style="color:var(--amber-600)">PENDING</strong></div>
+              <div class="activity-stats">0 sent · 12 pending · 0 failed</div>
+            </div>
+            <span class="activity-status-badge ab-pending">Pending</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORKSPACE OVERVIEW -->
+      <div class="panel">
+        <div class="section-header" style="margin-bottom:14px">
+          <span class="section-title">Workspace Overview</span>
+          <a class="section-link" href="#">See All <i class="ti ti-arrow-right" style="font-size:12px"></i></a>
+        </div>
+        <div class="ws-stats">
+          <div class="ws-stat">
+            <div class="ws-stat-label">Campaigns</div>
+            <div class="ws-stat-val">80</div>
+            <div class="ws-stat-sub"><span class="ok">0 running</span> · 8 draft</div>
+          </div>
+          <div class="ws-stat">
+            <div class="ws-stat-label">Drafts</div>
+            <div class="ws-stat-val">32</div>
+            <div class="ws-stat-sub">4 draft types available</div>
+          </div>
+          <div class="ws-stat">
+            <div class="ws-stat-label">Clients</div>
+            <div class="ws-stat-val">206</div>
+            <div class="ws-stat-sub">Client lists ready</div>
+          </div>
+          <div class="ws-stat">
+            <div class="ws-stat-label">Mails</div>
+            <div class="ws-stat-val">1,364</div>
+            <div class="ws-stat-sub">437 pending · <span class="warn">73 failed</span></div>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--border-subtle);padding-top:14px;margin-top:2px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-2);margin-bottom:10px">Quick Actions</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="btn-ghost" style="display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 10px;font-size:12.5px">
+              <i class="ti ti-upload" style="font-size:14px"></i> Upload List
+            </button>
+            <button class="btn-ghost" style="display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 10px;font-size:12.5px">
+              <i class="ti ti-speakerphone" style="font-size:14px"></i> New Campaign
+            </button>
+            <button class="btn-ghost" style="display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 10px;font-size:12.5px">
+              <i class="ti ti-file-plus" style="font-size:14px"></i> New Draft
+            </button>
+            <button class="btn-ghost" style="display:flex;align-items:center;gap:6px;justify-content:center;padding:9px 10px;font-size:12.5px">
+              <i class="ti ti-chart-bar" style="font-size:14px"></i> View Report
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</main>
+
+<script>
+  document.querySelectorAll('.tb-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tb-tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.tab-pill').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab-pill').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.step-item').forEach(s => {
+    s.addEventListener('click', () => {
+      if (!s.classList.contains('done')) {
+        document.querySelectorAll('.step-item').forEach(x => x.classList.remove('active'));
+        s.classList.add('active');
+      }
+    });
+  });
+  document.querySelectorAll('.page-btn:not(.arrow)').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.page-btn:not(.arrow)').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

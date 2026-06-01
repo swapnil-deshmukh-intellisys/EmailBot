@@ -7,6 +7,7 @@ import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import ClientDataSectionNav from '@/app/client-data/components/ClientDataSectionNav';
 import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
+import ExcelGrid from '@/app/client-data/components/ExcelGrid';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
@@ -260,6 +261,99 @@ function autoDetectSector(row) {
   return 'Consulting';
 }
 
+function parseSingleClientBlock(blockLines) {
+  let country = '';
+  let email = '';
+  let linkedin = '';
+  let date = '';
+  let sector = '';
+  let designation = '';
+  const rest = [];
+
+  blockLines.forEach((line) => {
+    const clean = line.trim();
+    if (!clean) return;
+
+    // 1. Detect Email
+    if (clean.includes('@') && !clean.includes(' ') && !email) {
+      email = clean.replace(/"/g, '');
+      return;
+    }
+    // Handle multi-email or slashed/quoted emails like "clara7pfeffer@aol.com/clara.pfeffer@rtl.de"
+    if (clean.includes('@') && (clean.includes('/') || clean.includes('"')) && !email) {
+      email = clean.replace(/"/g, '');
+      return;
+    }
+
+    // 2. Detect LinkedIn
+    if ((clean.startsWith('http') || clean.includes('linkedin.com')) && !linkedin) {
+      linkedin = clean;
+      return;
+    }
+
+    // 3. Detect Date
+    if ((/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(clean) || /^\d{4}-\d{2}-\d{2}$/.test(clean)) && !date) {
+      date = clean;
+      return;
+    }
+
+    // 4. Detect Country
+    if (isCountry(clean) && !country) {
+      country = clean;
+      return;
+    }
+
+    // 5. Detect Sector
+    const lower = clean.toLowerCase();
+    if (['consulting', 'education', 'marketing', 'software', 'healthcare'].includes(lower) && !sector) {
+      sector = clean.charAt(0).toUpperCase() + clean.slice(1);
+      return;
+    }
+
+    rest.push(clean);
+  });
+
+  // Dynamic Company & Name assignment
+  let cmpName = '';
+  let fullName = '';
+
+  if (rest.length >= 2) {
+    // Standard sequence: Company name is typically followed by Full Name
+    cmpName = rest[0];
+    fullName = rest[1];
+    if (rest.length > 2) {
+      designation = rest.slice(2).join(' | ');
+    }
+  } else if (rest.length === 1) {
+    fullName = rest[0];
+  }
+
+  // Split name and surname
+  let name = '';
+  let surname = '';
+  if (fullName) {
+    const nameParts = fullName.split(/\s+/);
+    name = nameParts[0] || '';
+    surname = nameParts.slice(1).join(' ') || '';
+  }
+
+  return {
+    name,
+    surname,
+    designation: designation || sector || 'Consultant',
+    cmpName,
+    sector: sector || 'Consulting',
+    country: country || 'US',
+    email: email.toLowerCase(),
+    source: 'Pasted Block',
+    leadType: 'TUT',
+    sourcer: linkedin || '', // Map LinkedIn to Sourcer
+    userId: 'Default',
+    projectApproach: '',
+    senderId: ''
+  };
+}
+
 function parsePastedRows(rawText = '') {
   const lines = String(rawText || '')
     .replace(/\r\n/g, '\n')
@@ -270,104 +364,37 @@ function parsePastedRows(rawText = '') {
 
   // Check if it's a vertical/block paste
   const hasTabsOrCommasPerLine = lines.slice(0, 5).some(line => line.includes('\t') || line.split(',').length >= 3);
-  const hasEmails = lines.some(line => line.includes('@') && !line.includes(' '));
+  const hasEmails = lines.some(line => line.includes('@'));
 
   if (!hasTabsOrCommasPerLine && hasEmails) {
     const emailIndices = [];
     lines.forEach((line, idx) => {
-      if (line.includes('@') && !line.includes(' ')) {
+      if (line.includes('@')) {
         emailIndices.push(idx);
       }
     });
 
     const blocks = [];
-    let lastClaimedIndex = -1;
+    let startIdx = 0;
 
     emailIndices.forEach((emailIdx, loopIdx) => {
-      const subLines = lines.slice(lastClaimedIndex + 1, emailIdx);
+      const nextEmailIdx = emailIndices[loopIdx + 1] ?? lines.length;
       
-      let country = '';
-      let cmpName = '';
-      let fullName = '';
-      let designation = '';
-      const email = lines[emailIdx];
-      let sourcer = '';
-      
-      let countryIdx = -1;
-      for (let j = 0; j < subLines.length; j++) {
-        if (isCountry(subLines[j])) {
-          country = subLines[j];
-          countryIdx = j;
+      let endIdx = emailIdx + 1;
+      while (endIdx < nextEmailIdx) {
+        const nextLine = lines[endIdx];
+        if (isCountry(nextLine)) {
           break;
         }
+        endIdx++;
       }
-      
-      const candidates = subLines.filter((_, idx) => idx !== countryIdx);
-      
-      if (candidates.length === 3) {
-        cmpName = candidates[0];
-        fullName = candidates[1];
-        designation = candidates[2];
-      } else if (candidates.length === 2) {
-        const hasDesignationKeywords = (str) => {
-          const s = str.toLowerCase();
-          return s.includes('founder') || s.includes('consultant') || s.includes('director') || 
-                 s.includes('head') || s.includes('strategist') || s.includes('manager') || 
-                 s.includes('speaker') || s.includes('assistant') || s.includes('officer') ||
-                 s.includes('curious') || s.includes('lead') || s.includes('vp');
-        };
-        if (hasDesignationKeywords(candidates[1])) {
-          fullName = candidates[0];
-          designation = candidates[1];
-        } else {
-          cmpName = candidates[0];
-          fullName = candidates[1];
-        }
-      } else if (candidates.length === 1) {
-        fullName = candidates[0];
-      } else if (candidates.length > 3) {
-        cmpName = candidates[0];
-        fullName = candidates[1];
-        designation = candidates.slice(2).join(' | ');
-      }
-      
-      const nextEmailIdx = emailIndices[loopIdx + 1] ?? lines.length;
-      const trailingLines = lines.slice(emailIdx + 1, nextEmailIdx);
-      
-      if (trailingLines.length > 0) {
-        const firstTrailing = trailingLines[0];
-        if (firstTrailing.toLowerCase().includes('valeria') || firstTrailing.toLowerCase().includes('brown') || !isCountry(firstTrailing)) {
-          sourcer = firstTrailing;
-          lastClaimedIndex = emailIdx + 1;
-        } else {
-          lastClaimedIndex = emailIdx;
-        }
-      } else {
-        lastClaimedIndex = emailIdx;
-      }
-      
-      const nameParts = fullName.trim().split(/\s+/);
-      const name = nameParts[0] || '';
-      const surname = nameParts.slice(1).join(' ') || '';
-      
-      const row = {
-        _rowId: `paste-${Date.now()}-${loopIdx}`,
-        name,
-        surname,
-        designation,
-        cmpName,
-        country,
-        email: normalizeText(email).toLowerCase(),
-        sourcer,
-        leadType: 'TUT',
-        source: 'Pasted Block'
-      };
-      
-      PASTE_COLUMNS.forEach((column) => {
-        if (typeof row[column.key] !== 'string') row[column.key] = '';
-      });
-      row.sector = autoDetectSector(row);
+
+      const blockLines = lines.slice(startIdx, endIdx);
+      const row = parseSingleClientBlock(blockLines);
+      row._rowId = `paste-${Date.now()}-${loopIdx}`;
       blocks.push(row);
+
+      startIdx = endIdx;
     });
 
     return blocks;
@@ -615,11 +642,13 @@ export default function ClientListPage() {
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [creatingRow, setCreatingRow] = useState(false);
-  const [activeCell, setActiveCell] = useState(null);
+  const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [selectedCells, setSelectedCells] = useState(new Set());
+  const [clipboardData, setClipboardData] = useState(null);
   const [showPastePanel, setShowPastePanel] = useState(true);
   const [pasteRawText, setPasteRawText] = useState('');
   const [pasteRows, setPasteRows] = useState([]);
-  const [selectedPasteRowIds, setSelectedPasteRowIds] = useState([]);
   const [savingPastedData, setSavingPastedData] = useState(false);
   const [creatingPasteSheet, setCreatingPasteSheet] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
@@ -918,7 +947,7 @@ export default function ClientListPage() {
   const handleParsePastedData = () => {
     const rows = parsePastedRows(pasteRawText);
     setPasteRows(rows.length ? rows : createEmptyPasteRows(8));
-    setSelectedPasteRowIds([]);
+    setSelectedRows(new Set());
     setShowPastePanel(true);
     if (rows.length) {
       showToast('success', `${rows.length} rows pasted successfully.`);
@@ -939,15 +968,97 @@ export default function ClientListPage() {
   );
 
   const togglePasteRowSelection = (rowId) => {
-    setSelectedPasteRowIds((current) => (
-      current.includes(rowId) ? current.filter((id) => id !== rowId) : [...current, rowId]
-    ));
+    setSelectedRows((current) => {
+      const next = new Set(current);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
   };
 
   const toggleAllPasteRows = () => {
     const filledIds = filledPasteRows.map((row) => row._rowId);
-    const allSelected = filledIds.length > 0 && filledIds.every((id) => selectedPasteRowIds.includes(id));
-    setSelectedPasteRowIds(allSelected ? [] : filledIds);
+    const allSelected = filledIds.length > 0 && filledIds.every((id) => selectedRows.has(id));
+    setSelectedRows(allSelected ? new Set() : new Set(filledIds));
+  };
+
+  const focusPasteCell = (r, c) => {
+    const el = document.querySelector(`.paste-input[data-row="${r}"][data-col="${c}"]`);
+    if (el) {
+      el.focus();
+      el.select?.();
+      return true;
+    }
+    return false;
+  };
+
+  const handleDeleteSelectedPasteRows = () => {
+    if (!selectedRows.size) return;
+    if (window.confirm(`Are you sure you want to delete the ${selectedRows.size} selected row(s) from the workspace?`)) {
+      setPasteRows((current) => {
+        const remaining = current.filter((row) => !selectedRows.has(row._rowId));
+        return remaining.length ? remaining : createEmptyPasteRows(6);
+      });
+      setSelectedRows(new Set());
+      showToast('success', 'Selected rows deleted from workspace.');
+    }
+  };
+
+  const handlePasteGridKeyDown = (event, r, c) => {
+    const input = event.target;
+    const val = input.value;
+    const cursorPosition = input.selectionStart;
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      toggleAllPasteRows();
+      showToast('info', 'Workspace selection toggled.');
+    } else if (event.ctrlKey && event.key === 'Delete') {
+      event.preventDefault();
+      if (window.confirm(`Delete row ${r + 1} from workspace?`)) {
+        setPasteRows((current) => {
+          const remaining = current.filter((_, idx) => idx !== r);
+          return remaining.length ? remaining : createEmptyPasteRows(6);
+        });
+        showToast('success', `Row ${r + 1} deleted.`);
+      }
+    } else if (event.shiftKey && event.key === 'Delete') {
+      event.preventDefault();
+      handleDeleteSelectedPasteRows();
+    } else if (event.shiftKey && event.key === ' ') {
+      const currentRow = pasteRows[r];
+      if (currentRow && hasVisibleClientData(currentRow)) {
+        event.preventDefault();
+        togglePasteRowSelection(currentRow._rowId);
+      }
+    } else if (event.key === 'ArrowUp') {
+      if (focusPasteCell(r - 1, c)) {
+        event.preventDefault();
+      }
+    } else if (event.key === 'ArrowDown') {
+      if (focusPasteCell(r + 1, c)) {
+        event.preventDefault();
+      }
+    } else if (event.key === 'ArrowLeft') {
+      if (cursorPosition === 0) {
+        if (focusPasteCell(r, c - 1)) {
+          event.preventDefault();
+        }
+      }
+    } else if (event.key === 'ArrowRight') {
+      if (cursorPosition === val.length) {
+        if (focusPasteCell(r, c + 1)) {
+          event.preventDefault();
+        }
+      }
+    } else if (event.key === 'Enter') {
+      if (focusPasteCell(r + 1, c)) {
+        event.preventDefault();
+      }
+    }
   };
 
   const handlePasteGridPaste = (event, startRowIndex, startColumnIndex) => {
@@ -956,6 +1067,13 @@ export default function ClientListPage() {
     event.preventDefault();
     const incoming = parsePastedRows(rawText);
     if (!incoming.length) return;
+
+    // Check if the pasted incoming rows are structured data
+    const isStructured = incoming.some((row) => {
+      const populatedKeys = Object.keys(row).filter((key) => key !== '_rowId' && row[key]);
+      return row.email || row.country || row.sourcer || populatedKeys.length > 1;
+    });
+
     setPasteRows((current) => {
       const next = [...current];
       incoming.forEach((sourceRow, rowOffset) => {
@@ -967,16 +1085,28 @@ export default function ClientListPage() {
           });
         }
         const updated = { ...next[targetIndex] };
-        PASTE_COLUMNS.slice(startColumnIndex).forEach((column, colOffset) => {
-          const sourceColumn = PASTE_COLUMNS[colOffset];
-          if (!sourceColumn) return;
-          updated[column.key] = sourceRow[sourceColumn.key] || '';
-        });
+
+        if (isStructured) {
+          // Smart mapping: align source keys directly into matching columns
+          PASTE_COLUMNS.forEach((column) => {
+            if (sourceRow[column.key] !== undefined && sourceRow[column.key] !== '') {
+              updated[column.key] = sourceRow[column.key];
+            }
+          });
+        } else {
+          // Unstructured: shift and paste into active clicked column
+          PASTE_COLUMNS.slice(startColumnIndex).forEach((column, colOffset) => {
+            const sourceColumn = PASTE_COLUMNS[colOffset];
+            if (!sourceColumn) return;
+            updated[column.key] = sourceRow[sourceColumn.key] || '';
+          });
+        }
+
         next[targetIndex] = updated;
       });
       return next;
     });
-    showToast('success', `${incoming.length} rows pasted successfully.`);
+    showToast('success', `${incoming.length} rows parsed and pasted successfully.`);
   };
 
   const handleAddPasteRows = () => {
@@ -1031,7 +1161,7 @@ export default function ClientListPage() {
       if (!response.ok || data?.ok === false) {
         throw new Error(data?.error || 'Failed to save pasted data');
       }
-      setSelectedPasteRowIds([]);
+      setSelectedRows(new Set());
       setRefreshNonce((value) => value + 1);
       setSelectionMessage(`${data.message || 'Pasted data saved.'} ${data.summary?.repeatedClients || 0} repeated, ${data.summary?.invalidClients || 0} invalid.`);
       showToast('success', data.message || 'Pasted data saved to Client Directory.');
@@ -1044,20 +1174,20 @@ export default function ClientListPage() {
   };
 
   const handleCreateSheetFromPastedRows = async () => {
-    const selectedRows = filledPasteRows.filter((row) => selectedPasteRowIds.includes(row._rowId));
-    if (!selectedRows.length) {
+    const selectedRowsData = filledPasteRows.filter((row) => selectedRows.has(row._rowId));
+    if (!selectedRowsData.length) {
       setSelectionError('Select pasted table rows before creating a sheet.');
       showToast('error', 'Select pasted table rows before creating a sheet.');
       return;
     }
-    const invalidSelected = selectedRows.some((row) => !validateEmailForSheet(row.email).ok);
+    const invalidSelected = selectedRowsData.some((row) => !validateEmailForSheet(row.email).ok);
     if (invalidSelected) {
       setSelectionError('Fix invalid email rows before creating a sheet.');
       showToast('error', 'Fix invalid email rows before creating a sheet.');
       return;
     }
     const sectorCounts = {};
-    selectedRows.forEach((row) => {
+    selectedRowsData.forEach((row) => {
       const s = String(row.sector || '').trim();
       if (s && s !== '-') {
         sectorCounts[s] = (sectorCounts[s] || 0) + 1;
@@ -1084,7 +1214,7 @@ export default function ClientListPage() {
         body: JSON.stringify({
           name: trimmedName,
           sourceFile: `${trimmedName}.pasted-selected`,
-          rows: selectedRows
+          rows: selectedRowsData
         })
       });
       const data = await response.json();
@@ -1099,20 +1229,20 @@ export default function ClientListPage() {
         kind: savedList.kind || 'selected_client_sheet',
         uploadedAt: savedList.uploadedAt || new Date().toISOString(),
         createdAt: savedList.createdAt || savedList.uploadedAt || new Date().toISOString(),
-        leadCount: selectedRows.length,
-        leads: selectedRows
+        leadCount: selectedRowsData.length,
+        leads: selectedRowsData
       };
       setLists((current) => [nextList, ...current.filter((item) => String(item._id) !== String(nextList._id))]);
       setRecentCreatedSheetId(String(nextList._id));
       setActiveTab('customize');
-      const createdRowIds = new Set(selectedRows.map((r) => r._rowId));
+      const createdRowIds = new Set(selectedRowsData.map((r) => r._rowId));
       setPasteRows((current) => {
         const remaining = current.filter((r) => !createdRowIds.has(r._rowId));
         return remaining.length ? remaining : createEmptyPasteRows(6);
       });
-      setSelectedPasteRowIds([]);
-      setSelectionMessage(data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
-      showToast('success', data.message || `Created selected sheet with ${selectedRows.length} pasted clients.`);
+      setSelectedRows(new Set());
+      setSelectionMessage(data.message || `Created selected sheet with ${selectedRowsData.length} pasted clients.`);
+      showToast('success', data.message || `Created selected sheet with ${selectedRowsData.length} pasted clients.`);
     } catch (err) {
       setSelectionError(err.message || 'Failed to create selected pasted sheet');
       showToast('error', err.message || 'Failed to create selected pasted sheet');
@@ -1155,6 +1285,51 @@ export default function ClientListPage() {
     if (!paginatedClientRows.length) return;
     const maxRow = paginatedClientRows.length - 1;
     const maxCol = GRID_EDITABLE_FIELDS.length - 1;
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      toggleSelectAllVisible();
+      showToast('info', 'Directory selection toggled.');
+      return;
+    }
+    if (event.ctrlKey && event.key === 'Delete') {
+      event.preventDefault();
+      const currentRow = paginatedClientRows[rowIndex];
+      if (currentRow) {
+        if (window.confirm(`Permanently delete client "${currentRow.name}" from directory?`)) {
+          void (async () => {
+            try {
+              const response = await fetch('/api/client-data/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowIds: [currentRow.id] })
+              });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to delete client');
+              setRefreshNonce((v) => v + 1);
+              showToast('success', `Client "${currentRow.name}" deleted.`);
+            } catch (err) {
+              showToast('error', err.message || 'Failed to delete client');
+            }
+          })();
+        }
+      }
+      return;
+    }
+    if (event.shiftKey && event.key === 'Delete') {
+      event.preventDefault();
+      void handleDeleteSelectedClients();
+      return;
+    }
+    if (event.shiftKey && event.key === ' ') {
+      event.preventDefault();
+      const currentRow = paginatedClientRows[rowIndex];
+      if (currentRow) {
+        toggleClientSelection(currentRow.id);
+      }
+      return;
+    }
+
     if (event.key === 'ArrowRight' || event.key === 'Tab') {
       event.preventDefault();
       const nextCol = event.shiftKey ? Math.max(0, fieldIndex - 1) : Math.min(maxCol, fieldIndex + 1);
@@ -1302,6 +1477,34 @@ export default function ClientListPage() {
     });
     setSelectionMessage('');
     setSelectionError('');
+  };
+
+  const handleDeleteSelectedClients = async () => {
+    if (!selectedClientIds.length) return;
+    if (window.confirm(`Are you sure you want to permanently delete the ${selectedClientIds.length} selected client(s) from the directory?`)) {
+      try {
+        setSavingDirectory(true);
+        setSelectionError('');
+        setSelectionMessage('');
+        const response = await fetch('/api/client-data/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rowIds: selectedClientIds })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) {
+          throw new Error(data?.error || 'Failed to delete selected clients');
+        }
+        setSelectedClientIds([]);
+        setRefreshNonce((value) => value + 1);
+        showToast('success', `${selectedClientIds.length} clients deleted from directory.`);
+      } catch (err) {
+        setSelectionError(err.message || 'Failed to delete selected clients.');
+        showToast('error', err.message || 'Failed to delete selected clients.');
+      } finally {
+        setSavingDirectory(false);
+      }
+    }
   };
 
   const handleApplyFilters = useCallback((nextFilters) => {
@@ -1690,58 +1893,35 @@ export default function ClientListPage() {
                         <Button type="button" variant="ghost" onClick={handleAddPasteRows}>
                           Create Row
                         </Button>
-                        <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedPasteRowIds.length}>
+                        <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedRows.size}>
                           {creatingPasteSheet ? 'Creating...' : 'Create Selected Client Sheet'}
                         </Button>
-                        <Button type="button" variant="ghost" onClick={() => { setPasteRows(createEmptyPasteRows(6)); setSelectedPasteRowIds([]); showToast('success', 'Workspace cleared.'); }} style={{ color: '#ef4444', marginLeft: 4 }}>
+                        <Button type="button" variant="ghost" onClick={handleDeleteSelectedPasteRows} disabled={!selectedRows.size} style={{ color: '#ef4444' }}>
+                          Delete Selected Rows
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => { setPasteRows(createEmptyPasteRows(6)); setSelectedRows(new Set()); showToast('success', 'Workspace cleared.'); }} style={{ color: '#ef4444', marginLeft: 4 }}>
                           Clear All
                         </Button>
-                        <span>{filledPasteRows.length} filled rows | {selectedPasteRowIds.length} selected | {pasteInvalidRowIndexes.size} invalid | {pasteDuplicateRowIndexes.size} repeated{workspaceSaving ? ' | saving...' : ''}</span>
+                        <span>{filledPasteRows.length} filled rows | {selectedRows.size} selected | {pasteInvalidRowIndexes.size} invalid | {pasteDuplicateRowIndexes.size} repeated{workspaceSaving ? ' | saving...' : ''}</span>
                       </div>
                       {pasteRows.length ? (
-                        <div className="client-data-table client-data-table-scroll client-data-paste-preview-table client-data-paste-excel-table">
-                          <div className="client-data-table-head">
-                            <span>No.</span>
-                            <span>
-                              <input
-                                type="checkbox"
-                                checked={filledPasteRows.length > 0 && filledPasteRows.every((row) => selectedPasteRowIds.includes(row._rowId))}
-                                onChange={toggleAllPasteRows}
-                                aria-label="Select all pasted rows"
-                              />
-                            </span>
-                            {PASTE_COLUMNS.map((column) => <span key={column.key}>{column.label}</span>)}
-                          </div>
-                          {pasteRows.map((row, rowIndex) => {
-                            const invalid = pasteInvalidRowIndexes.has(rowIndex);
-                            const duplicate = pasteDuplicateRowIndexes.has(rowIndex);
-                            const hasData = hasVisibleClientData(row);
-                            return (
-                              <div key={row._rowId || rowIndex} className={`client-data-table-row ${invalid ? 'client-data-invalid-row' : ''} ${duplicate ? 'client-directory-duplicate-row' : ''}`}>
-                                <span>{rowIndex + 1}</span>
-                                <span>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedPasteRowIds.includes(row._rowId)}
-                                    disabled={!hasData}
-                                    onChange={() => togglePasteRowSelection(row._rowId)}
-                                    aria-label={`Select pasted row ${rowIndex + 1}`}
-                                  />
-                                </span>
-                                {PASTE_COLUMNS.map((column) => (
-                                  <span key={`${rowIndex}-${column.key}`} className="client-data-paste-cell">
-                                    <input
-                                      className={`input ${column.key === 'email' && (invalid || duplicate) ? 'invalid' : ''}`}
-                                      value={row[column.key] || ''}
-                                      onChange={(event) => handlePasteRowChange(rowIndex, column.key, event.target.value)}
-                                      onPaste={(event) => handlePasteGridPaste(event, rowIndex, PASTE_COLUMNS.findIndex((item) => item.key === column.key))}
-                                    />
-                                  </span>
-                                ))}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <ExcelGrid
+                          pasteRows={pasteRows}
+                          setPasteRows={setPasteRows}
+                          activeCell={activeCell}
+                          setActiveCell={setActiveCell}
+                          selectedRows={selectedRows}
+                          setSelectedRows={setSelectedRows}
+                          selectedCells={selectedCells}
+                          setSelectedCells={setSelectedCells}
+                          clipboardData={clipboardData}
+                          setClipboardData={setClipboardData}
+                          pasteInvalidRowIndexes={pasteInvalidRowIndexes}
+                          pasteDuplicateRowIndexes={pasteDuplicateRowIndexes}
+                          columns={PASTE_COLUMNS}
+                          hasVisibleClientData={hasVisibleClientData}
+                          showToast={showToast}
+                        />
                       ) : null}
                     </div>
                   ) : null}
@@ -1880,6 +2060,15 @@ export default function ClientListPage() {
                           disabled={creatingSheet || !selectedCount}
                         >
                           {creatingSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={handleDeleteSelectedClients}
+                          disabled={savingDirectory || !selectedCount}
+                          style={{ color: '#ef4444' }}
+                        >
+                          Delete Selected Clients
                         </Button>
                         <Button
                           type="button"

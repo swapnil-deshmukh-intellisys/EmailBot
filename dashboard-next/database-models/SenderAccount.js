@@ -18,6 +18,10 @@ const SenderAccountSchema = new mongoose.Schema(
     clientId: { type: String, default: '' },
     clientSecret: { type: String, default: '' },
 
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null },
+    projectName: { type: String, default: '' },
+    project: { type: String, default: '' },
+
     status: { type: String, default: 'Connected' },
     lastSync: { type: Date, default: Date.now },
     dailyLimit: { type: Number, default: 250 },

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,6 +13,11 @@ import {
 } from '@/modules/campaign-module/campaign-utils/CampaignScheduleHelper';
 import { DRAFT_TYPE_ITEMS, draftTypeLabel, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 import draftTemplates from '@/modules/template-module/template-services/DashboardDraftTemplateLibrary';
+import StatStrip from './StatStrip';
+import Workflow from './Workflow';
+import MainPanels from './MainPanels';
+import BottomGrid from './BottomGrid';
+
 
 const MAX_SCHEDULE_DELAY_MINUTES = 1440;
 const MAX_SCHEDULE_DELAY_HOURS = 24;
@@ -63,23 +68,14 @@ function clampPercent(value) {
 function MetricCard({ item }) {
   const percent = clampPercent(item.percent);
   return (
-    <article className={`premium-kpi-card premium-kpi-${item.tone || 'neutral'}`}>
-      <div className="premium-kpi-copy">
-        {item.icon ? <span className="premium-kpi-icon">{item.icon}</span> : null}
-        <p>{item.title}</p>
-        <strong>{item.value}</strong>
-        <span>{item.meta}</span>
+    <div className={`stat-card si-${item.tone || 'neutral'}`}>
+      <div className="stat-top">
+        <span className="stat-label">{item.title}</span>
+        {item.icon ? <div className="stat-icon">{item.icon}</div> : null}
       </div>
-      <div
-        className="premium-kpi-ring"
-        style={{
-          '--kpi-ring-color': item.color || 'var(--accent)',
-          '--kpi-ring-percent': `${percent}%`
-        }}
-      >
-        <span>{percent}%</span>
-      </div>
-    </article>
+      <div className="stat-value">{item.value}</div>
+      <div className="stat-pct">{item.meta || `${percent}% of audience`}</div>
+    </div>
   );
 }
 
@@ -95,66 +91,34 @@ function WorkflowStep({ step, isLast, status = 'pending', onAction, selectedDraf
     6: 'Test',
     7: 'Schedule'
   };
-  const stepChipTone = {
-    1: 'upload',
-    2: 'review',
-    3: 'campaign',
-    4: 'draft',
-    5: 'summary',
-    6: 'test',
-    7: 'schedule'
-  };
   const stepIcons = {
-    1: '⬆',
-    2: '◫',
-    3: '✦',
-    4: '◫',
-    5: '▣',
-    6: '✉',
-    7: '⏱'
+    1: <i className="ti ti-upload"></i>,
+    2: <i className="ti ti-users"></i>,
+    3: <i className="ti ti-settings"></i>,
+    4: <i className="ti ti-file-text"></i>,
+    5: <i className="ti ti-clipboard-list"></i>,
+    6: <i className="ti ti-mail"></i>,
+    7: <i className="ti ti-calendar-time"></i>
   };
-  const statusClass = `is-${status}`;
-  const actionButtonStyle = {
-    color: 'var(--button-text)',
-    background: 'var(--button-bg)',
-    border: '1px solid var(--button-border)',
-    ...(isOverviewStep ? { fontSize: '10px', fontWeight: 700, lineHeight: 1.1, paddingLeft: '10px', paddingRight: '10px' } : {})
-  };
+  const statusClass = status === 'completed' ? 'done' : status === 'active' ? 'active' : '';
+
   return (
-    <article
-      className={`premium-step-card premium-step-tone-${step.index} ${statusClass}`}
-      style={{ color: 'var(--text-primary)' }}
-    >
-      <div className="premium-step-track">
-        <span className="premium-step-index">{step.index}</span>
+    <div className={`step-item ${statusClass}`}>
+      <div className="step-circle">
+        {stepIcons[step.index] || <i className="ti ti-circle"></i>}
+        <div className="step-num">{step.index}</div>
       </div>
-      <strong style={{ color: 'var(--text-primary)' }}>
-        {stepIcons[step.index] ? <span className="premium-step-title-icon">{stepIcons[step.index]}</span> : null}
-        <span>{step.title}</span>
-      </strong>
-      <span className={`premium-step-chip premium-step-chip-${stepChipTone[step.index] || 'default'}`}>
-        {stepLabels[step.index] || `Step ${step.index}`}
-      </span>
-      {isDraftStep ? (
+      <div className="step-content">
+        <div className="step-name">{step.title}</div>
         <button
           type="button"
-          className={`premium-step-action premium-step-action-${step.index}`}
+          className="step-action"
           onClick={(event) => onAction?.(step, event)}
-          style={actionButtonStyle}
         >
-          Drafts
+          {isDraftStep ? 'Drafts' : step.action}
         </button>
-      ) : (
-        <button
-          type="button"
-          className={`premium-step-action premium-step-action-${step.index}`}
-          onClick={(event) => onAction?.(step, event)}
-          style={actionButtonStyle}
-        >
-          {step.action}
-        </button>
-      )}
-    </article>
+      </div>
+    </div>
   );
 }
 
@@ -835,6 +799,8 @@ export default function PremiumDashboardShell({
   const [selectDraftTab, setSelectDraftTab] = useState('my-drafts');
   const [showDraftTypeDropdown, setShowDraftTypeDropdown] = useState(false);
   const [draftTypeLibraryOpen, setDraftTypeLibraryOpen] = useState(false);
+  const [selectDraftSearch, setSelectDraftSearch] = useState('');
+  const [selectDraftTypeFilter, setSelectDraftTypeFilter] = useState('');
   const [draftUploadedFileName, setDraftUploadedFileName] = useState('');
   const [draftUploadedText, setDraftUploadedText] = useState('');
   const [showProgressFilterDropdown, setShowProgressFilterDropdown] = useState(false);
@@ -1122,12 +1088,42 @@ export default function PremiumDashboardShell({
         title: draft.title,
         subject: draft.subject,
         body: draft.body || draft.message || draft.html || draft.content || '',
+        sector: draft.sector || '',
+        city: draft.city || '',
+        project: draft.project || draft.projectName || '',
+        campaignName: draft.campaignName || draft.campaign || '',
         category: inferDraftTypeFromDraft(draft),
         draftType: inferDraftTypeFromDraft(draft),
-        updated: 'Saved draft'
+        savedDate: draft.updatedAt || draft.createdAt
+          ? new Date(draft.updatedAt || draft.createdAt).toLocaleDateString()
+          : 'No saved date',
+        savedTime: draft.updatedAt || draft.createdAt
+          ? new Date(draft.updatedAt || draft.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : 'No saved time',
+        updated: draft.updatedAt || draft.createdAt
+          ? new Date(draft.updatedAt || draft.createdAt).toLocaleString()
+          : 'Saved draft'
       }))
     : savedDrafts;
-  const filteredSavedDrafts = useMemo(() => effectiveSavedDrafts, [effectiveSavedDrafts]);
+  const filteredSavedDrafts = useMemo(() => {
+    const query = String(selectDraftSearch || '').trim().toLowerCase();
+    const typeFilter = normalizeDraftType(selectDraftTypeFilter || '');
+    return effectiveSavedDrafts.filter((draft) => {
+      const draftType = inferDraftTypeFromDraft(draft);
+      const blob = [
+        draft.title,
+        draft.subject,
+        draftTypeLabel(draftType),
+        draft.sector,
+        draft.city,
+        draft.project,
+        draft.campaignName
+      ].join(' ').toLowerCase();
+      if (typeFilter && draftType !== typeFilter) return false;
+      if (query && !blob.includes(query)) return false;
+      return true;
+    });
+  }, [effectiveSavedDrafts, selectDraftSearch, selectDraftTypeFilter]);
   const draftTypeCounts = useMemo(() => {
     return draftTypeItems.reduce((counts, item) => {
       counts[item.value] = effectiveSavedDrafts.filter((draft) => inferDraftTypeFromDraft(draft) === item.value).length;
@@ -1169,7 +1165,7 @@ export default function PremiumDashboardShell({
   const daysInMonth = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0).getDate();
   const leadingDays = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 0).getDate();
   const startOffset = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1).getDay();
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  const totalCells = Math.max(42, Math.ceil((startOffset + daysInMonth) / 7) * 7);
   const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const calendarCells = Array.from({ length: totalCells }, (_, index) => {
     const dayNumber = index - startOffset + 1;
@@ -1422,7 +1418,7 @@ export default function PremiumDashboardShell({
       return matchesTag && matchesSearch;
     });
   }, [performanceCampaigns, selectedTagFilters, tableSearch]);
-  const rowsPerPage = 5;
+  const rowsPerPage = 7;
   const totalTablePages = Math.max(1, Math.ceil(filteredCampaigns.length / rowsPerPage));
   const paginatedCampaigns = useMemo(() => {
     const start = (currentTablePage - 1) * rowsPerPage;
@@ -2429,644 +2425,119 @@ export default function PremiumDashboardShell({
   };
 
   return (
-    <section className="premium-dashboard-shell">
-      <div className="premium-kpi-row">
-        {reportMetricCards.map((item) => (
-          <MetricCard key={item.title} item={item} />
-        ))}
-      </div>
+    <>
+    <div className="page-body">
+      <StatStrip stats={reportMetricCards} />
 
-      <section className="premium-stepper-shell">
-        <div
-          className="premium-stepper-row"
-          ref={workflowShellRef}
-          style={{ color: 'var(--text-primary)', '--workflow-progress': completedWorkflowCount }}
-        >
-          <div className="premium-workflow-title">
-            <h3>Campaign Workflow</h3>
-          </div>
-          {workflowSteps.map((step, index) => (
-            (() => {
-              const stepNumber = Number(step?.index || index + 1);
-              const isCompleted = Boolean(completedWorkflowSteps[stepNumber - 1]);
-              const status = isCompleted ? 'completed' : 'pending';
-              return (
-                <WorkflowStep
-                  key={step.index}
-                  step={step}
-                  isLast={index === workflowSteps.length - 1}
-                  status={status}
-                  onAction={handleWorkflowAction}
-                  selectedDraftType={selectedDraftType}
-                  onSelectedDraftTypeChange={onSelectedDraftTypeChange}
-                />
-              );
-            })()
-          ))}
-        </div>
-      </section>
+      <Workflow
+        workflowSteps={workflowSteps}
+        completedWorkflowSteps={completedWorkflowSteps}
+        activeWorkflowStep={activeWorkflowStep}
+        handleWorkflowAction={handleWorkflowAction}
+        selectedDraftType={selectedDraftType}
+        onSelectedDraftTypeChange={onSelectedDraftTypeChange}
+        workflowShellRef={workflowShellRef}
+      />
 
-        <div className="premium-content-grid">
-            <div className="premium-gauge-card premium-card-with-tabs premium-campaign-health-panel">
-                <div className="premium-panel-head">
-                  <div>
-                    <h3>Target</h3>
-                  </div>
-                  <div className="premium-target-filter-row">
-                    <select
-                      className="premium-target-filter"
-                      value={targetMode}
-                      onChange={(event) => setTargetMode(event.target.value)}
-                      aria-label="Target review period"
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    {targetMode === 'custom' ? (
-                      <div className="premium-target-custom-row">
-                        <input
-                          type="date"
-                          value={customTargetStart}
-                          onChange={(event) => setCustomTargetStart(event.target.value)}
-                          aria-label="Custom target start date"
-                        />
-                        <input
-                          type="date"
-                          value={customTargetEnd}
-                          onChange={(event) => setCustomTargetEnd(event.target.value)}
-                          aria-label="Custom target end date"
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
+      <MainPanels
+        targetMode={targetMode}
+        setTargetMode={setTargetMode}
+        customTargetStart={customTargetStart}
+        setCustomTargetStart={setCustomTargetStart}
+        customTargetEnd={customTargetEnd}
+        setCustomTargetEnd={setCustomTargetEnd}
+        targetLimit={targetLimit}
+        targetSentCount={targetSentCount}
+        targetRemaining={targetRemaining}
+        targetPercent={targetPercent}
+        targetWindowLabel={targetWindowLabel}
+        targetAchieved={targetAchieved}
+        targetResetText={targetResetText}
+        targetStatusTone={targetStatusTone}
+        targetApprovalLabel={targetApprovalLabel}
+        targetApprovalReviewedAt={targetApprovalReviewedAt}
+        targetApprovalRequestNote={targetApprovalRequestNote}
+        targetPeriodValue={targetPeriodValue}
+        targetDailyCount={targetDailyCount}
+        setTargetApprovalStatusState={setTargetApprovalStatusState}
+        onShowMessage={onShowMessage}
+        monthLabel={monthLabel}
+        setCalendarCursor={setCalendarCursor}
+        calendarViewMode={calendarViewMode}
+        weekdayLabels={weekdayLabels}
+        calendarCells={calendarCells}
+        allCalendarEvents={allCalendarEvents}
+        sameDay={sameDay}
+        getCalendarEventTone={getCalendarEventTone}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        openAnchoredPopup={openAnchoredPopup}
+        setShowDayPopup={setShowDayPopup}
+        setShowCalendarPopup={setShowCalendarPopup}
+        calendarLoading={calendarLoading}
+        selectedEvents={selectedEvents}
+        openEventForm={openEventForm}
+        todayCalendarEvents={todayCalendarEvents}
+        upcomingTaskCount={upcomingTaskCount}
+        upcomingCampaignCount={upcomingCampaignCount}
+        upcomingMeetingCount={upcomingMeetingCount}
+        upcomingCalendarEvents={upcomingCalendarEvents}
+        today={today}
+        setShowNotificationsPopup={setShowNotificationsPopup}
+        notificationCards={notificationCards}
+        openInboxMail={openInboxMail}
+        noteTopic={noteTopic}
+        setNoteTopic={setNoteTopic}
+        noteTag={noteTag}
+        setNoteTag={setNoteTag}
+        noteDraft={noteDraft}
+        setNoteDraft={setNoteDraft}
+        setShowNotesPopup={setShowNotesPopup}
+        addQuickNote={addQuickNote}
+        broadcastPerformanceRef={broadcastPerformanceRef}
+        onRefreshCampaigns={onRefreshCampaigns}
+        campaignRefreshing={campaignRefreshing}
+        selectedRows={selectedRows}
+        handleSelectionSummaryClick={handleSelectionSummaryClick}
+        tagFilterRef={tagFilterRef}
+        openTagFilterMenu={openTagFilterMenu}
+        showTagFilterMenu={showTagFilterMenu}
+        selectedTagFilterLabel={selectedTagFilterLabel}
+        tableSearch={tableSearch}
+        setTableSearch={setTableSearch}
+        handleActionCenterClick={handleActionCenterClick}
+        paginatedCampaigns={paginatedCampaigns}
+        openActionMenu={openActionMenu}
+        setOpenActionMenu={setOpenActionMenu}
+        resumeCampaignDraft={resumeCampaignDraft}
+        handleViewCampaign={handleViewCampaign}
+        toggleRowSelection={toggleRowSelection}
+        actionMenuRef={actionMenuRef}
+        handleEditTagsClick={handleEditTagsClick}
+        onPauseCampaign={onPauseCampaign}
+        onStopCampaign={onStopCampaign}
+        onResumeCampaign={onResumeCampaign}
+        handleDeleteCampaignClick={handleDeleteCampaignClick}
+        toggleAllRows={toggleAllRows}
+        currentTablePage={currentTablePage}
+        setCurrentTablePage={setCurrentTablePage}
+        totalTablePages={totalTablePages}
+      />
 
-              <div className="premium-health-summary-row" aria-label="Campaign progress summary">
-                <div className="premium-health-metric done">
-                  <span>Target</span>
-                  <strong>{targetLimit}</strong>
-                </div>
-                <div className="premium-health-metric pending">
-                  <span>Sent</span>
-                  <strong>{targetSentCount}</strong>
-                </div>
-                <div className="premium-health-metric failed">
-                  <span>Remaining</span>
-                  <strong>{targetRemaining}</strong>
-                </div>
-              </div>
-
-              <div className="premium-credit-summary-row" aria-label="Target summary">
-                <div className="premium-credit-metric">
-                  <span>Progress</span>
-                  <strong>{targetPercent}%</strong>
-                </div>
-                <div className="premium-credit-metric">
-                  <span>Mailed</span>
-                  <strong>{targetSentCount}</strong>
-                </div>
-                <div className="premium-credit-metric">
-                  <span>Left</span>
-                  <strong>{targetRemaining}</strong>
-                </div>
-                <div className="premium-credit-metric usage">
-                  <span>Period</span>
-                  <strong>{targetWindowLabel}</strong>
-                </div>
-              </div>
-
-              <div className="premium-arc-wrap">
-                  <div className="premium-arc-track">
-                      <div
-                        className="premium-arc-ring"
-                        style={{
-                          background: `conic-gradient(from 180deg, #22c55e 0 ${targetPercent * 3.6}deg, #f59e0b ${targetPercent * 3.6}deg ${Math.min(360, (targetPercent * 3.6) + 24)}deg, #ef4444 ${Math.min(360, (targetPercent * 3.6) + 24)}deg 360deg)`,
-                          boxShadow: targetAchieved ? '0 0 0 1px rgba(245, 158, 11, 0.12), 0 0 14px rgba(245, 158, 11, 0.1)' : undefined
-                        }}
-                      >
-                      <div className="premium-arc-ring-inner" aria-hidden="true">
-                        <strong>{targetPercent}%</strong>
-                        <span>Progress</span>
-                      </div>
-                    </div>
-                </div>
-                  <div className="premium-arc-copy">
-                      <strong className={targetAchieved ? 'premium-target-goal-reached' : ''}>{targetAchieved ? 'Goal reached' : 'Goal pending'}</strong>
-                      <span className="premium-arc-copy-sub premium-target-detail-line">
-                        <b>{targetWindowLabel} target:</b>
-                        <span>{targetSentCount} / {targetLimit} mails</span>
-                      </span>
-                      <span className="premium-arc-copy-sub premium-target-detail-line premium-target-reset-line">
-                        <span>{targetAchieved ? 'Daily target completed' : `${targetRemaining} mails left`}</span>
-                        <span>{targetResetText}</span>
-                      </span>
-                      {targetAchieved ? (
-                        <span className="premium-arc-copy-sub premium-target-soft-warning">
-                          You can keep sending, but the daily goal is already reached.
-                        </span>
-                      ) : null}
-                      <span className={`premium-arc-copy-sub premium-target-approval-pill ${targetStatusTone}`}>
-                        {targetApprovalLabel}
-                      </span>
-                      {targetApprovalReviewedAt ? (
-                        <span className="premium-arc-copy-sub">
-                          Last reviewed: {targetApprovalReviewedAt}
-                        </span>
-                      ) : null}
-                      {targetApprovalRequestNote ? (
-                        <span className="premium-arc-copy-sub">
-                          Note: {targetApprovalRequestNote}
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="ghost subtle premium-target-approval-btn"
-                        onClick={async () => {
-                          setTargetApprovalStatusState('pending');
-                          try {
-                            await fetch('/api/target-approval', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                              period: targetPeriodValue,
-                              dailyTarget: targetDailyCount,
-                              status: 'pending',
-                              note: 'Daily mail target approval requested from dashboard.'
-                            })
-                          });
-                          } catch (error) {
-                            // Keep the UI responsive even if persistence fails.
-                          }
-                          onShowMessage?.('Target approval request sent to your team lead.', 'info');
-                        }}
-                      >
-                        Request approval
-                      </button>
-                  </div>
-                </div>
-
-          </div>
-
-        <div className="premium-calendar-card premium-card-with-tabs">
-          <div className="premium-panel-head">
-            <div>
-              <h3>{monthLabel}</h3>
-            </div>
-            <div className="premium-calendar-nav premium-calendar-nav-wide">
-              <button
-                type="button"
-                className="ghost subtle"
-                onClick={() => setCalendarCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="ghost subtle"
-                onClick={() => setCalendarCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              >
-                ›
-              </button>
-            </div>
-          </div>
-          <div className={`premium-calendar-grid view-${calendarViewMode}`}>
-            {weekdayLabels.map((label) => (
-              <span key={label} className="premium-calendar-weekday">
-                {label}
-              </span>
-            ))}
-            {calendarCells.map((day) => (
-              (() => {
-                const dayEvents = allCalendarEvents.filter((item) => sameDay(item.date, day.date));
-                const dotTone = dayEvents.length ? getCalendarEventTone(dayEvents[0].type) : '';
-                return (
-              <button
-                key={day.key}
-                type="button"
-                className={`premium-calendar-day ${day.inMonth ? 'current' : 'adjacent'} ${sameDay(day.date, selectedDate) ? 'selected' : ''} ${sameDay(day.date, today) ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}`}
-                onClick={(event) => {
-                  setSelectedDate(day.date);
-                  openAnchoredPopup('day', setShowDayPopup)(event);
-                }}
-                data-tone={dotTone}
-                title={dayEvents.length ? dayEvents.map((item) => `${item.type}: ${item.title}`).slice(0, 3).join('\n') : ''}
-              >
-                <span>{day.label}</span>
-                {dayEvents.length ? (
-                  <span className="premium-calendar-dots" aria-hidden="true">
-                    {dayEvents.slice(0, 3).map((item) => (
-                      <i key={`${day.key}-${item.id || item.title}`} style={{ background: item.color || undefined }} />
-                    ))}
-                  </span>
-                ) : null}
-              </button>
-                );
-              })()
-            ))}
-          </div>
-          <div className="premium-calendar-events">
-            <div className="premium-calendar-events-head">
-              <strong>{selectedDate.toLocaleDateString('en-GB')}</strong>
-              <span className="premium-calendar-loading">{calendarLoading ? 'Loading...' : `${selectedEvents.length} events`}</span>
-              {selectedEvents.length ? (
-                <button
-                  type="button"
-                  className="premium-calendar-more"
-                  onClick={(event) => openAnchoredPopup('calendar', setShowCalendarPopup)(event)}
-                >
-                  See more ({selectedEvents.length})
-                </button>
-              ) : null}
-              <button type="button" className="ghost subtle premium-calendar-add" onClick={() => openEventForm(selectedDate)}>
-                Add Event
-              </button>
-            </div>
-            {selectedEvents.length ? (
-              selectedEvents.slice(0, 3).map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className="premium-calendar-event premium-calendar-event-button"
-                  onClick={() => openEventForm(selectedDate, item)}
-                  style={{ '--event-color': item.color || '#2563eb' }}
-                >
-                  <span>{item.type}</span>
-                  <p>{item.title}</p>
-                  <small>{item.startTime || 'All day'}{item.priority ? ` • ${item.priority}` : ''}</small>
-                </button>
-              ))
-            ) : (
-              <p>No events for this date.</p>
-            )}
-            <div className="premium-calendar-dashboard-summary">
-              <span><strong>{todayCalendarEvents.length}</strong> Today</span>
-              <span><strong>{upcomingTaskCount}</strong> Tasks</span>
-              <span><strong>{upcomingCampaignCount}</strong> Campaigns</span>
-              <span><strong>{upcomingMeetingCount}</strong> Meetings</span>
-            </div>
-            {upcomingCalendarEvents.length ? (
-              <div className="premium-calendar-upcoming-list">
-                {upcomingCalendarEvents.slice(0, 2).map((item) => (
-                  <button
-                    type="button"
-                    key={`upcoming-${item.id}`}
-                    onClick={() => {
-                      setSelectedDate(item.date);
-                      if (item.date) setCalendarCursor(new Date(item.date.getFullYear(), item.date.getMonth(), 1));
-                    }}
-                  >
-                    <span style={{ background: item.color || '#2563eb' }} />
-                    <strong>{item.title}</strong>
-                    <small>{item.date.toLocaleDateString('en-GB')}</small>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <section className="premium-panel premium-main-notification-panel">
-          <div className="premium-panel-head">
-            <div>
-              <h3>Inbox</h3>
-            </div>
-            <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('notifications', setShowNotificationsPopup)(event)}>
-              See All
-            </button>
-          </div>
-          <div className="premium-list-stack">
-            {notificationCards.map((item, index) => (
-              <NotificationItem key={`${item.name}-${index}`} item={item} onClick={() => openInboxMail(item)} />
-            ))}
-          </div>
-        </section>
-
-        <section className="premium-panel premium-side-notification-panel">
-          <div className="premium-panel-head">
-            <div>
-              <h3>Write Note</h3>
-            </div>
-          </div>
-          <div className="premium-note-compose">
-            <div className="premium-note-tile-grid">
-              <input
-                type="text"
-                value={noteTopic}
-                onChange={(event) => setNoteTopic(event.target.value)}
-                placeholder="Topic"
-              />
-              <input
-                type="text"
-                value={noteTag}
-                onChange={(event) => setNoteTag(event.target.value)}
-                placeholder="Tag"
-              />
-            </div>
-            <textarea
-              value={noteDraft}
-              onChange={(event) => setNoteDraft(event.target.value)}
-              placeholder="Write a quick note..."
-              rows={8}
-            />
-            <div className="premium-note-compose-footer">
-              <small>{[noteTopic, noteTag, noteDraft].map((value) => value.trim()).filter(Boolean).length} fields filled</small>
-              <div className="premium-note-actions">
-                <button type="button" className="ghost" onClick={() => setShowNotesPopup(true)}>
-                  Show Notes
-                </button>
-                <button type="button" className="ghost" onClick={addQuickNote}>Save Note</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="premium-panel premium-panel-span-3" ref={broadcastPerformanceRef}>
-          <div className="premium-panel-head">
-            <div>
-              <h3>All Broadcast Performance</h3>
-            </div>
-            <div className="premium-panel-head-actions">
-              <button type="button" className="ghost" onClick={() => onRefreshCampaigns?.()} disabled={campaignRefreshing}>
-                {campaignRefreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
-          </div>
-          <>
-              <div className="premium-table-actions">
-                <button type="button" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaign'}</button>
-                <div className="premium-broadcast-tag-filter-wrap" ref={tagFilterRef}>
-                  <button
-                    type="button"
-                    className="premium-broadcast-tag-filter"
-                    onClick={openTagFilterMenu}
-                    aria-haspopup="listbox"
-                    aria-expanded={showTagFilterMenu}
-                  >
-                    {selectedTagFilterLabel}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(event) => setTableSearch(event.target.value)}
-                  placeholder="Search campaigns, person, country, sector, tags..."
-                />
-                <button type="button" className="subtle" onClick={handleActionCenterClick}>{selectedRows.length ? 'Take Action' : 'Action Center'}</button>
-              </div>
-              <div className="premium-table-wrap">
-                <div className="premium-table premium-table-head">
-                  {['', 'Sr. No.', 'Campaign', 'Publish Date', 'Total Mails', 'Sent', 'Pending', 'Fail', 'Open', 'Bounce', 'Spam', 'Tags', 'Action'].map((label) => (
-                    <span key={label}>{label}</span>
-                  ))}
-                </div>
-                {paginatedCampaigns.length ? paginatedCampaigns.map((campaign, index) => (
-                  <div
-                    key={campaign.id || campaign._id || index}
-                    className={`premium-table premium-table-row ${openActionMenu === campaign.id ? 'premium-table-row-menu-open' : ''}`}
-                  >
-                    <span data-label="Select">
-                      <input
-                        type="checkbox"
-                        checked={selectedRows.includes(campaign.id)}
-                        onChange={() => toggleRowSelection(campaign.id)}
-                        aria-label={`Select ${campaign.name}`}
-                      />
-                    </span>
-                    <span data-label="Sr. No.">{campaign.srNo}</span>
-                    <span className="premium-table-campaign" data-label="Campaign">
-                      {(() => {
-                        const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
-                        const isDraftCampaign = normalizedStatus === 'draft';
-                        const isQueuedCampaign = normalizedStatus === 'queued';
-                        return (
-                          <>
-                      <strong>{campaign.name}</strong>
-                      <small>Status: {campaign.status || campaign.tag || 'Unknown'}</small>
-                      {isDraftCampaign ? (
-                        <button
-                          type="button"
-                          className="campaign-resume-badge"
-                          onClick={() => resumeCampaignDraft(campaign)}
-                        >
-                          Resume from: {campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}
-                        </button>
-                      ) : null}
-                      {isQueuedCampaign ? (
-                        <button
-                          type="button"
-                          className="campaign-resume-badge"
-                          onClick={() => handleViewCampaign(campaign)}
-                        >
-                          Queued for worker
-                        </button>
-                      ) : null}
-                      <small>{[campaign.person, campaign.broadcast].filter(Boolean).join(' | ') || 'Campaign details available below'}</small>
-                      <small>{[campaign.country, campaign.sector].filter(Boolean).join(' | ') || 'Location and sector not set'}</small>
-                          </>
-                        );
-                      })()}
-                    </span>
-                    <span data-label="Publish Date">{campaign.publishDate || '-'}</span>
-                    <span data-label="Total Mails">{campaign.total}</span>
-                    <span data-label="Sent">{campaign.sent}</span>
-                    <span data-label="Pending">{campaign.pending}</span>
-                    <span data-label="Fail">{campaign.failed}</span>
-                    <span data-label="Open">{campaign.open}</span>
-                    <span data-label="Bounce">{campaign.bounced}</span>
-                    <span data-label="Spam">{campaign.spam}</span>
-                    <span className="premium-tag-stack" data-label="Tags">
-                      {(campaign.tags || []).slice(0, 2).map((tag) => (
-                        <em key={tag}>{tag}</em>
-                      ))}
-                    </span>
-                    <span className="premium-table-action-cell" data-label="Action" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
-                      <button
-                        type="button"
-                        className="premium-row-action"
-                        onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
-                        aria-label={`Open actions for ${campaign.name}`}
-                      >
-                        ⋮
-                      </button>
-                      {openActionMenu === campaign.id ? (() => {
-                        const normalizedStatus = String(campaign.status || campaign.tag || '').toLowerCase();
-                        const isDraftCampaign = normalizedStatus === 'draft';
-                        const canPauseCampaign = ['queued', 'running'].includes(normalizedStatus);
-                        const canStopCampaign = ['queued', 'running', 'paused'].includes(normalizedStatus);
-                        const canResumeCampaign = normalizedStatus === 'paused';
-                        return (
-                        <div className="premium-row-action-menu">
-                          <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
-                          <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
-                          {isDraftCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
-                              Resume Draft
-                            </button>
-                          ) : null}
-                          {canPauseCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
-                          ) : null}
-                          {canStopCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
-                          ) : null}
-                          {canResumeCampaign ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
-                          ) : null}
-                          <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
-                        </div>
-                        );
-                      })() : null}
-                    </span>
-                  </div>
-                )) : (
-                  <>
-                    {Array.from({ length: 7 }, (_, index) => (
-                      <div key={`empty-row-${index}`} className="premium-table premium-table-row premium-table-row-empty">
-                        <span data-label="Select">
-                          <input
-                            type="checkbox"
-                            disabled
-                            aria-label="No row available"
-                          />
-                        </span>
-                        <span>{index + 1}</span>
-                        <span data-label="Campaign">—</span>
-                        <span data-label="Publish Date">—</span>
-                        <span data-label="Total Mails">—</span>
-                        <span data-label="Sent">—</span>
-                        <span data-label="Pending">—</span>
-                        <span data-label="Fail">—</span>
-                        <span data-label="Open">—</span>
-                        <span data-label="Bounce">—</span>
-                        <span data-label="Spam">—</span>
-                        <span className="premium-tag-stack" data-label="Tags">
-                          <em className="premium-table-empty-tag">No data</em>
-                        </span>
-                        <span className="premium-table-action-cell" data-label="Action">
-                          <button type="button" className="premium-row-action" disabled aria-label="No actions available">
-                            ⋮
-                          </button>
-                        </span>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-              <div className="premium-table-footer">
-                <label className="premium-table-bulk">
-                  <input
-                    type="checkbox"
-                    checked={paginatedCampaigns.length > 0 && paginatedCampaigns.every((campaign) => selectedRows.includes(campaign.id))}
-                    onChange={toggleAllRows}
-                  />
-                  <span>Select all visible rows</span>
-                </label>
-                <div className="premium-table-pagination">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentTablePage((page) => Math.max(1, page - 1))}
-                    disabled={currentTablePage === 1}
-                  >
-                    ‹ Back
-                  </button>
-                  {Array.from({ length: totalTablePages }, (_, index) => (
-                    <button
-                      key={index + 1}
-                      type="button"
-                      className={currentTablePage === index + 1 ? 'active' : ''}
-                      onClick={() => setCurrentTablePage(index + 1)}
-                    >
-                      {index + 1}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setCurrentTablePage((page) => Math.min(totalTablePages, page + 1))}
-                    disabled={currentTablePage === totalTablePages}
-                  >
-                    Next ›
-                  </button>
-                </div>
-              </div>
-          </>
-        </section>
-
-        <section className="premium-panel premium-logs-panel">
-          <div className="premium-logs-split">
-            <div className="premium-logs-split-column">
-              <div className="premium-panel-head">
-                <h3>Activity Timeline</h3>
-                <div className="premium-panel-head-actions">
-                  <button type="button" className="ghost" onClick={() => setShowTimelineAddPopup(true)}>
-                    Add Task
-                  </button>
-                  <button type="button" className="ghost" onClick={() => setShowTimelinePopup(true)}>
-                    See All
-                  </button>
-                </div>
-              </div>
-              <div className="premium-timeline-summary">
-                <strong>{inlineTimelineCards.length} campaign activities</strong>
-                <span>Running, pending, paused, completed, failed, and draft campaign actions.</span>
-              </div>
-              <div className="premium-timeline-stack">
-                {Object.entries(
-                  inlineTimelineCards.reduce((groups, item, index) => {
-                    const label = timelineDateLabel(item.date);
-                    if (!groups[label]) groups[label] = [];
-                    groups[label].push({ item, index });
-                    return groups;
-                  }, {})
-                ).map(([label, entries]) => (
-                  <div key={label} className="premium-timeline-group">
-                    <div className="premium-timeline-divider">{label}</div>
-                    {entries.map(({ item, index }) => (
-                      <TimelineItem
-                        key={item.id || `${item.date}-${index}`}
-                        item={item}
-                        checked={Boolean(timelineCompletionMap[item.id || `${item.date}-${index}`])}
-                        onToggle={(checked) => {
-                          const key = item.id || `${item.date}-${index}`;
-                          setTimelineCompletionMap((current) => {
-                            const next = { ...current, [key]: checked };
-                            onTimelineTaskStatesChange?.(next);
-                            return next;
-                          });
-                        }}
-                        onOpen={() => {
-                          setSelectedTimelineTask(item);
-                          setShowTimelinePopup(true);
-                        }}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="premium-logs-split-column">
-                <div className="premium-panel-head">
-                  <h3>Workspace Overview</h3>
-                  <button type="button" className="ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                    See All
-                  </button>
-                </div>
-                <div className="premium-workspace-overview-grid">
-                  {workspaceOverviewItems.map((item) => (
-                    <article key={item.label} className={`premium-workspace-overview-card tone-${item.tone || 'neutral'}`}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      <small>{item.detail}</small>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
+      <BottomGrid
+        inlineTimelineCards={inlineTimelineCards}
+        timelineDateLabel={timelineDateLabel}
+        timelineCompletionMap={timelineCompletionMap}
+        setTimelineCompletionMap={setTimelineCompletionMap}
+        onTimelineTaskStatesChange={onTimelineTaskStatesChange}
+        setSelectedTimelineTask={setSelectedTimelineTask}
+        setShowTimelinePopup={setShowTimelinePopup}
+        setShowTimelineAddPopup={setShowTimelineAddPopup}
+        workspaceOverviewItems={workspaceOverviewItems}
+        openAnchoredPopup={openAnchoredPopup}
+        setShowLogsPopup={setShowLogsPopup}
+      />
+    </div>
 
       {renderPortalPopup(
         showTagFilterMenu,
@@ -3094,7 +2565,7 @@ export default function PremiumDashboardShell({
         showCalendarPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowCalendarPopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('calendar')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <h3>Events on {selectedDate.toLocaleDateString('en-GB')}</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowCalendarPopup(false)}>
                 ×
@@ -3123,7 +2594,7 @@ export default function PremiumDashboardShell({
         showDayPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDayPopup(false)}>
           <div className="premium-calendar-modal premium-day-modal" style={popupStyleFor('day')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <div>
                 <h3>{selectedDateLabel}</h3>
                 <p>Daily activity, events, and quick actions for this date.</p>
@@ -3179,7 +2650,7 @@ export default function PremiumDashboardShell({
         showEventFormPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowEventFormPopup(false)}>
           <div className="premium-calendar-modal premium-event-form-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <div>
                 <h3>{editingCalendarEvent ? 'Edit Event' : 'Add Event'}</h3>
                 <p>Plan campaigns, calls, tasks, and reminders in your dashboard calendar.</p>
@@ -3304,7 +2775,7 @@ export default function PremiumDashboardShell({
         showNotesPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotesPopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('notes')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <div>
                 <span className="premium-section-kicker">Notes</span>
                 <h3>All Quick Notes</h3>
@@ -3331,7 +2802,7 @@ export default function PremiumDashboardShell({
         showTimelinePopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTimelinePopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <h3>All Activity Timeline Events</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>×</button>
             </div>
@@ -3388,7 +2859,7 @@ export default function PremiumDashboardShell({
         showTimelineAddPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTimelineAddPopup(false)}>
           <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
-            <div className="premium-panel-head">
+            <div className="section-header">
               <h3>Add Timeline Task</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowTimelineAddPopup(false)}>×</button>
             </div>
@@ -3481,7 +2952,7 @@ export default function PremiumDashboardShell({
         showLogsPopup,
           <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
             <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
-              <div className="premium-panel-head">
+              <div className="section-header">
                 <h3>System Monitor</h3>
                 <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>×</button>
               </div>
@@ -4389,6 +3860,23 @@ export default function PremiumDashboardShell({
                     <strong>Previously Used Drafts</strong>
                     <small>{filteredSavedDrafts.length} drafts available</small>
                   </div>
+                  <div className="premium-select-draft-filters">
+                    <input
+                      type="search"
+                      value={selectDraftSearch}
+                      onChange={(event) => setSelectDraftSearch(event.target.value)}
+                      placeholder="Search draft name, type, sector, city, project, campaign"
+                    />
+                    <select
+                      value={selectDraftTypeFilter}
+                      onChange={(event) => setSelectDraftTypeFilter(event.target.value)}
+                    >
+                      <option value="">All draft types</option>
+                      {draftTypeItems.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
                   {filteredSavedDrafts.length ? (
                     filteredSavedDrafts.map((draft) => (
                       <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
@@ -4406,6 +3894,14 @@ export default function PremiumDashboardShell({
                           <strong>{draft.title}</strong>
                           <small>{draftTypeLabel(draft.draftType || draft.category)} Draft</small>
                           <p>Subject: {draft.subject}</p>
+                          <div className="premium-select-draft-meta">
+                            <span>Campaign: {draft.campaignName || 'No campaign'}</span>
+                            <span>Sector: {draft.sector || 'No sector'}</span>
+                            <span>City: {draft.city || 'No city'}</span>
+                            <span>Project: {draft.project ? String(draft.project).toUpperCase() : 'No project'}</span>
+                            <span>Saved Date: {draft.savedDate || 'No saved date'}</span>
+                            <span>Saved Time: {draft.savedTime || 'No saved time'}</span>
+                          </div>
                           <small>{draft.updated}</small>
                         </div>
                       </label>
@@ -4423,6 +3919,12 @@ export default function PremiumDashboardShell({
                         <strong>{templateDraftForSelectedType.title}</strong>
                         <small>{draftTypeLabel(templateDraftForSelectedType.draftType)} Draft</small>
                         <p>Subject: {templateDraftForSelectedType.subject}</p>
+                        <div className="premium-select-draft-meta">
+                          <span>Campaign: No campaign</span>
+                          <span>Sector: No sector</span>
+                          <span>City: No city</span>
+                          <span>Project: No project</span>
+                        </div>
                         <small>{templateDraftForSelectedType.updated}</small>
                       </div>
                     </label>
@@ -4554,6 +4056,7 @@ export default function PremiumDashboardShell({
                           <button key={draft.id} type="button" onClick={() => loadDraftIntoEditor(draft)}>
                             <strong>{draft.title}</strong>
                             <span>{draft.subject}</span>
+                            <small>{[draft.campaignName || 'No campaign', draft.sector || 'No sector', draft.city || 'No city'].join(' · ')}</small>
                           </button>
                         ))
                       ) : (
@@ -4837,7 +4340,7 @@ export default function PremiumDashboardShell({
           </div>
         </div>
       )}
-    </section>
+    </>
   );
 }
 

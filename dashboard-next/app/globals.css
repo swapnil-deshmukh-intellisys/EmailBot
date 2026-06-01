@@ -1,7 +1,7 @@
 :root {
   --font-ui: Inter, 'Inter', 'Segoe UI', Tahoma, Arial, sans-serif;
-  --bg-primary: #f3f5f9;
-  --bg-secondary: #e2e8f0;
+  --bg-primary: #f7f9fc;
+  --bg-secondary: #edf2f8;
   --panel: #ffffff;
   --panel-soft: rgba(255, 255, 255, 0.9);
   --panel-strong: #ffffff;
@@ -208,11 +208,13 @@ td {
 
 body {
   margin: 0;
-  font-family: var(--font-ui);
-  background: rgba(244, 247, 251, 0.25);
-  color: var(--text);
-  position: relative;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.5;
   min-height: 100vh;
+  display: flex;
 }
 
 body::before {
@@ -2864,6 +2866,12 @@ p {
   line-height: 1.75;
 }
 
+.draft-body-label {
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .draft-type-section-stack {
   display: grid;
   gap: 14px;
@@ -2922,6 +2930,30 @@ p {
 .draft-type-card small,
 .draft-type-empty {
   color: #64748b;
+}
+
+.draft-type-card-details {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+}
+
+.draft-type-card-details span {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.draft-type-card-details b {
+  flex: 0 0 64px;
+  color: #0f172a;
+  font-size: 11px;
 }
 
 .draft-type-card-meta {
@@ -7031,6 +7063,49 @@ p {
 
 .premium-select-draft-item small {
   font-size: 11px;
+}
+
+.premium-select-draft-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.45fr);
+  gap: 8px;
+  margin: 10px 0 8px;
+}
+
+.premium-select-draft-filters input,
+.premium-select-draft-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 11px;
+}
+
+.premium-select-draft-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.premium-select-draft-meta span {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
 }
 
 .premium-select-draft-limit-note {
@@ -20334,21 +20409,45 @@ b {
   font-size: 20px;
 }
 
-.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ul:not([data-type='taskList']) {
+  list-style-type: disc !important;
+  margin: 0 0 12px 24px;
+  padding: 0;
+}
+
 .tiptap-editor .ProseMirror ol {
+  list-style-type: decimal !important;
   margin: 0 0 12px 24px;
   padding: 0;
 }
 
 .tiptap-editor .ProseMirror ul[data-type='taskList'] {
   margin-left: 0;
-  list-style: none;
+  list-style: none !important;
+  padding: 0;
 }
 
 .tiptap-editor .ProseMirror ul[data-type='taskList'] li {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+}
+
+.tiptap-editor .ProseMirror ul[data-type='taskList'] input[type="checkbox"] {
+  margin-top: 5px;
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror sup {
+  vertical-align: super;
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+.tiptap-editor .ProseMirror sub {
+  vertical-align: sub;
+  font-size: 0.75em;
+  line-height: 0;
 }
 
 .tiptap-editor .ProseMirror a {
@@ -30241,4 +30340,1238 @@ html.theme-dark .client-data-center-stat strong {
 .client-data-history-step strong {
   font-size: 11px !important;
   font-weight: 700 !important;
+}
+/* IntelliMailPilot shared dashboard shell: reference sidebar/navbar */
+body .dashboard-shell {
+  --sidebar-w: 232px;
+  --header-h: 56px;
+  --slate-50: #f8f9fb;
+  --slate-100: #f0f2f5;
+  --slate-200: #e4e8ee;
+  --slate-400: #9aa5b4;
+  --slate-600: #4a5568;
+  --slate-900: #111827;
+  --indigo-50: #eef0fd;
+  --accent: #4f5bd5;
+  --accent-light: #eef0fd;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --border: #e8ecf1;
+  --border-subtle: #f0f2f5;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  position: relative !important;
+  width: 100% !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  background: #f5f6f8 !important;
+  color: var(--slate-900) !important;
+  overflow-x: hidden !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+}
+
+body .dashboard-shell *,
+body .dashboard-shell button,
+body .dashboard-shell input,
+body .dashboard-shell select,
+body .dashboard-shell textarea {
+  box-sizing: border-box !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+
+body .dashboard-shell > .dashboard-sidebar,
+body .dashboard-shell .intellimail-sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  width: var(--sidebar-w) !important;
+  min-width: var(--sidebar-w) !important;
+  max-width: var(--sidebar-w) !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background: var(--surface) !important;
+  border: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-card {
+  width: 100% !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+
+body .dashboard-shell .sidebar-logo.reference-brand {
+  height: 67px !important;
+  min-height: 67px !important;
+  flex: 0 0 67px !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 18px 20px 16px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  background: var(--surface) !important;
+}
+
+body .dashboard-shell .reference-brand-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+body .dashboard-shell .logo-mark {
+  width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #4f5bd5 0%, #667eea 100%) !important;
+}
+
+body .dashboard-shell .logo-mark i {
+  color: #fff !important;
+  font-size: 16px !important;
+}
+
+body .dashboard-shell .logo-text {
+  display: block !important;
+  color: var(--slate-900) !important;
+  font-size: 15px !important;
+  line-height: 18px !important;
+  font-weight: 600 !important;
+}
+
+body .dashboard-shell .logo-sub {
+  display: block !important;
+  color: var(--slate-400) !important;
+  font-size: 10px !important;
+  line-height: 12px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-stack {
+  flex: 0 0 auto !important;
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+body .dashboard-shell .sidebar-search.dashboard-sidebar-search {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body .dashboard-shell .search-wrap {
+  position: relative !important;
+}
+
+body .dashboard-shell .search-wrap .si-icon {
+  position: absolute !important;
+  left: 9px !important;
+  top: 50% !important;
+  z-index: 1 !important;
+  transform: translateY(-50%) !important;
+  color: var(--slate-400) !important;
+  font-size: 14px !important;
+  pointer-events: none !important;
+}
+
+body .dashboard-shell .search-input {
+  width: 100% !important;
+  height: 34px !important;
+  padding: 7px 10px 7px 32px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--surface-2) !important;
+  color: var(--slate-900) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-nav {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-menu.sidebar-nav {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 8px 0 !important;
+  scrollbar-width: none !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-menu::-webkit-scrollbar {
+  display: none !important;
+}
+
+body .dashboard-shell .nav-section-label {
+  flex: 0 0 auto !important;
+  padding: 12px 20px 4px !important;
+  margin: 0 !important;
+  color: var(--slate-400) !important;
+  font-size: 10px !important;
+  line-height: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-item {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body .dashboard-shell .nav-item,
+body .dashboard-shell .dashboard-primary-link,
+body .dashboard-shell .dashboard-sidebar-link {
+  height: 36px !important;
+  min-height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  margin: 1px 8px !important;
+  padding: 8px 16px !important;
+  border: 0 !important;
+  border-radius: var(--radius-md) !important;
+  background: transparent !important;
+  color: var(--slate-600) !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  font-size: 13.5px !important;
+  line-height: 20px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+}
+
+body .dashboard-shell .nav-item:hover,
+body .dashboard-shell .dashboard-primary-link:hover,
+body .dashboard-shell .dashboard-sidebar-link:hover {
+  background: var(--surface-2) !important;
+  color: var(--slate-900) !important;
+}
+
+body .dashboard-shell .nav-item.active,
+body .dashboard-shell .dashboard-primary-link.active,
+body .dashboard-shell .dashboard-sidebar-link.active {
+  background: var(--accent-light) !important;
+  color: var(--accent) !important;
+  font-weight: 500 !important;
+}
+
+body .dashboard-shell .dashboard-link-icon,
+body .dashboard-shell .nav-item i {
+  width: 20px !important;
+  min-width: 20px !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  color: inherit !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+
+body .dashboard-shell .dashboard-sidebar-footer.sidebar-footer {
+  flex: 0 0 auto !important;
+  padding: 14px 16px !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  background: var(--surface) !important;
+}
+
+body .dashboard-shell .plan-card.dashboard-upgrade-card {
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 0 10px !important;
+  padding: 12px !important;
+  border: 1px solid #d5d9f8 !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--accent-light) !important;
+  box-shadow: none !important;
+}
+
+body .dashboard-shell .plan-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 8px !important;
+}
+
+body .dashboard-shell .plan-name {
+  color: var(--accent) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+body .dashboard-shell .plan-tag {
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+
+body .dashboard-shell .plan-credits {
+  color: var(--slate-900) !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+body .dashboard-shell .plan-credits-label {
+  margin-top: 2px !important;
+  color: var(--slate-400) !important;
+  font-size: 11px !important;
+}
+
+body .dashboard-shell .upgrade-btn.dashboard-upgrade-button {
+  width: 100% !important;
+  min-height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin: 0 0 8px !important;
+  padding: 9px 14px !important;
+  border: 0 !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+body .dashboard-shell .user-row.reference-sidebar-user {
+  min-height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 6px 4px !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+
+body .dashboard-shell .user-avatar,
+body .dashboard-shell .dashboard-topbar-avatar {
+  width: 28px !important;
+  height: 28px !important;
+  flex: 0 0 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  background: #5461dc !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  overflow: hidden !important;
+}
+
+body .dashboard-shell .user-copy {
+  min-width: 0 !important;
+}
+
+body .dashboard-shell .user-name,
+body .dashboard-shell .user-plan,
+body .dashboard-shell .dashboard-topbar-profile-name {
+  display: block !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body .dashboard-shell .user-name {
+  color: var(--slate-900) !important;
+  font-size: 13px !important;
+  line-height: 16px !important;
+  font-weight: 500 !important;
+}
+
+body .dashboard-shell .user-plan {
+  color: var(--slate-400) !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+}
+
+body .dashboard-shell .user-actions {
+  margin-left: auto !important;
+  display: flex !important;
+  gap: 4px !important;
+}
+
+body .dashboard-shell .user-icon-btn {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: var(--slate-400) !important;
+  box-shadow: none !important;
+}
+
+body .dashboard-shell > .dashboard-main,
+body .dashboard-shell > .app-layout-main.dashboard-main,
+body .dashboard-main.app-layout-main {
+  width: calc(100vw - var(--sidebar-w)) !important;
+  max-width: calc(100vw - var(--sidebar-w)) !important;
+  min-width: 0 !important;
+  margin: 0 0 0 var(--sidebar-w) !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  background: #f5f6f8 !important;
+}
+
+body .dashboard-shell .topbar.dashboard-topbar,
+body .dashboard-shell .dashboard-topbar-rich.intellimail-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+  width: 100% !important;
+  height: var(--header-h) !important;
+  min-height: var(--header-h) !important;
+  margin: 0 !important;
+  padding: 0 24px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+
+body .dashboard-shell .topbar-tabs.dashboard-topbar-tabs {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+body .dashboard-shell .tb-tab.dashboard-topbar-tab {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 5px 14px !important;
+  border: 0 !important;
+  border-radius: var(--radius-md) !important;
+  background: transparent !important;
+  color: var(--slate-600) !important;
+  box-shadow: none !important;
+  font-size: 13.5px !important;
+  line-height: 20px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+}
+
+body .dashboard-shell .tb-tab.dashboard-topbar-tab.active {
+  background: var(--accent-light) !important;
+  color: var(--accent) !important;
+  font-weight: 500 !important;
+}
+
+body .dashboard-shell .topbar-actions.dashboard-topbar-actions {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+body .dashboard-shell .dashboard-topbar-filter-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+body .dashboard-shell .tb-theme-btn,
+body .dashboard-shell .tb-select,
+body .dashboard-shell .dashboard-mobile-filter-toggle,
+body .dashboard-shell .dashboard-topbar-profile {
+  height: 34px !important;
+  min-height: 34px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  background-color: var(--surface) !important;
+  color: var(--slate-600) !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+body .dashboard-shell .tb-theme-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+}
+
+body .dashboard-shell .tb-divider {
+  width: 1px !important;
+  height: 20px !important;
+  flex: 0 0 1px !important;
+  margin: 0 4px !important;
+  background: var(--border) !important;
+}
+
+body .dashboard-shell .tb-select {
+  width: auto !important;
+  max-width: 150px !important;
+  padding: 6px 28px 6px 12px !important;
+  outline: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa5b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+}
+
+body .dashboard-shell .dashboard-topbar-date-select { width: 112px !important; }
+body .dashboard-shell .dashboard-topbar-project-select { width: 128px !important; }
+body .dashboard-shell .dashboard-topbar-sender-select { width: 126px !important; }
+
+body .dashboard-shell .dashboard-topbar-profile-wrap {
+  position: relative !important;
+  flex: 0 0 auto !important;
+}
+
+body .dashboard-shell .dashboard-topbar-profile {
+  width: 138px !important;
+  max-width: 138px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 10px !important;
+}
+
+body .dashboard-shell .dashboard-topbar-dropdown-menu {
+  position: absolute !important;
+  top: calc(100% + 10px) !important;
+  right: 0 !important;
+  z-index: 1200 !important;
+  min-width: 240px !important;
+  display: grid !important;
+  gap: 2px !important;
+  padding: 8px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.12) !important;
+}
+
+body .dashboard-shell .dashboard-topbar-dropdown-item {
+  width: 100% !important;
+  min-height: 36px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  padding: 8px 10px !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: #374151 !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+body .dashboard-shell .dashboard-topbar-dropdown-item:hover {
+  background: var(--surface-2) !important;
+}
+
+body .dashboard-shell .dashboard-topbar-dropdown-item.logout {
+  margin-top: 6px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  color: #e11d48 !important;
+  font-weight: 700 !important;
+}
+
+body .dashboard-shell .dashboard-profile-photo-input,
+body .dashboard-shell .dashboard-mobile-sidebar-toggle,
+body .dashboard-shell .dashboard-mobile-filter-toggle,
+body .dashboard-shell .dashboard-sidebar-close {
+  display: none !important;
+}
+
+body .dashboard-shell .app-layout-main > :not(.dashboard-topbar) {
+  margin: 24px !important;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  body .dashboard-shell {
+    --sidebar-w: 64px;
+  }
+
+  body .dashboard-shell > .dashboard-sidebar,
+  body .dashboard-shell .intellimail-sidebar {
+    width: var(--sidebar-w) !important;
+    min-width: var(--sidebar-w) !important;
+    max-width: var(--sidebar-w) !important;
+  }
+
+  body .dashboard-shell .reference-brand-copy,
+  body .dashboard-shell .dashboard-sidebar-stack,
+  body .dashboard-shell .nav-section-label,
+  body .dashboard-shell .nav-item span,
+  body .dashboard-shell .dashboard-sidebar-badge,
+  body .dashboard-shell .dashboard-sidebar-footer .plan-card,
+  body .dashboard-shell .dashboard-sidebar-footer .upgrade-btn,
+  body .dashboard-shell .user-copy,
+  body .dashboard-shell .user-icon-btn {
+    display: none !important;
+  }
+
+  body .dashboard-shell .sidebar-logo.reference-brand {
+    height: 64px !important;
+    min-height: 64px !important;
+    flex-basis: 64px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  body .dashboard-shell .dashboard-sidebar-menu.sidebar-nav {
+    align-items: center !important;
+    padding: 8px 0 !important;
+  }
+
+  body .dashboard-shell .nav-item,
+  body .dashboard-shell .dashboard-primary-link,
+  body .dashboard-shell .dashboard-sidebar-link {
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    margin: 2px 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  body .dashboard-shell .user-row.reference-sidebar-user {
+    justify-content: center !important;
+  }
+
+  body .dashboard-shell .dashboard-mobile-filter-toggle {
+    width: 42px !important;
+    min-width: 42px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-filter-group {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 16px !important;
+    z-index: 80 !important;
+    display: none !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 260px !important;
+    padding: 10px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    background: var(--surface) !important;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-filter-group.open {
+    display: grid !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-filter-group .tb-theme-btn,
+  body .dashboard-shell .dashboard-topbar-filter-group .tb-select {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-profile-name,
+  body .dashboard-shell .tb-theme-btn span {
+    display: none !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-profile {
+    width: 42px !important;
+    min-width: 42px !important;
+    padding: 0 4px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  body .dashboard-shell {
+    --sidebar-w: 0px;
+  }
+
+  body .dashboard-shell > .dashboard-sidebar,
+  body .dashboard-shell .intellimail-sidebar {
+    width: min(232px, 88vw) !important;
+    min-width: min(232px, 88vw) !important;
+    max-width: min(232px, 88vw) !important;
+    transform: translateX(-100%) !important;
+    transition: transform 180ms ease !important;
+    box-shadow: 18px 0 40px rgba(15, 23, 42, 0.22) !important;
+  }
+
+  body .dashboard-shell > .dashboard-sidebar.mobile-open,
+  body .dashboard-shell .intellimail-sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  body .dashboard-shell > .dashboard-main,
+  body .dashboard-shell > .app-layout-main.dashboard-main,
+  body .dashboard-main.app-layout-main {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: 0 !important;
+  }
+
+  body .dashboard-shell .topbar.dashboard-topbar,
+  body .dashboard-shell .dashboard-topbar-rich.intellimail-topbar {
+    padding: 0 12px !important;
+    gap: 10px !important;
+  }
+
+  body .dashboard-shell .dashboard-mobile-sidebar-toggle.dashboard-hamburger-button,
+  body .dashboard-shell .dashboard-mobile-filter-toggle {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 12px !important;
+    background: var(--surface) !important;
+    color: #1f2937 !important;
+  }
+
+  body .dashboard-shell .dashboard-sidebar-backdrop.open {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 900 !important;
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    background: rgba(15, 23, 42, 0.52) !important;
+  }
+
+  body .dashboard-shell .dashboard-sidebar-close {
+    position: absolute !important;
+    top: 14px !important;
+    right: 12px !important;
+    z-index: 2 !important;
+    width: 34px !important;
+    height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    background: var(--surface) !important;
+    color: #1f2937 !important;
+  }
+
+  body .dashboard-shell .tb-tab.dashboard-topbar-tab:not(.active) {
+    display: none !important;
+  }
+
+  body .dashboard-shell .tb-tab.dashboard-topbar-tab.active {
+    max-width: 100% !important;
+    padding: 0 8px !important;
+    background: transparent !important;
+    color: var(--slate-900) !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-filter-group {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    z-index: 80 !important;
+    display: none !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    background: var(--surface) !important;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-filter-group.open {
+    display: grid !important;
+  }
+
+  body .dashboard-shell .tb-divider {
+    display: none !important;
+  }
+
+  body .dashboard-shell .tb-theme-btn,
+  body .dashboard-shell .tb-select {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-profile-wrap {
+    width: 40px !important;
+    flex: 0 0 40px !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-profile {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    padding: 0 3px !important;
+  }
+
+  body .dashboard-shell .dashboard-topbar-profile-name {
+    display: none !important;
+  }
+
+  body .dashboard-shell .app-layout-main > :not(.dashboard-topbar) {
+    margin: 16px !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  html body main.dashboard-shell {
+    --sidebar-w: 64px !important;
+  }
+
+  html body main.dashboard-shell > aside.dashboard-sidebar,
+  html body main.dashboard-shell aside.intellimail-sidebar {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+  }
+
+  html body main.dashboard-shell > .dashboard-main,
+  html body main.dashboard-shell > .app-layout-main.dashboard-main,
+  html body main.dashboard-shell .dashboard-main.app-layout-main {
+    width: calc(100vw - 64px) !important;
+    max-width: calc(100vw - 64px) !important;
+    margin-left: 64px !important;
+  }
+}
+
+html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  align-self: center !important;
+}
+
+html body main.dashboard-shell > aside.dashboard-sidebar {
+  max-width: var(--sidebar-w) !important;
+}
+
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden !important;
+}
+
+html body main.dashboard-shell > .dashboard-main,
+html body main.dashboard-shell > .app-layout-main.dashboard-main,
+html body main.dashboard-shell > .container.grid.dashboard-main.app-layout-main {
+  position: relative !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  margin-left: var(--sidebar-w) !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 767px) {
+  html body main.dashboard-shell > .dashboard-main,
+  html body main.dashboard-shell > .app-layout-main.dashboard-main,
+  html body main.dashboard-shell > .container.grid.dashboard-main.app-layout-main {
+    margin-left: 0 !important;
+  }
+}
+
+/* Final navbar/sidebar stability lock */
+html body main.dashboard-shell {
+  --sidebar-w: 232px !important;
+  --header-h: 56px !important;
+  padding-top: 0 !important;
+}
+
+html body main.dashboard-shell > aside.dashboard-sidebar,
+html body main.dashboard-shell aside.intellimail-sidebar,
+html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  width: var(--sidebar-w) !important;
+  min-width: var(--sidebar-w) !important;
+  max-width: var(--sidebar-w) !important;
+  height: 100vh !important;
+  z-index: 1000 !important;
+}
+
+html body main.dashboard-shell > .dashboard-main,
+html body main.dashboard-shell > .app-layout-main.dashboard-main,
+html body main.dashboard-shell > .container.grid.dashboard-main.app-layout-main,
+html body main.dashboard-shell > div.main.dashboard-main {
+  width: calc(100% - var(--sidebar-w)) !important;
+  max-width: calc(100% - var(--sidebar-w)) !important;
+  min-width: 0 !important;
+  margin-left: var(--sidebar-w) !important;
+  padding-top: var(--header-h) !important;
+  position: relative !important;
+  left: 0 !important;
+  transform: none !important;
+  contain: none !important;
+  perspective: none !important;
+  filter: none !important;
+}
+
+html body main.dashboard-shell .topbar.dashboard-topbar,
+html body main.dashboard-shell header.topbar.dashboard-topbar,
+html body main.dashboard-shell .dashboard-topbar-rich.intellimail-topbar {
+  position: fixed !important;
+  top: 0 !important;
+  left: var(--sidebar-w) !important;
+  inset-inline-start: var(--sidebar-w) !important;
+  right: auto !important;
+  inset-inline-end: auto !important;
+  width: calc(100% - var(--sidebar-w)) !important;
+  max-width: calc(100% - var(--sidebar-w)) !important;
+  height: var(--header-h) !important;
+  min-height: var(--header-h) !important;
+  z-index: 950 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+html body main.dashboard-shell .dashboard-page,
+html body main.dashboard-shell .workspace-page,
+html body main.dashboard-shell .client-data-page,
+html body main.dashboard-shell .campaigns-modern-page,
+html body main.dashboard-shell .mail-inbox-page,
+html body main.dashboard-shell .report-dashboard-page,
+html body main.dashboard-shell .dashboard-profile-page,
+html body main.dashboard-shell .master-mail-page {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  html body main.dashboard-shell {
+    --sidebar-w: 64px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  html body main.dashboard-shell {
+    --sidebar-w: 0px !important;
+  }
+
+  html body main.dashboard-shell > aside.dashboard-sidebar,
+  html body main.dashboard-shell aside.intellimail-sidebar,
+  html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
+    width: min(232px, 88vw) !important;
+    min-width: min(232px, 88vw) !important;
+    max-width: min(232px, 88vw) !important;
+  }
+
+  html body main.dashboard-shell > .dashboard-main,
+  html body main.dashboard-shell > .app-layout-main.dashboard-main,
+  html body main.dashboard-shell > .container.grid.dashboard-main.app-layout-main,
+  html body main.dashboard-shell > div.main.dashboard-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  html body main.dashboard-shell .topbar.dashboard-topbar,
+  html body main.dashboard-shell header.topbar.dashboard-topbar,
+  html body main.dashboard-shell .dashboard-topbar-rich.intellimail-topbar {
+    left: 0 !important;
+    inset-inline-start: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Polished profile dropdown: aligned card, no visual merge with profile page nav */
+html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+  position: relative !important;
+  isolation: isolate !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-menu {
+  top: calc(100% + 9px) !important;
+  right: 0 !important;
+  left: auto !important;
+  width: min(292px, calc(100vw - 24px)) !important;
+  min-width: min(292px, calc(100vw - 24px)) !important;
+  max-width: min(292px, calc(100vw - 24px)) !important;
+  display: grid !important;
+  gap: 6px !important;
+  padding: 10px !important;
+  overflow: hidden !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.16) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  z-index: 3000 !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item {
+  width: 100% !important;
+  min-height: 38px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 9px 11px !important;
+  border: 0 !important;
+  border-radius: 11px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 18px !important;
+  text-align: left !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item:hover {
+  background: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item.is-meta {
+  min-height: auto !important;
+  display: grid !important;
+  gap: 3px !important;
+  padding: 12px !important;
+  cursor: default !important;
+  pointer-events: none !important;
+  border: 1px solid #eef2f7 !important;
+  background: linear-gradient(180deg, #f8fafc, #ffffff) !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item.is-meta strong {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 19px !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item.is-meta small {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 16px !important;
+}
+
+html body main.dashboard-shell .dashboard-topbar-profile-wrap .dashboard-topbar-dropdown-item.logout {
+  margin-top: 4px !important;
+  padding-top: 11px !important;
+  border-top: 1px solid #eef2f7 !important;
+  border-radius: 0 0 11px 11px !important;
+  color: #dc2626 !important;
+}
+
+/* Dashboard middle row: Sending Target | Calendar | Inbox | Write Note */
+html body main.dashboard-shell .middle-grid,
+html body main.dashboard-shell .grid-3.middle-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-items: stretch !important;
+  gap: 16px !important;
+}
+
+html body main.dashboard-shell .middle-grid > .panel {
+  min-width: 0 !important;
+  height: 322px !important;
+  min-height: 322px !important;
+  max-height: 322px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+html body main.dashboard-shell .dashboard-inbox-card,
+html body main.dashboard-shell .dashboard-note-card {
+  height: 100% !important;
+}
+
+html body main.dashboard-shell .dashboard-inbox-scroll {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 2px !important;
+  scrollbar-width: thin;
+}
+
+html body main.dashboard-shell .dashboard-inbox-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+html body main.dashboard-shell .dashboard-inbox-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+}
+
+html body main.dashboard-shell .dashboard-note-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .dashboard-note-card .note-row {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+html body main.dashboard-shell .dashboard-note-card .note-input {
+  min-width: 0 !important;
+}
+
+html body main.dashboard-shell .dashboard-note-card .note-textarea {
+  flex: 1 1 auto !important;
+  min-height: 126px !important;
+  max-height: none !important;
+  width: 100% !important;
+  resize: none !important;
+  overflow-y: auto !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+html body main.dashboard-shell .dashboard-note-card .note-footer {
+  flex: 0 0 auto !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+html body main.dashboard-shell .dashboard-note-card .note-btns {
+  min-width: 0 !important;
+  flex-wrap: wrap !important;
+}
+
+html body main.dashboard-shell .middle-grid .premium-calendar-events {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+  html body main.dashboard-shell .middle-grid,
+  html body main.dashboard-shell .grid-3.middle-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  html body main.dashboard-shell .middle-grid > .panel {
+    height: 308px !important;
+    min-height: 308px !important;
+    max-height: 308px !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  html body main.dashboard-shell .middle-grid,
+  html body main.dashboard-shell .grid-3.middle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  html body main.dashboard-shell .middle-grid,
+  html body main.dashboard-shell .grid-3.middle-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body main.dashboard-shell .middle-grid > .panel {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
 }

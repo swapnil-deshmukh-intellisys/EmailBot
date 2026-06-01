@@ -376,6 +376,7 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
             name: profileDisplayName,
             initials: profileInitials,
           avatarDataUrl: profileAvatarDataUrl,
+          replaceActions: true,
           actions: profileActions.map((item) => ({ label: item.label, onClick: () => { window.location.href = item.href; } }))
         }
       }}
