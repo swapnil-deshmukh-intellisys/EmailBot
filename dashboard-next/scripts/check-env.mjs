@@ -31,7 +31,9 @@ console.log(JSON.stringify({
   errors: result.errors,
   warnings: result.warnings,
   checkedAt: result.checkedAt,
-  masked: result.masked
+  masked: result.masked,
+  worker: result.worker,
+  recommendedWorkerEnv: result.recommendedWorkerEnv
 }, null, 2));
 
 if (!result.ok) {

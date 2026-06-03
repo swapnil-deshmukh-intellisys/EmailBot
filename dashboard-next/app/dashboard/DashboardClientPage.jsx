@@ -585,6 +585,8 @@ export default function DashboardPage() {
   const [scheduledTimeValue, setScheduledTimeValue] = useState('');
   const [durationUnit, setDurationUnit] = useState('seconds');
   const [pendingCampaignId, setPendingCampaignId] = useState('');
+  const [nextProcessCampaignId, setNextProcessCampaignId] = useState('');
+  const [nextProcessStep, setNextProcessStep] = useState(0);
   const [selectedUploadedFileIds, setSelectedUploadedFileIds] = useState([]);
   const [selectedDraftUploadedFileIds, setSelectedDraftUploadedFileIds] = useState([]);
   const [savedDraftFilterCategory, setSavedDraftFilterCategory] = useState('');
@@ -1005,6 +1007,11 @@ export default function DashboardPage() {
       window.localStorage.removeItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
       const saved = JSON.parse(raw);
       if (!saved || typeof saved !== 'object') return;
+      if (saved.nextProcessMode) {
+        setNextProcessCampaignId(String(saved.nextProcessSourceCampaignId || saved._id || ''));
+        setNextProcessStep(Number(saved.nextProcessStep || saved.workflowStep || 0) || 0);
+        setPendingCampaignId('');
+      }
       window.dispatchEvent(
         new CustomEvent('dashboard:resume-campaign-draft', {
           detail: { campaign: saved }
@@ -1949,7 +1956,7 @@ const handleDeleteDraft = async (draft) => {
               eventTime,
               status: 'Queued'
             }),
-            next: 'Watch for the worker claim and running event in the campaign log.',
+            next: 'If the worker does not claim it within 2 minutes, the worker is not active or the campaign is locked. Check worker status.',
             status: 'info'
           };
         }
@@ -3031,6 +3038,63 @@ const handleDeleteDraft = async (draft) => {
     const scheduleConfig = prepareScheduleConfig(rawConfig);
     applyScheduleConfigState(scheduleConfig);
     notify(scheduleConfig.scheduleMode === 'scheduled' ? 'Validating schedule before start...' : 'Starting campaign...', 'info');
+
+    if (nextProcessCampaignId) {
+      if (!String(selectedDraft || '').trim()) {
+        notify('Select a draft type before sending the next campaign process.', 'info');
+        return { ok: false };
+      }
+      if (!String(draftSubject || '').trim()) {
+        notify('Enter draft subject before sending the next campaign process.', 'info');
+        return { ok: false };
+      }
+      const normalizedDraftBody = normalizeEmailDraftHtml(draftBody);
+      if (!String(normalizedDraftBody || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()) {
+        notify('Enter draft message before sending the next campaign process.', 'info');
+        return { ok: false };
+      }
+
+      try {
+        campaignCreateLockRef.current = true;
+        const data = await safeFetchJson(`/api/campaigns/${nextProcessCampaignId}/next-step`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            step: nextProcessStep || undefined,
+            draftType: normalizeDraftType(selectedDraft),
+            type: normalizeDraftType(selectedDraft),
+            draftId: activeSavedDraftId || null,
+            inlineTemplate: {
+              subject: draftSubject,
+              body: normalizedDraftBody,
+              bodyHtml: normalizedDraftBody,
+              bodyText: ''
+            },
+            options: {
+              batchSize: scheduleConfig.batchSize,
+              rowRange: scheduleConfig.rowRange,
+              delayInterval: scheduleConfig.delayInterval,
+              durationUnit: scheduleConfig.durationUnit,
+              delaySeconds: scheduleConfig.delaySeconds,
+              replyMode: isReplyModeCampaignType
+            },
+            tracking: rawConfig?.tracking || { enabled: false, opens: false, clicks: false, replies: false, abTesting: false }
+          })
+        });
+        setNextProcessCampaignId('');
+        setNextProcessStep(0);
+        setPendingCampaignId('');
+        notify(data?.message || 'Next campaign process started for the same campaign.', 'success');
+        await loadAll();
+        return { ok: true, campaign: data?.campaign, ...data };
+      } catch (e) {
+        notify(e.message || 'Failed to start next campaign process.', 'error');
+        return { ok: false };
+      } finally {
+        campaignCreateLockRef.current = false;
+      }
+    }
+
     let campaignId = pendingCampaignId;
 
     if (!campaignId) {
@@ -3201,7 +3265,7 @@ const normalizeSelectedListEmails = async () => {
       return { tone: 'success', message: `Campaign started successfully. First email is sending now; every next email waits at least 60 seconds. ${countText}.` };
     }
     if (data.queued || normalizedStatus === 'queued') {
-      return { tone: 'info', message: `Campaign queued successfully. The worker is starting and mail sending will begin automatically. ${countText}.` };
+      return { tone: 'info', message: `Campaign queued. Worker will process it shortly. If it is not picked within 2 minutes, check worker status. ${countText}.` };
     }
     if (data.started === false && data.message) {
       return { tone: 'info', message: data.message };

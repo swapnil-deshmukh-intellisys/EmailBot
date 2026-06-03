@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -60,16 +61,64 @@ process.on('uncaughtException', (error) => {
 process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER = 'true';
 process.env.CAMPAIGN_WORKER_ID =
   String(process.env.CAMPAIGN_WORKER_ID || `aws-worker-${process.pid}`).trim() || `aws-worker-${process.pid}`;
+const HEARTBEAT_INTERVAL_MS = Math.max(10000, Number(process.env.CAMPAIGN_WORKER_HEALTH_INTERVAL_MS || 30000));
+
+async function writeWorkerHeartbeat(WorkerHeartbeat, extra = {}) {
+  await WorkerHeartbeat.updateOne(
+    { workerId: process.env.CAMPAIGN_WORKER_ID },
+    {
+      $set: {
+        workerId: process.env.CAMPAIGN_WORKER_ID,
+        host: os.hostname(),
+        pid: process.pid,
+        status: extra.status || 'running',
+        lastHeartbeatAt: new Date(),
+        intervalMs: HEARTBEAT_INTERVAL_MS,
+        version: process.env.npm_package_version || '1.0.0',
+        lastError: extra.lastError || '',
+        meta: {
+          nodeEnv: process.env.NODE_ENV || '',
+          schedulerIntervalMs: Number(process.env.CAMPAIGN_SCHEDULER_INTERVAL_MS || 5000)
+        }
+      },
+      $setOnInsert: {
+        startedAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
+}
 
 async function main() {
-  const [{ default: connectDB }, { initCampaignScheduler, triggerCampaignSchedulerTick }, { assertValidEnvironment }] = await Promise.all([
+  const [{ default: connectDB }, { initCampaignScheduler, triggerCampaignSchedulerTick }, { assertValidEnvironment }, { default: CampaignWorkerHeartbeat }] = await Promise.all([
     import('../core-lib/database-config/MongoDatabaseConnection.js'),
     import('../core-lib/campaign-engine/CampaignQueueScheduler.js'),
-    import('../core-lib/env-config/EnvironmentSafety.js')
+    import('../core-lib/env-config/EnvironmentSafety.js'),
+    import('../database-models/CampaignWorkerHeartbeat.js')
   ]);
 
   assertValidEnvironment({ nodeEnv: process.env.NODE_ENV || 'production' });
   await connectDB();
+  await writeWorkerHeartbeat(CampaignWorkerHeartbeat);
+  const heartbeatTimer = setInterval(() => {
+    writeWorkerHeartbeat(CampaignWorkerHeartbeat).catch((error) => {
+      console.error('[CAMPAIGN_WORKER_HEARTBEAT_FAILED]', {
+        message: error?.message || 'Unknown heartbeat error'
+      });
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+  if (typeof heartbeatTimer.unref === 'function') heartbeatTimer.unref();
+
+  const markStopping = async () => {
+    try {
+      await writeWorkerHeartbeat(CampaignWorkerHeartbeat, { status: 'stopping' });
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.once('SIGINT', markStopping);
+  process.once('SIGTERM', markStopping);
+
   initCampaignScheduler();
   await triggerCampaignSchedulerTick();
 

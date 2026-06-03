@@ -138,6 +138,12 @@ function formatDateOnly(value) {
   return `${year}-${month}-${day}`;
 }
 
+function formatTimeOnly(value) {
+  if (!value) return '-';
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleTimeString();
+}
+
 function matchesTextFilter(value, filterValue) {
   if (!filterValue) return true;
   return normalizeText(value).toLowerCase().includes(normalizeText(filterValue).toLowerCase());
@@ -649,8 +655,18 @@ export default function ClientListPage() {
   const [showPastePanel, setShowPastePanel] = useState(true);
   const [pasteRawText, setPasteRawText] = useState('');
   const [pasteRows, setPasteRows] = useState([]);
+  const [pasteColumns, setPasteColumns] = useState(PASTE_COLUMNS);
   const [savingPastedData, setSavingPastedData] = useState(false);
   const [creatingPasteSheet, setCreatingPasteSheet] = useState(false);
+  const [customListModalOpen, setCustomListModalOpen] = useState(false);
+  const [customListSource, setCustomListSource] = useState('directory');
+  const [customListDraft, setCustomListDraft] = useState({
+    name: '',
+    description: '',
+    project: '',
+    campaignPurpose: '',
+    tags: ''
+  });
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const workspaceSaveTimerRef = useRef(null);
@@ -716,7 +732,7 @@ export default function ClientListPage() {
     if (!workspaceLoaded) return;
     if (workspaceSaveTimerRef.current) window.clearTimeout(workspaceSaveTimerRef.current);
     workspaceSaveTimerRef.current = window.setTimeout(async () => {
-      const filled = pasteRows.filter(hasVisibleClientData);
+      const filled = pasteRows.filter((row) => hasVisibleClientData(row) && !row._sourceRowId);
       try {
         setWorkspaceSaving(true);
         await fetch('/api/client-data/paste-workspace', {
@@ -755,7 +771,7 @@ export default function ClientListPage() {
           setError('');
           return;
         }
-        const endpoint = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/sheets';
+        const endpoint = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/custom-lists';
         const response = await fetch(endpoint, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok || data?.ok === false) {
@@ -788,11 +804,14 @@ export default function ClientListPage() {
   );
 
   const selectedClientSheets = useMemo(
-    () => lists.filter((list) => ['custom', 'selected_client_sheet'].includes(String(list?.kind || 'uploaded'))),
+    () => lists.filter((list) => ['custom', 'selected_client_sheet', 'custom_client_list'].includes(String(list?.kind || 'uploaded'))),
     [lists]
   );
 
-  const customizeSheets = useMemo(() => lists, [lists]);
+  const customizeSheets = useMemo(
+    () => lists.filter((list) => ['custom', 'selected_client_sheet', 'custom_client_list'].includes(String(list?.kind || ''))),
+    [lists]
+  );
 
   const allClientRows = useMemo(
     () => clientRowsData.filter(hasVisibleClientData),
@@ -967,6 +986,112 @@ export default function ClientListPage() {
     [pasteRows]
   );
 
+  const getDefaultCustomListName = (rows = []) => {
+    const sectorCounts = {};
+    rows.forEach((row) => {
+      const sector = normalizeText(row.sector);
+      if (sector && sector !== '-') sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
+    });
+    const [topSector] = Object.entries(sectorCounts).sort((a, b) => b[1] - a[1])[0] || [];
+    return normalizeText(newSheetName) || `${topSector || 'Selected'} Clients ${formatDisplayDate()}`;
+  };
+
+  const selectedPasteRowsData = useMemo(
+    () => filledPasteRows.filter((row) => selectedRows.has(row._rowId)),
+    [filledPasteRows, selectedRows]
+  );
+
+  const selectedDirectoryRowsData = useMemo(
+    () => rowsWithEdits.filter((row) => selectedClientIds.includes(row.id)),
+    [rowsWithEdits, selectedClientIds]
+  );
+
+  const openCreateCustomListModal = (source) => {
+    const rows = source === 'paste' ? selectedPasteRowsData : selectedDirectoryRowsData;
+    if (!rows.length) {
+      setSelectionError('Select client rows before creating a custom list.');
+      showToast('error', 'Select client rows before creating a custom list.');
+      return;
+    }
+    const invalidSelected = rows.some((row) => !validateEmailForSheet(row.email === '-' ? '' : row.email).ok);
+    if (invalidSelected) {
+      setSelectionError('Fix invalid email rows before creating a custom list.');
+      showToast('error', 'Fix invalid email rows before creating a custom list.');
+      return;
+    }
+    setCustomListSource(source);
+    setCustomListDraft({
+      name: getDefaultCustomListName(rows),
+      description: '',
+      project: normalizeText(rows[0]?.projectName || rows[0]?.project || ''),
+      campaignPurpose: '',
+      tags: ''
+    });
+    setCustomListModalOpen(true);
+  };
+
+  const handleCustomListDraftChange = (field, value) => {
+    setCustomListDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmitCustomList = async (event) => {
+    event?.preventDefault?.();
+    const rows = customListSource === 'paste' ? selectedPasteRowsData : selectedDirectoryRowsData;
+    const name = normalizeText(customListDraft.name);
+    if (!name) {
+      setSelectionError('Custom Sheet/List Name is required.');
+      showToast('error', 'Custom Sheet/List Name is required.');
+      return;
+    }
+    if (!rows.length) {
+      setSelectionError('Select at least one client before creating a custom list.');
+      showToast('error', 'Select at least one client before creating a custom list.');
+      return;
+    }
+    try {
+      setCreatingSheet(true);
+      setCreatingPasteSheet(true);
+      setSelectionError('');
+      const parentListIds = Array.from(new Set(rows.map((row) => row.sourceListId).filter(Boolean)));
+      const response = await fetch('/api/client-data/custom-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description: customListDraft.description,
+          project: customListDraft.project,
+          projectName: customListDraft.project,
+          campaignPurpose: customListDraft.campaignPurpose,
+          tags: customListDraft.tags,
+          parentListIds,
+          clientIds: rows.map((row) => row.id || row._sourceRowId || row._rowId).filter(Boolean),
+          rows
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || 'Failed to create custom list');
+      }
+      const nextList = data.list || {};
+      setLists((current) => [nextList, ...current.filter((item) => String(item._id || item.id) !== String(nextList._id || nextList.id))]);
+      setRecentCreatedSheetId(String(nextList._id || nextList.id || ''));
+      setSelectedRows(new Set());
+      setSelectedClientIds([]);
+      setNewSheetName('');
+      setCustomListModalOpen(false);
+      setSelectionMessage(data.message || `Created ${name} with ${rows.length} selected clients.`);
+      showToast('success', data.message || `Created ${name} with ${rows.length} selected clients.`);
+      setActiveTab('customize');
+      window.history.replaceState(null, '', '/client-data/client-list?tab=customize');
+    } catch (err) {
+      setSelectionError(err.message || 'Failed to create custom list');
+      showToast('error', err.message || 'Failed to create custom list');
+    } finally {
+      setCreatingSheet(false);
+      setCreatingPasteSheet(false);
+    }
+  };
+
   const togglePasteRowSelection = (rowId) => {
     setSelectedRows((current) => {
       const next = new Set(current);
@@ -1113,6 +1238,48 @@ export default function ClientListPage() {
     setPasteRows((current) => [...current, ...createEmptyPasteRows(1)]);
   };
 
+  const handleAddPasteColumn = () => {
+    const label = window.prompt('New column name', `Column ${pasteColumns.length + 1}`);
+    const trimmedLabel = normalizeText(label);
+    if (!trimmedLabel) return;
+    const baseKey = normalizeHeader(trimmedLabel) || `column${pasteColumns.length + 1}`;
+    let key = baseKey;
+    let suffix = 2;
+    while (pasteColumns.some((column) => column.key === key)) {
+      key = `${baseKey}${suffix}`;
+      suffix += 1;
+    }
+    setPasteColumns((current) => [...current, { key, label: trimmedLabel }]);
+    setPasteRows((current) => current.map((row) => ({ ...row, [key]: '' })));
+    showToast('success', `Column "${trimmedLabel}" added.`);
+  };
+
+  const handleRenamePasteColumn = () => {
+    const current = pasteColumns[activeCell?.col || 0];
+    if (!current) return;
+    const label = window.prompt('Rename selected column', current.label);
+    const trimmedLabel = normalizeText(label);
+    if (!trimmedLabel || trimmedLabel === current.label) return;
+    setPasteColumns((columns) => columns.map((column) => (
+      column.key === current.key ? { ...column, label: trimmedLabel } : column
+    )));
+    showToast('success', `Column renamed to "${trimmedLabel}".`);
+  };
+
+  const handleDeletePasteColumn = () => {
+    const current = pasteColumns[activeCell?.col || 0];
+    if (!current || pasteColumns.length <= 1) return;
+    if (!window.confirm(`Delete column "${current.label}" from the extracted table?`)) return;
+    setPasteColumns((columns) => columns.filter((column) => column.key !== current.key));
+    setPasteRows((rows) => rows.map((row) => {
+      const next = { ...row };
+      delete next[current.key];
+      return next;
+    }));
+    setActiveCell({ row: 0, col: 0 });
+    showToast('success', `Column "${current.label}" deleted.`);
+  };
+
   const openPastePanel = () => {
     setShowPastePanel(true);
     setPasteRows((current) => (current.length ? current : createEmptyPasteRows(6)));
@@ -1152,8 +1319,8 @@ export default function ClientListPage() {
       setSavingPastedData(true);
       setSelectionError('');
       setSelectionMessage('');
-      const response = await fetch('/api/client-data/paste', {
-        method: 'POST',
+      const response = await fetch('/api/client-data/extracted', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: filledPasteRows })
       });
@@ -1163,8 +1330,8 @@ export default function ClientListPage() {
       }
       setSelectedRows(new Set());
       setRefreshNonce((value) => value + 1);
-      setSelectionMessage(`${data.message || 'Pasted data saved.'} ${data.summary?.repeatedClients || 0} repeated, ${data.summary?.invalidClients || 0} invalid.`);
-      showToast('success', data.message || 'Pasted data saved to Client Directory.');
+      setSelectionMessage(data.message || 'Extracted data saved.');
+      showToast('success', data.message || 'Extracted data saved.');
     } catch (err) {
       setSelectionError(err.message || 'Failed to save pasted data');
       showToast('error', err.message || 'Failed to save pasted data');
@@ -1753,7 +1920,8 @@ export default function ClientListPage() {
     const trimmedName = normalizeText(nextName);
     if (!trimmedName || trimmedName === currentName) return;
     try {
-      const response = await fetch(`/api/lists/${encodeURIComponent(String(list._id))}`, {
+      const listId = String(list._id || list.id || '');
+      const response = await fetch(`/api/client-data/custom-lists/${encodeURIComponent(listId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmedName })
@@ -1763,7 +1931,7 @@ export default function ClientListPage() {
         throw new Error(data?.error || 'Failed to rename sheet');
       }
       setLists((current) => current.map((item) => (
-        String(item._id) === String(list._id) ? { ...item, name: trimmedName } : item
+        String(item._id || item.id) === listId ? { ...item, name: trimmedName } : item
       )));
       showToast('success', 'Sheet renamed.');
     } catch (err) {
@@ -1775,12 +1943,13 @@ export default function ClientListPage() {
   const handleDeleteCustomSheet = async (list) => {
     if (!window.confirm(`Delete "${list?.name || 'this sheet'}"?`)) return;
     try {
-      const response = await fetch(`/api/lists/${encodeURIComponent(String(list._id))}`, { method: 'DELETE' });
+      const listId = String(list._id || list.id || '');
+      const response = await fetch(`/api/client-data/custom-lists/${encodeURIComponent(listId)}`, { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) {
         throw new Error(data?.error || 'Failed to delete sheet');
       }
-      setLists((current) => current.filter((item) => String(item._id) !== String(list._id)));
+      setLists((current) => current.filter((item) => String(item._id || item.id) !== listId));
       showToast('success', 'Sheet deleted.');
     } catch (err) {
       setSelectionError(err.message || 'Failed to delete sheet');
@@ -1852,6 +2021,80 @@ export default function ClientListPage() {
           <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">x</button>
         </div>
       ) : null}
+      {customListModalOpen ? (
+        <div className="client-data-modal-backdrop" role="presentation" onMouseDown={() => setCustomListModalOpen(false)}>
+          <form className="client-data-modal" onSubmit={handleSubmitCustomList} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="client-data-panel-head">
+              <div>
+                <h2 className="ui-card-title">Create Custom List/Sheet</h2>
+                <p className="ui-card-description">
+                  {(customListSource === 'paste' ? selectedPasteRowsData.length : selectedDirectoryRowsData.length)} selected clients will be saved as a named custom list.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => setCustomListModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="client-data-modal-grid">
+              <label className="client-data-custom-field">
+                <span>Custom Sheet/List Name</span>
+                <input
+                  className="input"
+                  value={customListDraft.name}
+                  onChange={(event) => handleCustomListDraftChange('name', event.target.value)}
+                  placeholder="Example: TEC founders June"
+                  required
+                />
+              </label>
+              <label className="client-data-custom-field">
+                <span>Project</span>
+                <input
+                  className="input"
+                  value={customListDraft.project}
+                  onChange={(event) => handleCustomListDraftChange('project', event.target.value)}
+                  placeholder="TEC, TUT, or project name"
+                />
+              </label>
+              <label className="client-data-custom-field client-data-modal-span">
+                <span>Description</span>
+                <textarea
+                  className="input client-data-custom-textarea"
+                  value={customListDraft.description}
+                  onChange={(event) => handleCustomListDraftChange('description', event.target.value)}
+                  placeholder="Short identification note"
+                />
+              </label>
+              <label className="client-data-custom-field">
+                <span>Campaign Purpose</span>
+                <input
+                  className="input"
+                  value={customListDraft.campaignPurpose}
+                  onChange={(event) => handleCustomListDraftChange('campaignPurpose', event.target.value)}
+                  placeholder="Outreach, follow-up, nurture"
+                />
+              </label>
+              <label className="client-data-custom-field">
+                <span>Tags</span>
+                <input
+                  className="input"
+                  value={customListDraft.tags}
+                  onChange={(event) => handleCustomListDraftChange('tags', event.target.value)}
+                  placeholder="comma, separated, tags"
+                />
+              </label>
+            </div>
+            <div className="client-data-custom-actions">
+              <p>Selected clients stay in the master extracted table.</p>
+              <Button type="button" variant="ghost" onClick={() => setCustomListModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingSheet || creatingPasteSheet}>
+                {creatingSheet || creatingPasteSheet ? 'Creating...' : 'Save Custom List'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       <div className="client-data-page">
         <ClientDataSectionNav activeTab={activeTab} onTabChange={switchClientDataTab} />
         <section className="ui-page-section">
@@ -1893,8 +2136,17 @@ export default function ClientListPage() {
                         <Button type="button" variant="ghost" onClick={handleAddPasteRows}>
                           Create Row
                         </Button>
-                        <Button type="button" variant="secondary" onClick={handleCreateSheetFromPastedRows} disabled={creatingPasteSheet || !selectedRows.size}>
-                          {creatingPasteSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                        <Button type="button" variant="ghost" onClick={handleAddPasteColumn}>
+                          Add Column
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={handleRenamePasteColumn}>
+                          Rename Column
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={handleDeletePasteColumn} disabled={pasteColumns.length <= 1} style={{ color: '#ef4444' }}>
+                          Delete Column
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => openCreateCustomListModal('paste')} disabled={creatingPasteSheet || !selectedRows.size}>
+                          {creatingPasteSheet ? 'Creating...' : 'Create Custom List/Sheet'}
                         </Button>
                         <Button type="button" variant="ghost" onClick={handleDeleteSelectedPasteRows} disabled={!selectedRows.size} style={{ color: '#ef4444' }}>
                           Delete Selected Rows
@@ -1918,7 +2170,7 @@ export default function ClientListPage() {
                           setClipboardData={setClipboardData}
                           pasteInvalidRowIndexes={pasteInvalidRowIndexes}
                           pasteDuplicateRowIndexes={pasteDuplicateRowIndexes}
-                          columns={PASTE_COLUMNS}
+                          columns={pasteColumns}
                           hasVisibleClientData={hasVisibleClientData}
                           showToast={showToast}
                         />
@@ -2056,10 +2308,10 @@ export default function ClientListPage() {
                         <Button
                           type="button"
                           variant="secondary"
-                          onClick={handleCreateSheet}
+                          onClick={() => openCreateCustomListModal('directory')}
                           disabled={creatingSheet || !selectedCount}
                         >
-                          {creatingSheet ? 'Creating...' : 'Create Selected Client Sheet'}
+                          {creatingSheet ? 'Creating...' : 'Create Custom List/Sheet'}
                         </Button>
                         <Button
                           type="button"
@@ -2235,39 +2487,20 @@ export default function ClientListPage() {
                 <div className="ui-card-content">
                   <div className="client-data-health-list">
                     {customizeSheets.length ? customizeSheets.map((list) => (
-                      <div key={list._id} className={String(list._id) === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''}>
-                        <strong>{list.name || 'Selected client sheet'}</strong>
-                        <span>
-                          {Number(list.leadCount || list.leads?.length || 0)} clients | {String(list.kind || 'uploaded')} | created {formatDateTime(list.uploadedAt || list.createdAt)} | source {list.sourceFile || '-'}
-                          {list.autoDeleteAt ? ` | auto bin ${formatDateTime(list.autoDeleteAt)}` : ''}
-                        </span>
+                      <div key={list._id || list.id} className={String(list._id || list.id) === recentCreatedSheetId ? 'client-data-sheet-highlight' : ''}>
+                        <strong>{list.name || 'Custom client list'}</strong>
+                        <span>Description: {list.description || list.metadata?.description || '-'}</span>
+                        <span>Project: {list.projectName || list.project || '-'} | Total Clients: {Number(list.totalClients || list.leadCount || list.leads?.length || 0)}</span>
+                        <span>Created Date: {formatDateOnly(list.createdAt || list.uploadedAt) || '-'} | Created Time: {formatTimeOnly(list.createdAt || list.uploadedAt)} | Created By: {list.createdBy || list.metadata?.createdByEmail || '-'}</span>
+                        <span>Tags: {Array.isArray(list.tags) && list.tags.length ? list.tags.join(', ') : '-'}</span>
                         <div style={{ marginTop: 8 }}>
                           <Button
                             type="button"
                             size="sm"
-                            variant="secondary"
-                            onClick={() => handleUseForCampaign(list._id)}
-                            disabled={usingCampaignListId === String(list._id)}
-                          >
-                            {usingCampaignListId === String(list._id) ? 'Opening...' : 'Use For Campaign'}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
                             variant="ghost"
-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
-                            style={{ marginLeft: 8 }}
+                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
                           >
-                            Upload This Sheet
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => loadSheetHistory(list._id)}
-                            style={{ marginLeft: 8 }}
-                          >
-                            Client History
+                            View
                           </Button>
                           <Button
                             type="button"
@@ -2277,6 +2510,34 @@ export default function ClientListPage() {
                             style={{ marginLeft: 8 }}
                           >
                             Rename
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleUseForCampaign(list._id || list.id)}
+                            disabled={usingCampaignListId === String(list._id || list.id)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            {usingCampaignListId === String(list._id || list.id) ? 'Opening...' : 'Use for Campaign'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            Edit Clients
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => loadSheetHistory(list._id || list.id)}
+                            style={{ marginLeft: 8 }}
+                          >
+                            History
                           </Button>
                           <Button
                             type="button"

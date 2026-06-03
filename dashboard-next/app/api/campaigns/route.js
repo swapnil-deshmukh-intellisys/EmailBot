@@ -227,6 +227,25 @@ export async function GET(req) {
       ? await CampaignRecipientLog.aggregate([
           { $match: { campaignId: { $in: campaignIds } } },
           {
+            $addFields: {
+              completedStep: {
+                $max: {
+                  $map: {
+                    input: { $ifNull: ['$stepLogs', []] },
+                    as: 'step',
+                    in: {
+                      $cond: [
+                        { $in: ['$$step.status', ['Sent', 'Opened', 'Replied']] },
+                        { $ifNull: ['$$step.stepNumber', 0] },
+                        0
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
             $group: {
               _id: '$campaignId',
               sentCount: { $sum: { $cond: [{ $eq: ['$status', 'Sent'] }, 1, 0] } },
@@ -239,6 +258,7 @@ export async function GET(req) {
               positiveReplyCount: { $sum: { $cond: [{ $eq: ['$replyType', 'positive'] }, 1, 0] } },
               negativeReplyCount: { $sum: { $cond: [{ $in: ['$replyType', ['negative', 'unsubscribe']] }, 1, 0] } },
               followUpStoppedCount: { $sum: { $cond: ['$followUpStopped', 1, 0] } },
+              completedStep: { $max: '$completedStep' },
               lastActivityAt: { $max: { $ifNull: ['$lastActivityAt', '$updatedAt'] } }
             }
           }

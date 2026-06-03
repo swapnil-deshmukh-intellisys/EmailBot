@@ -168,10 +168,10 @@ export default function ExcelGrid({
   };
 
   const selectAllRows = () => {
-    const allIds = pasteRows.map((r) => r._rowId).filter(Boolean);
+    const allIds = filteredSortedRows.filter(hasVisibleClientData).map((r) => r._rowId).filter(Boolean);
     setSelectedRows(new Set(allIds));
     const allCells = new Set();
-    for (let r = 0; r < pasteRows.length; r++) {
+    for (let r = 0; r < filteredSortedRows.length; r++) {
       for (let c = 0; c < columns.length; c++) {
         allCells.add(`${r}-${c}`);
       }
@@ -721,9 +721,9 @@ export default function ExcelGrid({
             <span style={{ width: '45px', minWidth: '45px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-soft)' }}>
               <input
                 type="checkbox"
-                checked={pasteRows.length > 0 && pasteRows.filter(hasVisibleClientData).every((row) => selectedRows.has(row._rowId))}
+                checked={filteredSortedRows.length > 0 && filteredSortedRows.filter(hasVisibleClientData).every((row) => selectedRows.has(row._rowId))}
                 onChange={() => {
-                  const visible = pasteRows.filter(hasVisibleClientData);
+                  const visible = filteredSortedRows.filter(hasVisibleClientData);
                   const allSelected = visible.length > 0 && visible.every((row) => selectedRows.has(row._rowId));
                   setSelectedRows(allSelected ? new Set() : new Set(visible.map((row) => row._rowId)));
                 }}

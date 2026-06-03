@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 import Campaign from '../../database-models/Campaign.js';
+import CampaignRecipientClaim from '../../database-models/CampaignRecipientClaim.js';
+import CampaignRecipientLog from '../../database-models/CampaignRecipientLog.js';
+import LeadList from '../../database-models/LeadList.js';
 import { startCampaignRunner } from './CampaignExecutionRunner.js';
 
 const schedulerState =
@@ -15,13 +18,14 @@ const schedulerState =
     lastError: '',
     recoveredCount: 0
   });
-const WORKER_LOCK_STALE_MS = Math.max(90 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 2 * 60 * 1000));
+const WORKER_LOCK_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_WORKER_LOCK_STALE_MS || 5 * 60 * 1000));
+const QUEUE_ITEM_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_QUEUE_ITEM_STALE_MS || 15 * 60 * 1000));
 
 export function isInAppCampaignSchedulerEnabled() {
+  if (process.env.VERCEL) return false;
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
   if (configured === 'true') return true;
   if (configured === 'false') return false;
-  if (process.env.VERCEL) return false;
   return true;
 }
 
@@ -82,8 +86,74 @@ async function recoverStaleCampaigns(now = new Date()) {
   }
 }
 
-export async function runCampaignSchedulerTick() {
-  if (!isInAppCampaignSchedulerEnabled()) return;
+async function recoverStaleQueueItems(now = new Date()) {
+  const staleBefore = new Date(now.getTime() - QUEUE_ITEM_STALE_MS);
+  const staleClaims = await CampaignRecipientClaim.find({
+    status: 'Sending',
+    claimedAt: { $lt: staleBefore }
+  })
+    .select('_id campaignId recipientEmail listId leadIndex claimedAt')
+    .limit(Number(process.env.CAMPAIGN_QUEUE_RECOVERY_LIMIT || 100))
+    .lean();
+
+  for (const claim of staleClaims) {
+    const leadIndex = Number(claim.leadIndex);
+    if (claim.listId && leadIndex >= 0) {
+      await LeadList.updateOne(
+        {
+          _id: claim.listId,
+          [`leads.${leadIndex}.status`]: 'Sending'
+        },
+        {
+          $set: {
+            [`leads.${leadIndex}.status`]: 'Pending',
+            [`leads.${leadIndex}.error`]: '',
+            [`leads.${leadIndex}.sendingStartedAt`]: null
+          }
+        }
+      );
+    }
+
+    await CampaignRecipientLog.updateOne(
+      {
+        campaignId: claim.campaignId,
+        email: String(claim.recipientEmail || '').trim().toLowerCase(),
+        status: 'Sending'
+      },
+      {
+        $set: {
+          status: 'Pending',
+          pendingCount: 1,
+          lastActivityAt: now
+        }
+      }
+    );
+
+    await CampaignRecipientClaim.deleteOne({ _id: claim._id, status: 'Sending' });
+
+    await Campaign.updateOne(
+      { _id: claim.campaignId },
+      {
+        $push: {
+          logs: {
+            level: 'warning',
+            message: `Reset stale queue item to pending: ${claim.recipientEmail || 'unknown recipient'}`,
+            at: now
+          }
+        },
+        $set: {
+          lastActivityAt: now
+        }
+      }
+    );
+    schedulerState.recoveredCount += 1;
+  }
+}
+
+export async function runCampaignSchedulerTick(options = {}) {
+  if (!options.force && !isInAppCampaignSchedulerEnabled()) {
+    return { skipped: true, reason: 'campaign scheduler disabled on this process' };
+  }
   if (mongoose.connection.readyState !== 1) return;
   schedulerState.lastTickAt = new Date();
   schedulerState.lastTickStatus = 'running';
@@ -91,6 +161,7 @@ export async function runCampaignSchedulerTick() {
 
   const now = new Date();
   await recoverStaleCampaigns(now);
+  await recoverStaleQueueItems(now);
   const dueCampaigns = await Campaign.find({
     $or: [
       { status: 'Queued' },
@@ -123,14 +194,15 @@ export async function runCampaignSchedulerTick() {
   }
 
   schedulerState.lastTickStatus = 'ok';
+  return { skipped: false, startedCount: dueCampaigns.length };
 }
 
-export function triggerCampaignSchedulerTick() {
+export function triggerCampaignSchedulerTick(options = {}) {
   if (schedulerState.tickPromise) {
     return schedulerState.tickPromise;
   }
 
-  schedulerState.tickPromise = runCampaignSchedulerTick()
+  schedulerState.tickPromise = runCampaignSchedulerTick(options)
     .catch((error) => {
       schedulerState.lastTickAt = new Date();
       schedulerState.lastTickStatus = 'error';
@@ -171,6 +243,7 @@ export function getCampaignSchedulerState() {
     recoveredCount: Number(schedulerState.recoveredCount || 0),
     inFlightCount: schedulerState.inFlight.size,
     intervalMs: Math.max(2000, Number(process.env.CAMPAIGN_SCHEDULER_INTERVAL_MS || 5000)),
-    workerLockStaleMs: WORKER_LOCK_STALE_MS
+    workerLockStaleMs: WORKER_LOCK_STALE_MS,
+    queueItemStaleMs: QUEUE_ITEM_STALE_MS
   };
 }

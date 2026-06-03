@@ -196,7 +196,7 @@ export async function POST(req, { params }) {
       normalizedScheduleMode === 'scheduled' &&
       !shouldQueueImmediately &&
       !isInAppCampaignSchedulerEnabled()
-        ? 'In-app campaign scheduler is disabled on this process. Ensure the PM2 campaign worker is running, or this scheduled campaign will not auto-start.'
+        ? 'Campaign scheduled. The persistent campaign worker must be running to send it at the selected time.'
         : '';
     if (shouldQueueImmediately && isInAppCampaignSchedulerEnabled()) {
       await startCampaignRunner(String(campaignId), { trigger: 'scheduler' });
@@ -204,7 +204,14 @@ export async function POST(req, { params }) {
       await triggerCampaignSchedulerTick();
     }
 
-    return NextResponse.json({ success: true, ok: true, data: campaign, campaign, warning: schedulerWarning });
+    return NextResponse.json({
+      success: true,
+      ok: true,
+      data: campaign,
+      campaign,
+      warning: schedulerWarning,
+      message: schedulerWarning || (shouldQueueImmediately ? 'Campaign queued. Worker will process it shortly.' : 'Campaign schedule saved.')
+    });
   } catch (error) {
     return jsonError({
       status: 400,

@@ -1060,7 +1060,8 @@ export default function PremiumDashboardShell({
     const when = uploadedAt ? new Date(uploadedAt).toLocaleString() : '';
     const sourceFile = String(item?.sourceFile || item?.fileName || item?.name || '').trim();
     const kind = String(item?.kind || 'uploaded').trim();
-    const kindLabel = kind === 'custom' ? 'Custom' : 'Uploaded';
+    const isCustom = ['custom', 'selected_client_sheet', 'custom_client_list'].includes(kind);
+    const kindLabel = isCustom ? 'Custom' : 'Uploaded';
     return [kindLabel, contacts, when, sourceFile ? `File: ${sourceFile}` : '']
       .filter(Boolean)
       .join(' • ');
@@ -1076,11 +1077,12 @@ export default function PremiumDashboardShell({
         kind: String(item?.kind || 'uploaded').trim()
       }))
     : [];
+  const isCustomClientList = (item) => ['custom', 'selected_client_sheet', 'custom_client_list'].includes(String(item?.kind || '').trim());
   const effectiveUploadedLists = normalizedClientLists.length
-    ? normalizedClientLists.filter((item) => item.kind !== 'custom')
+    ? normalizedClientLists.filter((item) => !isCustomClientList(item))
     : uploadedLists;
   const effectiveCustomLists = normalizedClientLists.length
-    ? normalizedClientLists.filter((item) => item.kind === 'custom')
+    ? normalizedClientLists.filter(isCustomClientList)
     : customLists;
   const effectiveSavedDrafts = draftOptions.length
     ? draftOptions.map((draft) => ({
@@ -2302,11 +2304,30 @@ export default function PremiumDashboardShell({
 
   const resumeCampaignDraft = (campaign) => {
     if (!campaign) return;
+    const isNextProcess = Boolean(campaign.nextProcessMode);
+    const nextDraftType = normalizeDraftType(campaign.nextDraftType || campaign.draftType || campaign.type || '');
+    const nextDraft = isNextProcess && nextDraftType
+      ? effectiveSavedDrafts.find((draft) => normalizeDraftType(draft.draftType || draft.category || '') === nextDraftType)
+      : null;
+    const campaignSenderFrom = String(campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user || '').trim().toLowerCase();
+    const matchedSenderAccount = campaignSenderFrom
+      ? senderAccounts.find((account) => String(account?.from || '').trim().toLowerCase() === campaignSenderFrom)
+      : null;
     onCampaignNameChange?.(String(campaign.name || ''));
     onSelectList?.(String(campaign.listId || ''));
-    onSelectedDraftTypeChange?.(String(campaign.draftType || campaign.type || ''));
-    onDraftSubjectChange?.(String(campaign.inlineTemplate?.subject || ''));
-    onDraftBodyChange?.(String(campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body || ''));
+    onSelectSenderAccount?.(String(campaign.senderAccountId || campaign.senderAccount?._id || campaign.senderAccount?.id || matchedSenderAccount?.id || ''));
+    onSelectedDraftTypeChange?.(nextDraftType);
+    if (isNextProcess) {
+      if (nextDraft) {
+        loadDraftIntoEditor(nextDraft);
+      } else if (!applyTemplateDraft(nextDraftType)) {
+        onDraftSubjectChange?.('');
+        onDraftBodyChange?.('');
+      }
+    } else {
+      onDraftSubjectChange?.(String(campaign.inlineTemplate?.subject || ''));
+      onDraftBodyChange?.(String(campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body || ''));
+    }
     onBatchSizeChange?.(String(campaign.options?.batchSize || '1'));
     onDelaySecondsChange?.(String(campaign.options?.delayInterval ?? campaign.options?.delaySeconds ?? '60'));
     setDurationUnit(normalizeDurationUnit(campaign.options?.durationUnit || 'seconds'));
@@ -2316,9 +2337,11 @@ export default function PremiumDashboardShell({
       replies: Boolean(campaign?.tracking?.replies)
     });
     setShowCampaignNotice(false);
-    openWorkflowStep(campaign.workflowStep || 3);
+    openWorkflowStep(campaign.workflowOpenStep || campaign.workflowStep || 3);
     onShowMessage?.(
-      `Resuming draft from ${campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}.`,
+      isNextProcess
+        ? `${campaign.workflowStepLabel || 'Next mail'} is ready. Review the draft and continue.`
+        : `Resuming draft from ${campaign.workflowStepLabel || `Step ${campaign.workflowStep || 1}`}.`,
       'info'
     );
   };
@@ -2338,9 +2361,12 @@ export default function PremiumDashboardShell({
     onDelaySecondsChange,
     onDraftBodyChange,
     onDraftSubjectChange,
+    onSelectSenderAccount,
     onSelectList,
     onSelectedDraftTypeChange,
-    onShowMessage
+    onShowMessage,
+    effectiveSavedDrafts,
+    senderAccounts
   ]);
   useEffect(() => {
     if (selectedListId) {
@@ -2536,6 +2562,7 @@ export default function PremiumDashboardShell({
         workspaceOverviewItems={workspaceOverviewItems}
         openAnchoredPopup={openAnchoredPopup}
         setShowLogsPopup={setShowLogsPopup}
+        onShowMessage={onShowMessage}
       />
     </div>
 

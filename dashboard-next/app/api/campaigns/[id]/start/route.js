@@ -292,8 +292,8 @@ export async function POST(req, { params }) {
           sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
           pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
           failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
-          warning: 'Campaign queued. Start the campaign worker process to send queued mails.',
-          message: 'Campaign queued for worker.'
+          warning: 'Campaign queued. Worker will process it shortly. If it is not picked within 2 minutes, check the campaign worker process.',
+          message: 'Campaign queued. Worker will process it shortly.'
         }, { headers: NO_STORE_HEADERS });
       }
       await startCampaignRunner(String(campaign._id), { trigger: 'manual' });
@@ -371,8 +371,8 @@ export async function POST(req, { params }) {
         sentCount: Number(campaign.sentCount ?? campaign.stats?.sent ?? 0),
         pendingCount: Number(campaign.pendingCount ?? campaign.stats?.pending ?? 0),
         failedCount: Number(campaign.failedCount ?? campaign.stats?.failed ?? 0),
-        warning: 'Campaign queued. Start the campaign worker process to send queued mails.',
-        message: 'Campaign queued for worker.'
+        warning: 'Campaign queued. Worker will process it shortly. If it is not picked within 2 minutes, check the campaign worker process.',
+        message: 'Campaign queued. Worker will process it shortly.'
       }, { headers: NO_STORE_HEADERS });
     }
     const runnerResult = await startCampaignRunner(String(campaign._id), { trigger: 'manual' });

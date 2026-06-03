@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
-import PageContainer from '@/app/components/layout/PageContainer';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
 import { apiFetchJson } from '@/app/lib/apiClient';
@@ -51,12 +50,50 @@ const ACTION_LABELS = {
   start: 'Start',
   pause: 'Pause',
   resume: 'Resume',
-  stop: 'Stop'
+  stop: 'Stop',
+  'next-step': 'Next Mail'
 };
 const LIVE_CAMPAIGN_STATUSES = new Set(['running', 'queued', 'scheduled']);
+const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
+const CAMPAIGN_STEP_TYPES = {
+  1: { type: 'cover_story', label: 'Cover Story', actionLabel: 'Send Cover Story' },
+  2: { type: 'reminder', label: 'Reminder', actionLabel: 'Send Reminder' },
+  3: { type: 'follow_up', label: 'Follow Up', actionLabel: 'Send Follow Up' },
+  4: { type: 'updated_cost', label: 'Updated Cost', actionLabel: 'Send Updated Cost' },
+  5: { type: 'final_cost', label: 'Final Call', actionLabel: 'Send Final Call' }
+};
+const DRAFT_TYPE_TO_STEP = {
+  cover_story: 1,
+  initial_outreach: 1,
+  reminder: 2,
+  follow_up: 3,
+  followup: 3,
+  open_followup: 3,
+  updated_cost: 4,
+  final_cost: 5,
+  final_followup: 5
+};
 
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
+}
+
+function inferCampaignStep(campaign = {}) {
+  const completedWorkflowStep = Math.floor(Number(campaign?.completedWorkflowStep || 0) || 0);
+  if (completedWorkflowStep >= 1 && completedWorkflowStep <= 5) return completedWorkflowStep;
+  const workflowStep = Math.floor(Number(campaign?.workflowStep || 0) || 0);
+  const typeStep = DRAFT_TYPE_TO_STEP[normalizeText(campaign?.draftType || campaign?.type || '')] || 0;
+  return Math.max(1, Math.min(5, typeStep || workflowStep || 1));
+}
+
+function getNextCampaignStep(campaign = {}) {
+  const nextWorkflowStep = Math.floor(Number(campaign?.nextWorkflowStep || 0) || 0);
+  if (nextWorkflowStep >= 2 && nextWorkflowStep <= 5) return nextWorkflowStep;
+  return Math.min(inferCampaignStep(campaign) + 1, 6);
+}
+
+function getNextCampaignStepConfig(campaign = {}) {
+  return CAMPAIGN_STEP_TYPES[getNextCampaignStep(campaign)] || null;
 }
 
 function hasRequiredCampaignData(campaign = {}) {
@@ -158,6 +195,7 @@ function getActionDisabled(action, campaign = {}) {
   if (action === 'stop' && typeof safeActions.canStop === 'boolean') return !safeActions.canStop;
   const bucket = normalizeCampaignStatusBucket(campaign);
   const status = normalizeText(campaign?.status);
+  if (action === 'next-step') return ['running', 'queued', 'scheduled'].includes(status) || !getNextCampaignStepConfig(campaign);
   if (action === 'start') return bucket === 'running' || bucket === 'completed' || status === 'paused';
   if (action === 'pause') return bucket !== 'running' && bucket !== 'scheduled';
   if (action === 'resume') return bucket !== 'paused';
@@ -168,7 +206,30 @@ function getActionDisabled(action, campaign = {}) {
 function getActionLabel(action, campaign = {}) {
   if (action === 'start' && campaign?.safeActions?.actionLabel === 'Retry/Fix Issue') return 'Retry/Fix Issue';
   if (action === 'start' && normalizeCampaignStatusBucket(campaign) === 'failed') return 'Retry/Fix Issue';
+  if (action === 'next-step') {
+    return campaign?.nextActionLabel || getNextCampaignStepConfig(campaign)?.actionLabel || 'Final Mail Done';
+  }
   return ACTION_LABELS[action] || action;
+}
+
+function buildNextProcessPayload(campaign = {}) {
+  const nextStep = getNextCampaignStep(campaign);
+  const nextConfig = CAMPAIGN_STEP_TYPES[nextStep];
+  if (!nextConfig) return null;
+  return {
+    ...campaign,
+    nextProcessMode: true,
+    nextProcessSourceCampaignId: campaign._id,
+    nextProcessStep: nextStep,
+    nextDraftType: nextConfig.type,
+    draftType: nextConfig.type,
+    type: nextConfig.type,
+    workflowStep: nextStep,
+    workflowStepLabel: nextConfig.label,
+    workflowOpenStep: 4,
+    inlineTemplate: {},
+    resumedFromCampaignStatus: campaign.status || campaign.displayStatus || ''
+  };
 }
 
 function getApiMessage(data, fallback) {
@@ -225,7 +286,7 @@ function ActionButton({ action, campaign, loadingKey, onAction }) {
   return (
     <Button
       size="sm"
-      variant={action === 'stop' ? 'danger' : action === 'start' ? 'primary' : 'secondary'}
+      variant={action === 'stop' ? 'danger' : action === 'start' || action === 'next-step' ? 'primary' : 'secondary'}
       loading={loading}
       disabled={disabled}
       onClick={() => onAction(campaign, action)}
@@ -241,20 +302,12 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
       <table className="campaign-table">
         <thead>
           <tr>
-            <th>Sr. No.</th>
-            <th>Campaign Name</th>
-            <th>Project</th>
+            <th>Sr.</th>
+            <th>Campaign</th>
             <th>Status</th>
-            <th>Recipients</th>
-            <th>Sent</th>
-            <th>Pending</th>
-            <th>Failed</th>
-            <th>Open Count</th>
-            <th>Response Count</th>
-            <th>Failure Reason</th>
-            <th>Last Activity</th>
-            <th>Created</th>
-            <th>Scheduled</th>
+            <th>Delivery</th>
+            <th>Reason</th>
+            <th>Activity</th>
             <th>Sender</th>
             <th>Actions</th>
           </tr>
@@ -276,34 +329,37 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
                     >
                       {campaign.name || 'Untitled campaign'}
                     </button>
-                    <small>{campaign.type || campaign.draftType || '-'}</small>
+                    <small>{getProjectLabel(campaign)} | {campaign.type || campaign.draftType || '-'}</small>
                   </div>
                 </td>
-                <td>{getProjectLabel(campaign)}</td>
                 <td className="campaign-status-cell">
                   <Badge className="campaign-status-badge" variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
                     {getDisplayStatus(campaign)}
                   </Badge>
                 </td>
-                <td>{stats.total.toLocaleString()}</td>
-                <td>{stats.sent.toLocaleString()}</td>
-                <td>{stats.pending.toLocaleString()}</td>
-                <td>{stats.failed.toLocaleString()}</td>
-                <td>{stats.opens.toLocaleString()}</td>
-                <td>
-                  <span className="campaign-table-primary-value">{stats.replies.toLocaleString()}</span>
-                  <small className="campaign-table-secondary-value">Replies</small>
+                <td className="campaign-delivery-cell">
+                  <div className="campaign-delivery-metrics">
+                    <span><b>{stats.total.toLocaleString()}</b>Total</span>
+                    <span><b>{stats.sent.toLocaleString()}</b>Sent</span>
+                    <span><b>{stats.pending.toLocaleString()}</b>Pending</span>
+                    <span><b>{stats.failed.toLocaleString()}</b>Failed</span>
+                    <span><b>{stats.opens.toLocaleString()}</b>Opens</span>
+                    <span><b>{stats.replies.toLocaleString()}</b>Replies</span>
+                  </div>
                 </td>
-                <td>{getFailureReason(campaign)}</td>
-                <td>{formatDateTime(getLastActivity(campaign))}</td>
-                <td>{formatDateTime(campaign.createdAt)}</td>
-                <td>{formatDateTime(getScheduledDate(campaign))}</td>
+                <td className="campaign-reason-cell">{getFailureReason(campaign)}</td>
+                <td className="campaign-activity-cell">
+                  <strong>{formatDateTime(getLastActivity(campaign))}</strong>
+                  <small>Created {formatDateTime(campaign.createdAt)}</small>
+                  <small>Scheduled {formatDateTime(getScheduledDate(campaign))}</small>
+                </td>
                 <td className="campaign-sender-cell">{getSenderEmail(campaign)}</td>
                 <td>
                   <div className="campaign-action-row">
                     <Button size="sm" variant="secondary" onClick={() => onToggleView(campaign._id)}>
                       View
                     </Button>
+                    <ActionButton action="next-step" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
                     <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
                     <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
                     <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
@@ -361,6 +417,7 @@ function CampaignMobileCards({ campaigns, actionLoadingKey, onAction, onToggleVi
               <Button size="sm" variant="secondary" onClick={() => onToggleView(campaign._id)}>
                 View
               </Button>
+              <ActionButton action="next-step" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
               <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
               <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
               <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
@@ -419,6 +476,23 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
     }
   };
 
+  const openNextProcessWorkflow = () => {
+    if (!campaign) return;
+    setNotice('');
+    setError('');
+    try {
+      const payload = buildNextProcessPayload(campaign);
+      if (!payload) {
+        setError('This campaign is already at the final mail step.');
+        return;
+      }
+      window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
+      window.location.href = '/dashboard/user?nextProcess=1';
+    } catch (err) {
+      setError(err.message || 'Unable to open next process workflow.');
+    }
+  };
+
   const copyTable = async () => {
     const rows = detail?.recipients || [];
     const headers = ['Client Name', 'Email', 'Company', 'Designation', 'Status', 'Open Count', 'Reply Count', 'Failure Reason', 'Last Activity'];
@@ -446,15 +520,15 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
   const timeline = detail?.timeline || [];
 
   return (
-    <div className="dashboard-subscription-modal-backdrop" onClick={onClose}>
+    <div className="dashboard-subscription-modal-backdrop campaign-detail-backdrop" onClick={onClose}>
       <section className="dashboard-subscription-modal campaign-detail-drawer" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="dashboard-subscription-modal-head">
+        <div className="dashboard-subscription-modal-head campaign-detail-head">
           <div>
             <span>Campaign Details</span>
             <h2>{campaign.name || 'Campaign'}</h2>
             <p>{getProjectLabel(campaign)} | {getSenderEmail(campaign)}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close campaign details">x</button>
+          <button className="campaign-detail-close" type="button" onClick={onClose} aria-label="Close campaign details">x</button>
         </div>
 
         {loading ? <p>Loading campaign details...</p> : null}
@@ -463,7 +537,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
 
         {!loading ? (
           <>
-            <div className="dashboard-subscription-modal-grid">
+            <div className="dashboard-subscription-modal-grid campaign-detail-metric-grid">
               <article><span>Status</span><strong>{getDisplayStatus(campaign)}</strong></article>
               <article><span>Total recipients</span><strong>{Number(campaign.totalRecipients ?? campaign.stats?.total ?? recipients.length ?? 0).toLocaleString()}</strong></article>
               <article><span>Sent</span><strong>{Number(campaign.sentCount ?? campaign.stats?.sent ?? 0).toLocaleString()}</strong></article>
@@ -482,7 +556,10 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
               <article><span>Last activity</span><strong>{formatDateTime(getLastActivity(campaign))}</strong></article>
             </div>
 
-            <div className="dashboard-subscription-modal-actions">
+            <div className="dashboard-subscription-modal-actions campaign-detail-actions">
+              <Button variant="primary" size="sm" loading={refreshing} disabled={getActionDisabled('next-step', campaign)} onClick={openNextProcessWorkflow}>
+                {getActionLabel('next-step', campaign)}
+              </Button>
               <Button variant="secondary" size="sm" loading={refreshing} onClick={() => loadDetail({ silent: true })}>Refresh</Button>
               <Button variant="secondary" size="sm" onClick={syncReplies}>Sync Replies</Button>
               <Button as="a" href={`/api/campaigns/${campaignId}/export?format=csv`} variant="secondary" size="sm">Export CSV</Button>
@@ -491,7 +568,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
               <span>Last updated at {formatDateTime(detail?.lastUpdatedAt || new Date())}</span>
             </div>
 
-            <div className="dashboard-subscription-transactions">
+            <div className="dashboard-subscription-transactions campaign-detail-timeline">
               <div>
                 <h3>Status Timeline</h3>
                 <span>{timeline.length} events</span>
@@ -509,7 +586,15 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
               </div>
             </div>
 
-            <div className="campaign-table-wrap">
+            <div className="campaign-detail-table-section">
+              <div className="campaign-detail-section-head">
+                <div>
+                  <span className="campaigns-page-kicker">Recipient delivery log</span>
+                  <h3>Campaign Events</h3>
+                </div>
+                <strong>{recipients.length.toLocaleString()} recipients</strong>
+              </div>
+              <div className="campaign-table-wrap campaign-detail-table-wrap">
               <table className="campaign-table">
                 <thead>
                   <tr>
@@ -540,47 +625,48 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
                   {recipients.map((row) => {
                     const hasAnySentMail = [1, 2, 3, 4, 5].some((step) => isMailSent(getStep(row, step)));
                     return (
-                    <tr key={row._id || row.email} className={hasAnySentMail ? '' : 'campaign-recipient-unsent-row'}>
-                      <td>{getCampaignName(row, campaign.name || 'Untitled campaign')}</td>
-                      <td>{row.clientName || '-'}</td>
-                      <td>{row.email || '-'}</td>
-                      <td>{row.company || '-'}</td>
-                      <td>{row.designation || '-'}</td>
-                      <td>{row.projectName || getProjectLabel(campaign)}</td>
-                      <td>{row.currentStep || '-'}</td>
-                      {[1, 2, 3, 4, 5].map((step) => {
-                        const stepLog = getStep(row, step);
-                        return (
-                          <td key={`${row.email}-sent-${step}`} className={isUnsentMailStep(stepLog) ? 'campaign-mail-cell campaign-mail-cell-red' : 'campaign-mail-cell campaign-mail-cell-ok'}>
-                            {formatDateTime(stepLog.sentAt)}
-                          </td>
-                        );
-                      })}
-                      {[1, 2, 3, 4, 5].map((step) => {
-                        const stepLog = getStep(row, step);
-                        return (
-                          <td key={`${row.email}-status-${step}`} className={getMailStatusClass(stepLog)}>
-                            {getStepStatus(stepLog) || 'Pending'}
-                          </td>
-                        );
-                      })}
-                      <td>{row.openCount > 0 ? 'Yes' : 'No'}</td>
-                      <td>{Number(row.openCount || 0).toLocaleString()}</td>
-                      <td>{formatDateTime(row.lastOpenedAt)}</td>
-                      <td>{row.replyReceived ? 'Yes' : 'No'}</td>
-                      <td>{Number(row.replyCount || 0).toLocaleString()}</td>
-                      <td>{formatDateTime(row.lastReplyAt)}</td>
-                      <td>{row.replyType || '-'}</td>
-                      <td>{row.replyPreview || '-'}</td>
-                      <td>{row.followUpStopped ? 'Yes' : 'No'}</td>
-                      <td>{row.failureReason || row.followUpStopReason || '-'}</td>
-                      <td>{formatDateTime(row.lastActivityAt)}</td>
-                      <td>{row.notes || '-'}</td>
-                    </tr>
+                      <tr key={row._id || row.email} className={hasAnySentMail ? '' : 'campaign-recipient-unsent-row'}>
+                        <td>{getCampaignName(row, campaign.name || 'Untitled campaign')}</td>
+                        <td>{row.clientName || '-'}</td>
+                        <td>{row.email || '-'}</td>
+                        <td>{row.company || '-'}</td>
+                        <td>{row.designation || '-'}</td>
+                        <td>{row.projectName || getProjectLabel(campaign)}</td>
+                        <td>{row.currentStep || '-'}</td>
+                        {[1, 2, 3, 4, 5].map((step) => {
+                          const stepLog = getStep(row, step);
+                          return (
+                            <td key={`${row.email}-sent-${step}`} className={isUnsentMailStep(stepLog) ? 'campaign-mail-cell campaign-mail-cell-red' : 'campaign-mail-cell campaign-mail-cell-ok'}>
+                              {formatDateTime(stepLog.sentAt)}
+                            </td>
+                          );
+                        })}
+                        {[1, 2, 3, 4, 5].map((step) => {
+                          const stepLog = getStep(row, step);
+                          return (
+                            <td key={`${row.email}-status-${step}`} className={getMailStatusClass(stepLog)}>
+                              {getStepStatus(stepLog) || 'Pending'}
+                            </td>
+                          );
+                        })}
+                        <td>{row.openCount > 0 ? 'Yes' : 'No'}</td>
+                        <td>{Number(row.openCount || 0).toLocaleString()}</td>
+                        <td>{formatDateTime(row.lastOpenedAt)}</td>
+                        <td>{row.replyReceived ? 'Yes' : 'No'}</td>
+                        <td>{Number(row.replyCount || 0).toLocaleString()}</td>
+                        <td>{formatDateTime(row.lastReplyAt)}</td>
+                        <td>{row.replyType || '-'}</td>
+                        <td>{row.replyPreview || '-'}</td>
+                        <td>{row.followUpStopped ? 'Yes' : 'No'}</td>
+                        <td>{row.failureReason || row.followUpStopReason || '-'}</td>
+                        <td>{formatDateTime(row.lastActivityAt)}</td>
+                        <td>{row.notes || '-'}</td>
+                      </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           </>
         ) : null}
@@ -706,6 +792,21 @@ export default function CampaignsPage() {
     const campaignId = String(campaign?._id || '');
     if (!campaignId) return;
 
+    if (action === 'next-step') {
+      try {
+        const payload = buildNextProcessPayload(campaign);
+        if (!payload) {
+          setError('This campaign is already at the final mail step.');
+          return;
+        }
+        window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
+        window.location.href = '/dashboard/user?nextProcess=1';
+      } catch (err) {
+        setError(err.message || 'Unable to open next process workflow.');
+      }
+      return;
+    }
+
     const nextStatus = {
       start: 'Queued',
       pause: 'Paused',
@@ -744,148 +845,144 @@ export default function CampaignsPage() {
   if (!isMounted) {
     return (
       <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-        <PageContainer>
-          <main className="campaigns-page-shell campaigns-modern-page">
-            <section className="campaigns-modern-hero">
-              <div>
-                <span className="campaigns-page-kicker">Live campaign operations</span>
-                <h1>Campaigns</h1>
-              </div>
-            </section>
-            <div className="campaign-table-loading">
-              <div />
-              <div />
-              <div />
-              <div />
-            </div>
-          </main>
-        </PageContainer>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
-      <PageContainer>
         <main className="campaigns-page-shell campaigns-modern-page">
           <section className="campaigns-modern-hero">
             <div>
               <span className="campaigns-page-kicker">Live campaign operations</span>
               <h1>Campaigns</h1>
             </div>
-            <div className="campaigns-hero-actions">
-              <Button as="a" href="/dashboard/user?workflowStep=1" size="md">
-                Create Campaign
-              </Button>
-              <Button variant="secondary" size="md" loading={refreshing} onClick={handleRefresh}>
-                Refresh
-              </Button>
-            </div>
           </section>
-
-          <section className="campaign-count-grid" aria-label="Campaign counts">
-            {COUNT_CARDS.map((card) => (
-              <CountCard
-                key={card.key}
-                card={card}
-                count={counts[card.key]}
-                total={counts.total}
-                loading={loading}
-              />
-            ))}
-          </section>
-
-          <section className="campaign-panel" ref={campaignListRef}>
-            <div className="campaign-panel-head">
-              <div>
-                <span className="campaigns-page-kicker">Campaign library</span>
-                <h2>All Campaigns</h2>
-              </div>
-              <div className="campaign-panel-total">
-                Showing {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}
-              </div>
-            </div>
-
-            <div className="campaign-toolbar">
-              <label className="campaign-search-field">
-                <span>Search</span>
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search by campaign name"
-                />
-              </label>
-              <label className="campaign-select-field">
-                <span>Status</span>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                  {STATUS_TABS.map((tab) => (
-                    <option key={tab.value} value={tab.value}>{tab.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="campaign-select-field">
-                <span>Sort</span>
-                <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="campaign-status-tabs">
-              {STATUS_TABS.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  className={statusFilter === tab.value ? 'active' : ''}
-                  onClick={() => setStatusFilter(tab.value)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {error ? <div className="campaign-alert campaign-alert-error">{error}</div> : null}
-            {notice ? <div className="campaign-alert campaign-alert-success">{notice}</div> : null}
-
-            {loading ? (
-              <div className="campaign-table-loading">
-                <div />
-                <div />
-                <div />
-                <div />
-              </div>
-            ) : !filteredCampaigns.length ? (
-              <div className="campaign-empty-state">
-                <strong>No campaigns found.</strong>
-                <p>Adjust your filters or create a new campaign.</p>
-              </div>
-            ) : (
-              <>
-                <CampaignDesktopTable
-                  campaigns={filteredCampaigns}
-                  actionLoadingKey={actionLoadingKey}
-                  onAction={handleAction}
-                  onToggleView={openCampaignDetails}
-                />
-                <CampaignMobileCards
-                  campaigns={filteredCampaigns}
-                  actionLoadingKey={actionLoadingKey}
-                  onAction={handleAction}
-                  onToggleView={openCampaignDetails}
-                />
-              </>
-            )}
-          </section>
-          {selectedCampaignId ? (
-            <CampaignDetailsDrawer
-              campaignId={selectedCampaignId}
-              onClose={() => setSelectedCampaignId('')}
-              onActionCompleted={() => loadCampaigns({ silent: true })}
-            />
-          ) : null}
+          <div className="campaign-table-loading">
+            <div />
+            <div />
+            <div />
+            <div />
+          </div>
         </main>
-      </PageContainer>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+      <main className="campaigns-page-shell campaigns-modern-page">
+        <section className="campaigns-modern-hero">
+          <div>
+            <span className="campaigns-page-kicker">Live campaign operations</span>
+            <h1>Campaigns</h1>
+          </div>
+          <div className="campaigns-hero-actions">
+            <Button as="a" href="/dashboard/user?workflowStep=1" size="md">
+              Create Campaign
+            </Button>
+            <Button variant="secondary" size="md" loading={refreshing} onClick={handleRefresh}>
+              Refresh
+            </Button>
+          </div>
+        </section>
+
+        <section className="campaign-count-grid" aria-label="Campaign counts">
+          {COUNT_CARDS.map((card) => (
+            <CountCard
+              key={card.key}
+              card={card}
+              count={counts[card.key]}
+              total={counts.total}
+              loading={loading}
+            />
+          ))}
+        </section>
+
+        <section className="campaign-panel" ref={campaignListRef}>
+          <div className="campaign-panel-head">
+            <div>
+              <span className="campaigns-page-kicker">Campaign library</span>
+              <h2>All Campaigns</h2>
+            </div>
+            <div className="campaign-panel-total">
+              Showing {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}
+            </div>
+          </div>
+
+          <div className="campaign-toolbar">
+            <label className="campaign-search-field">
+              <span>Search</span>
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by campaign name"
+              />
+            </label>
+            <label className="campaign-select-field">
+              <span>Status</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {STATUS_TABS.map((tab) => (
+                  <option key={tab.value} value={tab.value}>{tab.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="campaign-select-field">
+              <span>Sort</span>
+              <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="campaign-status-tabs">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                className={statusFilter === tab.value ? 'active' : ''}
+                onClick={() => setStatusFilter(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {error ? <div className="campaign-alert campaign-alert-error">{error}</div> : null}
+          {notice ? <div className="campaign-alert campaign-alert-success">{notice}</div> : null}
+
+          {loading ? (
+            <div className="campaign-table-loading">
+              <div />
+              <div />
+              <div />
+              <div />
+            </div>
+          ) : !filteredCampaigns.length ? (
+            <div className="campaign-empty-state">
+              <strong>No campaigns found.</strong>
+              <p>Adjust your filters or create a new campaign.</p>
+            </div>
+          ) : (
+            <>
+              <CampaignDesktopTable
+                campaigns={filteredCampaigns}
+                actionLoadingKey={actionLoadingKey}
+                onAction={handleAction}
+                onToggleView={openCampaignDetails}
+              />
+              <CampaignMobileCards
+                campaigns={filteredCampaigns}
+                actionLoadingKey={actionLoadingKey}
+                onAction={handleAction}
+                onToggleView={openCampaignDetails}
+              />
+            </>
+          )}
+        </section>
+        {selectedCampaignId ? (
+          <CampaignDetailsDrawer
+            campaignId={selectedCampaignId}
+            onClose={() => setSelectedCampaignId('')}
+            onActionCompleted={() => loadCampaigns({ silent: true })}
+          />
+        ) : null}
+      </main>
     </AppLayout>
   );
 }

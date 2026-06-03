@@ -1,4 +1,5 @@
 import React from 'react';
+import SalesActionCenter from './SalesActionCenter';
 
 /**
  * NotificationItem renders an individual inbox item in the Inbox panel.
@@ -29,14 +30,14 @@ function NotificationItem({ item, onClick }) {
 
 /**
  * MainPanels component renders the middle sections of the dashboard:
- * - Target progress panel
+ * - Daily Work Report panel
  * - Calendar panel
  * - Inbox panel
  * - Write Note panel
  * - Broadcast Performance table
  */
 export default function MainPanels({
-  // Target Panel Props
+  // Legacy target analytics props remain accepted for reporting flows outside this card.
   targetMode,
   setTargetMode,
   customTargetStart,
@@ -139,104 +140,17 @@ export default function MainPanels({
   return (
     <>
       <div className="grid-3 middle-grid">
-        {/* Target Panel */}
-        <div className="panel">
-          <div className="target-selector">
-            <span className="target-label">Sending Target</span>
-            <select
-              className="mini-select"
-              value={targetMode}
-              onChange={(event) => setTargetMode(event.target.value)}
-              aria-label="Target review period"
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-
-          {targetMode === 'custom' ? (
-            <div className="note-row">
-              <input
-                className="note-input"
-                type="date"
-                value={customTargetStart}
-                onChange={(event) => setCustomTargetStart(event.target.value)}
-                aria-label="Custom target start date"
-              />
-              <input
-                className="note-input"
-                type="date"
-                value={customTargetEnd}
-                onChange={(event) => setCustomTargetEnd(event.target.value)}
-                aria-label="Custom target end date"
-              />
-            </div>
-          ) : null}
-
-          <div className="target-grid" aria-label="Campaign progress summary">
-            <div className="tg-item">
-              <div className="tg-lbl">Target</div>
-              <div className="tg-val highlight">{targetLimit}</div>
-            </div>
-            <div className="tg-item">
-              <div className="tg-lbl">Sent</div>
-              <div className="tg-val success">{targetSentCount}</div>
-            </div>
-            <div className="tg-item">
-              <div className="tg-lbl">Remaining</div>
-              <div className="tg-val danger">{targetRemaining}</div>
-            </div>
-            <div className="tg-item">
-              <div className="tg-lbl">Period</div>
-              <div className="tg-val" style={{ fontSize: 15, lineHeight: 1.2, color: 'var(--text-1)' }}>{targetWindowLabel}</div>
-            </div>
-            <div className="tg-item">
-              <div className="tg-lbl">Progress</div>
-              <div className="tg-val danger">{targetPercent}%</div>
-            </div>
-            <div className="tg-item">
-              <div className="tg-lbl">Mailed</div>
-              <div className="tg-val">{targetSentCount}</div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>
-              {targetAchieved ? 'Complete' : `Left · ${targetRemaining} mails pending`}
-            </div>
-            <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${targetPercent}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.3s' }}></div>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="target-period-badge"
-            onClick={async () => {
-              setTargetApprovalStatusState('pending');
-              try {
-                await fetch('/api/target-approval', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    period: targetPeriodValue,
-                    dailyTarget: targetDailyCount,
-                    status: 'pending',
-                    note: 'Daily mail target approval requested from dashboard.'
-                  })
-                });
-              } catch (error) {
-                // Keep the UI responsive even if persistence fails.
-              }
-              onShowMessage?.('Target approval request sent to your team lead.', 'info');
-            }}
-          >
-            <i className="ti ti-circle-dotted" style={{ fontSize: 12 }}></i> {targetAchieved ? 'Goal reached' : 'Goal pending'}
-          </button>
-        </div>
-
+        <SalesActionCenter
+          today={today}
+          todayCalendarEvents={todayCalendarEvents}
+          upcomingCalendarEvents={upcomingCalendarEvents}
+          notificationCards={notificationCards}
+          paginatedCampaigns={paginatedCampaigns}
+          openEventForm={openEventForm}
+          setShowNotesPopup={setShowNotesPopup}
+          addQuickNote={addQuickNote}
+          onShowMessage={onShowMessage}
+        />
         {/* Calendar Panel */}
         <div className="panel">
           <div className="cal-header">

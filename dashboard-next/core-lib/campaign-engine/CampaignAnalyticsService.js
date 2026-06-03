@@ -4,8 +4,40 @@ import CampaignRecipientLog from '../../database-models/CampaignRecipientLog.js'
 import LeadList from '../../database-models/LeadList.js';
 import { computeCampaignDisplayStatus } from './CampaignStatusSummary.js';
 
+const CAMPAIGN_STEP_TYPES = {
+  1: { type: 'cover_story', label: 'Cover Story', actionLabel: 'Send Cover Story' },
+  2: { type: 'reminder', label: 'Reminder', actionLabel: 'Send Reminder' },
+  3: { type: 'follow_up', label: 'Follow Up', actionLabel: 'Send Follow Up' },
+  4: { type: 'updated_cost', label: 'Updated Cost', actionLabel: 'Send Updated Cost' },
+  5: { type: 'final_cost', label: 'Final Call', actionLabel: 'Send Final Call' }
+};
+const DRAFT_TYPE_TO_STEP = {
+  cover_story: 1,
+  initial_outreach: 1,
+  reminder: 2,
+  follow_up: 3,
+  followup: 3,
+  open_followup: 3,
+  updated_cost: 4,
+  final_cost: 5,
+  final_followup: 5
+};
+const COMPLETED_STEP_STATUSES = new Set(['sent', 'opened', 'replied']);
+
 export function normalizeEmail(value = '') {
   return String(value || '').trim().toLowerCase();
+}
+
+export function normalizeCampaignDraftType(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'followup' || normalized === 'open_followup') return 'follow_up';
+  if (normalized === 'final_followup') return 'final_cost';
+  if (normalized === 'initial_outreach') return 'cover_story';
+  return normalized;
+}
+
+export function getCampaignStepConfig(step = 1) {
+  return CAMPAIGN_STEP_TYPES[Number(step || 0)] || null;
 }
 
 export function normalizeProjectName(value = '') {
@@ -198,6 +230,68 @@ export function deriveCampaignReason(campaign = {}) {
   return classifyFailureReason(errorLog?.message || '');
 }
 
+export function deriveCompletedCampaignStep(campaign = {}, recipientLogs = []) {
+  const logs = Array.isArray(recipientLogs) ? recipientLogs : [];
+  const summaryLog = logs.find((item) => item?.__summary) || {};
+  const completedFromSummary = Math.floor(Number(summaryLog.completedStep || 0) || 0);
+  const completedFromLogs = logs.reduce((maxStep, item) => {
+    const stepLogs = Array.isArray(item?.stepLogs) ? item.stepLogs : [];
+    const itemMaxStep = stepLogs.reduce((innerMax, step) => {
+      const status = String(step?.status || '').trim().toLowerCase();
+      if (!COMPLETED_STEP_STATUSES.has(status)) return innerMax;
+      return Math.max(innerMax, Number(step?.stepNumber || 0));
+    }, 0);
+    return Math.max(maxStep, itemMaxStep);
+  }, 0);
+  const workflowStep = Math.floor(Number(campaign.workflowStep || 0) || 0);
+  const typeStep = DRAFT_TYPE_TO_STEP[normalizeCampaignDraftType(campaign.draftType || campaign.type || '')] || 0;
+  const historyStep = Math.max(completedFromSummary, completedFromLogs);
+  const fallbackStep = typeStep || workflowStep || 1;
+  return Math.max(1, Math.min(5, historyStep || fallbackStep));
+}
+
+export function buildCampaignStepHistory(campaign = {}, recipientLogs = []) {
+  const logs = Array.isArray(recipientLogs) ? recipientLogs : [];
+  const baseTotal = Math.max(Number(campaign.totalRecipients || 0), Number(campaign.stats?.total || 0), logs.length);
+  const completedStep = deriveCompletedCampaignStep(campaign, logs);
+  return Array.from({ length: 5 }, (_, index) => {
+    const stepNumber = index + 1;
+    const config = getCampaignStepConfig(stepNumber);
+    const sentDates = [];
+    const failedDates = [];
+    let sent = 0;
+    let failed = 0;
+    logs.forEach((item) => {
+      const step = (Array.isArray(item?.stepLogs) ? item.stepLogs : []).find((entry) => Number(entry?.stepNumber) === stepNumber);
+      if (!step) return;
+      const status = String(step.status || '').trim().toLowerCase();
+      if (COMPLETED_STEP_STATUSES.has(status)) {
+        sent += 1;
+        if (step.sentAt || step.openedAt || step.repliedAt) sentDates.push(step.repliedAt || step.openedAt || step.sentAt);
+      }
+      if (['failed', 'bounced', 'spam'].includes(status)) {
+        failed += 1;
+        if (step.failedAt) failedDates.push(step.failedAt);
+      }
+    });
+    const lastSentAt = sentDates.filter(Boolean).sort((a, b) => new Date(b) - new Date(a))[0] || null;
+    const lastFailedAt = failedDates.filter(Boolean).sort((a, b) => new Date(b) - new Date(a))[0] || null;
+    return {
+      stepNumber,
+      type: config?.type || '',
+      label: config?.label || `Step ${stepNumber}`,
+      sent,
+      failed,
+      total: baseTotal,
+      completed: baseTotal > 0 ? sent >= Math.max(baseTotal - failed, 1) : sent > 0,
+      lastSentAt,
+      lastFailedAt,
+      isCurrent: stepNumber === completedStep,
+      isNext: stepNumber === completedStep + 1
+    };
+  });
+}
+
 export function getSafeActions(campaign = {}) {
   const status = String(computeCampaignDisplayStatus(campaign) || 'Draft').toLowerCase();
   return {
@@ -240,6 +334,10 @@ export function serializeCampaignForList(campaign = {}, recipientLogs = []) {
     .map((item) => item.lastActivityAt || item.updatedAt || item.createdAt)
     .filter(Boolean)
     .sort((a, b) => new Date(b) - new Date(a))[0] || campaign.lastActivityAt || campaign.updatedAt || campaign.createdAt || null;
+  const completedWorkflowStep = deriveCompletedCampaignStep(campaign, logs);
+  const nextWorkflowStep = completedWorkflowStep < 5 ? completedWorkflowStep + 1 : null;
+  const nextWorkflowConfig = nextWorkflowStep ? getCampaignStepConfig(nextWorkflowStep) : null;
+  const stepHistory = buildCampaignStepHistory(campaign, logs);
   return {
     ...campaign,
     _id: String(campaign._id),
@@ -266,6 +364,12 @@ export function serializeCampaignForList(campaign = {}, recipientLogs = []) {
     followUpStoppedCount: Number(campaign.followUpStoppedCount || followUpStoppedCount),
     failureReason: deriveCampaignReason(campaign),
     lastActivityAt,
+    completedWorkflowStep,
+    nextWorkflowStep,
+    nextWorkflowType: nextWorkflowConfig?.type || '',
+    nextWorkflowLabel: nextWorkflowConfig?.label || '',
+    nextActionLabel: nextWorkflowConfig?.actionLabel || 'Final Mail Done',
+    stepHistory,
     safeActions: getSafeActions(campaign)
   };
 }
@@ -277,6 +381,22 @@ export function buildTimeline(campaign = {}, recipientLogs = []) {
     message: log.message || '',
     level: log.level || 'info'
   }));
+  const stepHistoryEvents = buildCampaignStepHistory(campaign, recipientLogs)
+    .filter((step) => step.sent > 0 || step.failed > 0)
+    .map((step) => ({
+      at: step.lastSentAt || step.lastFailedAt || campaign.updatedAt || campaign.createdAt,
+      type: `${step.label} ${step.completed ? 'completed' : 'activity'}`,
+      message: `${step.label}: ${step.sent}/${step.total || step.sent} sent${step.failed ? `, ${step.failed} failed` : ''}`,
+      level: step.failed && !step.sent ? 'error' : 'success',
+      meta: {
+        stepNumber: step.stepNumber,
+        stepType: step.type,
+        sent: step.sent,
+        failed: step.failed,
+        total: step.total,
+        campaignName: campaign.name || ''
+      }
+    }));
   const recipientEvents = recipientLogs.flatMap((item) => {
     const events = [];
     const clientLabel = [item.clientName || item.recipientName || item.email, item.company, item.designation]
@@ -316,10 +436,10 @@ export function buildTimeline(campaign = {}, recipientLogs = []) {
     });
     return events;
   });
-  return [...campaignEvents, ...recipientEvents]
+  return [...campaignEvents, ...stepHistoryEvents, ...recipientEvents]
     .filter((item) => item.at)
     .sort((a, b) => new Date(b.at) - new Date(a.at))
-    .slice(0, 100);
+    .slice(0, 500);
 }
 
 export async function refreshCampaignRollups(campaignId) {

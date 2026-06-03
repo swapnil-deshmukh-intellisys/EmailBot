@@ -49,7 +49,12 @@ export async function POST(req, { params }) {
       campaign.logs.push({ level: 'info', message: 'Campaign re-queued for server worker', at: new Date() });
       await campaign.save();
       await triggerCampaignSchedulerTick();
-      return NextResponse.json({ success: true, ok: true, queued: true, message: 'Campaign resumed and queued.' }, { headers: NO_STORE_HEADERS });
+      return NextResponse.json({
+        success: true,
+        ok: true,
+        queued: true,
+        message: 'Campaign resumed and queued. Worker will process it shortly.'
+      }, { headers: NO_STORE_HEADERS });
     } catch (error) {
       return jsonError({
         status: 400,

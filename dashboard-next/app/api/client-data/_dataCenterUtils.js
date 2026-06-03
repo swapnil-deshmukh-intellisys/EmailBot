@@ -16,7 +16,8 @@ export const CLIENT_DATA_COLUMNS = [
   'Sender ID'
 ];
 
-export const SELECTED_SHEET_KINDS = ['custom', 'selected_client_sheet'];
+export const CUSTOM_LIST_KINDS = ['custom', 'selected_client_sheet', 'custom_client_list'];
+export const SELECTED_SHEET_KINDS = CUSTOM_LIST_KINDS;
 
 export function normalizeText(value = '') {
   return String(value ?? '').trim();
@@ -122,6 +123,35 @@ export function publicList(list) {
     createdAt: list.createdAt || null,
     leadCount: leads.length,
     totalClients: leads.length,
+    description: list.description || list.dataCenterMeta?.description || '',
+    project: list.project || list.projectName || list.projectId || '',
+    projectId: list.projectId || '',
+    projectName: list.projectName || list.project || '',
+    campaignPurpose: list.campaignPurpose || list.dataCenterMeta?.campaignPurpose || '',
+    tags: Array.isArray(list.tags) ? list.tags : [],
+    createdBy: list.createdBy || list.dataCenterMeta?.createdByEmail || '',
     metadata: list.dataCenterMeta || null
+  };
+}
+
+export function normalizeProjectName(value = '') {
+  return normalizeText(value).toLowerCase();
+}
+
+export function publicCustomList(list) {
+  const base = publicList(list);
+  const createdAt = list.createdAt || list.uploadedAt || null;
+  const updatedAt = list.updatedAt || null;
+  return {
+    ...base,
+    id: base.listId,
+    customListId: base.listId,
+    totalClients: base.totalClients,
+    leadCount: base.totalClients,
+    createdAt,
+    updatedAt,
+    createdDate: createdAt,
+    createdTime: createdAt,
+    kind: list.kind || 'custom_client_list'
   };
 }
