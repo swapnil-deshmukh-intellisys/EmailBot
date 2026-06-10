@@ -312,7 +312,7 @@ export default function MainPanels({
       </div>
 
       {/* Broadcast Performance Table */}
-      <section className="table-card" ref={broadcastPerformanceRef}>
+      <section className="table-card" id="all-broadcast-performance" ref={broadcastPerformanceRef}>
         <div className="table-header">
           <span className="table-title">All Broadcast Performance</span>
           <button type="button" className="tab-pill active" onClick={handleSelectionSummaryClick}>{selectedRows.length ? `${selectedRows.length} Selected` : 'All Campaigns'}</button>
@@ -354,12 +354,19 @@ export default function MainPanels({
             />
             <button type="button" className="subtle" onClick={handleActionCenterClick}>{selectedRows.length ? 'Take Action' : 'Action Center'}</button>
           </div>
-          <table className="data-table">
+          <div className="table-wrap broadcast-performance-table-wrap">
+          <table className="data-table broadcast-performance-table">
             <thead>
               <tr>
                 <th><input type="checkbox" checked={paginatedCampaigns.length > 0 && paginatedCampaigns.every((campaign) => selectedRows.includes(campaign.id))} onChange={toggleAllRows} /></th>
                 <th>SR.</th>
                 <th>Campaign</th>
+                <th>Project</th>
+                <th>Status</th>
+                <th>Recipients</th>
+                <th>Scheduled Date</th>
+                <th>Created By</th>
+                <th>Created Date</th>
                 <th>Publish Date</th>
                 <th>Total Mails</th>
                 <th>Sent</th>
@@ -380,7 +387,13 @@ export default function MainPanels({
                     ? 'tag-completed'
                     : normalizedStatus.includes('run')
                       ? 'tag-running'
-                      : 'tag-pending';
+                      : normalizedStatus.includes('schedule')
+                        ? 'tag-scheduled'
+                        : normalizedStatus.includes('fail') || normalizedStatus.includes('stop')
+                          ? 'tag-failed'
+                          : normalizedStatus.includes('draft')
+                            ? 'tag-draft'
+                            : 'tag-pending';
                 return (
                   <tr key={campaign.id || campaign._id || index}>
                     <td>
@@ -397,6 +410,12 @@ export default function MainPanels({
                         {campaign.name}
                       </button>
                     </td>
+                    <td>{campaign.project || '-'}</td>
+                    <td><span className={`tag-pill ${statusClass}`}>{campaign.status || campaign.tag || 'Pending'}</span></td>
+                    <td>{Number(campaign.total || 0).toLocaleString()}</td>
+                    <td>{campaign.scheduledDate || '-'}</td>
+                    <td>{campaign.createdBy || '-'}</td>
+                    <td>{campaign.createdDate || '-'}</td>
                     <td>{campaign.publishDate || '-'}</td>
                     <td>{campaign.total}</td>
                     <td>{campaign.sent}</td>
@@ -414,34 +433,38 @@ export default function MainPanels({
                         <span key={tag} className="country-tag" style={{ marginLeft: 4 }}>{tag}</span>
                       ))}
                     </td>
-                    <td style={{ position: 'relative' }} ref={openActionMenu === campaign.id ? actionMenuRef : null}>
+                    <td className="broadcast-action-cell" ref={openActionMenu === campaign.id ? actionMenuRef : null}>
                       <button
                         type="button"
                         className="table-action-btn"
-                        onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id);
+                        }}
                         aria-label={`Open actions for ${campaign.name}`}
                       >
                         <i className="ti ti-dots-vertical"></i>
                       </button>
                       {openActionMenu === campaign.id ? (
-                        <div className="premium-row-action-menu">
-                          <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
-                          <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
+                        <div className="premium-row-action-menu" onClick={(event) => event.stopPropagation()}>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); handleViewCampaign(campaign); }}>View</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); handleEditTagsClick(campaign); }}>Edit Tags</button>
                           {normalizedStatus === 'draft' ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
                               Resume Draft
                             </button>
                           ) : null}
                           {['queued', 'running'].includes(normalizedStatus) ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
                           ) : null}
                           {['queued', 'running', 'paused'].includes(normalizedStatus) ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
                           ) : null}
                           {normalizedStatus === 'paused' ? (
-                            <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
                           ) : null}
-                          <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); handleDeleteCampaignClick(campaign); }}>Delete</button>
                         </div>
                       ) : null}
                     </td>
@@ -452,12 +475,13 @@ export default function MainPanels({
                   <tr key={`empty-data-row-${index}`}>
                     <td><input type="checkbox" disabled aria-label="No row available" /></td>
                     <td>{index + 1}</td>
-                    <td colSpan={11} className="empty-row" style={{ textAlign: 'left', color: 'var(--text-3)', fontStyle: 'italic' }}>No data</td>
+                    <td colSpan={17} className="empty-row" style={{ textAlign: 'left', color: 'var(--text-3)', fontStyle: 'italic' }}>No data</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          </div>
 
           <div className="table-footer">
             <div className="tf-left">
@@ -569,7 +593,11 @@ export default function MainPanels({
                   <button
                     type="button"
                     className="premium-row-action"
-                    onClick={() => setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setOpenActionMenu(openActionMenu === campaign.id ? null : campaign.id);
+                    }}
                     aria-label={`Open actions for ${campaign.name}`}
                   >
                     ⋮
@@ -581,24 +609,24 @@ export default function MainPanels({
                     const canStopCampaign = ['queued', 'running', 'paused'].includes(normalizedStatus);
                     const canResumeCampaign = normalizedStatus === 'paused';
                     return (
-                      <div className="premium-row-action-menu">
-                        <button type="button" onClick={() => handleViewCampaign(campaign)}>View</button>
-                        <button type="button" onClick={() => handleEditTagsClick(campaign)}>Edit Tags</button>
+                      <div className="premium-row-action-menu" onClick={(event) => event.stopPropagation()}>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); handleViewCampaign(campaign); }}>View</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); handleEditTagsClick(campaign); }}>Edit Tags</button>
                         {isDraftCampaign ? (
-                          <button type="button" onClick={() => { setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
                             Resume Draft
                           </button>
                         ) : null}
                         {canPauseCampaign ? (
-                          <button type="button" onClick={() => { setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onPauseCampaign?.(campaign.id); }}>Pause</button>
                         ) : null}
                         {canStopCampaign ? (
-                          <button type="button" onClick={() => { setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onStopCampaign?.(campaign.id); }}>Stop</button>
                         ) : null}
                         {canResumeCampaign ? (
-                          <button type="button" onClick={() => { setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); onResumeCampaign?.(campaign.id); }}>Resume</button>
                         ) : null}
-                        <button type="button" onClick={() => handleDeleteCampaignClick(campaign)}>Delete</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); handleDeleteCampaignClick(campaign); }}>Delete</button>
                       </div>
                     );
                   })() : null}

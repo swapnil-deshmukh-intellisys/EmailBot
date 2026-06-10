@@ -51,6 +51,7 @@
     "ag-grid-react": "^35.3.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
+    "framer-motion": "^12.40.0",
     "html-to-text": "^10.0.0",
     "imapflow": "^1.2.18",
     "jsonwebtoken": "^9.0.2",

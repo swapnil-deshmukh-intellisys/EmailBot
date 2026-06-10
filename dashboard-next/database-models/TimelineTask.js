@@ -25,6 +25,8 @@ const TimelineTaskSchema = new mongoose.Schema(
     completedAt: { type: Date, default: null },
     category: { type: String, enum: TIMELINE_CATEGORIES, default: 'Custom', index: true },
     notes: { type: String, default: '' },
+    attachments: { type: [String], default: [] },
+    createdBy: { type: String, default: '' },
     reminderAt: { type: Date, default: null, index: true },
     lastNotifiedAt: { type: Date, default: null }
   },

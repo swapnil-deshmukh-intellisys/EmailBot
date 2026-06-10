@@ -60,6 +60,36 @@ function getTemplateForDraftType(value = '') {
   };
 }
 
+function getDraftFileExtension(filename = '') {
+  return String(filename || '').split('.').pop()?.toLowerCase() || '';
+}
+
+function normalizeDraftPreviewText(value = '') {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\u0000/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trim();
+}
+
+async function extractDraftFileTextInBrowser(file) {
+  const extension = getDraftFileExtension(file?.name);
+  const fileType = String(file?.type || '');
+
+  if (['txt', 'md', 'csv', 'html', 'htm'].includes(extension) || fileType.startsWith('text/')) {
+    return file.text();
+  }
+
+  if (extension === 'docx') {
+    const mammoth = await import('mammoth/mammoth.browser');
+    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return result.value || '';
+  }
+
+  throw new Error('Unsupported file type. Please upload DOCX, PDF, TXT, HTML, MD, or CSV.');
+}
+
 function clampPercent(value) {
   const numeric = Number(value || 0);
   return Math.max(0, Math.min(100, Math.round(numeric)));
@@ -715,9 +745,16 @@ export default function PremiumDashboardShell({
   };
   const scrollToBroadcastPerformance = () => {
     window.setTimeout(() => {
-      broadcastPerformanceRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      const target = broadcastPerformanceRef.current || document.getElementById('all-broadcast-performance');
+      target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     }, 80);
   };
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname === '/dashboard/broadcasts') {
+      scrollToBroadcastPerformance();
+    }
+  }, []);
   const initialCalendarDate = new Date();
   const [calendarCursor, setCalendarCursor] = useState(
     new Date(initialCalendarDate.getFullYear(), initialCalendarDate.getMonth(), 1)
@@ -729,6 +766,9 @@ export default function PremiumDashboardShell({
   const [showTimelinePopup, setShowTimelinePopup] = useState(false);
   const [showLogsPopup, setShowLogsPopup] = useState(false);
   const [showSchedulePopup, setShowSchedulePopup] = useState(false);
+  const [showScheduleSuccessPopup, setShowScheduleSuccessPopup] = useState(false);
+  const [scheduleSuccessDetails, setScheduleSuccessDetails] = useState(null);
+  const [scheduleInlineNotice, setScheduleInlineNotice] = useState(null);
   const [showDraftSummaryPopup, setShowDraftSummaryPopup] = useState(false);
   const [showClientListPopup, setShowClientListPopup] = useState(false);
   const [showOverviewPopup, setShowOverviewPopup] = useState(false);
@@ -803,6 +843,7 @@ export default function PremiumDashboardShell({
   const [selectDraftTypeFilter, setSelectDraftTypeFilter] = useState('');
   const [draftUploadedFileName, setDraftUploadedFileName] = useState('');
   const [draftUploadedText, setDraftUploadedText] = useState('');
+  const [draftFileReading, setDraftFileReading] = useState(false);
   const [showProgressFilterDropdown, setShowProgressFilterDropdown] = useState(false);
   const [progressFilterOptions, setProgressFilterOptions] = useState([
     { label: 'Day Wise', value: 'today' },
@@ -1003,8 +1044,8 @@ export default function PremiumDashboardShell({
         overview: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
         campaign: { width: 'min(90vw, 900px)', maxHeight: 'min(84vh, 820px)' },
         selectDraft: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
-        testEmail: { width: 'min(90vw, 920px)', maxHeight: 'min(84vh, 820px)' },
-        draftSummary: { width: 'min(92vw, 940px)', maxHeight: 'min(84vh, 820px)' },
+        testEmail: { width: '90vw', maxHeight: '90vh' },
+        draftSummary: { width: 'min(94vw, 1040px)', maxHeight: '90vh' },
         schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
         calendar: { width: 'min(92vw, 620px)', maxHeight: 'min(82vh, 680px)' },
         day: { width: 'min(92vw, 560px)', maxHeight: 'min(82vh, 680px)' },
@@ -1089,7 +1130,10 @@ export default function PremiumDashboardShell({
         id: draft._id || draft.id,
         title: draft.title,
         subject: draft.subject,
-        body: draft.body || draft.message || draft.html || draft.content || '',
+        body: draft.bodyHtml || draft.html || draft.body || draft.message || draft.content || '',
+        bodyHtml: draft.bodyHtml || draft.html || draft.body || '',
+        bodyText: draft.bodyText || '',
+        html: draft.html || draft.bodyHtml || draft.body || '',
         sector: draft.sector || '',
         city: draft.city || '',
         project: draft.project || draft.projectName || '',
@@ -1107,10 +1151,22 @@ export default function PremiumDashboardShell({
           : 'Saved draft'
       }))
     : savedDrafts;
+  const builtInDraftTemplates = useMemo(
+    () => draftTypeItems.map((item) => getTemplateForDraftType(item.value)).filter(Boolean),
+    [draftTypeItems]
+  );
+  const effectiveDraftLibrary = useMemo(() => {
+    const savedIds = new Set(effectiveSavedDrafts.map((draft) => String(draft.id || '')));
+    return [
+      ...effectiveSavedDrafts,
+      ...builtInDraftTemplates.filter((draft) => !savedIds.has(String(draft.id || '')))
+    ];
+  }, [builtInDraftTemplates, effectiveSavedDrafts]);
   const filteredSavedDrafts = useMemo(() => {
     const query = String(selectDraftSearch || '').trim().toLowerCase();
-    const typeFilter = normalizeDraftType(selectDraftTypeFilter || '');
-    return effectiveSavedDrafts.filter((draft) => {
+    const rawTypeFilter = String(selectDraftTypeFilter || '').trim();
+    const typeFilter = rawTypeFilter ? normalizeDraftType(rawTypeFilter) : '';
+    return effectiveDraftLibrary.filter((draft) => {
       const draftType = inferDraftTypeFromDraft(draft);
       const blob = [
         draft.title,
@@ -1125,13 +1181,13 @@ export default function PremiumDashboardShell({
       if (query && !blob.includes(query)) return false;
       return true;
     });
-  }, [effectiveSavedDrafts, selectDraftSearch, selectDraftTypeFilter]);
+  }, [effectiveDraftLibrary, selectDraftSearch, selectDraftTypeFilter]);
   const draftTypeCounts = useMemo(() => {
     return draftTypeItems.reduce((counts, item) => {
-      counts[item.value] = effectiveSavedDrafts.filter((draft) => inferDraftTypeFromDraft(draft) === item.value).length;
+      counts[item.value] = effectiveDraftLibrary.filter((draft) => inferDraftTypeFromDraft(draft) === item.value).length;
       return counts;
     }, {});
-  }, [effectiveSavedDrafts]);
+  }, [draftTypeItems, effectiveDraftLibrary]);
   const selectedSavedDraft = useMemo(() => {
     const currentDraftId = activeDraftId || selectedDraftId;
     if (!currentDraftId) return null;
@@ -1615,12 +1671,6 @@ export default function PremiumDashboardShell({
 
 
   useEffect(() => {
-    if (!draftOptions.length) {
-      setSelectedDraftId('');
-    }
-  }, [draftOptions, selectedDraftId]);
-
-  useEffect(() => {
     if (selectDraftTab !== 'my-drafts') return;
     if (!filteredSavedDrafts.length) {
       setSelectedDraftId('');
@@ -1636,11 +1686,16 @@ export default function PremiumDashboardShell({
   useEffect(() => {
     if (activeDraftId) return;
     if (!selectedDraftId) return;
-    const selected = effectiveSavedDrafts.find((draft) => draft.id === selectedDraftId);
+    const selected = effectiveDraftLibrary.find((draft) => draft.id === selectedDraftId);
     if (!selected) return;
-    onSelectedDraftTypeChange?.(normalizeDraftType(selected.draftType || selected.category || selectedDraftType));
+    const selectedType = normalizeDraftType(selected.draftType || selected.category || selectedDraftType);
+    onSelectedDraftTypeChange?.(selectedType);
+    if (String(selected.id || '').startsWith('template:')) {
+      applyTemplateDraft(selectedType);
+      return;
+    }
     onSelectSavedDraft?.(selected.id);
-  }, [activeDraftId, effectiveSavedDrafts, onSelectSavedDraft, onSelectedDraftTypeChange, selectedDraftId, selectedDraftType]);
+  }, [activeDraftId, effectiveDraftLibrary, onSelectSavedDraft, onSelectedDraftTypeChange, selectedDraftId, selectedDraftType]);
 
   const applyTemplateDraft = (draftType = '') => {
     const templateDraft = getTemplateForDraftType(draftType);
@@ -1683,21 +1738,76 @@ export default function PremiumDashboardShell({
       setDraftSubject(draft.subject || '');
     }
     if (onDraftBodyChange) {
-      onDraftBodyChange(draft.body || '');
+      onDraftBodyChange(draft.bodyHtml || draft.html || draft.body || '');
     } else {
-      setDraftMessage(draft.body || '');
+      setDraftMessage(draft.bodyHtml || draft.html || draft.body || '');
     }
-    setDraftUploadedText(String(draft.body || '').replace(/<[^>]*>/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
+    setDraftUploadedText(String(draft.bodyText || draft.bodyHtml || draft.html || draft.body || '').replace(/<[^>]*>/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
     setDraftUploadedFileName(draft.title || 'Saved draft');
   };
 
   const handleDraftFileUpload = async (event) => {
     const file = event.target?.files?.[0];
     if (!file) return;
+    setSelectDraftTab('create');
+    setSelectedDraftId('');
+    onSelectSavedDraft?.('');
     setDraftUploadedFileName(file.name);
+    setDraftUploadedText(`Reading ${file.name}...`);
+    setDraftFileReading(true);
     try {
-      const text = await file.text();
-      setDraftUploadedText(text);
+      const extension = getDraftFileExtension(file.name);
+      let text = '';
+
+      if (['txt', 'md', 'csv', 'html', 'htm'].includes(extension) || String(file.type || '').startsWith('text/')) {
+        text = await file.text();
+      } else {
+        let apiError = null;
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const response = await fetch('/api/draft-file-text', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+          });
+          const rawResponseText = await response.text();
+          let payload = {};
+          try {
+            payload = rawResponseText ? JSON.parse(rawResponseText) : {};
+          } catch {
+            payload = {};
+          }
+          if (!response.ok) {
+            throw new Error(payload.error || `PDF text extraction failed (${response.status} ${response.statusText || 'Error'}).`);
+          }
+          text = payload.text || '';
+        } catch (error) {
+          apiError = error;
+        }
+
+        if (!text) {
+          if (extension === 'pdf') {
+            throw new Error(apiError?.message || 'No readable text was found in this PDF.');
+          }
+          try {
+            text = await extractDraftFileTextInBrowser(file);
+          } catch (fallbackError) {
+            throw new Error(
+              [
+                fallbackError?.message ? `Browser reader: ${fallbackError.message}` : '',
+                apiError?.message ? `Server reader: ${apiError.message}` : ''
+              ].filter(Boolean).join('\n') || 'Could not read this file.'
+            );
+          }
+        }
+      }
+      const previewText = normalizeDraftPreviewText(text);
+      if (!previewText) {
+        throw new Error('No readable text was found in this file.');
+      }
+      setDraftUploadedFileName(file.name);
+      setDraftUploadedText(previewText);
       if (!String(effectiveDraftSubject || '').trim()) {
         const subjectFromName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
         if (onDraftSubjectChange) {
@@ -1708,9 +1818,11 @@ export default function PremiumDashboardShell({
       }
       onShowMessage?.(`${file.name} uploaded to draft viewer.`, 'success');
     } catch (error) {
-      setDraftUploadedText('');
-      onShowMessage?.('Could not read this file in the browser. Try TXT, HTML, or paste the content manually.', 'warning');
+      const message = error?.message || 'Could not extract readable text from this file.';
+      setDraftUploadedText(`Could not preview ${file.name}.\n\n${message}`);
+      onShowMessage?.(message, 'warning');
     } finally {
+      setDraftFileReading(false);
       if (event.target) event.target.value = '';
     }
   };
@@ -1882,10 +1994,14 @@ export default function PremiumDashboardShell({
 
   useEffect(() => {
     const handleOutsideActionMenu = (event) => {
-      if (!actionMenuRef.current?.contains(event.target)) {
+      const target = event.target;
+      const isBroadcastActionClick = Boolean(
+        target?.closest?.('.broadcast-action-cell, .premium-table-action-cell, .premium-row-action-menu, .table-action-btn, .premium-row-action')
+      );
+      if (!isBroadcastActionClick && !actionMenuRef.current?.contains(target)) {
         setOpenActionMenu(null);
       }
-      if (!tagFilterRef.current?.contains(event.target)) {
+      if (!tagFilterRef.current?.contains(target)) {
         setShowTagFilterMenu(false);
       }
     };
@@ -1954,20 +2070,26 @@ export default function PremiumDashboardShell({
       return acc;
     }, {});
   }, [activeOverviewColumns, columnMappings, emailMapping, overviewRows]);
+  const missingValueCount = useMemo(() => (
+    overviewRows.reduce((total, row) => (
+      total + activeOverviewColumns.filter((item) => (
+        item.mappedField !== 'Ignore' && !String(row?.[item.sheetColumn] ?? '').trim()
+      )).length
+    ), 0)
+  ), [activeOverviewColumns, overviewRows]);
   const summaryStats = useMemo(() => {
     const validEmails = overviewRows.filter((row) => {
       const emailValue = String(row?.[emailMapping?.sheetColumn] || '').trim();
       return emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
     }).length;
-    const missingValues = overviewRows.filter((row) => rowIssues[row.id]?.includes('missing') || rowIssues[row.id]?.includes('missing-value')).length;
     return [
       { label: 'File Name', value: selectedClientListSummary.title || 'clients_april.xlsx' },
       { label: 'Total Records', value: String(overviewRows.length) },
       { label: 'Columns Detected', value: String(columnMappings.length) },
       { label: 'Valid Emails', value: String(validEmails) },
-      { label: 'Missing Values', value: String(missingValues) }
+      { label: 'Missing Values', value: String(missingValueCount) }
     ];
-  }, [columnMappings.length, emailMapping, overviewRows, rowIssues, selectedClientListSummary.title]);
+  }, [columnMappings.length, emailMapping, missingValueCount, overviewRows, selectedClientListSummary.title]);
   const filteredOverviewRows = useMemo(() => {
     const query = overviewSearch.trim().toLowerCase();
     return overviewRows.filter((row) => {
@@ -2244,6 +2366,156 @@ export default function PremiumDashboardShell({
       setShowScheduleContinueWarning(false);
     }
   }, [hasScheduleRequiredFields, showScheduleContinueWarning]);
+  useEffect(() => {
+    if (!showScheduleSuccessPopup) return undefined;
+    const redirectTimer = window.setTimeout(() => {
+      setShowScheduleSuccessPopup(false);
+      router.push('/dashboard/broadcasts');
+    }, 2000);
+    return () => window.clearTimeout(redirectTimer);
+  }, [router, showScheduleSuccessPopup]);
+  const getScheduleValidationError = () => {
+    if (!String(effectiveCampaignName || '').trim()) {
+      return 'Please enter a campaign name before scheduling.';
+    }
+    if (!String(selectedListId || uploadedListId || '').trim()) {
+      return 'Please select a client list before scheduling.';
+    }
+    if (!String(selectedSenderAccountId || '').trim()) {
+      return 'Please select a sender account before scheduling.';
+    }
+    if (!String(selectedDraftType || effectiveDraftSubject || '').trim()) {
+      return 'Please select a draft before scheduling.';
+    }
+    if (!String(effectiveDraftSubject || '').trim()) {
+      return 'Please enter a draft subject before scheduling.';
+    }
+    if (!String(effectiveDraftMessage || '').replace(/<[^>]*>/g, ' ').trim()) {
+      return 'Please enter draft content before scheduling.';
+    }
+    if (scheduleDraftPayload.scheduleMode === 'scheduled' && !String(scheduledDateValue || '').trim()) {
+      return 'Please select a schedule date before scheduling.';
+    }
+    if (scheduleDraftPayload.scheduleMode === 'scheduled' && !String(scheduledTimeValue || '').trim()) {
+      return 'Please select a schedule time before scheduling.';
+    }
+    if (scheduleMissingFields.length) {
+      return scheduleContinueHint;
+    }
+    return '';
+  };
+  const buildScheduleSuccessDetails = (result = {}) => {
+    const scheduledValue = scheduleDraftPayload.scheduledAt
+      ? new Date(scheduleDraftPayload.scheduledAt).toLocaleString()
+      : scheduleDraftPayload.scheduleMode === 'scheduled'
+        ? [scheduleDraftPayload.scheduledDate, scheduleDraftPayload.scheduledTime].filter(Boolean).join(' ')
+        : 'Send now';
+    const recipientCount = Number(
+      result?.recipients ||
+      result?.recipientCount ||
+      result?.data?.recipientCount ||
+      result?.data?.pendingCount ||
+      overviewRows.length ||
+      previewRows.length ||
+      0
+    );
+
+    return {
+      campaignName: String(effectiveCampaignName || result?.campaign?.name || 'Campaign').trim() || 'Campaign',
+      project: String(project || 'No project').trim() || 'No project',
+      recipients: recipientCount,
+      scheduledFor: scheduledValue,
+      status: scheduleDraftPayload.scheduleMode === 'scheduled' ? 'Scheduled' : 'Queued'
+    };
+  };
+  const handleScheduleSave = async () => {
+    setScheduleInlineNotice(null);
+    const validationError = getScheduleValidationError();
+    if (validationError) {
+      setShowScheduleContinueWarning(true);
+      setScheduleInlineNotice({ tone: 'warning', message: validationError });
+      onShowMessage?.(validationError, 'warning');
+      return;
+    }
+
+    try {
+      setScheduleInlineNotice({ tone: 'info', message: 'Saving schedule...' });
+      onShowMessage?.('Saving schedule...', 'info');
+      const result = await onSaveSchedule?.(scheduleDraftPayload);
+      if (result?.ok === false) {
+        const message = result?.error || result?.message || 'Schedule could not be saved. Please check the required details.';
+        setScheduleInlineNotice({ tone: 'error', message });
+        onShowMessage?.(message, 'error');
+        return;
+      }
+
+      const message = scheduleDraftPayload.scheduleMode === 'scheduled'
+        ? 'Schedule saved successfully.'
+        : 'Send-now settings saved successfully.';
+      setScheduleInlineNotice({ tone: 'success', message });
+      onShowMessage?.(
+        message,
+        'success'
+      );
+    } catch (error) {
+      const message = error?.message || 'Failed to save schedule.';
+      setScheduleInlineNotice({ tone: 'error', message });
+      onShowMessage?.(message, 'error');
+    }
+  };
+  const handleScheduleStart = async () => {
+    setScheduleInlineNotice(null);
+    const validationError = getScheduleValidationError();
+    if (validationError) {
+      setShowScheduleContinueWarning(true);
+      setScheduleInlineNotice({ tone: 'warning', message: validationError });
+      onShowMessage?.(validationError, 'warning');
+      return;
+    }
+
+    try {
+      setScheduleInlineNotice({
+        tone: 'info',
+        message: scheduleDraftPayload.scheduleMode === 'scheduled'
+          ? 'Scheduling campaign...'
+          : 'Starting campaign...'
+      });
+      onShowMessage?.(
+        scheduleDraftPayload.scheduleMode === 'scheduled'
+          ? 'Scheduling campaign...'
+          : 'Starting campaign...',
+        'info'
+      );
+      const result = await onStartCampaign?.(scheduleDraftPayload);
+      if (result?.ok === false) {
+        const message = result?.error || result?.message || 'Campaign could not be scheduled. Please check the required details.';
+        setScheduleInlineNotice({ tone: 'error', message });
+        onShowMessage?.(message, 'error');
+        return;
+      }
+
+      const details = buildScheduleSuccessDetails(result);
+      setScheduleSuccessDetails(details);
+      setShowScheduleSuccessPopup(false);
+      setScheduleInlineNotice({
+        tone: 'success',
+        message: scheduleDraftPayload.scheduleMode === 'scheduled'
+          ? `Campaign Scheduled Successfully. Campaign: ${details.campaignName}. Scheduled Time: ${details.scheduledFor}. Recipients: ${details.recipients}.`
+          : `Campaign started successfully. Campaign: ${details.campaignName}. Recipients: ${details.recipients}.`
+      });
+      onShowMessage?.(
+        scheduleDraftPayload.scheduleMode === 'scheduled'
+          ? `Campaign Scheduled Successfully - Your campaign has been scheduled. Campaign: ${details.campaignName}. Scheduled Time: ${details.scheduledFor}. Recipients: ${details.recipients}.`
+          : `Campaign started successfully. Campaign: ${details.campaignName}. Recipients: ${details.recipients}.`,
+        'success'
+      );
+      scrollToBroadcastPerformance();
+    } catch (error) {
+      const message = error?.message || 'Failed to schedule campaign.';
+      setScheduleInlineNotice({ tone: 'error', message });
+      onShowMessage?.(message, 'error');
+    }
+  };
   const handleCampaignContinue = () => {
     if (!hasCampaignRequiredFields) {
       if (!hasShownCampaignMissingWarningRef.current) {
@@ -2406,11 +2678,75 @@ export default function PremiumDashboardShell({
       current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row))
     );
   };
+  const campaignTagSuggestions = useMemo(() => {
+    const query = String(campaignTagDraft || '').trim().toLowerCase();
+    if (!query) return [];
+
+    const allowedFields = ['Sector', 'Country'];
+    const rows = overviewRows.length ? overviewRows : previewRows;
+    const selectedTags = new Set(campaignTags.map((tag) => String(tag || '').trim().toLowerCase()));
+    const blockedUiSuggestionValues = new Set([
+      'client data',
+      'upload file',
+      'customize list',
+      'bin storage',
+      'client list',
+      'choose xlsx / csv',
+      'saved sheets',
+      'paste extracted data',
+      'close',
+      'save pasted data',
+      'create row',
+      'add column',
+      'rename column',
+      'delete column',
+      'create custom list/sheet',
+      'delete selected rows',
+      'clear all'
+    ]);
+    const directKeyAliases = {
+      Sector: ['Sector', 'sector', 'Industry', 'industry'],
+      Country: ['Country', 'country', 'Country Name', 'countryName', 'Nation', 'nation', 'Location', 'location', 'Region', 'region']
+    };
+
+    const readFieldValue = (row, label) => {
+      const mappedColumn = columnMappings.find((item) => String(item.mappedField || '').toLowerCase() === label.toLowerCase());
+      const mappedValue = mappedColumn ? row?.[mappedColumn.sheetColumn] : '';
+      if (String(mappedValue || '').trim()) return String(mappedValue).trim();
+      for (const key of directKeyAliases[label] || [label]) {
+        if (String(row?.[key] || '').trim()) return String(row[key]).trim();
+      }
+      return '';
+    };
+
+    const suggestions = [];
+    const seen = new Set();
+    const addSuggestion = (label, value) => {
+      const cleanValue = String(value || '').trim();
+      if (!cleanValue || !cleanValue.toLowerCase().includes(query)) return false;
+      if (blockedUiSuggestionValues.has(cleanValue.toLowerCase())) return false;
+      const key = `${label}:${cleanValue}`.toLowerCase();
+      if (seen.has(key) || selectedTags.has(cleanValue.toLowerCase())) return false;
+      seen.add(key);
+      suggestions.push({ label, value: cleanValue });
+      return suggestions.length >= 10;
+    };
+
+    for (const row of rows) {
+      for (const label of allowedFields) {
+        if (addSuggestion(label, readFieldValue(row, label))) return suggestions;
+      }
+    }
+    for (const country of Object.keys(scheduleCountries)) {
+      if (addSuggestion('Country', country)) return suggestions;
+    }
+    return suggestions;
+  }, [campaignTagDraft, campaignTags, columnMappings, overviewRows, previewRows, scheduleCountries]);
   const removeCampaignTag = (tagToRemove) => {
     setCampaignTags((current) => current.filter((tag) => tag !== tagToRemove));
   };
-  const addCampaignTag = () => {
-    const nextTag = campaignTagDraft.trim();
+  const addCampaignTag = (value = campaignTagDraft) => {
+    const nextTag = String(value || '').trim();
     if (!nextTag) return;
     if (!campaignTags.includes(nextTag)) {
       setCampaignTags((current) => [...current, nextTag]);
@@ -3038,9 +3374,6 @@ export default function PremiumDashboardShell({
               <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
                 Upload Sheet
               </button>
-              <button type="button" className={clientListTab === 'uploaded' ? 'active' : ''} onClick={() => setClientListTab('uploaded')}>
-                Uploaded Files
-              </button>
             </div>
 
             {clientListTab === 'upload' ? (
@@ -3442,6 +3775,13 @@ export default function PremiumDashboardShell({
                   </div>
                 </div>
                 <div className="premium-review-validation-col">
+                  <div className={missingValueCount ? 'warning' : 'success'}>
+                    <div>
+                      <span>{missingValueCount ? '!' : '?'}</span>
+                      <p>{missingValueCount} missing values found</p>
+                    </div>
+                    <button type="button" onClick={() => setOverviewFilter('missing')}>View</button>
+                  </div>
                   <div className="warning">
                     <div>
                       <span>!</span>
@@ -3620,18 +3960,7 @@ export default function PremiumDashboardShell({
                   type="button"
                   className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
                   aria-disabled={!canAttemptScheduleAction}
-                  onClick={async () => {
-                    if (!canAttemptScheduleAction) {
-                      setShowScheduleContinueWarning(true);
-                      onShowMessage?.(scheduleContinueHint, 'warning');
-                      return;
-                    }
-                    onShowMessage?.('Saving schedule...', 'info');
-                    const result = await onSaveSchedule?.(scheduleDraftPayload);
-                    if (result?.ok !== false) {
-                      onShowMessage?.('Schedule saved. Click START when you are ready to begin.', 'success');
-                    }
-                  }}
+                  onClick={handleScheduleSave}
                 >
                   {scheduleSaveLabel}
                 </button>
@@ -3643,6 +3972,31 @@ export default function PremiumDashboardShell({
                 <p className="premium-select-draft-warning">
                   {scheduleContinueHint}
                 </p>
+              ) : null}
+              {scheduleInlineNotice ? (
+                <div className={`premium-schedule-inline-notice ${scheduleInlineNotice.tone || 'info'}`} role="status" aria-live="polite">
+                  <strong>
+                    {scheduleInlineNotice.tone === 'success'
+                      ? 'Success'
+                      : scheduleInlineNotice.tone === 'error'
+                        ? 'Action failed'
+                        : scheduleInlineNotice.tone === 'warning'
+                          ? 'Check details'
+                          : 'Notification'}
+                  </strong>
+                  <p>{scheduleInlineNotice.message}</p>
+                  {scheduleInlineNotice.tone === 'success' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSchedulePopup(false);
+                        router.push('/dashboard/broadcasts');
+                      }}
+                    >
+                      View Broadcasts
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
@@ -3661,24 +4015,7 @@ export default function PremiumDashboardShell({
                 type="button"
                 className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
                 aria-disabled={!canAttemptScheduleAction}
-                onClick={async () => {
-                  if (!canAttemptScheduleAction) {
-                    setShowScheduleContinueWarning(true);
-                    onShowMessage?.(scheduleContinueHint, 'warning');
-                    return;
-                  }
-                  setShowSchedulePopup(false);
-                  onShowMessage?.(
-                    scheduleDraftPayload.scheduleMode === 'scheduled'
-                      ? 'Scheduling campaign...'
-                      : 'Starting campaign...',
-                    'info'
-                  );
-                  const result = await onStartCampaign?.(scheduleDraftPayload);
-                  if (result?.ok !== false) {
-                    scrollToBroadcastPerformance();
-                  }
-                }}
+                onClick={handleScheduleStart}
               >
                 {scheduleActionLabel}
               </button>
@@ -3737,6 +4074,20 @@ export default function PremiumDashboardShell({
                     }}
                     placeholder="+ Add tag..."
                   />
+                  {campaignTagSuggestions.length ? (
+                    <div className="premium-campaign-tag-suggestions">
+                      {campaignTagSuggestions.map((suggestion) => (
+                        <button
+                          key={`${suggestion.label}-${suggestion.value}`}
+                          type="button"
+                          onClick={() => addCampaignTag(suggestion.value)}
+                        >
+                          <span>{suggestion.label}</span>
+                          <strong>{suggestion.value}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -3912,9 +4263,15 @@ export default function PremiumDashboardShell({
                           name="savedDraft"
                           checked={activeDraftId === draft.id || selectedDraftId === draft.id}
                           onChange={() => {
+                            const draftId = String(draft.id || '');
+                            const draftType = normalizeDraftType(draft.draftType || draft.category || selectedDraftType);
                             setSelectedDraftId(draft.id);
-                            onSelectedDraftTypeChange?.(normalizeDraftType(draft.draftType || draft.category || selectedDraftType));
-                            onSelectSavedDraft?.(draft.id);
+                            onSelectedDraftTypeChange?.(draftType);
+                            if (draftId.startsWith('template:')) {
+                              applyTemplateDraft(draftType);
+                            } else {
+                              onSelectSavedDraft?.(draft.id);
+                            }
                           }}
                         />
                         <div>
@@ -4028,11 +4385,12 @@ export default function PremiumDashboardShell({
                   <button
                     type="button"
                     className="premium-select-draft-uploadbox"
+                    disabled={draftFileReading}
                     onClick={() => draftFileInputRef.current?.click()}
                   >
                     <span className="premium-clientlist-uploadicon">＋</span>
-                    <strong>Upload Word, PDF, or TXT file</strong>
-                    <small>{draftUploadedFileName || 'Supported formats: DOCX, PDF, TXT'}</small>
+                    <strong>{draftFileReading ? 'Reading uploaded file...' : 'Upload Word, PDF, or TXT file'}</strong>
+                    <small>{draftFileReading ? `Extracting text from ${draftUploadedFileName}` : (draftUploadedFileName || 'Supported formats: DOCX, PDF, TXT')}</small>
                   </button>
                 </div>
 
@@ -4144,6 +4502,58 @@ export default function PremiumDashboardShell({
       )}
 
       {renderPortalPopup(
+        showScheduleSuccessPopup,
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowScheduleSuccessPopup(false)}>
+          <div className="premium-calendar-modal premium-schedule-success-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="premium-schedule-success-head">
+              <span className="premium-popup-step-badge">✓</span>
+              <div>
+                <h3>Campaign Scheduled Successfully</h3>
+                <p>Your campaign has been scheduled.</p>
+              </div>
+            </div>
+            <div className="premium-schedule-success-grid">
+              <article>
+                <span>Campaign Name</span>
+                <strong>{scheduleSuccessDetails?.campaignName || campaignName || 'Campaign'}</strong>
+              </article>
+              <article>
+                <span>Project</span>
+                <strong>{scheduleSuccessDetails?.project || project || 'No project'}</strong>
+              </article>
+              <article>
+                <span>Recipients</span>
+                <strong>{Number(scheduleSuccessDetails?.recipients || 0).toLocaleString()}</strong>
+              </article>
+              <article>
+                <span>Scheduled For</span>
+                <strong>{scheduleSuccessDetails?.scheduledFor || 'Scheduled'}</strong>
+              </article>
+              <article>
+                <span>Status</span>
+                <strong>{scheduleSuccessDetails?.status || 'Scheduled'}</strong>
+              </article>
+            </div>
+            <div className="premium-schedule-success-actions">
+              <button
+                type="button"
+                className="premium-schedule-next"
+                onClick={() => {
+                  setShowScheduleSuccessPopup(false);
+                  router.push('/dashboard/broadcasts');
+                }}
+              >
+                View Broadcasts
+              </button>
+              <button type="button" className="ghost subtle" onClick={() => setShowScheduleSuccessPopup(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renderPortalPopup(
         showTestEmailPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowTestEmailPopup(false)}>
           <div className="premium-calendar-modal premium-test-email-modal" style={popupStyleFor('testEmail')} onClick={(event) => event.stopPropagation()}>
@@ -4167,7 +4577,8 @@ export default function PremiumDashboardShell({
                 <div className="premium-test-email-preview-top">
                   <div>
                     <strong>Subject: {effectiveDraftSubject || 'No draft subject yet'}</strong>
-                    <p>From: {selectedAccountLabel || 'Select Mail ID'}</p>
+                    <p>Recipient Test Email: {testEmailTo || testEmailAddress || 'Enter test recipient'}</p>
+                    <p>Sender Account: {selectedAccountLabel || 'Select Mail ID'}</p>
                   </div>
                   <div className="premium-test-email-device-toggle">
                     <button
@@ -4196,6 +4607,7 @@ export default function PremiumDashboardShell({
                     </button>
                   </div>
                 </div>
+                <div className="premium-test-email-preview-label">Full Email Preview</div>
                 <div className={`premium-test-email-message ${testPreviewMode}`}>
                   <EmailRenderer
                     html={effectiveDraftMessage}
@@ -4313,6 +4725,29 @@ export default function PremiumDashboardShell({
                 />
               </label>
 
+              <section className="premium-draft-summary-meta">
+                <article>
+                  <span>From</span>
+                  <strong>{selectedAccountLabel || 'Select Sender ID'}</strong>
+                </article>
+                <article>
+                  <span>Sender ID</span>
+                  <strong>{selectedSenderAccountId || 'Not selected'}</strong>
+                </article>
+                <article>
+                  <span>Project</span>
+                  <strong>{project || 'No project'}</strong>
+                </article>
+                <article>
+                  <span>Recipient Count</span>
+                  <strong>{Number(overviewRows.length || previewRows.length || 0).toLocaleString()}</strong>
+                </article>
+                <article>
+                  <span>Draft Name</span>
+                  <strong>{selectedDraftTypeLabel || selectedDraftType || 'Draft'}</strong>
+                </article>
+              </section>
+
               <div className="premium-template-field premium-template-message-head">
                 <span>Message</span>
               </div>
@@ -4323,6 +4758,18 @@ export default function PremiumDashboardShell({
                   placeholder="Write your template message..."
                 />
               </div>
+
+              <section className="premium-draft-full-preview">
+                <div className="premium-draft-full-preview-head">
+                  <span>Full Email Preview</span>
+                  <strong>{effectiveDraftSubject || 'No subject'}</strong>
+                </div>
+                <EmailRenderer
+                  html={effectiveDraftMessage}
+                  className="premium-draft-full-preview-body"
+                  empty={<p>Your full email preview will appear here after you add draft content.</p>}
+                />
+              </section>
 
             </div>
             <div className="premium-template-actions">

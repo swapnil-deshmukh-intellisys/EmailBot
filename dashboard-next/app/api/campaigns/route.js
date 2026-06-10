@@ -28,7 +28,7 @@ import {
   serializeCampaignForList
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 import { normalizeDraftType } from '@/app/lib/draftTypes';
-import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
+import { buildEmailParts } from '../../../components/email/EmailRenderingSystem';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -468,7 +468,11 @@ export async function POST(req) {
     }
 
     const campaignType = normalizeCampaignType(type || draftType);
-    const inlineTemplateHtml = buildEmailHtml(inlineTemplate?.bodyHtml || inlineTemplate?.body || '');
+    const inlineTemplateParts = buildEmailParts({
+      html: inlineTemplate?.bodyHtml || inlineTemplate?.html || inlineTemplate?.body || '',
+      text: inlineTemplate?.bodyText || ''
+    });
+    const inlineTemplateHtml = inlineTemplateParts.bodyHtml;
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
     const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
     const total = Number(list.totalLeads || 0);
@@ -521,7 +525,7 @@ export async function POST(req) {
 
         bodyHtml: inlineTemplateHtml,
 
-        bodyText: inlineTemplate?.bodyText || ''
+        bodyText: inlineTemplateParts.bodyText
 
       },
       senderAccountId: senderAccountId || '',
@@ -585,6 +589,20 @@ export async function POST(req) {
 
       logs: [{ level: 'info', message: 'Campaign created', at: new Date() }]
 
+    });
+
+    console.info('[campaign_queued]', {
+      campaignId: String(campaign._id || ''),
+      userEmail,
+      project: campaign.project,
+      senderAccountId: senderAccountId || '',
+      senderFrom: campaign.senderFrom,
+      draftId: draftId || null,
+      draftType: campaignType,
+      scheduleMode: normalizedScheduleMode,
+      htmlLength: inlineTemplateHtml.length,
+      textLength: inlineTemplateParts.bodyText.length,
+      totalRecipients: total
     });
 
 

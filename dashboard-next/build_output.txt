@@ -1,0 +1,243 @@
+
+> dashboard-next@1.0.0 build
+> npm run build:clean && npm run standalone:assets
+
+
+> dashboard-next@1.0.0 prebuild:clean
+> node scripts/next-preflight.mjs --kill
+
+Removed .next
+Removed node_modules/.cache
+
+> dashboard-next@1.0.0 build:clean
+> next build
+
+  ▲ Next.js 14.2.5
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/101) ...
+   Generating static pages (25/101) 
+   Generating static pages (50/101) 
+   Generating static pages (75/101) 
+ ✓ Generating static pages (101/101)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                       Size     First Load JS
+┌ ƒ /                                             163 B          87.5 kB
+├ ○ /_not-found                                   163 B          87.5 kB
+├ ○ /account/disabled                             180 B          94.3 kB
+├ ○ /account/pending                              180 B          94.3 kB
+├ ƒ /api/accounts                                 0 B                0 B
+├ ƒ /api/accounts/[id]                            0 B                0 B
+├ ƒ /api/accounts/connect                         0 B                0 B
+├ ƒ /api/admin/login-accounts                     0 B                0 B
+├ ƒ /api/admin/pending-requests                   0 B                0 B
+├ ƒ /api/admin/upgrade-requests                   0 B                0 B
+├ ƒ /api/admin/upgrade-requests/[id]              0 B                0 B
+├ ƒ /api/admin/users                              0 B                0 B
+├ ƒ /api/admin/users/[id]                         0 B                0 B
+├ ƒ /api/admin/users/[id]/campaigns               0 B                0 B
+├ ƒ /api/admin/users/[id]/client-lists            0 B                0 B
+├ ƒ /api/admin/users/[id]/drafts                  0 B                0 B
+├ ƒ /api/admin/users/[id]/reset-password          0 B                0 B
+├ ƒ /api/admin/users/[id]/status                  0 B                0 B
+├ ƒ /api/admin/users/[id]/subscription            0 B                0 B
+├ ƒ /api/alerts                                   0 B                0 B
+├ ƒ /api/auth/change-password                     0 B                0 B
+├ ƒ /api/auth/forgot-password                     0 B                0 B
+├ ƒ /api/auth/login                               0 B                0 B
+├ ƒ /api/auth/logout                              0 B                0 B
+├ ƒ /api/auth/me                                  0 B                0 B
+├ ƒ /api/auth/request-access                      0 B                0 B
+├ ƒ /api/auth/reset-password                      0 B                0 B
+├ ƒ /api/billing/invoice                          0 B                0 B
+├ ƒ /api/billing/upgrade                          0 B                0 B
+├ ƒ /api/calendar/events                          0 B                0 B
+├ ƒ /api/calendar/events/[id]                     0 B                0 B
+├ ƒ /api/campaigns                                0 B                0 B
+├ ƒ /api/campaigns/[id]                           0 B                0 B
+├ ƒ /api/campaigns/[id]/activity                  0 B                0 B
+├ ƒ /api/campaigns/[id]/clear-logs                0 B                0 B
+├ ƒ /api/campaigns/[id]/debug                     0 B                0 B
+├ ƒ /api/campaigns/[id]/export                    0 B                0 B
+├ ƒ /api/campaigns/[id]/next-step                 0 B                0 B
+├ ƒ /api/campaigns/[id]/pause                     0 B                0 B
+├ ƒ /api/campaigns/[id]/recipients                0 B                0 B
+├ ƒ /api/campaigns/[id]/resume                    0 B                0 B
+├ ƒ /api/campaigns/[id]/schedule                  0 B                0 B
+├ ƒ /api/campaigns/[id]/start                     0 B                0 B
+├ ƒ /api/campaigns/[id]/status                    0 B                0 B
+├ ƒ /api/campaigns/[id]/stop                      0 B                0 B
+├ ƒ /api/campaigns/[id]/sync-replies              0 B                0 B
+├ ƒ /api/campaigns/[id]/tracking/[event]          0 B                0 B
+├ ƒ /api/campaigns/custom-lists                   0 B                0 B
+├ ƒ /api/campaigns/stats                          0 B                0 B
+├ ƒ /api/campaigns/tracking/open/[trackingId]     0 B                0 B
+├ ƒ /api/client-bin                               0 B                0 B
+├ ƒ /api/client-bin/restore                       0 B                0 B
+├ ƒ /api/client-data/[id]                         0 B                0 B
+├ ƒ /api/client-data/bin                          0 B                0 B
+├ ƒ /api/client-data/bulk-delete                  0 B                0 B
+├ ƒ /api/client-data/bulk-save                    0 B                0 B
+├ ƒ /api/client-data/bulk-update                  0 B                0 B
+├ ƒ /api/client-data/create                       0 B                0 B
+├ ƒ /api/client-data/custom-lists                 0 B                0 B
+├ ƒ /api/client-data/custom-lists/[id]            0 B                0 B
+├ ƒ /api/client-data/duplicates                   0 B                0 B
+├ ƒ /api/client-data/extracted                    0 B                0 B
+├ ƒ /api/client-data/history                      0 B                0 B
+├ ƒ /api/client-data/list                         0 B                0 B
+├ ƒ /api/client-data/overview                     0 B                0 B
+├ ƒ /api/client-data/paste                        0 B                0 B
+├ ƒ /api/client-data/paste-workspace              0 B                0 B
+├ ƒ /api/client-data/selected-sheet               0 B                0 B
+├ ƒ /api/client-data/selected-sheets              0 B                0 B
+├ ƒ /api/client-data/sheets                       0 B                0 B
+├ ƒ /api/client-data/use-for-campaign             0 B                0 B
+├ ƒ /api/client-records/[id]                      0 B                0 B
+├ ƒ /api/client-records/bulk                      0 B                0 B
+├ ƒ /api/client-records/bulk-delete               0 B                0 B
+├ ƒ /api/client-records/bulk-update               0 B                0 B
+├ ƒ /api/client-records/detect-duplicates         0 B                0 B
+├ ƒ /api/client-records/move-duplicates-to-bin    0 B                0 B
+├ ƒ /api/client-sheets                            0 B                0 B
+├ ƒ /api/client-sheets/[id]                       0 B                0 B
+├ ƒ /api/client-sheets/[id]/create-selected-list  0 B                0 B
+├ ƒ /api/client-sheets/[id]/rows                  0 B                0 B
+├ ƒ /api/client-sheets/upload                     0 B                0 B
+├ ƒ /api/credits                                  0 B                0 B
+├ ƒ /api/dashboard/activity                       0 B                0 B
+├ ƒ /api/dashboard/overview                       0 B                0 B
+├ ƒ /api/draft-file-text                          0 B                0 B
+├ ƒ /api/drafts                                   0 B                0 B
+├ ƒ /api/drafts/[id]                              0 B                0 B
+├ ƒ /api/graph-oauth/callback                     0 B                0 B
+├ ƒ /api/graph-oauth/start                        0 B                0 B
+├ ƒ /api/health                                   0 B                0 B
+├ ƒ /api/leads/create-campaign                    0 B                0 B
+├ ƒ /api/leads/pipeline                           0 B                0 B
+├ ƒ /api/lists                                    0 B                0 B
+├ ƒ /api/lists/[id]                               0 B                0 B
+├ ƒ /api/lists/[id]/normalize-emails              0 B                0 B
+├ ƒ /api/lists/custom                             0 B                0 B
+├ ƒ /api/mail-overview                            0 B                0 B
+├ ƒ /api/mailbox-folders                          0 B                0 B
+├ ƒ /api/mailbox/accounts                         0 B                0 B
+├ ƒ /api/mailbox/folders                          0 B                0 B
+├ ƒ /api/mailbox/forward                          0 B                0 B
+├ ƒ /api/mailbox/messages                         0 B                0 B
+├ ƒ /api/mailbox/messages/[id]                    0 B                0 B
+├ ƒ /api/mailbox/messages/[id]/archive            0 B                0 B
+├ ƒ /api/mailbox/messages/[id]/delete             0 B                0 B
+├ ƒ /api/mailbox/messages/[id]/mark-read          0 B                0 B
+├ ƒ /api/mailbox/reply                            0 B                0 B
+├ ƒ /api/mailbox/send                             0 B                0 B
+├ ƒ /api/outlook/accounts                         0 B                0 B
+├ ƒ /api/outlook/archive                          0 B                0 B
+├ ƒ /api/outlook/callback                         0 B                0 B
+├ ƒ /api/outlook/connect                          0 B                0 B
+├ ƒ /api/outlook/delete                           0 B                0 B
+├ ƒ /api/outlook/draft                            0 B                0 B
+├ ƒ /api/outlook/folders                          0 B                0 B
+├ ƒ /api/outlook/forward                          0 B                0 B
+├ ƒ /api/outlook/mark-read                        0 B                0 B
+├ ƒ /api/outlook/message/[id]                     0 B                0 B
+├ ƒ /api/outlook/messages                         0 B                0 B
+├ ƒ /api/outlook/reply                            0 B                0 B
+├ ƒ /api/outlook/send                             0 B                0 B
+├ ƒ /api/preset-senders                           0 B                0 B
+├ ƒ /api/profile                                  0 B                0 B
+├ ƒ /api/profile/overview                         0 B                0 B
+├ ƒ /api/profile/password                         0 B                0 B
+├ ƒ /api/projects                                 0 B                0 B
+├ ƒ /api/reports/credits                          0 B                0 B
+├ ƒ /api/reports/overview                         0 B                0 B
+├ ƒ /api/reports/project-wise                     0 B                0 B
+├ ƒ /api/reports/sender-health                    0 B                0 B
+├ ƒ /api/reports/warmup                           0 B                0 B
+├ ƒ /api/send-test                                0 B                0 B
+├ ƒ /api/sender-ids                               0 B                0 B
+├ ƒ /api/stats                                    0 B                0 B
+├ ƒ /api/subscription                             0 B                0 B
+├ ƒ /api/subscription/upgrade                     0 B                0 B
+├ ƒ /api/target-approval                          0 B                0 B
+├ ƒ /api/tasks                                    0 B                0 B
+├ ƒ /api/tasks/[id]                               0 B                0 B
+├ ƒ /api/templates                                0 B                0 B
+├ ƒ /api/timeline-tasks                           0 B                0 B
+├ ƒ /api/timeline-tasks/[id]                      0 B                0 B
+├ ƒ /api/uploads                                  0 B                0 B
+├ ƒ /api/uploads/commit                           0 B                0 B
+├ ƒ /api/uploads/preview                          0 B                0 B
+├ ƒ /api/warmup-auto-reply                        0 B                0 B
+├ ƒ /api/warmup-dashboard                         0 B                0 B
+├ ƒ /api/warmup/conversations                     0 B                0 B
+├ ƒ /api/warmup/drafts                            0 B                0 B
+├ ƒ /api/warmup/leads                             0 B                0 B
+├ ƒ /api/warmup/logs                              0 B                0 B
+├ ƒ /api/warmup/pause                             0 B                0 B
+├ ƒ /api/warmup/projects                          0 B                0 B
+├ ƒ /api/warmup/run-next                          0 B                0 B
+├ ƒ /api/warmup/senders                           0 B                0 B
+├ ƒ /api/warmup/sheets                            0 B                0 B
+├ ƒ /api/warmup/sheets/upload                     0 B                0 B
+├ ƒ /api/warmup/start                             0 B                0 B
+├ ƒ /api/warmup/start-auto-communication          0 B                0 B
+├ ƒ /api/warmup/stop                              0 B                0 B
+├ ƒ /api/warmup/upload                            0 B                0 B
+├ ƒ /api/work-updates                             0 B                0 B
+├ ƒ /api/work-updates/[id]                        0 B                0 B
+├ ƒ /api/worker-health                            0 B                0 B
+├ ƒ /api/worker/tick                              0 B                0 B
+├ ○ /campaigns                                    8.5 kB          248 kB
+├ ○ /change-password                              1.33 kB        88.7 kB
+├ ○ /client-data                                  163 B          87.5 kB
+├ ○ /client-data/client-list                      23.7 kB         263 kB
+├ ○ /client-data/upload-sheet                     163 B          87.5 kB
+├ ○ /client-data/uploaded-files                   163 B          87.5 kB
+├ ƒ /dashboard/admin                              237 B           243 kB
+├ ○ /dashboard/admin/pending-requests             1.18 kB        95.3 kB
+├ ○ /dashboard/admin/users                        1.29 kB        95.4 kB
+├ ƒ /dashboard/admin/users/[id]                   1.8 kB         89.1 kB
+├ ƒ /dashboard/broadcasts                         159 B           446 kB
+├ ƒ /dashboard/manager                            1.96 kB         244 kB
+├ ƒ /dashboard/user                               159 B           446 kB
+├ ○ /dashboard/user/profile                       191 B           246 kB
+├ ƒ /dashboard/user/profile/[section]             190 B           246 kB
+├ ○ /draft-templates                              2.21 kB         241 kB
+├ ƒ /drafts                                       48.5 kB         431 kB
+├ ƒ /drafts/[id]                                  1.65 kB         384 kB
+├ ○ /forgot-password                              979 B          95.1 kB
+├ ○ /leads                                        2.49 kB         242 kB
+├ ○ /login                                        2.08 kB        96.2 kB
+├ ○ /mail-inbox                                   189 B           244 kB
+├ ○ /report                                       2.55 kB         242 kB
+├ ○ /request-access                               1.05 kB        95.2 kB
+├ ○ /reset-password                               1.67 kB        95.8 kB
+├ ○ /sender-emails                                1.87 kB         241 kB
+├ ○ /summary                                      163 B          87.5 kB
+├ ○ /unauthorized                                 585 B          87.9 kB
+├ ○ /user/master-inbox                            189 B           244 kB
+└ ○ /warm-up                                      6.84 kB         246 kB
++ First Load JS shared by all                     87.3 kB
+  ├ chunks/7023-c03b32043939c17f.js               31.5 kB
+  ├ chunks/fd9d1056-74a2c4dc6d02fb8c.js           53.6 kB
+  └ other shared chunks (total)                   2.17 kB
+
+
+ƒ Middleware                                      27.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> dashboard-next@1.0.0 standalone:assets
+> node scripts/copy-standalone-assets.mjs
+
+Copied .next\static -> .next\standalone\.next\static
+Copied public -> .next\standalone\public

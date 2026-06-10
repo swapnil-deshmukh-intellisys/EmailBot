@@ -5,11 +5,10 @@ export const SIDEBAR_PRIMARY_ITEMS = [
 export const SIDEBAR_WORKSPACE_ITEMS = [
   { label: 'Leads', href: '/leads', icon: 'LD' },
   { label: 'Draft & Templates', href: '/draft-templates', icon: 'DT' },
-  { label: 'Mailbox', href: '/mail-inbox', icon: 'MI' },
-  { label: 'Sender Emails', href: '/sender-emails', icon: 'SE' },
-  { label: 'Warm-Up', href: '/warm-up', icon: 'EW' },
   { label: 'Campaigns', href: '/campaigns', icon: 'CP' },
-  { label: 'Report', href: '/report', icon: 'RP' }
+  { label: 'Clients', href: '/client-data', icon: 'CL' },
+  { label: 'Reports', href: '/report', icon: 'RP' },
+  { label: 'Settings', href: '/dashboard/user/profile/settings', icon: 'ST' }
 ];
 
 export const TOP_NAV_ITEMS = [

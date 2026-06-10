@@ -3,7 +3,7 @@ import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
-import { buildEmailHtml } from '../../../../components/email/EmailRenderingSystem';
+import { buildEmailParts } from '../../../../components/email/EmailRenderingSystem';
 
 export async function GET(req, { params }) {
   try {
@@ -15,8 +15,14 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
     const resolvedDraftType = inferDraftTypeFromDraft(draft);
-    const html = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
-    return NextResponse.json({ draft: { ...draft, html, bodyHtml: html, body: html, draftType: resolvedDraftType, category: resolvedDraftType } });
+    const parts = buildEmailParts({ html: draft.bodyHtml || draft.html || draft.body || '', text: draft.bodyText || '' });
+    console.info('[draft_loaded]', {
+      draftId: String(draft._id || ''),
+      draftType: resolvedDraftType,
+      htmlLength: parts.bodyHtml.length,
+      textLength: parts.bodyText.length
+    });
+    return NextResponse.json({ draft: { ...draft, html: parts.bodyHtml, bodyHtml: parts.bodyHtml, bodyText: parts.bodyText, body: parts.bodyHtml, draftType: resolvedDraftType, category: resolvedDraftType } });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to load draft' }, { status: 500 });
   }
@@ -30,7 +36,8 @@ export async function PATCH(req, { params }) {
     const { id } = params;
     const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
-    const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
+    const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
+    const draftHtml = draftParts.bodyHtml;
     if (!normalizedDraftType || !title || !subject || !draftHtml) {
       return NextResponse.json({ error: 'draftType, title, subject, and html are required' }, { status: 400 });
     }
@@ -52,7 +59,7 @@ export async function PATCH(req, { params }) {
         html: draftHtml,
         body: draftHtml,
         bodyHtml: draftHtml,
-        bodyText: bodyText || ''
+        bodyText: draftParts.bodyText
       },
       { new: true, runValidators: true }
     ).lean();
@@ -60,8 +67,15 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
     const resolvedDraftType = inferDraftTypeFromDraft(draft);
-    const resolvedHtml = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
-    return NextResponse.json({ draft: { ...draft, html: resolvedHtml, bodyHtml: resolvedHtml, body: resolvedHtml, draftType: resolvedDraftType, category: resolvedDraftType } });
+    const resolvedParts = buildEmailParts({ html: draft.bodyHtml || draft.html || draft.body || '', text: draft.bodyText || '' });
+    console.info('[draft_saved]', {
+      action: 'update',
+      draftId: String(draft._id || ''),
+      draftType: resolvedDraftType,
+      htmlLength: resolvedParts.bodyHtml.length,
+      textLength: resolvedParts.bodyText.length
+    });
+    return NextResponse.json({ draft: { ...draft, html: resolvedParts.bodyHtml, bodyHtml: resolvedParts.bodyHtml, bodyText: resolvedParts.bodyText, body: resolvedParts.bodyHtml, draftType: resolvedDraftType, category: resolvedDraftType } });
   } catch (error) {
     return NextResponse.json({ error: error.message || 'Failed to update draft' }, { status: 500 });
   }

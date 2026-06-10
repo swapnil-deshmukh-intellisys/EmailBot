@@ -13,8 +13,28 @@ const styleFromString = (style = '') => Object.fromEntries(
     })
 );
 
+function escapeHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeEmailHtml(value = '') {
+  const content = String(value || '').trim();
+  if (!content) return '';
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(content);
+  if (looksLikeHtml) return content;
+  return escapeHtml(content)
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
+
 export default function EmailRenderer({ html = '', className = '', empty = null }) {
-  const content = String(html || '').trim();
+  const content = normalizeEmailHtml(html);
 
   if (!content) {
     return empty;

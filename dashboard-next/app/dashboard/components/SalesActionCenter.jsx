@@ -2,29 +2,16 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 
-const WORK_TYPES = ['Todo', 'Follow-up', 'Positive Reply', 'Negative Reply', 'Meeting', 'Proposal Sent', 'Call Done', 'Email Sent', 'Other'];
-const STATUSES = ['Pending', 'Completed', 'Carried Forward'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
-const RANGE_TABS = [
-  { label: 'Today', value: 'today' },
-  { label: 'Yesterday', value: 'yesterday' },
-  { label: 'This Week', value: 'week' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'All', value: 'all' }
-];
+const STATUSES = ['Pending', 'In Progress', 'Completed'];
 
 const EMPTY_FORM = {
-  workTitle: '',
-  workType: 'Todo',
-  workDate: '',
-  status: 'Pending',
+  title: '',
+  description: '',
+  project: '',
   priority: 'Medium',
-  relatedClientId: '',
-  relatedClientName: '',
-  projectId: '',
-  projectName: '',
-  campaignId: '',
-  campaignName: '',
+  dueDate: '',
+  status: 'Pending',
   notes: ''
 };
 
@@ -45,23 +32,14 @@ function startOfDay(value = new Date()) {
   return date;
 }
 
-function endOfDay(value = new Date()) {
-  const date = new Date(value);
-  date.setHours(23, 59, 59, 999);
-  return date;
-}
-
 function isSameDay(value, reference = new Date()) {
   if (!value) return false;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return false;
-  return date >= startOfDay(reference) && date <= endOfDay(reference);
-}
-
-function isYesterday(value) {
-  const yesterday = startOfDay();
-  yesterday.setDate(yesterday.getDate() - 1);
-  return isSameDay(value, yesterday);
+  const start = startOfDay(reference);
+  const end = new Date(start);
+  end.setHours(23, 59, 59, 999);
+  return date >= start && date <= end;
 }
 
 function formatDate(value) {
@@ -71,30 +49,34 @@ function formatDate(value) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatTime(value) {
-  if (!value) return 'No time';
+function formatDateTime(value) {
+  if (!value) return 'Not available';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No time';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (Number.isNaN(date.getTime())) return 'Not available';
+  return date.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function countBy(items, predicate) {
-  return items.filter(predicate).length;
+function isOverdue(task = {}) {
+  if (task.status === 'Completed' || !task.dueDate) return false;
+  return new Date(task.dueDate).getTime() < startOfDay().getTime();
 }
 
 function normalizeTask(task = {}) {
   return {
     ...task,
     id: String(task.id || task._id || ''),
-    workTitle: task.workTitle || task.title || '',
-    workType: task.workType || task.type || 'Todo',
-    workDate: task.workDate || task.dueDate || '',
-    status: STATUSES.includes(task.status) ? task.status : 'Pending',
-    priority: PRIORITIES.includes(task.priority) ? task.priority : 'Medium'
+    title: task.title || task.taskName || 'Untitled task',
+    priority: PRIORITIES.includes(task.priority) ? task.priority : 'Medium',
+    status: task.status === 'Overdue' || isOverdue(task) ? 'Overdue' : STATUSES.includes(task.status) ? task.status : 'Pending',
+    project: task.project || task.projectName || '',
+    dueDate: task.dueDate || '',
+    notes: task.notes || '',
+    description: task.description || '',
+    attachments: Array.isArray(task.attachments) ? task.attachments : []
   };
 }
 
-function WorkMetric({ title, value, tone = '' }) {
+function TaskMetric({ title, value, tone = '' }) {
   return (
     <span className={`sales-action-metric ${tone}`}>
       <strong>{value}</strong>
@@ -103,131 +85,88 @@ function WorkMetric({ title, value, tone = '' }) {
   );
 }
 
-function WorkUpdateList({ updates, busyId, onComplete, onEdit, onDelete }) {
-  if (!updates.length) {
-    return <p className="sales-empty-state">No work updates yet. Add today's work update.</p>;
-  }
-
+function TaskCard({ task, onClick }) {
   return (
-    <div className="sales-priority-list">
-      {updates.map((update) => (
-        <article key={update.id} className={`sales-work-item ${update.status.toLowerCase().replace(/\s+/g, '-')}`}>
-          <div className="sales-priority-item">
-            <span>
-              <strong>{update.workTitle}</strong>
-              <small>{update.workType} - {update.status} - {update.priority}</small>
-            </span>
-          </div>
-          <div className="sales-work-meta">
-            <em>{formatDate(update.workDate)}</em>
-            {update.relatedClientName ? <em>{update.relatedClientName}</em> : null}
-            {update.projectName ? <em>{update.projectName}</em> : null}
-            {update.campaignName ? <em>{update.campaignName}</em> : null}
-            <small>Created {formatTime(update.createdAt)}</small>
-          </div>
-          {update.notes ? <p>{update.notes}</p> : null}
-          <div className="sales-work-actions">
-            {update.status !== 'Completed' ? (
-              <button type="button" disabled={busyId === update.id} onClick={() => onComplete(update)}>Mark Complete</button>
-            ) : null}
-            <button type="button" onClick={() => onEdit(update)}>Edit</button>
-            <button type="button" className="danger" disabled={busyId === update.id} onClick={() => onDelete(update)}>Delete</button>
-          </div>
-        </article>
-      ))}
-    </div>
+    <button type="button" className={`sales-work-item task-card priority-${task.priority.toLowerCase()} ${task.status.toLowerCase().replace(/\s+/g, '-')}`} onClick={() => onClick(task)}>
+      <div className="sales-priority-item">
+        <span>
+          <strong>{task.title}</strong>
+          <small>{task.project || 'No project'}</small>
+        </span>
+      </div>
+      <div className="sales-work-meta">
+        <em className={`priority-pill ${task.priority.toLowerCase()}`}>{task.priority}</em>
+        <em>{formatDate(task.dueDate)}</em>
+        <em>{task.status}</em>
+      </div>
+    </button>
   );
 }
 
 export default function SalesActionCenter({ onShowMessage }) {
-  const [updates, setUpdates] = useState([]);
-  const [range, setRange] = useState('today');
-  const [workTypeFilter, setWorkTypeFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [detailsTask, setDetailsTask] = useState(null);
   const [editingId, setEditingId] = useState('');
-  const [form, setForm] = useState({ ...EMPTY_FORM, workDate: todayInputValue() });
+  const [form, setForm] = useState({ ...EMPTY_FORM, dueDate: todayInputValue() });
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState('');
 
-  const loadUpdates = async () => {
+  const loadTasks = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/work-updates?range=all', { cache: 'no-store' });
+      const response = await fetch('/api/tasks?range=all', { cache: 'no-store' });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Failed to load work updates.');
-      setUpdates(Array.isArray(data.updates) ? data.updates.map(normalizeTask) : []);
+      if (!response.ok) throw new Error(data?.error || 'Failed to load tasks.');
+      setTasks(Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : []);
       setError('');
     } catch (loadError) {
-      setUpdates([]);
-      setError(loadError.message || 'Failed to load work updates.');
+      setTasks([]);
+      setError(loadError.message || 'Failed to load tasks.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadUpdates();
+    void loadTasks();
   }, []);
 
-  const todayUpdates = useMemo(() => updates.filter((item) => isSameDay(item.workDate)), [updates]);
-  const yesterdayUpdates = useMemo(() => updates.filter((item) => isYesterday(item.workDate)), [updates]);
+  const metrics = useMemo(() => ({
+    today: tasks.filter((task) => isSameDay(task.dueDate)).length,
+    pending: tasks.filter((task) => ['Pending', 'In Progress'].includes(task.status)).length,
+    completed: tasks.filter((task) => task.status === 'Completed').length,
+    overdue: tasks.filter((task) => task.status === 'Overdue' || isOverdue(task)).length
+  }), [tasks]);
 
-  const todayCounts = useMemo(() => ({
-    total: todayUpdates.length,
-    pending: countBy(todayUpdates, (item) => item.status === 'Pending'),
-    completed: countBy(todayUpdates, (item) => item.status === 'Completed'),
-    carried: countBy(todayUpdates, (item) => item.status === 'Carried Forward')
-  }), [todayUpdates]);
+  const visibleTasks = useMemo(() => {
+    const sorted = [...tasks].sort((a, b) => {
+      const aDone = a.status === 'Completed' ? 1 : 0;
+      const bDone = b.status === 'Completed' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
+    });
+    return showAll ? sorted : sorted.slice(0, 4);
+  }, [showAll, tasks]);
 
-  const yesterdayCounts = useMemo(() => ({
-    completed: countBy(yesterdayUpdates, (item) => item.status === 'Completed'),
-    pending: countBy(yesterdayUpdates, (item) => item.status === 'Pending'),
-    carried: countBy(yesterdayUpdates, (item) => item.status === 'Carried Forward')
-  }), [yesterdayUpdates]);
-
-  const visibleUpdates = useMemo(() => {
-    const now = new Date();
-    const weekStart = startOfDay();
-    weekStart.setDate(weekStart.getDate() - 6);
-    return updates
-      .filter((item) => {
-        if (range === 'today') return isSameDay(item.workDate, now);
-        if (range === 'yesterday') return isYesterday(item.workDate);
-        if (range === 'week') {
-          const workDate = new Date(item.workDate);
-          return !Number.isNaN(workDate.getTime()) && workDate >= weekStart && workDate <= endOfDay(now);
-        }
-        if (range === 'completed') return item.status === 'Completed';
-        return true;
-      })
-      .filter((item) => !workTypeFilter || item.workType === workTypeFilter)
-      .filter((item) => !priorityFilter || item.priority === priorityFilter)
-      .sort((a, b) => new Date(b.workDate || b.createdAt || 0) - new Date(a.workDate || a.createdAt || 0));
-  }, [priorityFilter, range, updates, workTypeFilter]);
-
-  const openForm = (update = null) => {
-    if (update) {
-      setEditingId(update.id);
+  const openForm = (task = null) => {
+    if (task) {
+      setEditingId(task.id);
       setForm({
-        workTitle: update.workTitle || '',
-        workType: update.workType || 'Todo',
-        workDate: dateInputValue(update.workDate),
-        status: update.status || 'Pending',
-        priority: update.priority || 'Medium',
-        relatedClientId: update.relatedClientId || '',
-        relatedClientName: update.relatedClientName || '',
-        projectId: update.projectId || '',
-        projectName: update.projectName || '',
-        campaignId: update.campaignId || '',
-        campaignName: update.campaignName || '',
-        notes: update.notes || ''
+        title: task.title || '',
+        description: task.description || '',
+        project: task.project || '',
+        priority: task.priority || 'Medium',
+        dueDate: dateInputValue(task.dueDate),
+        status: task.status === 'Overdue' ? 'Pending' : task.status || 'Pending',
+        notes: task.notes || ''
       });
     } else {
       setEditingId('');
-      setForm({ ...EMPTY_FORM, workDate: todayInputValue() });
+      setForm({ ...EMPTY_FORM, dueDate: todayInputValue() });
     }
     setFormOpen(true);
   };
@@ -236,169 +175,161 @@ export default function SalesActionCenter({ onShowMessage }) {
     if (saving && !force) return;
     setFormOpen(false);
     setEditingId('');
-    setForm({ ...EMPTY_FORM, workDate: todayInputValue() });
+    setForm({ ...EMPTY_FORM, dueDate: todayInputValue() });
   };
 
-  const saveUpdate = async (event) => {
+  const saveTask = async (event) => {
     event.preventDefault();
     if (saving) return;
-    if (!form.workTitle.trim()) {
-      setError('Work title is required.');
+    if (!form.title.trim()) {
+      setError('Task name is required.');
       return;
     }
-    if (!form.workDate) {
-      setError('Work date is required.');
-      return;
-    }
-
     setSaving(true);
     try {
-      const response = await fetch(editingId ? `/api/work-updates/${editingId}` : '/api/work-updates', {
+      const response = await fetch(editingId ? `/api/tasks/${editingId}` : '/api/tasks', {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Failed to save work update.');
-      await loadUpdates();
+      if (!response.ok) throw new Error(data?.error || 'Failed to save task.');
+      await loadTasks();
+      if (detailsTask?.id === editingId) setDetailsTask(normalizeTask(data.task));
       closeForm(true);
-      onShowMessage?.(editingId ? 'Work update saved.' : 'Work update added.', 'success');
+      onShowMessage?.(editingId ? 'Task updated.' : 'Task added.', 'success');
     } catch (saveError) {
-      setError(saveError.message || 'Failed to save work update.');
+      setError(saveError.message || 'Failed to save task.');
     } finally {
       setSaving(false);
     }
   };
 
-  const patchUpdate = async (update, patch) => {
-    if (!update.id || busyId) return;
-    setBusyId(update.id);
+  const patchTask = async (task, patch) => {
+    if (!task?.id || busyId) return;
+    setBusyId(task.id);
     try {
-      const response = await fetch(`/api/work-updates/${update.id}`, {
+      const response = await fetch(`/api/tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch)
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Failed to update work update.');
-      setUpdates((items) => items.map((item) => item.id === update.id ? normalizeTask(data.update) : item));
-      onShowMessage?.('Work update changed.', 'success');
+      if (!response.ok) throw new Error(data?.error || 'Failed to update task.');
+      const nextTask = normalizeTask(data.task);
+      setTasks((items) => items.map((item) => item.id === task.id ? nextTask : item));
+      setDetailsTask(nextTask);
+      onShowMessage?.('Task updated.', 'success');
     } catch (patchError) {
-      setError(patchError.message || 'Failed to update work update.');
+      setError(patchError.message || 'Failed to update task.');
     } finally {
       setBusyId('');
     }
   };
 
-  const deleteUpdate = async (update) => {
-    if (!update.id || busyId) return;
-    setBusyId(update.id);
+  const deleteTask = async (task) => {
+    if (!task?.id || busyId) return;
+    setBusyId(task.id);
     try {
-      const response = await fetch(`/api/work-updates/${update.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Failed to delete work update.');
-      setUpdates((items) => items.filter((item) => item.id !== update.id));
-      onShowMessage?.('Work update deleted.', 'success');
+      if (!response.ok) throw new Error(data?.error || 'Failed to delete task.');
+      setTasks((items) => items.filter((item) => item.id !== task.id));
+      setDetailsTask(null);
+      onShowMessage?.('Task deleted.', 'success');
     } catch (deleteError) {
-      setError(deleteError.message || 'Failed to delete work update.');
+      setError(deleteError.message || 'Failed to delete task.');
     } finally {
       setBusyId('');
     }
   };
 
   return (
-    <section className="panel sales-action-card">
+    <section className="panel sales-action-card todo-widget">
       <div className="sales-action-head">
         <div>
-          <span className="section-title">Daily Work Report</span>
-          <small>Manual daily work updates from your own reports</small>
+          <span className="section-title">To Do List</span>
+          <small>Tasks, follow-ups, and campaign work in one place</small>
         </div>
-        <button type="button" className="sales-add-btn" onClick={() => openForm()}>Add Work Update</button>
+        <button type="button" className="sales-add-btn" onClick={() => openForm()}>Add Task</button>
       </div>
 
       <div className="sales-action-scroll">
         {error ? <p className="sales-error-state">{error}</p> : null}
-        {loading ? <p className="sales-empty-state compact">Loading work updates...</p> : null}
+        {loading ? <p className="sales-empty-state compact">Loading tasks...</p> : null}
 
         <div className="sales-action-block">
-          <strong>Today</strong>
           <div className="sales-action-metrics">
-            <WorkMetric title="Total updates" value={todayCounts.total} />
-            <WorkMetric title="Pending today" value={todayCounts.pending} />
-            <WorkMetric title="Completed today" value={todayCounts.completed} tone="complete" />
-            <WorkMetric title="Carried forward" value={todayCounts.carried} tone="danger" />
+            <TaskMetric title="Today's Tasks" value={metrics.today} />
+            <TaskMetric title="Pending" value={metrics.pending} tone="pending" />
+            <TaskMetric title="Completed" value={metrics.completed} tone="complete" />
+            <TaskMetric title="Overdue" value={metrics.overdue} tone="danger" />
           </div>
         </div>
 
         <div className="sales-action-block">
-          <strong>Yesterday</strong>
-          <div className="sales-action-metrics">
-            <WorkMetric title="Completed yesterday" value={yesterdayCounts.completed} tone="complete" />
-            <WorkMetric title="Pending yesterday" value={yesterdayCounts.pending} />
-            <WorkMetric title="Carried from yesterday" value={yesterdayCounts.carried} tone="danger" />
+          <div className="todo-widget-headline">
+            <strong>Tasks</strong>
+            <button type="button" onClick={() => setShowAll((current) => !current)}>
+              {showAll ? 'Show Less' : 'View All Tasks'}
+            </button>
           </div>
-        </div>
-
-        <div className="sales-action-block">
-          <strong>Work Updates</strong>
-          <div className="sales-filter-row">
-            <div className="sales-range-tabs">
-              {RANGE_TABS.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  className={range === tab.value ? 'active' : ''}
-                  onClick={() => setRange(tab.value)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <select value={workTypeFilter} onChange={(event) => setWorkTypeFilter(event.target.value)}>
-              <option value="">All Types</option>
-              {WORK_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
-              <option value="">All Priority</option>
-              {PRIORITIES.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+          <div className="sales-priority-list">
+            {visibleTasks.length ? visibleTasks.map((task) => (
+              <TaskCard key={task.id} task={task} onClick={setDetailsTask} />
+            )) : (
+              <p className="sales-empty-state">No tasks yet. Add your first task.</p>
+            )}
           </div>
-          <WorkUpdateList
-            updates={visibleUpdates}
-            busyId={busyId}
-            onComplete={(update) => patchUpdate(update, { status: 'Completed' })}
-            onEdit={openForm}
-            onDelete={deleteUpdate}
-          />
         </div>
       </div>
 
+      {detailsTask ? (
+        <div className="sales-work-modal-backdrop" onClick={() => setDetailsTask(null)}>
+          <div className="sales-work-modal task-detail-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="sales-work-modal-head">
+              <strong>{detailsTask.title}</strong>
+              <button type="button" onClick={() => setDetailsTask(null)}>Close</button>
+            </div>
+            <article><span>Description</span><p>{detailsTask.description || 'No description added.'}</p></article>
+            <article><span>Assigned By</span><p>{detailsTask.assignedBy || detailsTask.createdBy || 'Self'}</p></article>
+            <article><span>Created Date</span><p>{formatDateTime(detailsTask.createdAt)}</p></article>
+            <article><span>Due Date</span><p>{formatDate(detailsTask.dueDate)}</p></article>
+            <article><span>Priority</span><p>{detailsTask.priority}</p></article>
+            <article><span>Status</span><p>{detailsTask.status}</p></article>
+            <article><span>Project</span><p>{detailsTask.project || 'No project'}</p></article>
+            <article className="wide"><span>Notes</span><p>{detailsTask.notes || 'No notes added.'}</p></article>
+            <article className="wide"><span>Attachments</span><p>{detailsTask.attachments.length ? detailsTask.attachments.join(', ') : 'No attachments.'}</p></article>
+            <div className="sales-work-modal-actions">
+              <button type="button" onClick={() => openForm(detailsTask)}>Edit Task</button>
+              {detailsTask.status !== 'Completed' ? (
+                <button type="button" disabled={busyId === detailsTask.id} onClick={() => patchTask(detailsTask, { status: 'Completed' })}>Mark Complete</button>
+              ) : null}
+              <button type="button" className="danger" disabled={busyId === detailsTask.id} onClick={() => deleteTask(detailsTask)}>Delete</button>
+              <button type="button" onClick={() => setDetailsTask(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {formOpen ? (
         <div className="sales-work-modal-backdrop" onClick={() => closeForm()}>
-          <form className="sales-work-modal" onSubmit={saveUpdate} onClick={(event) => event.stopPropagation()}>
+          <form className="sales-work-modal" onSubmit={saveTask} onClick={(event) => event.stopPropagation()}>
             <div className="sales-work-modal-head">
-              <strong>{editingId ? 'Edit Work Update' : 'Add Work Update'}</strong>
+              <strong>{editingId ? 'Edit Task' : 'Add Task'}</strong>
               <button type="button" onClick={() => closeForm()}>Close</button>
             </div>
             <label className="wide">
-              <span>Work Title</span>
-              <input value={form.workTitle} onChange={(event) => setForm((current) => ({ ...current, workTitle: event.target.value }))} />
+              <span>Task Name</span>
+              <input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+            </label>
+            <label className="wide">
+              <span>Description</span>
+              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
             </label>
             <label>
-              <span>Work Type</span>
-              <select value={form.workType} onChange={(event) => setForm((current) => ({ ...current, workType: event.target.value }))}>
-                {WORK_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Work Date</span>
-              <input type="date" value={form.workDate} onChange={(event) => setForm((current) => ({ ...current, workDate: event.target.value }))} />
-            </label>
-            <label>
-              <span>Status</span>
-              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
+              <span>Project</span>
+              <input value={form.project} onChange={(event) => setForm((current) => ({ ...current, project: event.target.value }))} />
             </label>
             <label>
               <span>Priority</span>
@@ -407,16 +338,14 @@ export default function SalesActionCenter({ onShowMessage }) {
               </select>
             </label>
             <label>
-              <span>Related Client</span>
-              <input value={form.relatedClientName} onChange={(event) => setForm((current) => ({ ...current, relatedClientName: event.target.value }))} />
+              <span>Due Date</span>
+              <input type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
             </label>
             <label>
-              <span>Related Project</span>
-              <input value={form.projectName} onChange={(event) => setForm((current) => ({ ...current, projectName: event.target.value }))} />
-            </label>
-            <label>
-              <span>Related Campaign</span>
-              <input value={form.campaignName} onChange={(event) => setForm((current) => ({ ...current, campaignName: event.target.value }))} />
+              <span>Status</span>
+              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
             </label>
             <label className="wide">
               <span>Notes</span>
@@ -424,7 +353,7 @@ export default function SalesActionCenter({ onShowMessage }) {
             </label>
             <div className="sales-work-modal-actions">
               <button type="button" onClick={() => closeForm()}>Cancel</button>
-              <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Work Update'}</button>
+              <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Task'}</button>
             </div>
           </form>
         </div>

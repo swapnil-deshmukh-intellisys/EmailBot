@@ -223,8 +223,10 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
 
   const handleRevertChanges = () => {
     if (window.confirm('Are you sure you want to revert all changes back to the original template?')) {
-      editor.commands.setContent(initialContentRef.current || '');
-      showToastNotification?.('Content reverted to original draft.');
+      const original = initialContentRef.current || '';
+      editor.commands.setContent(original);
+      lastEmittedValueRef.current = original;
+      onChange(original);
     }
   };
 
@@ -276,6 +278,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
       base.background = '#ffffff';
     } else {
       base.background = color;
+      base['--swatch-color'] = color;
     }
     return base;
   };

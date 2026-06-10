@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS } from '@/app/dashboard/DashboardNavigationLayoutConfig';
 import { cn } from '@/app/lib/UiClassNameUtility';
@@ -16,7 +16,10 @@ const sidebarIconMap = {
   'Sender Emails': 'ti-mail-plus',
   'Warm-Up': 'ti-flame',
   Campaigns: 'ti-speakerphone',
-  Report: 'ti-chart-line'
+  Clients: 'ti-address-book',
+  Reports: 'ti-chart-line',
+  Report: 'ti-chart-line',
+  Settings: 'ti-settings'
 };
 
 function isActive(pathname, href) {
@@ -41,47 +44,13 @@ export function Sidebar({
   className = ''
 }) {
   const [searchValue, setSearchValue] = useState('');
-  const [billingSummary, setBillingSummary] = useState({
-    planName: 'Basic',
-    upgradeTargetPlan: 'Starter',
-    remainingCredits: 300,
-    totalCredits: 6000,
-    creditUsagePercent: 0
-  });
   const pathname = usePathname();
   const router = useRouter();
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/credits', { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data?.ok || !data?.summary) return;
-        setBillingSummary({
-          planName: String(data.summary.planName || 'Basic').trim() || 'Basic',
-          upgradeTargetPlan: String(data.summary.upgradeTargetPlan || '').trim() || 'Starter',
-          remainingCredits: Number(data.summary.remainingCredits ?? 300),
-          totalCredits: Number(data.summary.totalCredits || 0),
-          creditUsagePercent: Number(data.summary.creditUsagePercent || 0)
-        });
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
-
-  const billingHasUpgrade = useMemo(
-    () => billingSummary.upgradeTargetPlan && billingSummary.upgradeTargetPlan !== billingSummary.planName,
-    [billingSummary.planName, billingSummary.upgradeTargetPlan]
-  );
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     router.push('/login');
     router.refresh();
-  };
-
-  const handleOpenBilling = () => {
-    router.push('/dashboard/user/profile/billing');
   };
 
   return (
@@ -157,24 +126,10 @@ export function Sidebar({
             <div className="dashboard-sidebar-footer sidebar-footer">{footer}</div>
           ) : (
             <div className="dashboard-sidebar-footer sidebar-footer">
-              <div className="plan-card dashboard-upgrade-card">
-                <div className="plan-header">
-                  <span className="plan-name">{billingSummary.planName || 'Basic'} Plan</span>
-                  <span className="plan-tag">{Number(billingSummary.remainingCredits || 0) <= 0 ? 'Empty' : 'Active'}</span>
-                </div>
-                <div className="plan-credits">{Number(billingSummary.remainingCredits || 0).toLocaleString()}</div>
-                <div className="plan-credits-label">credits remaining</div>
-              </div>
-              <button type="button" className="upgrade-btn dashboard-upgrade-button" onClick={handleOpenBilling}>
-                <i className="ti ti-bolt" aria-hidden="true" />
-                {billingHasUpgrade ? `Upgrade to ${billingSummary.upgradeTargetPlan}` : 'Manage Plan'}
-              </button>
-
               <div className="user-row reference-sidebar-user">
                 <div className="user-avatar">AM</div>
                 <div className="user-copy">
                   <strong className="user-name">Akshay More</strong>
-                  <small className="user-plan">{billingSummary.planName || 'Basic'} · Free forever</small>
                 </div>
                 <div className="user-actions">
                   <button type="button" className="icon-btn user-icon-btn" onClick={() => router.push('/dashboard/user/profile/settings')} aria-label="Settings">

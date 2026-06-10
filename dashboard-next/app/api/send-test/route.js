@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { sendEmailForLead } from '@/lib/emailSender';
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { requireUser } from '@/lib/apiAuth';
-import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
+import { buildEmailParts } from '../../../components/email/EmailRenderingSystem';
 
 function stripHtml(value = '') {
   return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -12,14 +12,24 @@ export async function POST(req) {
   try {
     const { userEmail, errorResponse } = requireUser(req);
     if (errorResponse) return errorResponse;
-    const { accountId, to, subject, body, project } = await req.json();
+    const { accountId, to, subject, body, bodyHtml, html, project } = await req.json();
+    const emailParts = buildEmailParts({ html: bodyHtml || html || body || '' });
+    console.info('[test_email_requested]', {
+      userEmail,
+      accountId,
+      project: String(project || '').trim().toLowerCase(),
+      to,
+      subjectLength: String(subject || '').length,
+      htmlLength: emailParts.bodyHtml.length,
+      textLength: emailParts.bodyText.length
+    });
     if (!to) {
       return NextResponse.json({ error: 'Test recipient email is required' }, { status: 400 });
     }
     if (!String(subject || '').trim()) {
       return NextResponse.json({ error: 'Test email subject is required' }, { status: 400 });
     }
-    if (!stripHtml(body)) {
+    if (!stripHtml(emailParts.bodyHtml)) {
       return NextResponse.json({ error: 'Test email body is required' }, { status: 400 });
     }
 
@@ -43,7 +53,7 @@ export async function POST(req) {
     }
     const result = await sendEmailForLead({
       account,
-      template: { subject, body: buildEmailHtml(body), bodyHtml: buildEmailHtml(body), bodyText: '' },
+      template: { subject, body: emailParts.bodyHtml, bodyHtml: emailParts.bodyHtml, bodyText: emailParts.bodyText },
       lead: { Email: to, Name: 'Test Recipient', FirstName: 'Test', firstName: 'Test' }
     });
 

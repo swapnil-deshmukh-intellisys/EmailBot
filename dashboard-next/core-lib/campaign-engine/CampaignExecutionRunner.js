@@ -797,6 +797,13 @@ export async function validateCampaignExecutionPreflight(campaign, options = {})
     if (!sender) {
       throw new Error('No sender account found for this user');
     }
+    console.info('[sender_account_resolved]', {
+      campaignId: String(campaign._id || ''),
+      userEmail: campaign.userEmail || '',
+      provider: sender.provider || 'smtp',
+      sender: sender.from || sender.user || '',
+      project: campaign.project || ''
+    });
     const senderStatus = String(sender.status || 'Connected').trim().toLowerCase();
     if (senderStatus && !['connected', 'active', 'good', 'verified'].includes(senderStatus)) {
       throw new Error(`Sender account is not connected: ${sender.status}`);
@@ -871,6 +878,13 @@ export async function startCampaignRunner(campaignId, options = {}) {
       throw new Error('Sender account not found');
     }
     appendLog(campaign, `Sender resolved: ${resolved.provider || 'smtp'} | ${resolved.from || resolved.user || 'unknown'}`);
+    console.info('[sender_account_resolved]', {
+      campaignId: String(campaign._id || ''),
+      userEmail: campaign.userEmail || '',
+      provider: resolved.provider || 'smtp',
+      sender: resolved.from || resolved.user || '',
+      project: campaign.project || ''
+    });
     accounts = [resolved];
   } else if (campaign.senderAccount?.provider) {
     appendLog(campaign, `Using sender snapshot: ${campaign.senderAccount.provider} | ${campaign.senderAccount.from || 'unknown'}`);
@@ -988,6 +1002,15 @@ export async function startCampaignRunner(campaignId, options = {}) {
   syncCampaignProgressCounters(campaign);
   appendLog(campaign, `Provider: ${accounts[0].provider || 'smtp'} | Sender: ${accounts[0].from || accounts[0].user || 'unknown'}`);
   appendLog(campaign, `Campaign worker claimed: ${CAMPAIGN_WORKER_ID}`);
+  console.info('[campaign_runner_started]', {
+    campaignId: String(campaign._id || ''),
+    userEmail: campaign.userEmail || '',
+    provider: accounts[0].provider || 'smtp',
+    sender: accounts[0].from || accounts[0].user || '',
+    totalRecipients: scopedLeads.length,
+    draftType: campaignType,
+    htmlLength: String((inlineTemplate || templateFromDb)?.bodyHtml || (inlineTemplate || templateFromDb)?.body || '').length
+  });
   if (trigger === 'scheduler') {
     appendLog(campaign, 'Campaign auto-started by scheduler');
   }
@@ -1238,6 +1261,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
 
         try {
           appendLog(campaign, `Sending to ${recipientEmail} with ${account.provider || 'smtp'} via ${account.from || account.user || 'unknown'}`);
+          console.info('[lead_send_started]', {
+            campaignId: String(campaign._id || ''),
+            recipientEmail,
+            provider: account.provider || 'smtp',
+            sender: account.from || account.user || '',
+            step: currentStep,
+            draftType: campaignType
+          });
           const sendResult = await sendEmailForLead({
             template: selectedTemplate,
             lead,
@@ -1274,6 +1305,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
             campaign,
             `Sent: ${lead.Email || lead.email || 'unknown'}${sendResult?.isReply ? ' (reply)' : ''}`
           );
+          console.info('[lead_send_success]', {
+            campaignId: String(campaign._id || ''),
+            recipientEmail,
+            provider: account.provider || 'smtp',
+            sender: account.from || account.user || '',
+            step: currentStep,
+            messageId: sendResult?.messageId || ''
+          });
           if (replyMode && !sendResult?.isReply) {
             appendLog(
               campaign,
@@ -1283,6 +1322,14 @@ export async function startCampaignRunner(campaignId, options = {}) {
           }
         } catch (error) {
           appendLog(campaign, `Send failed for ${recipientEmail}: ${error.message}`, 'error');
+          console.error('[lead_send_failed]', {
+            campaignId: String(campaign._id || ''),
+            recipientEmail,
+            provider: account.provider || 'smtp',
+            sender: account.from || account.user || '',
+            step: currentStep,
+            error: error.message || String(error)
+          });
           await refundCampaignCredit(campaign.userEmail || '', {
             campaignId: campaign._id,
             campaignName: campaign.name || '',
@@ -1408,7 +1455,21 @@ export async function startCampaignRunner(campaignId, options = {}) {
         campaign.workerStatus = 'completed';
         campaign.workerLockedAt = null;
         campaign.workerHeartbeatAt = null;
-        appendLog(campaign, 'Campaign completed');
+        appendLog(campaign, 'campaign_runner_completed: Campaign completed');
+        console.info('[campaign_runner_completed]', {
+          campaignId: String(campaign._id || ''),
+          status: campaign.status,
+          sent: Number(campaign.stats?.sent || 0),
+          failed: getCampaignFailureCount(campaign),
+          pending: Number(campaign.stats?.pending || 0)
+        });
+        console.info('[campaign_completed]', {
+          campaignId: String(campaign._id || ''),
+          status: campaign.status,
+          sent: Number(campaign.stats?.sent || 0),
+          failed: getCampaignFailureCount(campaign),
+          pending: Number(campaign.stats?.pending || 0)
+        });
       }
 
       if (!(await saveCampaignIfExists(campaign))) {

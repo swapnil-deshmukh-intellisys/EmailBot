@@ -43,7 +43,7 @@ export default function DraftDetailClientPage({ draftId }) {
         setDraftCity(String(draft.city || ''));
         setDraftCampaignName(String(draft.campaignName || draft.campaign || ''));
         setDraftProject(['tec', 'tut'].includes(String(draft.project || '').toLowerCase()) ? String(draft.project).toLowerCase() : 'tec');
-        setEditorHtml(String(draft.body || ''));
+        setEditorHtml(String(draft.bodyHtml || draft.html || draft.body || ''));
         setMessage('');
       } catch (error) {
         if (active) setMessage(error.message || 'Failed to load draft');
@@ -76,7 +76,8 @@ export default function DraftDetailClientPage({ draftId }) {
           city: draftCity.trim(),
           campaignName: draftCampaignName.trim(),
           project: draftProject,
-          body: editorHtml
+          body: editorHtml,
+          bodyHtml: editorHtml
         })
       });
       const data = await response.json().catch(() => ({}));

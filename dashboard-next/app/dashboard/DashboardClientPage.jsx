@@ -1801,6 +1801,13 @@ const handleDeleteDraft = async (draft) => {
       name: campaign?.name || `Campaign ${index + 1}`,
       status,
       publishDate: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleDateString('en-GB') : '',
+      scheduledDate: campaign?.scheduledAt
+        ? new Date(campaign.scheduledAt).toLocaleString()
+        : campaign?.schedule?.scheduledAt
+          ? new Date(campaign.schedule.scheduledAt).toLocaleString()
+          : [campaign?.scheduledDate || campaign?.options?.scheduledDate || campaign?.schedule?.scheduledDate, campaign?.scheduledTime || campaign?.options?.scheduledTime || campaign?.schedule?.scheduledTime].filter(Boolean).join(' ') || '-',
+      createdBy: campaign?.createdBy?.email || campaign?.createdByEmail || campaign?.ownerEmail || senderEmail || '-',
+      createdDate: campaign?.createdAt ? new Date(campaign.createdAt).toLocaleString() : '-',
       total,
       sent,
       pending,
@@ -2859,6 +2866,13 @@ const handleDeleteDraft = async (draft) => {
     try {
       campaignCreateLockRef.current = true;
       const effectiveSchedule = scheduleConfig || prepareScheduleConfig();
+      console.info('[draft_summary_updated]', {
+        source: 'campaign_create',
+        draftId: activeSavedDraftId || '',
+        draftType: normalizeDraftType(selectedDraft),
+        subjectLength: String(draftSubject || '').length,
+        htmlLength: normalizeEmailDraftHtml(draftBody).length
+      });
       console.debug('[campaign:create] request', {
         url: '/api/campaigns',
         project,
@@ -3211,7 +3225,8 @@ const handleDeleteDraft = async (draft) => {
         project,
         to: recipient,
         subject: draftSubject,
-        body: normalizedBody
+        body: normalizedBody,
+        bodyHtml: normalizedBody
       })
     });
     if (data?.ok === false || data?.success === false) {
@@ -5546,7 +5561,15 @@ const normalizeSelectedListEmails = async () => {
       {toast ? (
         <div className={`dashboard-toast dashboard-toast-${toast.tone}`} role="status" aria-live="polite">
           <div>
-            <strong>{toast.tone === 'error' ? 'Action failed' : toast.tone === 'success' ? 'Action completed' : 'Notification'}</strong>
+            <strong>
+              {String(toast.message || '').includes('Campaign Scheduled Successfully')
+                ? 'Campaign Scheduled Successfully'
+                : toast.tone === 'error'
+                  ? 'Action failed'
+                  : toast.tone === 'success'
+                    ? 'Action completed'
+                    : 'Notification'}
+            </strong>
             <p>{toast.message}</p>
           </div>
           <button type="button" className="dashboard-toast-close" onClick={() => setToast(null)} aria-label="Close notification">

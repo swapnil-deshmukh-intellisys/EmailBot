@@ -148,6 +148,16 @@ export async function POST(req, { params }) {
       ? (activate ? 'Scheduled' : 'Draft')
       : 'Draft';
 
+    console.info('[campaign_scheduled]', {
+      campaignId: String(campaignId || ''),
+      userEmail,
+      scheduleMode: normalizedScheduleMode,
+      status: nextStatus,
+      scheduledAt: scheduledAt ? scheduledAt.toISOString() : '',
+      timezone: normalizedTimezone,
+      shouldQueueImmediately
+    });
+
     await Campaign.updateOne(
       ownerQuery,
       {
@@ -180,10 +190,10 @@ export async function POST(req, { params }) {
             level: 'info',
             message: normalizedScheduleMode === 'scheduled'
               ? (shouldQueueImmediately
-                  ? `Scheduled time reached; campaign queued immediately (${scheduledLabel})`
+                  ? `campaign_scheduled: scheduled time reached; campaign queued immediately (${scheduledLabel})`
                   : persistOnly
-                  ? `Schedule saved for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`
-                  : `Campaign scheduled for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`)
+                  ? `campaign_scheduled: schedule saved for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`
+                  : `campaign_scheduled: campaign scheduled for ${scheduledLabel} (UTC: ${scheduledAt.toISOString()})`)
               : `Schedule preferences saved for send-now mode | batch ${batchSize} | delay ${delayInterval} ${durationUnit}`,
             at: new Date()
           }

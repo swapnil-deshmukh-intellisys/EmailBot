@@ -3,7 +3,7 @@ import connectDB from '@/lib/mongodb';
 import EmailDraft from '@/models/EmailDraft';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { ALLOWED_DRAFT_TYPES, inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
-import { buildEmailHtml } from '../../../components/email/EmailRenderingSystem';
+import { buildEmailParts } from '../../../components/email/EmailRenderingSystem';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,11 +21,13 @@ function shouldUseDevFallback() {
 
 function withResolvedDraftType(draft = {}) {
   const draftType = inferDraftTypeFromDraft(draft);
-  const html = buildEmailHtml(draft.html || draft.bodyHtml || draft.body || '');
+  const parts = buildEmailParts({ html: draft.bodyHtml || draft.html || draft.body || '', text: draft.bodyText || '' });
+  const html = parts.bodyHtml;
   return {
     ...draft,
     html,
     bodyHtml: html,
+    bodyText: parts.bodyText,
     body: html,
     draftType,
     category: draftType
@@ -80,7 +82,8 @@ export async function POST(req) {
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
     const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
-    const draftHtml = buildEmailHtml(html || bodyHtml || body || '');
+    const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
+    const draftHtml = draftParts.bodyHtml;
     if (!normalizedDraftType || !title || !subject || !draftHtml) {
       return NextResponse.json({ error: 'draftType, title, subject, and html are required' }, { status: 400 });
     }
@@ -102,7 +105,15 @@ export async function POST(req) {
       html: draftHtml,
       body: draftHtml,
       bodyHtml: draftHtml,
-      bodyText: bodyText || ''
+      bodyText: draftParts.bodyText
+    });
+    console.info('[draft_saved]', {
+      action: 'create',
+      draftId: String(draft._id || ''),
+      userEmail,
+      draftType: normalizedDraftType,
+      htmlLength: draftHtml.length,
+      textLength: draftParts.bodyText.length
     });
     return NextResponse.json({ draft: withResolvedDraftType(draft.toObject()) }, { headers: NO_STORE_HEADERS });
   } catch (error) {

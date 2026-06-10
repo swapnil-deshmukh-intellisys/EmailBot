@@ -4,7 +4,7 @@ import GraphOAuthAccount from '../../database-models/GraphOAuthAccount.js';
 import { decryptString, encryptString } from '../auth-config/TokenCryptoService.js';
 import { DELEGATED_MAILBOX_SCOPE, isGraphAppOnlyEnabled } from './MicrosoftGraphOAuthScopes.js';
 import { htmlToText } from 'html-to-text';
-import { buildEmailHtml } from '../../components/email/EmailRenderingSystem.js';
+import { buildEmailParts } from '../../components/email/EmailRenderingSystem.js';
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -175,7 +175,7 @@ function renderTemplate(template, lead) {
   const customSubject = String(lead?.data?.title || '').trim();
   const subjectTemplate = customSubject || (template.subject || '');
   const subject = subjectTemplate.replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer());
-  const body = (template.bodyHtml || template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
+  const body = (template.bodyHtml || template.html || template.body || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
   const plainText = (template.bodyText || '').replace(/{{\s*([\w.]+)\s*}}/g, buildReplacer({ useFirstNameForName: true }));
   return { subject, body, plainText };
 }
@@ -371,6 +371,12 @@ function buildGraphPayload({ to, subject, body }) {
 async function sendViaGraphApp({ account, to, subject, body }) {
   const token = await getGraphAccessToken(account);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(account.from)}/sendMail`;
+  console.info('[graph_send_started]', {
+    sender: account.from,
+    recipient: to,
+    subject,
+    htmlLength: String(body || '').length
+  });
 
   const resp = await fetch(url, {
     method: 'POST',
@@ -395,11 +401,19 @@ async function sendViaGraphApp({ account, to, subject, body }) {
     }
     throw new Error(errMsg);
   }
+  return { providerResponse: { status: resp.status, statusText: resp.statusText } };
 }
 
 async function sendViaGraphDelegated({ account, to, subject, body }) {
   const token = await getDelegatedAccessToken(account.oauthAccountId);
   const url = 'https://graph.microsoft.com/v1.0/me/sendMail';
+  console.info('[graph_send_started]', {
+    sender: account.from,
+    recipient: to,
+    subject,
+    htmlLength: String(body || '').length,
+    delegated: true
+  });
 
   const resp = await fetch(url, {
     method: 'POST',
@@ -424,6 +438,7 @@ async function sendViaGraphDelegated({ account, to, subject, body }) {
     }
     throw new Error(errMsg);
   }
+  return { providerResponse: { status: resp.status, statusText: resp.statusText } };
 }
 
 export async function verifyAccountConnection(account) {
@@ -484,6 +499,14 @@ function normalizeSubjectForReply(subject = '') {
 }
 
 async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, text, inReplyTo, references = [] }) {
+  console.info('[smtp_send_started]', {
+    sender: account.from || account.user,
+    recipient: to,
+    ccCount: cc.length,
+    subject,
+    htmlLength: String(body || '').length,
+    textLength: String(text || '').length
+  });
   const transport = nodemailer.createTransport({
     host: account.host,
     port: account.port,
@@ -510,12 +533,12 @@ async function sendViaSmtpThreaded({ account, to, cc = [], subject, body, text, 
 
 export async function sendEmailForLead({ template, lead, account, campaignType = '', replyMode = false, replyContext = null, trackingPixelHtml = '' }) {
   const { subject, body: renderedBody, plainText: renderedPlainText } = renderTemplate(template, lead);
-  const body = buildEmailHtml(trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody);
-  
-  let finalPlainText = renderedPlainText;
-  if (!finalPlainText && body) {
-    finalPlainText = htmlToText(body, { wordwrap: 130 });
-  }
+  const emailParts = buildEmailParts({
+    html: trackingPixelHtml ? `${renderedBody}\n${trackingPixelHtml}` : renderedBody,
+    text: renderedPlainText
+  });
+  const body = emailParts.bodyHtml;
+  const finalPlainText = emailParts.bodyText || htmlToText(body, { wordwrap: 130 });
   const to = normalizeRecipient(lead.Email || lead.email);
 
   if (!to || !isValidEmailAddress(to)) {
@@ -540,24 +563,59 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   }
 
   let sentMessageId = '';
+  let providerResponse = null;
 
-  if (account.provider === 'graph_oauth') {
-    await sendViaGraphDelegated({ account, to, subject: finalSubject, body });
-  } else if (account.provider === 'graph') {
-    await sendViaGraphApp({ account, to, subject: finalSubject, body });
-  } else {
-    const result = await sendViaSmtpThreaded({
-      account,
-      to: toRecipients.join(', '),
-      cc: ccRecipients,
+  console.info('[email_html_built]', {
+    provider: account.provider || 'smtp',
+    sender: account.from || account.user || '',
+    recipient: to,
+    subject: finalSubject,
+    htmlLength: body.length,
+    textLength: finalPlainText.length
+  });
+
+  try {
+    if (account.provider === 'graph_oauth') {
+      const result = await sendViaGraphDelegated({ account, to, subject: finalSubject, body });
+      providerResponse = result?.providerResponse || null;
+    } else if (account.provider === 'graph') {
+      const result = await sendViaGraphApp({ account, to, subject: finalSubject, body });
+      providerResponse = result?.providerResponse || null;
+    } else {
+      const result = await sendViaSmtpThreaded({
+        account,
+        to: toRecipients.join(', '),
+        cc: ccRecipients,
+        subject: finalSubject,
+        body,
+        text: finalPlainText,
+        inReplyTo: isReply ? previousMessageId : undefined,
+        references: isReply ? [previousMessageId] : []
+      });
+      sentMessageId = result?.messageId || '';
+      providerResponse = result || null;
+    }
+  } catch (error) {
+    console.error('[email_send_failed]', {
+      provider: account.provider || 'smtp',
+      sender: account.from || account.user || '',
+      recipient: to,
       subject: finalSubject,
-      body,
-      text: finalPlainText,
-      inReplyTo: isReply ? previousMessageId : undefined,
-      references: isReply ? [previousMessageId] : []
+      htmlLength: body.length,
+      textLength: finalPlainText.length,
+      error: error.message || String(error)
     });
-    sentMessageId = result?.messageId || '';
+    throw error;
   }
+
+  console.info('[email_send_success]', {
+    provider: account.provider || 'smtp',
+    sender: account.from || account.user || '',
+    recipient: to,
+    subject: finalSubject,
+    messageId: sentMessageId,
+    providerResponse
+  });
 
   const references = dedupeRecipients([previousMessageId, ...(Array.isArray(replyContext?.references) ? replyContext.references : [])]);
 
@@ -565,6 +623,7 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
     to,
     subject: finalSubject,
     messageId: sentMessageId,
+    providerResponse,
     isReply,
     thread: {
       messageId: sentMessageId || previousMessageId || '',

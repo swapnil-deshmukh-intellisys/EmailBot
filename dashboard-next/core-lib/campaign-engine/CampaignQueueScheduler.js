@@ -174,7 +174,7 @@ export async function runCampaignSchedulerTick(options = {}) {
       }
     ]
   })
-    .select('_id')
+    .select('_id name status userEmail scheduledAt scheduledStart queueRequestedAt')
     .sort({ queueRequestedAt: 1, scheduledAt: 1, createdAt: 1 })
     .lean();
 
@@ -184,6 +184,42 @@ export async function runCampaignSchedulerTick(options = {}) {
 
     schedulerState.inFlight.add(id);
     try {
+      if (String(campaign.status || '') === 'Scheduled') {
+        const dueAt = campaign.scheduledAt || campaign.scheduledStart?.at || null;
+        console.info('[campaign_due]', {
+          campaignId: id,
+          campaignName: campaign.name || '',
+          userEmail: campaign.userEmail || '',
+          scheduledAt: dueAt ? new Date(dueAt).toISOString() : '',
+          tickAt: now.toISOString()
+        });
+        await Campaign.updateOne(
+          {
+            _id: campaign._id,
+            status: 'Scheduled',
+            $or: [
+              { scheduledAt: { $ne: null, $lte: now } },
+              { 'scheduledStart.at': { $ne: null, $lte: now } }
+            ]
+          },
+          {
+            $set: {
+              status: 'Queued',
+              queueRequestedAt: now,
+              queueReason: 'Scheduled time reached; queued by scheduler',
+              workerStatus: 'queued_by_scheduler',
+              lastActivityAt: now
+            },
+            $push: {
+              logs: {
+                level: 'info',
+                message: `campaign_due: scheduled time reached; queued by scheduler at ${now.toISOString()}`,
+                at: now
+              }
+            }
+          }
+        );
+      }
       await startCampaignRunner(id, { trigger: 'scheduler' });
     } catch (error) {
       schedulerState.lastError = error?.message || 'Unknown scheduler error';
