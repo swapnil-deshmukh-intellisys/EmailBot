@@ -18,13 +18,13 @@ const EMPTY_COUNTS = {
 };
 
 const COUNT_CARDS = [
-  { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'T', tone: 'total' },
-  { key: 'running', label: 'Running Campaigns', shortLabel: 'Running', icon: 'R', tone: 'running' },
-  { key: 'paused', label: 'Paused Campaigns', shortLabel: 'Paused', icon: 'P', tone: 'paused' },
-  { key: 'failed', label: 'Failed Campaigns', shortLabel: 'Failed', icon: '!', tone: 'failed' },
-  { key: 'incomplete', label: 'Incomplete / Draft', shortLabel: 'Incomplete', icon: 'D', tone: 'incomplete' },
-  { key: 'completed', label: 'Completed Campaigns', shortLabel: 'Completed', icon: 'C', tone: 'completed' },
-  { key: 'scheduled', label: 'Scheduled Campaigns', shortLabel: 'Scheduled', icon: 'S', tone: 'scheduled' }
+  { key: 'total', label: 'Total Campaigns', shortLabel: 'Total', icon: 'ti-stack-2', tone: 'total' },
+  { key: 'running', label: 'Running Campaigns', shortLabel: 'Running', icon: 'ti-player-play', tone: 'running' },
+  { key: 'paused', label: 'Paused Campaigns', shortLabel: 'Paused', icon: 'ti-player-pause', tone: 'paused' },
+  { key: 'failed', label: 'Failed Campaigns', shortLabel: 'Failed', icon: 'ti-circle-x', tone: 'failed' },
+  { key: 'incomplete', label: 'Incomplete / Draft', shortLabel: 'Incomplete', icon: 'ti-clock-pause', tone: 'incomplete' },
+  { key: 'completed', label: 'Completed Campaigns', shortLabel: 'Completed', icon: 'ti-circle-check', tone: 'completed' },
+  { key: 'scheduled', label: 'Scheduled Campaigns', shortLabel: 'Scheduled', icon: 'ti-calendar-event', tone: 'scheduled' }
 ];
 
 const STATUS_TABS = [
@@ -55,6 +55,7 @@ const ACTION_LABELS = {
 };
 const LIVE_CAMPAIGN_STATUSES = new Set(['running', 'queued', 'scheduled']);
 const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
+const CAMPAIGN_PAGE_SIZE = 10;
 const CAMPAIGN_STEP_TYPES = {
   1: { type: 'cover_story', label: 'Cover Story', actionLabel: 'Send Cover Story' },
   2: { type: 'reminder', label: 'Reminder', actionLabel: 'Send Reminder' },
@@ -170,6 +171,13 @@ function getStats(campaign = {}) {
   };
 }
 
+function getFailureRateLabel(stats = {}) {
+  const total = Number(stats.total || 0);
+  const failed = Number(stats.failed || 0);
+  if (!total || !failed) return '-';
+  return `${Math.round((failed / total) * 100)}%`;
+}
+
 function getProjectLabel(campaign = {}) {
   return campaign.projectName || String(campaign.project || '-').toUpperCase();
 }
@@ -216,8 +224,12 @@ function buildNextProcessPayload(campaign = {}) {
   const nextStep = getNextCampaignStep(campaign);
   const nextConfig = CAMPAIGN_STEP_TYPES[nextStep];
   if (!nextConfig) return null;
+  const listId = String(campaign.listId || campaign.selectedListId || '').trim();
   return {
     ...campaign,
+    listId,
+    selectedListId: listId,
+    resumeToReviewList: true,
     nextProcessMode: true,
     nextProcessSourceCampaignId: campaign._id,
     nextProcessStep: nextStep,
@@ -226,14 +238,40 @@ function buildNextProcessPayload(campaign = {}) {
     type: nextConfig.type,
     workflowStep: nextStep,
     workflowStepLabel: nextConfig.label,
-    workflowOpenStep: 4,
+    workflowOpenStep: 2,
     inlineTemplate: {},
     resumedFromCampaignStatus: campaign.status || campaign.displayStatus || ''
   };
 }
 
+function buildNextProcessDashboardUrl(payload = {}) {
+  const params = new URLSearchParams({ nextProcess: '1', workflowStep: '2' });
+  const listId = String(payload.listId || payload.selectedListId || '').trim();
+  if (listId) {
+    params.set('listId', listId);
+    params.set('autoUpload', '1');
+  }
+  return `/dashboard/user?${params.toString()}`;
+}
+
 function getApiMessage(data, fallback) {
   return data?.message || data?.error || data?.code || fallback;
+}
+
+function buildPaginationItems(currentPage, totalPages) {
+  if (totalPages <= 6) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 5) {
+    return [1, 2, 3, 4, 5, 'ellipsis', totalPages];
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [1, 'ellipsis', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis-end', totalPages];
 }
 
 function getStepStatus(step = {}) {
@@ -265,14 +303,18 @@ function CountCard({ card, count, total, loading }) {
     : (totalValue > 0 ? Math.round((countValue / totalValue) * 100) : 0);
 
   return (
-    <article className={`campaign-count-card campaign-count-card-${card.tone}`}>
+    <article className={`campaign-count-card campaign-count-card-${card.tone} stat-card si-${card.tone}`}>
       <div className="campaign-count-card-glow" />
-      <div className="campaign-count-card-head">
-        <span className="campaign-count-icon" aria-hidden="true">{card.icon}</span>
-        <span className="campaign-count-label">{card.shortLabel}</span>
+      <div className="campaign-count-card-head stat-row">
+        <span className="campaign-count-label stat-label">{card.shortLabel}</span>
+        <span className="campaign-count-icon stat-icon" aria-hidden="true">
+          <i className={`ti ${card.icon}`} />
+        </span>
       </div>
-      {loading ? <div className="campaign-count-skeleton" /> : <strong>{countValue.toLocaleString()}</strong>}
-      <span className="campaign-count-percent">{percentage}%</span>
+      {loading ? <div className="campaign-count-skeleton" /> : <strong className="stat-num">{countValue.toLocaleString()}</strong>}
+      <span className="campaign-count-percent stat-pct">
+        {card.key === 'total' ? `${percentage}% - all campaigns` : `${percentage}% ${card.shortLabel.toLowerCase()}`}
+      </span>
     </article>
   );
 }
@@ -296,20 +338,81 @@ function ActionButton({ action, campaign, loadingKey, onAction }) {
   );
 }
 
-function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleView }) {
+function CampaignRowActionMenu({ campaign, actionLoadingKey, onAction, onToggleView }) {
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      if (!menuRef.current || menuRef.current.contains(event.target)) return;
+      menuRef.current.removeAttribute('open');
+    };
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        menuRef.current?.removeAttribute('open');
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
+  const closeMenu = () => {
+    menuRef.current?.removeAttribute('open');
+  };
+
+  const handleView = () => {
+    closeMenu();
+    onToggleView(campaign._id);
+  };
+
+  const handleAction = (selectedCampaign, action) => {
+    closeMenu();
+    onAction(selectedCampaign, action);
+  };
+
+  return (
+    <details ref={menuRef} className="campaign-row-actions">
+      <summary className="table-action-btn" aria-label={`Campaign actions for ${campaign.name || 'campaign'}`}>
+        <i className="ti ti-dots-vertical" aria-hidden="true" />
+      </summary>
+      <div className="campaign-row-action-menu">
+        <Button size="sm" variant="secondary" onClick={handleView}>
+          View
+        </Button>
+        <ActionButton action="next-step" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
+        <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
+        <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
+        <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
+        <ActionButton action="stop" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
+      </div>
+    </details>
+  );
+}
+
+function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleView, startIndex = 0 }) {
   return (
     <div className="campaign-table-wrap">
-      <table className="campaign-table">
+      <table className="campaign-table data-table">
         <thead>
           <tr>
-            <th>Sr.</th>
-            <th>Campaign</th>
+            <th><input type="checkbox" aria-label="Select all campaigns" /></th>
+            <th>SR. NO.</th>
+            <th>Campaign Name</th>
+            <th>Project</th>
             <th>Status</th>
-            <th>Delivery</th>
-            <th>Reason</th>
-            <th>Activity</th>
-            <th>Sender</th>
-            <th>Actions</th>
+            <th>Recipients</th>
+            <th>Sent</th>
+            <th>Pending</th>
+            <th>Failed</th>
+            <th>Open Count</th>
+            <th>Response Count</th>
+            <th>Failure Rate</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -319,52 +422,40 @@ function CampaignDesktopTable({ campaigns, actionLoadingKey, onAction, onToggleV
 
             return (
               <tr key={campaign._id}>
-                <td>{index + 1}</td>
+                <td><input type="checkbox" aria-label={`Select ${campaign.name || 'campaign'}`} /></td>
+                <td className="num-cell">{startIndex + index + 1}</td>
                 <td>
                   <div className="campaign-name-cell">
                     <button
                       type="button"
-                      className="campaign-name-link"
+                      className="campaign-name-link campaign-link"
                       onClick={() => onToggleView(campaign._id)}
                     >
                       {campaign.name || 'Untitled campaign'}
                     </button>
-                    <small>{getProjectLabel(campaign)} | {campaign.type || campaign.draftType || '-'}</small>
+                    <div className="campaign-meta">{campaign.type || campaign.draftType || '-'}</div>
                   </div>
                 </td>
+                <td className="campaign-project-cell">{getProjectLabel(campaign)}</td>
                 <td className="campaign-status-cell">
-                  <Badge className="campaign-status-badge" variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
+                  <Badge className={`campaign-status-badge tag-pill tag-${bucket}`} variant={STATUS_BADGE_VARIANTS[bucket] || 'default'}>
                     {getDisplayStatus(campaign)}
                   </Badge>
                 </td>
-                <td className="campaign-delivery-cell">
-                  <div className="campaign-delivery-metrics">
-                    <span><b>{stats.total.toLocaleString()}</b>Total</span>
-                    <span><b>{stats.sent.toLocaleString()}</b>Sent</span>
-                    <span><b>{stats.pending.toLocaleString()}</b>Pending</span>
-                    <span><b>{stats.failed.toLocaleString()}</b>Failed</span>
-                    <span><b>{stats.opens.toLocaleString()}</b>Opens</span>
-                    <span><b>{stats.replies.toLocaleString()}</b>Replies</span>
-                  </div>
-                </td>
-                <td className="campaign-reason-cell">{getFailureReason(campaign)}</td>
-                <td className="campaign-activity-cell">
-                  <strong>{formatDateTime(getLastActivity(campaign))}</strong>
-                  <small>Created {formatDateTime(campaign.createdAt)}</small>
-                  <small>Scheduled {formatDateTime(getScheduledDate(campaign))}</small>
-                </td>
-                <td className="campaign-sender-cell">{getSenderEmail(campaign)}</td>
-                <td>
-                  <div className="campaign-action-row">
-                    <Button size="sm" variant="secondary" onClick={() => onToggleView(campaign._id)}>
-                      View
-                    </Button>
-                    <ActionButton action="next-step" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
-                    <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
-                    <ActionButton action="pause" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
-                    <ActionButton action="resume" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
-                    <ActionButton action="stop" campaign={campaign} loadingKey={actionLoadingKey} onAction={onAction} />
-                  </div>
+                <td className="num-cell">{stats.total.toLocaleString()}</td>
+                <td className="num-cell">{stats.sent.toLocaleString()}</td>
+                <td className="num-cell">{stats.pending.toLocaleString()}</td>
+                <td className="num-cell">{stats.failed.toLocaleString()}</td>
+                <td className="num-cell">{stats.opens.toLocaleString()}</td>
+                <td className="campaign-response-cell">{stats.replies.toLocaleString()} {stats.replies === 1 ? 'Reply' : 'Replies'}</td>
+                <td className={stats.failed ? 'campaign-failure-rate is-danger' : 'campaign-failure-rate'}>{getFailureRateLabel(stats)}</td>
+                <td className="campaign-row-actions-cell">
+                  <CampaignRowActionMenu
+                    campaign={campaign}
+                    actionLoadingKey={actionLoadingKey}
+                    onAction={onAction}
+                    onToggleView={onToggleView}
+                  />
                 </td>
               </tr>
             );
@@ -395,7 +486,7 @@ function CampaignMobileCards({ campaigns, actionLoadingKey, onAction, onToggleVi
                 </button>
                 <small>{getProjectLabel(campaign)} | {getSenderEmail(campaign)}</small>
               </div>
-              <Badge variant={STATUS_BADGE_VARIANTS[bucket] || 'default'} dot>
+              <Badge className={`campaign-status-badge tag-pill tag-${bucket}`} variant={STATUS_BADGE_VARIANTS[bucket] || 'default'}>
                 {getDisplayStatus(campaign)}
               </Badge>
             </div>
@@ -487,7 +578,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
         return;
       }
       window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
-      window.location.href = '/dashboard/user?nextProcess=1';
+      window.location.href = buildNextProcessDashboardUrl(payload);
     } catch (err) {
       setError(err.message || 'Unable to open next process workflow.');
     }
@@ -687,6 +778,7 @@ export default function CampaignsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [actionLoadingKey, setActionLoadingKey] = useState('');
   const activeSection = 'campaign-list';
@@ -783,6 +875,28 @@ export default function CampaignsPage() {
       });
   }, [campaigns, searchQuery, statusFilter, sortOrder]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / CAMPAIGN_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (safeCurrentPage - 1) * CAMPAIGN_PAGE_SIZE;
+  const pageEndIndex = Math.min(pageStartIndex + CAMPAIGN_PAGE_SIZE, filteredCampaigns.length);
+  const paginatedCampaigns = useMemo(
+    () => filteredCampaigns.slice(pageStartIndex, pageEndIndex),
+    [filteredCampaigns, pageStartIndex, pageEndIndex]
+  );
+  const paginationItems = useMemo(
+    () => buildPaginationItems(safeCurrentPage, totalPages),
+    [safeCurrentPage, totalPages]
+  );
+  const visibleStart = filteredCampaigns.length ? pageStartIndex + 1 : 0;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, sortOrder]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const handleRefresh = useCallback(() => {
     setNotice('');
     void loadCampaigns({ silent: true });
@@ -800,7 +914,7 @@ export default function CampaignsPage() {
           return;
         }
         window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
-        window.location.href = '/dashboard/user?nextProcess=1';
+        window.location.href = buildNextProcessDashboardUrl(payload);
       } catch (err) {
         setError(err.message || 'Unable to open next process workflow.');
       }
@@ -872,62 +986,94 @@ export default function CampaignsPage() {
             <h1>Campaigns</h1>
           </div>
           <div className="campaigns-hero-actions">
-            <Button as="a" href="/dashboard/user?workflowStep=1" size="md">
-              Create Campaign
-            </Button>
-            <Button variant="secondary" size="md" loading={refreshing} onClick={handleRefresh}>
+            <Button
+              variant="secondary"
+              size="md"
+              loading={refreshing}
+              leftIcon={<i className="ti ti-refresh" aria-hidden="true" />}
+              onClick={handleRefresh}
+            >
               Refresh
+            </Button>
+            <Button as="a" href="/dashboard/user?workflowStep=1" size="md" leftIcon={<i className="ti ti-plus" aria-hidden="true" />}>
+              Create Campaign
             </Button>
           </div>
         </section>
 
         <section className="campaign-count-grid" aria-label="Campaign counts">
-          {COUNT_CARDS.map((card) => (
-            <CountCard
-              key={card.key}
-              card={card}
-              count={counts[card.key]}
-              total={counts.total}
-              loading={loading}
-            />
-          ))}
+          <div className="campaign-count-row campaign-count-row-top">
+            {COUNT_CARDS.slice(0, 4).map((card) => (
+              <CountCard
+                key={card.key}
+                card={card}
+                count={counts[card.key]}
+                total={counts.total}
+                loading={loading}
+              />
+            ))}
+          </div>
+          <div className="campaign-count-row campaign-count-row-bottom">
+            {COUNT_CARDS.slice(4).map((card) => (
+              <CountCard
+                key={card.key}
+                card={card}
+                count={counts[card.key]}
+                total={counts.total}
+                loading={loading}
+              />
+            ))}
+          </div>
         </section>
 
-        <section className="campaign-panel" ref={campaignListRef}>
-          <div className="campaign-panel-head">
-            <div>
-              <span className="campaigns-page-kicker">Campaign library</span>
-              <h2>All Campaigns</h2>
+        <section className="campaign-panel table-card" ref={campaignListRef}>
+          <div className="campaign-table-header table-header">
+            <div className="campaign-panel-head table-header-top">
+              <div>
+                <span className="campaigns-page-kicker table-eyebrow">Campaign library</span>
+                <h2 className="table-title">All Campaigns</h2>
+              </div>
+              <div className="campaign-panel-total">
+                Showing {visibleStart.toLocaleString()}-{pageEndIndex.toLocaleString()} of {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}
+              </div>
             </div>
-            <div className="campaign-panel-total">
-              Showing {filteredCampaigns.length.toLocaleString()} campaign{filteredCampaigns.length === 1 ? '' : 's'}
-            </div>
-          </div>
 
-          <div className="campaign-toolbar">
-            <label className="campaign-search-field">
-              <span>Search</span>
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by campaign name"
-              />
-            </label>
-            <label className="campaign-select-field">
-              <span>Status</span>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                {STATUS_TABS.map((tab) => (
-                  <option key={tab.value} value={tab.value}>{tab.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="campaign-select-field">
-              <span>Sort</span>
-              <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-            </label>
+            <div className="campaign-toolbar table-controls">
+              <label className="campaign-search-field search-wrapper">
+                <span>Search</span>
+                <i className="ti ti-search si campaign-search-icon" aria-hidden="true" />
+                <input
+                  className="table-search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by campaign name..."
+                />
+              </label>
+              <label className="campaign-select-field">
+                <span>Status</span>
+                <select className="mini-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  {STATUS_TABS.map((tab) => (
+                    <option key={tab.value} value={tab.value}>{tab.label === 'All' ? 'Status: All' : tab.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="campaign-select-field">
+                <span>Sort</span>
+                <select className="mini-select" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="campaign-toolbar-refresh icon-btn"
+                title="Refresh"
+                aria-label="Refresh campaigns"
+                onClick={handleRefresh}
+              >
+                <i className="ti ti-refresh" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <div className="campaign-status-tabs">
@@ -961,17 +1107,58 @@ export default function CampaignsPage() {
           ) : (
             <>
               <CampaignDesktopTable
-                campaigns={filteredCampaigns}
+                campaigns={paginatedCampaigns}
                 actionLoadingKey={actionLoadingKey}
                 onAction={handleAction}
                 onToggleView={openCampaignDetails}
+                startIndex={pageStartIndex}
               />
               <CampaignMobileCards
-                campaigns={filteredCampaigns}
+                campaigns={paginatedCampaigns}
                 actionLoadingKey={actionLoadingKey}
                 onAction={handleAction}
                 onToggleView={openCampaignDetails}
               />
+              <div className="campaign-table-footer table-footer">
+                <div className="tf-left">
+                  <input type="checkbox" id="campaignSelectAllVisible" />
+                  <label htmlFor="campaignSelectAllVisible">Select all visible rows</label>
+                </div>
+                <div className="pagination">
+                  <button
+                    type="button"
+                    className="page-btn arrow"
+                    aria-label="Previous page"
+                    disabled={safeCurrentPage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    <i className="ti ti-chevron-left" aria-hidden="true" />
+                  </button>
+                  {paginationItems.map((item) => (
+                    typeof item === 'number' ? (
+                      <button
+                        key={item}
+                        type="button"
+                        className={safeCurrentPage === item ? 'page-btn active' : 'page-btn'}
+                        onClick={() => setCurrentPage(item)}
+                      >
+                        {item}
+                      </button>
+                    ) : (
+                      <span key={item} className="campaign-pagination-ellipsis">...</span>
+                    )
+                  ))}
+                  <button
+                    type="button"
+                    className="page-btn arrow"
+                    aria-label="Next page"
+                    disabled={safeCurrentPage >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  >
+                    <i className="ti ti-chevron-right" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </section>

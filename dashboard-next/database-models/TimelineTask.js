@@ -17,9 +17,11 @@ const TimelineTaskSchema = new mongoose.Schema(
     assignedByUserId: { type: String, default: '', index: true },
     assignedByEmail: { type: String, default: '', index: true },
     assignedByName: { type: String, default: '' },
+    assignedBy: { type: String, default: '' },
     assignedToUserId: { type: String, default: '', index: true },
     assignedToEmail: { type: String, default: '', index: true },
     assignedToName: { type: String, default: '' },
+    assignedTo: { type: String, default: '' },
     dueDate: { type: Date, required: true, index: true },
     dueTime: { type: String, default: '' },
     completedAt: { type: Date, default: null },
@@ -28,7 +30,19 @@ const TimelineTaskSchema = new mongoose.Schema(
     attachments: { type: [String], default: [] },
     createdBy: { type: String, default: '' },
     reminderAt: { type: Date, default: null, index: true },
-    lastNotifiedAt: { type: Date, default: null }
+    lastNotifiedAt: { type: Date, default: null },
+    noteHistory: {
+      type: [
+        {
+          note: { type: String, default: '' },
+          createdBy: { type: String, default: '' },
+          createdByEmail: { type: String, default: '' },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
+    lastReminderMessage: { type: String, default: '' }
   },
   { timestamps: true }
 );

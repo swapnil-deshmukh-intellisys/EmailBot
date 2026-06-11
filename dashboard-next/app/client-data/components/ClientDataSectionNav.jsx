@@ -3,10 +3,10 @@
 import { usePathname, useRouter } from 'next/navigation';
 
 const CLIENT_DATA_SECTIONS = [
-  { key: 'upload', label: 'Upload File', href: '/client-data/client-list?tab=upload' },
-  { key: 'customize', label: 'Customize List', href: '/client-data/client-list?tab=customize' },
-  { key: 'bin', label: 'Bin Storage', href: '/client-data/client-list?tab=bin' },
-  { key: 'client-list', label: 'Client List', href: '/client-data/client-list' }
+  { key: 'upload', label: 'Upload File', href: '/client-data/client-list?tab=upload', icon: 'ti-upload' },
+  { key: 'customize', label: 'Customize List', href: '/client-data/client-list?tab=customize', icon: 'ti-adjustments-horizontal' },
+  { key: 'bin', label: 'Bin Storage', href: '/client-data/client-list?tab=bin', icon: 'ti-trash' },
+  { key: 'client-list', label: 'Client List', href: '/client-data/client-list', icon: 'ti-list' }
 ];
 
 export default function ClientDataSectionNav({ activeTab = '', onTabChange = null }) {
@@ -33,9 +33,7 @@ export default function ClientDataSectionNav({ activeTab = '', onTabChange = nul
               router.push(section.href);
             }}
           >
-            {section.key === 'upload' ? (
-              <span className="client-data-upload-sheet-icon" aria-hidden="true">&uarr;</span>
-            ) : null}
+            <i className={`ti ${section.icon}`} aria-hidden="true" />
             <span>{section.label}</span>
           </button>
         ))}

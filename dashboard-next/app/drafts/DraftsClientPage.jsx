@@ -19,6 +19,8 @@ const DRAFT_LIBRARY_SECTIONS = [
   { value: 'updated_cost', label: 'Updated Cost' },
   { value: 'final_cost', label: 'Final Call' }
 ];
+const DRAFT_LIBRARY_REFERENCE_SECTIONS = DRAFT_LIBRARY_SECTIONS.filter(section => section.value !== 'final_cost');
+const DRAFT_LIBRARY_REFERENCE_TYPES = new Set(DRAFT_LIBRARY_REFERENCE_SECTIONS.map(section => section.value));
 
 const SECTION_META = {
   cover_story:  { dotColor: '#3b82f6', badgeColor: '#eff6ff', badgeText: '#3b82f6', badgeBorder: '#bfdbfe' },
@@ -197,47 +199,55 @@ export default function DraftsPage() {
     [drafts]
   );
 
-  const filteredDrafts = useMemo(() => drafts.filter(draft => {
+  const libraryBaseFilteredDrafts = useMemo(() => drafts.filter(draft => {
     const sector   = String(draft?.sector||'').trim().toLowerCase();
     const project  = resolveDraftProject(draft);
     const draftType = resolveDraftLibraryType(draft);
     const campaign = resolveDraftCampaign(draft).toLowerCase();
     const blob     = `${draft?.title||''} ${draft?.subject||''} ${draft?.body||''} ${draftTypeLabel(draftType)} ${sector} ${project} ${campaign}`.toLowerCase();
-    const tf       = normalizeDraftType(libraryTypeFilter);
-    if (libraryTypeFilter && draftType !== tf)                                                  return false;
+    if (!DRAFT_LIBRARY_REFERENCE_TYPES.has(draftType))                                          return false;
     if (librarySectorFilter   && !sector.includes(librarySectorFilter.toLowerCase()))           return false;
     if (libraryProjectFilter  && project !== libraryProjectFilter.toLowerCase())                return false;
     if (libraryCampaignFilter && campaign !== libraryCampaignFilter.toLowerCase())              return false;
     if (librarySearchQuery    && !blob.includes(librarySearchQuery.trim().toLowerCase()))       return false;
     return true;
-  }), [drafts, libraryCampaignFilter, libraryProjectFilter, librarySearchQuery, librarySectorFilter, libraryTypeFilter]);
+  }), [drafts, libraryCampaignFilter, libraryProjectFilter, librarySearchQuery, librarySectorFilter]);
 
   const activeFilters = Boolean(libraryTypeFilter || librarySectorFilter || libraryProjectFilter || libraryCampaignFilter || librarySearchQuery);
+  const referenceFilteredDrafts = useMemo(() => {
+    const tf = libraryTypeFilter ? normalizeDraftType(libraryTypeFilter) : '';
+    return libraryBaseFilteredDrafts.filter(draft => !tf || resolveDraftLibraryType(draft) === tf);
+  }, [libraryBaseFilteredDrafts, libraryTypeFilter]);
 
   const draftTypeCounts = useMemo(() =>
     DRAFT_LIBRARY_SECTIONS.reduce((acc, s) => { acc[s.value] = drafts.filter(d => resolveDraftLibraryType(d) === s.value).length; return acc; }, {}),
     [drafts]
   );
+  const filteredDraftTypeCounts = useMemo(() =>
+    DRAFT_LIBRARY_REFERENCE_SECTIONS.reduce((acc, s) => {
+      acc[s.value] = libraryBaseFilteredDrafts.filter(d => resolveDraftLibraryType(d) === s.value).length;
+      return acc;
+    }, {}),
+    [libraryBaseFilteredDrafts]
+  );
 
   const statCards = useMemo(() => {
-    const total = drafts.length;
+    const total = drafts.filter(draft => DRAFT_LIBRARY_REFERENCE_TYPES.has(resolveDraftLibraryType(draft))).length;
     const pct   = n => total ? `${Math.round((n/total)*100)}% of total drafts` : '0% of total drafts';
     return [
       { key:'total',        label:'TOTAL DRAFTS',  icon: STAT_META.total.icon,        color: STAT_META.total.color,        bg: STAT_META.total.bg,        number: total,                         subtitle:'Across all types' },
       { key:'cover_story',  label:'COVER STORY',   icon: STAT_META.cover_story.icon,  color: STAT_META.cover_story.color,  bg: STAT_META.cover_story.bg,  number: draftTypeCounts.cover_story||0,  subtitle: pct(draftTypeCounts.cover_story||0) },
       { key:'reminder',     label:'REMINDER',      icon: STAT_META.reminder.icon,     color: STAT_META.reminder.color,     bg: STAT_META.reminder.bg,     number: draftTypeCounts.reminder||0,     subtitle: pct(draftTypeCounts.reminder||0) },
-      { key:'followup',     label:'FOLLOW-UP',     icon: STAT_META.followup.icon,     color: STAT_META.followup.color,     bg: STAT_META.followup.bg,     number: draftTypeCounts.followup||0,     subtitle: pct(draftTypeCounts.followup||0) },
-      { key:'updated_cost', label:'UPDATED COST',  icon: STAT_META.updated_cost.icon, color: STAT_META.updated_cost.color, bg: STAT_META.updated_cost.bg, number: draftTypeCounts.updated_cost||0, subtitle: pct(draftTypeCounts.updated_cost||0) },
-      { key:'final_cost',   label:'FINAL CALL',    icon: STAT_META.final_cost.icon,   color: STAT_META.final_cost.color,   bg: STAT_META.final_cost.bg,   number: draftTypeCounts.final_cost||0,   subtitle: pct(draftTypeCounts.final_cost||0) }
+      { key:'followup',     label:'FOLLOW-UP',     icon: STAT_META.followup.icon,     color: STAT_META.followup.color,     bg: STAT_META.followup.bg,     number: draftTypeCounts.followup||0,     subtitle: pct(draftTypeCounts.followup||0) }
     ];
   }, [draftTypeCounts, drafts.length]);
 
   const groupedDrafts = useMemo(() => {
     const tf = libraryTypeFilter ? normalizeDraftType(libraryTypeFilter) : '';
-    return DRAFT_LIBRARY_SECTIONS
+    return DRAFT_LIBRARY_REFERENCE_SECTIONS
       .filter(s => !tf || s.value === tf)
-      .map(s => ({ ...s, drafts: filteredDrafts.filter(d => resolveDraftLibraryType(d) === s.value) }));
-  }, [filteredDrafts, libraryTypeFilter]);
+      .map(s => ({ ...s, drafts: referenceFilteredDrafts.filter(d => resolveDraftLibraryType(d) === s.value) }));
+  }, [libraryTypeFilter, referenceFilteredDrafts]);
 
   /* ── handlers ── */
   const handleCreateDraft = () => {
@@ -354,13 +364,8 @@ export default function DraftsPage() {
         {/* PAGE HEADER */}
         <div className="dl-header">
           <div className="dl-header-title-area">
-            <span className="dl-eyebrow">WORKSPACE & TEMPLATES</span>
-            <div className="dl-title-with-icon">
-              <span className="dl-header-icon-wrap">
-                <i className="ti ti-mail-opened" />
-              </span>
-              <h1 className="dl-h1">Draft Library</h1>
-            </div>
+            <span className="dl-eyebrow">DRAFT LIBRARY</span>
+            <h1 className="dl-h1">Drafts</h1>
           </div>
           <div className="dl-header-btns">
             <button type="button" className="dl-btn-ghost" onClick={handleCustomizeDraft}>
@@ -436,7 +441,7 @@ export default function DraftsPage() {
                   <span className="dl-eyebrow">DRAFT LIBRARY</span>
                   <h2 className="dl-lib-h2">All Drafts</h2>
                 </div>
-                <span className="dl-lib-showing">Showing {filteredDrafts.length} drafts</span>
+                <span className="dl-lib-showing">Showing {referenceFilteredDrafts.length} drafts</span>
               </div>
 
               {/* Search + dropdowns */}
@@ -456,7 +461,7 @@ export default function DraftsPage() {
                 <div className="dl-select-wrap">
                   <select value={libraryTypeFilter} onChange={e => setLibraryTypeFilter(e.target.value)} className="dl-select">
                     <option value="">All draft types</option>
-                    {DRAFT_LIBRARY_SECTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {DRAFT_LIBRARY_REFERENCE_SECTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                   <i className="ti ti-chevron-down dl-chev" />
                 </div>
@@ -493,14 +498,14 @@ export default function DraftsPage() {
               {/* Tabs */}
               <div className="dl-tabs" role="tablist">
                 <button type="button" role="tab" className={`dl-tab ${!libraryTypeFilter ? 'dl-tab--active' : ''}`} onClick={() => setLibraryTypeFilter('')}>
-                  All <span className="dl-tab-pill">{drafts.length}</span>
+                  All <span className="dl-tab-pill">{libraryBaseFilteredDrafts.length}</span>
                 </button>
-                {DRAFT_LIBRARY_SECTIONS.map(s => (
+                {DRAFT_LIBRARY_REFERENCE_SECTIONS.map(s => (
                   <button type="button" role="tab" key={s.value}
                     className={`dl-tab ${libraryTypeFilter === s.value ? 'dl-tab--active' : ''}`}
                     onClick={() => setLibraryTypeFilter(s.value)}
                   >
-                    {s.label} <span className="dl-tab-pill">{draftTypeCounts[s.value] || 0}</span>
+                    {s.label} <span className="dl-tab-pill">{filteredDraftTypeCounts[s.value] || 0}</span>
                   </button>
                 ))}
               </div>
@@ -532,7 +537,7 @@ export default function DraftsPage() {
                   <i className="ti ti-chevron-down dl-chev" />
                 </div>
 
-                <span className="dl-filterbar-count">{filteredDrafts.length} drafts</span>
+                <span className="dl-filterbar-count">{referenceFilteredDrafts.length} drafts</span>
                 <button type="button" className="dl-clear-btn" onClick={clearAllFilters}>
                   × Clear
                 </button>
@@ -561,7 +566,6 @@ export default function DraftsPage() {
 
               {!loading && (!error || drafts.length > 0) && groupedDrafts.map((section, si) => {
                 const sm = SECTION_META[section.value] || SECTION_META.cover_story;
-                const visible = section.drafts.slice(0, 6);
                 return (
                   <motion.div key={section.value}
                     initial={{ opacity:0, y:16 }}
@@ -576,38 +580,22 @@ export default function DraftsPage() {
                     </div>
 
                     {/* Cards */}
-                    {(() => {
-                      const visible = section.drafts.slice(0, 6);
-                      if (visible.length < 6) {
-                        const needed = 6 - visible.length;
-                        for (let i = 0; i < needed; i++) {
-                          visible.push({
-                            _id: `dummy-${section.value}-${i}`,
-                            isDummy: true,
-                            title: `Draft ${visible.length + 1}`,
-                            subject: `Your Subject Line Here`,
-                            body: `<p>Hi, this is a placeholder draft template for ${section.label}. Click here to create your own draft using this layout.</p>`,
-                            sector: 'General',
-                            project: 'tec',
-                            updatedAt: new Date(),
-                            status: 'Approved'
-                          });
-                        }
-                      }
-                      return (
+                    {section.drafts.length ? (
                         <div className="dl-card-grid">
-                          {visible.map((draft, ci) => {
+                          {section.drafts.map((draft, ci) => {
                             const dtype  = resolveDraftLibraryType(draft);
                             const dsm    = SECTION_META[dtype] || SECTION_META.cover_story;
-                            const proj   = resolveDraftProject(draft);
+                            const projectValue = resolveDraftProject(draft);
                             const cleanSubject = (draft?.subject || '').replace(/\{\{Name\}\}/gi, '').replace(/\{\{Company\}\}/gi, '').replace(/\s+/g, ' ').trim();
+                            const displayTitle = cleanSubject || String(draft?.title || '').trim() || 'Untitled draft';
                             const draftId = String(draft?._id || draft?.id || '');
                             const isApproved = getDraftStatus(draft).toLowerCase() === 'approved';
+                            const menuKey = draftId || `${section.value}-${ci}`;
 
                             return (
                               <motion.article key={draftId || ci}
-                                className={`dl-card ${draft.isDummy ? 'dl-card--dummy' : ''}`}
-                                onClick={() => draft.isDummy ? handleCreateDraft() : handlePreviewDraft(draft)}
+                                className="dl-card"
+                                onClick={() => handlePreviewDraft(draft)}
                                 style={{
                                   '--card-accent': dsm.badgeText,
                                   '--card-accent-soft': dsm.badgeColor,
@@ -623,23 +611,48 @@ export default function DraftsPage() {
                                     <span className="dl-badge" style={{ background: dsm.badgeColor, color: dsm.badgeText, borderColor: dsm.badgeBorder }}>
                                       {draftTypeLabel(dtype)}
                                     </span>
-                                    {draft.isDummy ? (
-                                      <span className="dl-badge dl-badge--placeholder">Placeholder</span>
-                                    ) : (
-                                      <span className="dl-badge dl-badge--draft">Draft</span>
+                                    <span className="dl-badge dl-badge--draft">Draft</span>
+                                  </div>
+                                  <div className="dl-menu-wrap" onClick={e => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      className="dl-menu-btn"
+                                      aria-label="Draft actions"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setOpenMenu(openMenu === menuKey ? null : menuKey);
+                                      }}
+                                    >
+                                      <i className="ti ti-dots-vertical" />
+                                    </button>
+                                    {openMenu === menuKey && (
+                                      <div className="dl-menu" role="menu">
+                                        <button type="button" onClick={() => { setOpenMenu(null); handlePreviewDraft(draft); }}>
+                                          <i className="ti ti-eye" /> Preview
+                                        </button>
+                                        <button type="button" onClick={() => { setOpenMenu(null); handleEditDraft(draft); }}>
+                                          <i className="ti ti-pencil" /> Edit
+                                        </button>
+                                        <button type="button" onClick={() => { setOpenMenu(null); handleDuplicateDraft(draft); }} disabled={busyDraftAction === `duplicate:${draftId}`}>
+                                          <i className="ti ti-copy" /> Duplicate
+                                        </button>
+                                        <button type="button" className="dl-menu-del" onClick={() => { setOpenMenu(null); handleDeleteDraft(draft); }} disabled={busyDraftAction === `delete:${draftId}`}>
+                                          <i className="ti ti-trash" /> Delete
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
 
                                 {/* Title */}
                                 <div className="dl-card-header-group">
-                                  <p className="dl-card-title">Draft {ci + 1}</p>
+                                  <p className="dl-card-title">{displayTitle}</p>
                                 </div>
 
                                 {/* Meta */}
                                 <div className="dl-card-meta">
                                   <span><i className="ti ti-building" />{draft?.sector || 'No sector'}</span>
-                                  <span><i className="ti ti-folder" />{proj ? proj.toUpperCase() : 'No project'}</span>
+                                  <span><i className="ti ti-folder" />{projectValue ? projectValue.toUpperCase() : 'No project'}</span>
                                   <span><i className="ti ti-clock" />{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</span>
                                 </div>
 
@@ -650,16 +663,20 @@ export default function DraftsPage() {
                                     <span className="dl-approval-text">{isApproved ? 'Approved by TL' : 'Pending approval'}</span>
                                   </div>
                                   <button type="button" className="dl-edit-btn"
-                                    onClick={e => { e.stopPropagation(); draft.isDummy ? handleCreateDraft() : handleEditDraft(draft); }}>
-                                    {draft.isDummy ? 'Create' : 'Edit'}
+                                    onClick={e => { e.stopPropagation(); handleEditDraft(draft); }}>
+                                    Edit
                                   </button>
                                 </div>
                               </motion.article>
                             );
                           })}
                         </div>
-                      );
-                    })()}
+                    ) : (
+                      <div className="dl-section-empty">
+                        <strong>No Drafts Found</strong>
+                        <button type="button" onClick={handleCreateDraft}>Create Draft</button>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}

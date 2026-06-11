@@ -1,0 +1,1181 @@
+/* Last-loaded client data reference overrides. */
+html body main.dashboard-shell .client-data-page {
+  --cd-bg: #f5f6f8;
+  --cd-surface: #ffffff;
+  --cd-surface-2: #f8f9fb;
+  --cd-border: #e8ecf1;
+  --cd-border-subtle: #f0f2f5;
+  --cd-text-1: #111827;
+  --cd-text-2: #4a5568;
+  --cd-text-3: #9aa5b4;
+  --cd-accent: #4f5bd5;
+  --cd-accent-light: #eef0fd;
+  --cd-rose-50: #fff1f2;
+  --cd-rose-100: #ffe4e6;
+  --cd-rose-500: #f43f5e;
+  --cd-rose-600: #e11d48;
+  --cd-emerald-50: #ecfdf5;
+  --cd-emerald-100: #d1fae5;
+  --cd-emerald-600: #059669;
+  gap: 20px !important;
+  margin: 0 !important;
+  padding: 0 24px 24px !important;
+  background: var(--cd-bg) !important;
+  color: var(--cd-text-1) !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}
+
+html body main.dashboard-shell .client-data-page .ui-page-section {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-clientlist-stack {
+  display: grid !important;
+  gap: 20px !important;
+}
+
+html body main.dashboard-shell .client-data-page-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body main.dashboard-shell .client-data-page-header-copy {
+  min-width: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-page-header-copy h1 {
+  margin: 0 !important;
+  color: var(--cd-text-1) !important;
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+}
+
+html body main.dashboard-shell .client-data-section-switcher {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-section-switcher-button {
+  min-height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 7px 14px !important;
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 10px !important;
+  background: var(--cd-surface) !important;
+  color: var(--cd-text-2) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  transform: none !important;
+}
+
+html body main.dashboard-shell .client-data-section-switcher-button:hover {
+  border-color: #cbd2dc !important;
+  color: var(--cd-text-1) !important;
+}
+
+html body main.dashboard-shell .client-data-section-switcher-button.active {
+  border-color: var(--cd-accent) !important;
+  background: var(--cd-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .client-data-section-switcher-button i {
+  font-size: 15px !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card {
+  overflow: hidden !important;
+  padding: 0 !important;
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 18px !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .directory-header {
+  display: block !important;
+  margin: 0 !important;
+  padding: 18px 20px 16px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-title-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin: 0 0 6px !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-title {
+  margin: 0 !important;
+  color: var(--cd-text-1) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.35 !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-meta {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--cd-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-meta-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-meta-item i {
+  font-size: 13px !important;
+  color: var(--cd-text-3) !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .dir-meta-dot {
+  width: 6px !important;
+  height: 6px !important;
+  display: inline-block !important;
+  border-radius: 50% !important;
+  background: var(--cd-rose-500) !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .warning-banner {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 10px 0 0 !important;
+  padding: 9px 14px !important;
+  border: 1px solid var(--cd-rose-100) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, var(--cd-rose-50) 0%, #fff5f5 100%) !important;
+  color: var(--cd-rose-600) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+}
+
+html body main.dashboard-shell .client-data-directory-card .warning-banner i {
+  flex: 0 0 auto !important;
+  font-size: 14px !important;
+}
+
+html body main.dashboard-shell .client-data-directory-content {
+  padding: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-custom-note {
+  margin: 10px 20px 0 !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+}
+
+html body main.dashboard-shell .filter-section {
+  display: block !important;
+  margin: 0 !important;
+  padding: 16px 20px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  border-radius: 0 !important;
+  background: var(--cd-surface-2) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .filter-grid {
+  display: grid !important;
+  grid-template-columns: 2fr 1fr 1fr 1fr !important;
+  gap: 12px !important;
+  margin: 0 0 12px !important;
+}
+
+html body main.dashboard-shell .filter-grid-2 {
+  display: grid !important;
+  grid-template-columns: 1.5fr 1.5fr 1fr auto auto !important;
+  align-items: end !important;
+  gap: 12px !important;
+  margin: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-filter-field {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-filter-field .field-label {
+  display: block !important;
+  margin: 0 0 5px !important;
+  color: var(--cd-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .filter-input,
+html body main.dashboard-shell .filter-select {
+  width: 100% !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 10px !important;
+  background-color: var(--cd-surface) !important;
+  color: var(--cd-text-1) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+  outline: none !important;
+}
+
+html body main.dashboard-shell .filter-input {
+  padding: 8px 10px !important;
+}
+
+html body main.dashboard-shell .filter-select {
+  padding: 8px 28px 8px 10px !important;
+  color: var(--cd-text-2) !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239aa5b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+}
+
+html body main.dashboard-shell .filter-input:focus,
+html body main.dashboard-shell .filter-select:focus {
+  border-color: var(--cd-accent) !important;
+  background-color: #ffffff !important;
+}
+
+html body main.dashboard-shell .filter-input::placeholder {
+  color: var(--cd-text-3) !important;
+}
+
+html body main.dashboard-shell .client-data-filter-apply,
+html body main.dashboard-shell .client-data-filter-reset {
+  min-height: 36px !important;
+  height: 36px !important;
+  align-self: end !important;
+  padding: 7px 14px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .client-data-filter-apply {
+  border: 0 !important;
+  background: var(--cd-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .client-data-filter-reset {
+  border: 1px solid var(--cd-border) !important;
+  background: var(--cd-surface) !important;
+  color: var(--cd-text-2) !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tabs {
+  display: flex !important;
+  gap: 2px !important;
+  margin: 0 !important;
+  padding: 0 20px !important;
+  overflow-x: auto !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab {
+  min-width: 0 !important;
+  max-width: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+  padding: 10px 16px !important;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--cd-text-2) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab:hover {
+  background: var(--cd-surface-2) !important;
+  color: var(--cd-text-1) !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab.active {
+  border-color: var(--cd-accent) !important;
+  background: transparent !important;
+  color: var(--cd-accent) !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab strong {
+  display: inline !important;
+  overflow: visible !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  text-overflow: clip !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab .sheet-tab-count {
+  color: var(--cd-text-3) !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .client-data-source-sheet-tab.active .sheet-tab-count {
+  color: #7b83e6 !important;
+}
+
+html body main.dashboard-shell .table-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  margin: 0 !important;
+  padding: 12px 20px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  border-radius: 0 !important;
+  background: var(--cd-surface) !important;
+}
+
+html body main.dashboard-shell .table-toolbar .showing-count {
+  flex: 1 1 180px !important;
+  margin: 0 !important;
+  color: var(--cd-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .client-data-toolbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .toolbar-btn {
+  min-height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 10px !important;
+  background: var(--cd-surface) !important;
+  color: var(--cd-text-2) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+}
+
+html body main.dashboard-shell .toolbar-btn:hover {
+  background: var(--cd-surface-2) !important;
+}
+
+html body main.dashboard-shell .toolbar-btn.success {
+  border-color: var(--cd-emerald-100) !important;
+  background: var(--cd-emerald-50) !important;
+  color: var(--cd-emerald-600) !important;
+}
+
+html body main.dashboard-shell .toolbar-btn.add {
+  border-color: var(--cd-accent) !important;
+  background: var(--cd-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .toolbar-btn.danger:hover {
+  border-color: var(--cd-rose-100) !important;
+  background: var(--cd-rose-50) !important;
+  color: var(--cd-rose-600) !important;
+}
+
+html body main.dashboard-shell .toolbar-btn .ui-button-icon,
+html body main.dashboard-shell .toolbar-btn i {
+  font-size: 13px !important;
+}
+
+html body main.dashboard-shell .pagination-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 10px 20px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+}
+
+html body main.dashboard-shell .pagination-row .page-btn {
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  padding: 0 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--cd-text-2) !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .pagination-row .page-btn:hover {
+  background: var(--cd-surface-2) !important;
+}
+
+html body main.dashboard-shell .pagination-row .page-info {
+  margin: 0 4px !important;
+  color: var(--cd-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-sheet {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 560px !important;
+  margin: 0 !important;
+  overflow: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-directory-table .client-directory-excel-head,
+html body main.dashboard-shell .client-directory-table .client-directory-excel-row {
+  min-width: 1880px !important;
+  display: grid !important;
+  grid-template-columns: 44px 52px minmax(130px, 1fr) minmax(120px, .9fr) minmax(150px, 1fr) minmax(160px, 1.1fr) minmax(120px, .9fr) minmax(120px, .9fr) minmax(220px, 1.35fr) minmax(140px, .95fr) minmax(140px, .95fr) minmax(130px, .9fr) minmax(130px, .9fr) minmax(130px, .9fr) minmax(160px, 1fr) minmax(140px, .95fr) !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 3 !important;
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-head-cell,
+html body main.dashboard-shell .client-directory-excel-cell {
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  line-height: 1.35 !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-head-cell {
+  padding: 10px 14px !important;
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+  color: var(--cd-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-head-cell:first-child,
+html body main.dashboard-shell .client-directory-excel-cell:first-child {
+  padding-left: 20px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-data-table-head span:nth-child(1),
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-data-table-head span:nth-child(2) {
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-data-table-row span:nth-child(1),
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-data-table-row span:nth-child(2) {
+  background: var(--cd-surface) !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-directory-excel-row.client-directory-duplicate-row span:nth-child(1),
+html body main.dashboard-shell .client-data-page .client-directory-excel-sheet .client-directory-excel-row.client-directory-duplicate-row span:nth-child(2) {
+  background: #fff5f5 !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-cell {
+  padding: 12px 14px !important;
+  color: var(--cd-text-2) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-row:last-child .client-directory-excel-cell {
+  border-bottom: 0 !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-row:not(.client-directory-duplicate-row):hover .client-directory-excel-cell {
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-cell:nth-child(2) {
+  color: var(--cd-text-3) !important;
+  font-family: 'DM Mono', monospace !important;
+  font-size: 12px !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-head-cell input[type='checkbox'],
+html body main.dashboard-shell .client-directory-excel-cell input[type='checkbox'] {
+  width: 14px !important;
+  height: 14px !important;
+  accent-color: var(--cd-accent) !important;
+}
+
+html body main.dashboard-shell .client-list-sheet-cell-wrap {
+  display: block !important;
+  padding: 0 !important;
+}
+
+html body main.dashboard-shell .client-list-sheet-cell {
+  width: 100% !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  background-image: none !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .client-list-sheet-cell:hover {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-list-sheet-cell.active,
+html body main.dashboard-shell .client-list-sheet-cell:focus {
+  padding: 0 6px !important;
+  border-color: var(--cd-accent) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: 0 0 0 1px rgba(79, 91, 213, .15) !important;
+  outline: none !important;
+}
+
+html body main.dashboard-shell .client-list-sheet-cell.edited {
+  background: #fffbeb !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell,
+html body main.dashboard-shell .client-directory-excel-row.client-directory-duplicate-row:hover .client-directory-excel-cell {
+  border-bottom-color: #ffe4e6 !important;
+  background: #fff5f5 !important;
+  background-image: none !important;
+  color: var(--cd-text-2) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-directory-card .client-directory-excel-sheet .client-directory-excel-row.client-directory-duplicate-row .client-directory-excel-cell:not(:nth-child(1)):not(:nth-child(2)),
+html body main.dashboard-shell .client-data-page .client-data-directory-card .client-directory-excel-sheet .client-directory-excel-row.client-directory-duplicate-row:hover .client-directory-excel-cell:not(:nth-child(1)):not(:nth-child(2)) {
+  border-bottom-color: #ffe4e6 !important;
+  background: #fff5f5 !important;
+  background-image: none !important;
+  color: var(--cd-text-2) !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell {
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-row.client-directory-duplicate-row .client-list-sheet-cell.invalid,
+html body main.dashboard-shell .client-list-sheet-cell.invalid {
+  padding: 0 6px !important;
+  border-color: #ef4444 !important;
+  background: #fff1f2 !important;
+  background-image: none !important;
+  color: #991b1b !important;
+}
+
+html body main.dashboard-shell .legend {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  padding: 10px 20px !important;
+  border-top: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface-2) !important;
+}
+
+html body main.dashboard-shell .legend-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  color: var(--cd-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .legend-dot {
+  width: 10px !important;
+  height: 10px !important;
+  display: inline-block !important;
+  border-radius: 2px !important;
+}
+
+html body main.dashboard-shell .legend-dot.repeated {
+  border: 1px solid #fecdd3 !important;
+  background: var(--cd-rose-100) !important;
+}
+
+html body main.dashboard-shell .client-data-mobile-list {
+  display: none !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-sheet::-webkit-scrollbar,
+html body main.dashboard-shell .client-data-source-sheet-tabs::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-sheet::-webkit-scrollbar-track,
+html body main.dashboard-shell .client-data-source-sheet-tabs::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+html body main.dashboard-shell .client-directory-excel-sheet::-webkit-scrollbar-thumb,
+html body main.dashboard-shell .client-data-source-sheet-tabs::-webkit-scrollbar-thumb {
+  border-radius: 3px !important;
+  background: var(--cd-border) !important;
+}
+
+@media (max-width: 1100px) {
+  html body main.dashboard-shell .filter-grid,
+  html body main.dashboard-shell .filter-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body main.dashboard-shell .client-data-page {
+    padding: 16px !important;
+  }
+
+  html body main.dashboard-shell .client-data-page-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  html body main.dashboard-shell .client-data-section-switcher {
+    justify-content: flex-start !important;
+  }
+
+  html body main.dashboard-shell .filter-grid,
+  html body main.dashboard-shell .filter-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body main.dashboard-shell .client-data-table-desktop {
+    display: none !important;
+  }
+
+  html body main.dashboard-shell .client-data-mobile-list {
+    display: grid !important;
+    gap: 10px !important;
+    padding: 12px 20px 16px !important;
+  }
+}
+
+/* Reference table renderer. This intentionally wins over the older editable grid rules. */
+html body main.dashboard-shell .client-data-page .client-data-reference-table-wrap {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table {
+  display: table !important;
+  width: max-content !important;
+  min-width: 1920px !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  table-layout: auto !important;
+  background: var(--cd-surface) !important;
+  color: var(--cd-text-2) !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table thead {
+  display: table-header-group !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table tbody {
+  display: table-row-group !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table tr {
+  display: table-row !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table thead tr {
+  background: var(--cd-surface-2) !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th {
+  display: table-cell !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 3 !important;
+  padding: 10px 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+  color: var(--cd-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  line-height: 1.35 !important;
+  text-align: left !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:first-child,
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:first-child {
+  width: 44px !important;
+  padding-left: 20px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(2),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(2) {
+  width: 52px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(n+3),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(n+3) {
+  min-width: 126px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(3),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(3) {
+  min-width: 140px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(4),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(4) {
+  min-width: 130px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(5),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(5) {
+  min-width: 155px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(6),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(6) {
+  min-width: 160px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(7),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(7),
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(8),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(8) {
+  min-width: 130px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(9),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(9) {
+  min-width: 230px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(10),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(10),
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(11),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(11) {
+  min-width: 155px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(16),
+html body main.dashboard-shell .client-data-page .client-data-reference-table td:nth-child(16) {
+  min-width: 170px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table td {
+  display: table-cell !important;
+  height: 45px !important;
+  padding: 12px 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+  background-image: none !important;
+  color: var(--cd-text-2) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table tbody tr:not(.repeated):hover td {
+  background: var(--cd-surface-2) !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table tbody tr.repeated td,
+html body main.dashboard-shell .client-data-page .client-data-reference-table tbody tr.repeated:hover td {
+  border-bottom-color: #ffe4e6 !important;
+  background: #fff5f5 !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-row-number {
+  color: var(--cd-text-3) !important;
+  font-family: 'DM Mono', monospace !important;
+  font-size: 12px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table input[type='checkbox'] {
+  width: 14px !important;
+  height: 14px !important;
+  accent-color: var(--cd-accent) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell-wrap {
+  min-width: 0 !important;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 26px !important;
+  outline: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.name-cell {
+  color: var(--cd-text-1) !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell:hover {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.active,
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell:focus {
+  padding: 0 6px !important;
+  border-color: var(--cd-accent) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: 0 0 0 1px rgba(79, 91, 213, .15) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.edited {
+  padding: 0 6px !important;
+  background: #fffbeb !important;
+  background-image: none !important;
+  color: #92400e !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.invalid {
+  padding: 0 6px !important;
+  border-color: #ef4444 !important;
+  background: #fff1f2 !important;
+  background-image: none !important;
+  color: #991b1b !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table-wrap::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table-wrap::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table-wrap::-webkit-scrollbar-thumb {
+  border-radius: 3px !important;
+  background: var(--cd-border) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-source-sheet-tabs .client-data-source-sheet-tab {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-source-sheet-tabs .client-data-source-sheet-tab strong,
+html body main.dashboard-shell .client-data-page .client-data-source-sheet-tabs .client-data-source-sheet-tab .sheet-tab-count {
+  display: inline !important;
+  width: auto !important;
+  margin: 0 !important;
+}
+
+/* Match the reference styling across the other Client Data inner tabs. */
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card),
+html body main.dashboard-shell .client-data-page .client-data-history-panel,
+html body main.dashboard-shell .client-data-page .client-data-bin-panel {
+  overflow: hidden !important;
+  padding: 0 !important;
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 18px !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+  color: var(--cd-text-1) !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) > .client-data-panel-head,
+html body main.dashboard-shell .client-data-page .client-data-history-panel > .client-data-panel-head,
+html body main.dashboard-shell .client-data-page .client-data-bin-panel > .client-data-panel-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 !important;
+  padding: 18px 20px 16px !important;
+  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  background: var(--cd-surface) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) .ui-card-content,
+html body main.dashboard-shell .client-data-page .client-data-history-panel,
+html body main.dashboard-shell .client-data-page .client-data-bin-panel {
+  padding: 16px 20px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-upload-compact-panel .ui-card-content,
+html body main.dashboard-shell .client-data-page .client-data-paste-panel .ui-card-content {
+  padding: 16px 20px !important;
+  background: var(--cd-surface-2) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) h2,
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) h3,
+html body main.dashboard-shell .client-data-page .client-data-history-panel h3,
+html body main.dashboard-shell .client-data-page .client-data-bin-panel h3 {
+  margin: 0 !important;
+  color: var(--cd-text-1) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) p,
+html body main.dashboard-shell .client-data-page .client-data-clientlist-stack > .client-data-panel:not(.client-data-directory-card) span,
+html body main.dashboard-shell .client-data-page .client-data-history-panel p,
+html body main.dashboard-shell .client-data-page .client-data-bin-panel p {
+  color: var(--cd-text-2) !important;
+  font-size: 13px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-health-list,
+html body main.dashboard-shell .client-data-page .client-data-bin-list,
+html body main.dashboard-shell .client-data-page .client-data-history-list {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-health-list > div,
+html body main.dashboard-shell .client-data-page .client-data-bin-card,
+html body main.dashboard-shell .client-data-page .client-data-history-card,
+html body main.dashboard-shell .client-data-page .client-data-bin-empty {
+  padding: 12px 14px !important;
+  border: 1px solid var(--cd-border-subtle) !important;
+  border-radius: 10px !important;
+  background: var(--cd-surface) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-health-list strong,
+html body main.dashboard-shell .client-data-page .client-data-bin-card strong,
+html body main.dashboard-shell .client-data-page .client-data-history-card strong,
+html body main.dashboard-shell .client-data-page .client-data-bin-empty strong {
+  color: var(--cd-text-1) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-health-list span,
+html body main.dashboard-shell .client-data-page .client-data-bin-card span,
+html body main.dashboard-shell .client-data-page .client-data-bin-card small,
+html body main.dashboard-shell .client-data-page .client-data-history-card span,
+html body main.dashboard-shell .client-data-page .client-data-history-card small {
+  color: var(--cd-text-3) !important;
+  font-size: 12px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-paste-actions,
+html body main.dashboard-shell .client-data-page .client-data-filter-actions,
+html body main.dashboard-shell .client-data-page .client-data-custom-actions {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-paste-actions .ui-button,
+html body main.dashboard-shell .client-data-page .client-data-filter-actions .ui-button,
+html body main.dashboard-shell .client-data-page .client-data-custom-actions .ui-button,
+html body main.dashboard-shell .client-data-page .client-data-panel-head .ui-button,
+html body main.dashboard-shell .client-data-modal .ui-button {
+  min-height: 30px !important;
+  padding: 6px 12px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .client-data-modal {
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 18px !important;
+  background: var(--cd-surface) !important;
+  box-shadow: 0 18px 48px rgba(17, 24, 39, .12) !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}
+
+html body main.dashboard-shell .client-data-modal .input,
+html body main.dashboard-shell .client-data-modal textarea {
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 10px !important;
+  background: var(--cd-surface) !important;
+  color: var(--cd-text-1) !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+}
+
+@media (max-width: 760px) {
+  html body main.dashboard-shell .client-data-page .client-data-reference-table-wrap.client-data-table-desktop {
+    display: block !important;
+  }
+
+  html body main.dashboard-shell .client-data-page .client-data-mobile-list {
+    display: none !important;
+  }
+}

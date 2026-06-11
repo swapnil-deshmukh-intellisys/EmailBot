@@ -4149,6 +4149,7 @@ p {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   min-height: 44px;
   color: var(--draft-text-1);
   font-size: 13.5px;
@@ -5479,6 +5480,7 @@ p {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   color: var(--draft-text-1);
   font-size: 14px;
   font-weight: 800;
@@ -6379,6 +6381,7 @@ p {
 .premium-kpi-card span {
   display: -webkit-box;
   -webkit-line-clamp: 1;
+  line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 11px;
@@ -6649,6 +6652,7 @@ p {
   line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: normal;
   overflow-wrap: normal;
@@ -11500,6 +11504,7 @@ p {
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -11526,6 +11531,7 @@ p {
   color: rgba(15, 23, 42, 0.72);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -11537,6 +11543,7 @@ p {
   color: rgba(15, 23, 42, 0.56);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -16286,6 +16293,7 @@ html.theme-dark .warmup-editor-textarea {
   max-width: 100%;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -16297,6 +16305,7 @@ html.theme-dark .warmup-editor-textarea {
   max-width: 100%;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -25624,6 +25633,7 @@ html[data-theme='dark'] .campaign-mail-cell-ok {
   font-size: 13px;
   line-height: 1.45;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -28859,6 +28869,7 @@ option,
   line-height: 1.3 !important;
   text-align: center !important;
   -webkit-line-clamp: 3 !important;
+  line-clamp: 3 !important;
 }
 
 .premium-dashboard-shell .premium-step-card strong>span:last-child {
@@ -36090,14 +36101,14 @@ html body main.dashboard-shell .sales-work-modal-actions button:last-child {
 }
 
 /* Daily Timeline & Planning Center */
-html body main.dashboard-shell .bottom-grid {
+html body main.dashboard-shell .dashboard-bottom-grid {
   display: grid !important;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.85fr) !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 16px !important;
-  align-items: stretch !important;
+  align-items: start !important;
 }
 
-html body main.dashboard-shell .bottom-grid>.panel {
+html body main.dashboard-shell .dashboard-bottom-grid>.panel {
   min-width: 0 !important;
 }
 
@@ -36214,6 +36225,38 @@ html body main.dashboard-shell .planning-filters button:hover {
   color: #4f46e5 !important;
 }
 
+html body main.dashboard-shell .planning-filter-selects {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+html body main.dashboard-shell .planning-filter-selects label {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 4px !important;
+}
+
+html body main.dashboard-shell .planning-filter-selects span {
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .planning-filter-selects select {
+  width: 100% !important;
+  min-height: 32px !important;
+  padding: 0 10px !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+
 html body main.dashboard-shell .planning-list {
   flex: 1 1 auto !important;
   min-height: 0 !important;
@@ -36223,6 +36266,27 @@ html body main.dashboard-shell .planning-list {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   padding-right: 2px !important;
+}
+
+html body main.dashboard-shell .planning-day-group {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+html body main.dashboard-shell .planning-day-label {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 5px 10px !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
 }
 
 html body main.dashboard-shell .planning-task {
@@ -36352,17 +36416,17 @@ html body main.dashboard-shell .planning-modal {
 }
 
 @media (max-width: 1365px) {
-  html body main.dashboard-shell .bottom-grid {
+  html body main.dashboard-shell .dashboard-bottom-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   }
 
   html body main.dashboard-shell .planning-center-card {
-    grid-column: 1 / -1 !important;
+    grid-column: auto !important;
   }
 }
 
 @media (max-width: 760px) {
-  html body main.dashboard-shell .bottom-grid {
+  html body main.dashboard-shell .dashboard-bottom-grid {
     grid-template-columns: 1fr !important;
   }
 
@@ -36370,12 +36434,16 @@ html body main.dashboard-shell .planning-modal {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
+  html body main.dashboard-shell .planning-filter-selects {
+    grid-template-columns: 1fr !important;
+  }
+
   html body main.dashboard-shell .planning-task {
     grid-template-columns: 1fr !important;
   }
 }
 
-/* Dashboard bottom area: Activity Timeline | Workspace Overview */
+/* Dashboard bottom area: Planning Center | Activity Timeline | Workspace Overview */
 html body main.dashboard-shell .dashboard-bottom-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -36383,11 +36451,51 @@ html body main.dashboard-shell .dashboard-bottom-grid {
   align-items: stretch !important;
 }
 
-html body main.dashboard-shell .dashboard-bottom-grid>.panel {
+html body main.dashboard-shell .dashboard-bottom-grid>.panel,
+html body main.dashboard-shell .dashboard-bottom-stack>.panel {
   min-width: 0 !important;
-  min-height: 360px !important;
   display: flex !important;
   flex-direction: column !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-grid>.panel {
+  min-height: 360px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-grid>.planning-center-card {
+  grid-column: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 520px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack {
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 520px !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  align-content: stretch !important;
+  gap: 16px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack>.panel {
+  min-height: 0 !important;
+}
+
+html body main.dashboard-shell .activity-timeline-card,
+html body main.dashboard-shell .workspace-overview-card {
+  padding: 16px !important;
+  overflow: hidden !important;
+}
+
+html body main.dashboard-shell .activity-timeline-card {
+  min-height: 0 !important;
+}
+
+html body main.dashboard-shell .workspace-overview-card {
+  min-height: 0 !important;
 }
 
 html body main.dashboard-shell .dashboard-bottom-grid .activity-list {
@@ -36405,6 +36513,20 @@ html body main.dashboard-shell .dashboard-bottom-grid .ws-stats {
 @media (max-width: 1023px) {
   html body main.dashboard-shell .dashboard-bottom-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  html body main.dashboard-shell .dashboard-bottom-stack {
+    height: auto !important;
+    min-height: 0 !important;
+    grid-template-rows: none !important;
+  }
+
+  html body main.dashboard-shell .dashboard-bottom-stack>.panel {
+    min-height: 0 !important;
+  }
+
+  html body main.dashboard-shell .dashboard-bottom-grid>.planning-center-card {
+    min-height: 0 !important;
   }
 }
 
@@ -36804,6 +36926,7 @@ html body main.dashboard-shell .campaign-name-link {
   line-height: 1.25 !important;
   text-decoration: none !important;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden !important;
 }
@@ -37190,6 +37313,7 @@ html body main.dashboard-shell .campaign-detail-head h2 {
   display: -webkit-box !important;
   max-width: 820px !important;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden !important;
   overflow-wrap: anywhere !important;
@@ -37217,6 +37341,7 @@ html body main.dashboard-shell .campaign-detail-metric-grid article:nth-child(15
 html body main.dashboard-shell .campaign-detail-metric-grid article:nth-child(15) strong {
   display: -webkit-box !important;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden !important;
 }
@@ -37280,6 +37405,7 @@ html body main.dashboard-shell .campaign-detail-timeline .dashboard-subscription
   font-size: 12px !important;
   font-weight: 900 !important;
   -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 html body main.dashboard-shell .campaign-detail-timeline .dashboard-subscription-transaction-list span {
@@ -37287,6 +37413,7 @@ html body main.dashboard-shell .campaign-detail-timeline .dashboard-subscription
   font-size: 11px !important;
   font-weight: 750 !important;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 html body main.dashboard-shell .campaign-detail-timeline .dashboard-subscription-transaction-list b {
@@ -37843,6 +37970,7 @@ body .dashboard-shell>.app-layout-main {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1; /* Limit title to 1 line for compact card height */
+  line-clamp: 1;
   margin: 0;
   overflow: hidden;
   color: #0f172a;
@@ -37873,6 +38001,7 @@ body .dashboard-shell>.app-layout-main {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
   min-height: 54px;
 }
@@ -38365,3 +38494,1350 @@ body .dashboard-shell>.app-layout-main {
   .dl-modal-action{width:100%;justify-content:center}
 }
 @media(max-width:400px){.dl-stat-grid{grid-template-columns:1fr}}
+
+/* Campaign page reference redesign: mirrors intellimail-campaigns.html while keeping live app wiring. */
+html body main.dashboard-shell .campaigns-modern-page {
+  --campaign-bg: #f5f6f8;
+  --campaign-surface: #ffffff;
+  --campaign-surface-2: #f8f9fb;
+  --campaign-border: #e8ecf1;
+  --campaign-border-subtle: #f0f2f5;
+  --campaign-text-1: #111827;
+  --campaign-text-2: #4a5568;
+  --campaign-text-3: #9aa5b4;
+  --campaign-accent: #4f5bd5;
+  --campaign-accent-light: #eef0fd;
+  --campaign-indigo-100: #d5d9f8;
+  --campaign-indigo-400: #7b83e6;
+  --campaign-indigo-700: #2f3aaa;
+  --campaign-emerald-50: #ecfdf5;
+  --campaign-emerald-600: #059669;
+  --campaign-amber-50: #fffbeb;
+  --campaign-amber-600: #d97706;
+  --campaign-rose-50: #fff1f2;
+  --campaign-rose-500: #f43f5e;
+  --campaign-rose-600: #e11d48;
+  --campaign-sky-50: #f0f9ff;
+  --campaign-sky-500: #0ea5e9;
+  gap: 20px !important;
+  padding: 24px !important;
+  background: var(--campaign-bg) !important;
+  color: var(--campaign-text-1) !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-page *,
+html body main.dashboard-shell .campaigns-modern-page *::before,
+html body main.dashboard-shell .campaigns-modern-page *::after {
+  box-sizing: border-box !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-hero {
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaigns-page-kicker,
+html body main.dashboard-shell .campaigns-modern-page .table-eyebrow {
+  display: block !important;
+  margin: 0 0 4px !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .08em !important;
+  line-height: 1.3 !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-hero h1 {
+  margin: 0 !important;
+  color: var(--campaign-text-1) !important;
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button {
+  min-height: 34px !important;
+  padding: 7px 14px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  transform: none !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-secondary {
+  border: 1px solid var(--campaign-border) !important;
+  background: var(--campaign-surface) !important;
+  color: var(--campaign-text-2) !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-primary {
+  border: 0 !important;
+  background: var(--campaign-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button:hover {
+  transform: none !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-secondary:hover {
+  border-color: #cbd2dc !important;
+  color: var(--campaign-text-1) !important;
+  background: var(--campaign-surface) !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-primary:hover {
+  background: var(--campaign-indigo-700) !important;
+}
+
+html body main.dashboard-shell .campaign-count-grid {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+html body main.dashboard-shell .campaign-count-row {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+html body main.dashboard-shell .campaign-count-row-top {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+html body main.dashboard-shell .campaign-count-row-bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  margin-top: -8px !important;
+}
+
+html body main.dashboard-shell .campaign-count-card,
+html body main.dashboard-shell .campaign-count-card.stat-card {
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 16px 18px !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 14px !important;
+  background: var(--campaign-surface) !important;
+  box-shadow: none !important;
+  transition: box-shadow .15s !important;
+}
+
+html body main.dashboard-shell .campaign-count-card:hover {
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04) !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-glow {
+  display: none !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-head,
+html body main.dashboard-shell .campaign-count-card .stat-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .campaign-count-label,
+html body main.dashboard-shell .campaign-count-card .stat-label {
+  min-width: 0 !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  line-height: 1.2 !important;
+  text-align: left !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .campaign-count-icon,
+html body main.dashboard-shell .campaign-count-card .stat-icon {
+  width: 30px !important;
+  height: 30px !important;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  font-size: 15px !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-total .campaign-count-icon { background: var(--campaign-accent-light) !important; color: var(--campaign-accent) !important; }
+html body main.dashboard-shell .campaign-count-card-running .campaign-count-icon { background: var(--campaign-sky-50) !important; color: var(--campaign-sky-500) !important; }
+html body main.dashboard-shell .campaign-count-card-paused .campaign-count-icon { background: var(--campaign-amber-50) !important; color: #f59e0b !important; }
+html body main.dashboard-shell .campaign-count-card-failed .campaign-count-icon { background: var(--campaign-rose-50) !important; color: var(--campaign-rose-500) !important; }
+html body main.dashboard-shell .campaign-count-card-incomplete .campaign-count-icon { background: #fff7ed !important; color: #ea580c !important; }
+html body main.dashboard-shell .campaign-count-card-completed .campaign-count-icon { background: var(--campaign-emerald-50) !important; color: #10b981 !important; }
+html body main.dashboard-shell .campaign-count-card-scheduled .campaign-count-icon { background: var(--campaign-accent-light) !important; color: var(--campaign-indigo-400) !important; }
+
+html body main.dashboard-shell .campaign-count-card strong,
+html body main.dashboard-shell .campaign-count-card .stat-num {
+  display: block !important;
+  margin: 0 !important;
+  color: var(--campaign-text-1) !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+}
+
+html body main.dashboard-shell .campaign-count-percent,
+html body main.dashboard-shell .campaign-count-card .stat-pct {
+  display: block !important;
+  width: auto !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+}
+
+html body main.dashboard-shell .campaign-panel,
+html body main.dashboard-shell .campaign-panel.table-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 18px !important;
+  background: var(--campaign-surface) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html body main.dashboard-shell .campaign-table-header,
+html body main.dashboard-shell .campaign-panel .table-header {
+  padding: 16px 20px 14px !important;
+  border-bottom: 1px solid var(--campaign-border-subtle) !important;
+}
+
+html body main.dashboard-shell .campaign-panel-head,
+html body main.dashboard-shell .campaign-panel .table-header-top {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 0 14px !important;
+}
+
+html body main.dashboard-shell .campaign-panel-head h2,
+html body main.dashboard-shell .campaign-panel .table-title {
+  margin: 0 !important;
+  color: var(--campaign-text-1) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.25 !important;
+}
+
+html body main.dashboard-shell .campaign-panel-total {
+  flex: 0 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  text-align: right !important;
+}
+
+html body main.dashboard-shell .campaign-toolbar,
+html body main.dashboard-shell .campaign-panel .table-controls {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin: 0 !important;
+}
+
+html body main.dashboard-shell .campaign-search-field,
+html body main.dashboard-shell .campaign-panel .search-wrapper {
+  position: relative !important;
+  flex: 1 1 220px !important;
+  min-width: 220px !important;
+  display: block !important;
+}
+
+html body main.dashboard-shell .campaign-search-field span,
+html body main.dashboard-shell .campaign-select-field span {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .campaign-search-icon,
+html body main.dashboard-shell .campaign-panel .search-wrapper .si {
+  position: absolute !important;
+  left: 9px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 14px !important;
+  pointer-events: none !important;
+}
+
+html body main.dashboard-shell .campaign-search-field input,
+html body main.dashboard-shell .campaign-panel .table-search {
+  width: 100% !important;
+  min-height: 34px !important;
+  padding: 7px 10px 7px 32px !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 10px !important;
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-1) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  outline: none !important;
+}
+
+html body main.dashboard-shell .campaign-search-field input:focus {
+  border-color: var(--campaign-accent) !important;
+  background: #ffffff !important;
+}
+
+html body main.dashboard-shell .campaign-select-field {
+  position: relative !important;
+  display: block !important;
+  min-width: 132px !important;
+}
+
+html body main.dashboard-shell .campaign-select-field select,
+html body main.dashboard-shell .campaign-panel .mini-select {
+  width: 100% !important;
+  min-height: 34px !important;
+  padding: 7px 28px 7px 10px !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 10px !important;
+  background-color: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-2) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  outline: none !important;
+  appearance: none !important;
+}
+
+html body main.dashboard-shell .campaign-toolbar-refresh.icon-btn {
+  width: 34px !important;
+  height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 10px !important;
+  background: var(--campaign-surface) !important;
+  color: var(--campaign-text-3) !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+}
+
+html body main.dashboard-shell .campaign-toolbar-refresh.icon-btn:hover {
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-2) !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 2px !important;
+  margin: 0 !important;
+  padding: 0 20px !important;
+  border-bottom: 1px solid var(--campaign-border-subtle) !important;
+  overflow-x: auto !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs button {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  min-height: 31px !important;
+  padding: 6px 14px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px 10px 0 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--campaign-text-2) !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs button:hover {
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-1) !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs button.active {
+  border-color: var(--campaign-border) var(--campaign-border) var(--campaign-surface) !important;
+  background: var(--campaign-surface) !important;
+  color: var(--campaign-accent) !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .campaign-table-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--campaign-surface) !important;
+  box-shadow: none !important;
+  overflow: auto !important;
+}
+
+html body main.dashboard-shell .campaign-table,
+html body main.dashboard-shell .campaign-table.data-table {
+  width: 100% !important;
+  min-width: 1180px !important;
+  border-collapse: collapse !important;
+  background: var(--campaign-surface) !important;
+  table-layout: auto !important;
+}
+
+html body main.dashboard-shell .campaign-table thead {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+}
+
+html body main.dashboard-shell .campaign-table thead tr {
+  border-bottom: 1px solid var(--campaign-border-subtle) !important;
+  background: var(--campaign-surface-2) !important;
+}
+
+html body main.dashboard-shell .campaign-table th,
+html body main.dashboard-shell .campaign-table td {
+  max-width: none !important;
+  padding: 13px 14px !important;
+  border-bottom: 1px solid var(--campaign-border-subtle) !important;
+  color: var(--campaign-text-2) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.35 !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .campaign-table th {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .campaign-table th:first-child,
+html body main.dashboard-shell .campaign-table td:first-child {
+  width: 44px !important;
+  padding-left: 20px !important;
+}
+
+html body main.dashboard-shell .campaign-table th:nth-child(2),
+html body main.dashboard-shell .campaign-table td:nth-child(2) {
+  width: 82px !important;
+}
+
+html body main.dashboard-shell .campaign-table th:nth-child(3),
+html body main.dashboard-shell .campaign-table td:nth-child(3) {
+  min-width: 250px !important;
+  white-space: normal !important;
+}
+
+html body main.dashboard-shell .campaign-table th:nth-child(13),
+html body main.dashboard-shell .campaign-table td:nth-child(13) {
+  width: 54px !important;
+  padding-right: 20px !important;
+}
+
+html body main.dashboard-shell .campaign-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+html body main.dashboard-shell .campaign-table tbody tr:hover td {
+  background: var(--campaign-surface-2) !important;
+}
+
+html body main.dashboard-shell .campaign-table input[type="checkbox"],
+html body main.dashboard-shell .campaign-table-footer input[type="checkbox"] {
+  accent-color: var(--campaign-accent) !important;
+}
+
+html body main.dashboard-shell .num-cell,
+html body main.dashboard-shell .campaign-failure-rate {
+  font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: 12.5px !important;
+}
+
+html body main.dashboard-shell .campaign-name-cell {
+  display: grid !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+html body main.dashboard-shell .campaign-name-link,
+html body main.dashboard-shell .campaign-link {
+  width: fit-content !important;
+  max-width: 100% !important;
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--campaign-text-1) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+  text-decoration: none !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+  cursor: pointer !important;
+}
+
+html body main.dashboard-shell .campaign-name-link:hover,
+html body main.dashboard-shell .campaign-name-link:focus-visible {
+  color: var(--campaign-accent) !important;
+  outline: none !important;
+}
+
+html body main.dashboard-shell .campaign-meta {
+  margin-top: 2px !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+}
+
+html body main.dashboard-shell .campaign-project-cell {
+  color: var(--campaign-text-2) !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .campaign-status-badge.tag-pill,
+html body main.dashboard-shell .campaign-status-badge.ui-badge {
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  padding: 3px 9px !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .campaign-status-badge::before {
+  content: '' !important;
+  width: 5px !important;
+  height: 5px !important;
+  flex: 0 0 auto !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+}
+
+html body main.dashboard-shell .campaign-status-badge .ui-badge-label {
+  color: currentColor !important;
+  font: inherit !important;
+}
+
+html body main.dashboard-shell .campaign-status-badge.tag-completed { background: var(--campaign-emerald-50) !important; color: var(--campaign-emerald-600) !important; }
+html body main.dashboard-shell .campaign-status-badge.tag-running { background: var(--campaign-sky-50) !important; color: var(--campaign-sky-500) !important; }
+html body main.dashboard-shell .campaign-status-badge.tag-paused { background: var(--campaign-amber-50) !important; color: var(--campaign-amber-600) !important; }
+html body main.dashboard-shell .campaign-status-badge.tag-failed { background: var(--campaign-rose-50) !important; color: var(--campaign-rose-600) !important; }
+html body main.dashboard-shell .campaign-status-badge.tag-incomplete { background: #fff7ed !important; color: #ea580c !important; }
+html body main.dashboard-shell .campaign-status-badge.tag-scheduled { background: var(--campaign-accent-light) !important; color: #3d4bc8 !important; }
+
+html body main.dashboard-shell .campaign-response-cell {
+  color: var(--campaign-text-2) !important;
+  font-size: 13px !important;
+}
+
+html body main.dashboard-shell .campaign-failure-rate {
+  color: var(--campaign-text-3) !important;
+}
+
+html body main.dashboard-shell .campaign-failure-rate.is-danger {
+  color: var(--campaign-rose-500) !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .campaign-row-actions-cell {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+html body main.dashboard-shell .campaign-row-actions {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+html body main.dashboard-shell .campaign-row-actions summary {
+  list-style: none !important;
+}
+
+html body main.dashboard-shell .campaign-row-actions summary::-webkit-details-marker {
+  display: none !important;
+}
+
+html body main.dashboard-shell .table-action-btn {
+  width: 28px !important;
+  height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 6px !important;
+  background: var(--campaign-surface) !important;
+  color: var(--campaign-text-3) !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  transition: all .12s !important;
+}
+
+html body main.dashboard-shell .table-action-btn:hover {
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-2) !important;
+}
+
+html body main.dashboard-shell .campaign-row-action-menu {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  right: 0 !important;
+  z-index: 12 !important;
+  width: 190px !important;
+  display: none !important;
+  gap: 6px !important;
+  padding: 8px !important;
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 12px !important;
+  background: var(--campaign-surface) !important;
+  box-shadow: 0 12px 34px rgba(17, 24, 39, .14) !important;
+}
+
+html body main.dashboard-shell .campaign-row-actions[open] .campaign-row-action-menu {
+  display: grid !important;
+}
+
+html body main.dashboard-shell .campaign-row-action-menu .ui-button {
+  width: 100% !important;
+  min-height: 30px !important;
+  justify-content: flex-start !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  transform: none !important;
+}
+
+html body main.dashboard-shell .campaign-row-action-menu .ui-button-primary {
+  border-color: transparent !important;
+  background: var(--campaign-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .campaign-row-action-menu .ui-button-secondary {
+  border: 1px solid var(--campaign-border) !important;
+  background: var(--campaign-surface) !important;
+  color: var(--campaign-text-2) !important;
+}
+
+html body main.dashboard-shell .campaign-row-action-menu .ui-button-danger {
+  border: 1px solid #ffe4e6 !important;
+  background: var(--campaign-rose-50) !important;
+  color: var(--campaign-rose-600) !important;
+}
+
+html body main.dashboard-shell .campaign-table-footer,
+html body main.dashboard-shell .campaign-panel .table-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 12px 20px !important;
+  border-top: 1px solid var(--campaign-border-subtle) !important;
+  background: var(--campaign-surface) !important;
+}
+
+html body main.dashboard-shell .tf-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: var(--campaign-text-3) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .pagination {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+html body main.dashboard-shell .page-btn {
+  min-width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--campaign-text-2) !important;
+  box-shadow: none !important;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+}
+
+html body main.dashboard-shell .page-btn:hover {
+  background: var(--campaign-surface-2) !important;
+}
+
+html body main.dashboard-shell .page-btn.active {
+  background: var(--campaign-accent) !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .page-btn.arrow,
+html body main.dashboard-shell .campaign-pagination-ellipsis {
+  color: var(--campaign-text-3) !important;
+}
+
+html body main.dashboard-shell .campaign-pagination-ellipsis {
+  padding: 0 4px !important;
+  font-size: 12px !important;
+}
+
+html body main.dashboard-shell .campaign-empty-state,
+html body main.dashboard-shell .campaign-table-loading {
+  margin: 20px !important;
+  border: 1px dashed var(--campaign-border) !important;
+  border-radius: 14px !important;
+  padding: 28px !important;
+  background: var(--campaign-surface-2) !important;
+  color: var(--campaign-text-3) !important;
+  text-align: center !important;
+}
+
+html body main.dashboard-shell .campaign-alert {
+  margin: 14px 20px 0 !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .campaign-mobile-list {
+  display: none !important;
+}
+
+html body main.dashboard-shell .campaign-mobile-card {
+  border: 1px solid var(--campaign-border) !important;
+  border-radius: 14px !important;
+  background: var(--campaign-surface) !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-page ::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-page ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-page ::-webkit-scrollbar-thumb {
+  border-radius: 3px !important;
+  background: var(--campaign-border) !important;
+}
+
+@media (max-width: 1180px) {
+  html body main.dashboard-shell .campaign-count-row-top,
+  html body main.dashboard-shell .campaign-count-row-bottom {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    margin-top: 0 !important;
+  }
+
+  html body main.dashboard-shell .campaign-table-wrap {
+    display: none !important;
+  }
+
+  html body main.dashboard-shell .campaign-mobile-list {
+    display: grid !important;
+    gap: 12px !important;
+    padding: 20px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  html body main.dashboard-shell .campaigns-modern-page {
+    padding: 16px !important;
+  }
+
+  html body main.dashboard-shell .campaigns-modern-hero,
+  html body main.dashboard-shell .campaign-panel-head {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  html body main.dashboard-shell .campaigns-hero-actions {
+    justify-content: flex-start !important;
+  }
+
+  html body main.dashboard-shell .campaign-toolbar {
+    align-items: stretch !important;
+  }
+
+  html body main.dashboard-shell .campaign-search-field,
+  html body main.dashboard-shell .campaign-select-field {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  html body main.dashboard-shell .campaign-table-footer {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html body main.dashboard-shell .campaign-count-row-top,
+  html body main.dashboard-shell .campaign-count-row-bottom {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body main.dashboard-shell .campaigns-hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+  }
+
+  html body main.dashboard-shell .campaigns-hero-actions .ui-button {
+    width: 100% !important;
+  }
+
+  html body main.dashboard-shell .campaign-status-tabs {
+    padding-inline: 14px !important;
+  }
+
+  html body main.dashboard-shell .campaign-table-header,
+  html body main.dashboard-shell .campaign-table-footer,
+  html body main.dashboard-shell .campaign-mobile-list {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
+
+/* Drafts page reference-match overrides: content area only. */
+.dl-page {
+  gap: 20px;
+  padding: 24px;
+  margin-top: 0;
+  background: #f5f6f8;
+  color: #111827;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif;
+}
+
+.dl-header {
+  align-items: flex-start;
+  padding-bottom: 0;
+}
+
+.dl-header-title-area {
+  gap: 0;
+}
+
+.dl-title-with-icon,
+.dl-header-icon-wrap {
+  display: contents;
+}
+
+.dl-eyebrow {
+  margin-bottom: 4px;
+  color: #9aa5b4;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  line-height: 1.3;
+}
+
+.dl-h1 {
+  color: #111827;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.dl-header-btns {
+  gap: 8px;
+}
+
+.dl-btn-ghost,
+.dl-btn-primary {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.dl-btn-primary {
+  padding-inline: 16px;
+  background: #4f5bd5;
+}
+
+.dl-btn-primary:hover {
+  background: #2f3aaa;
+  box-shadow: none;
+}
+
+.dl-btn-ghost {
+  border-color: #e8ecf1;
+  color: #4a5568;
+}
+
+.dl-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dl-stat-card {
+  gap: 8px;
+  padding: 16px 18px;
+  border-color: #e8ecf1;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.dl-stat-card:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+}
+
+.dl-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
+}
+
+.dl-stat-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 15px;
+}
+
+.dl-stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.dl-stat-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.dl-library {
+  border-color: #e8ecf1;
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.dl-lib-header {
+  border-bottom-color: #f0f2f5;
+}
+
+.dl-lib-title-row {
+  padding: 16px 20px 14px;
+}
+
+.dl-lib-h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.dl-lib-showing {
+  color: #9aa5b4;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.dl-controls {
+  gap: 10px;
+  padding: 0 20px 14px;
+}
+
+.dl-search {
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
+.dl-search-input,
+.dl-select {
+  height: 34px;
+  border-color: #e8ecf1;
+  border-radius: 10px;
+  background: #f8f9fb;
+  color: #4a5568;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.dl-search-input {
+  color: #111827;
+}
+
+.dl-select {
+  min-width: 120px;
+  padding-left: 10px;
+}
+
+.dl-refresh-btn {
+  width: 34px;
+  height: 34px;
+  border-color: #e8ecf1;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.dl-tabs {
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom-color: #f0f2f5;
+}
+
+.dl-tab {
+  padding: 6px 14px;
+  border-radius: 10px 10px 0 0;
+  color: #4a5568;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.dl-tab--active {
+  border-color: #e8ecf1 #e8ecf1 #ffffff;
+  color: #4f5bd5;
+  font-weight: 500;
+}
+
+.dl-tab-pill {
+  background: #e8ecf1;
+  color: #4a5568;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dl-tab--active .dl-tab-pill {
+  background: #eef0fd;
+  color: #4f5bd5;
+}
+
+.dl-filterbar {
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom-color: #f0f2f5;
+  background: #f8f9fb;
+}
+
+.dl-filterbar-label {
+  margin-right: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dl-filterbar-count,
+.dl-clear-btn {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dl-clear-btn {
+  color: #f43f5e;
+}
+
+.dl-sections {
+  gap: 0;
+  padding: 20px;
+}
+
+.dl-sec-head {
+  padding: 0 0 14px;
+}
+
+.dl-sec-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.dl-sec-count {
+  padding: 1px 8px;
+  background: #e8ecf1;
+  color: #4a5568;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dl-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dl-card {
+  min-height: 214px;
+  gap: 10px;
+  padding: 14px 16px;
+  border-color: #e8ecf1;
+  border-radius: 14px;
+  box-shadow: none;
+  transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+
+.dl-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd2dc;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
+}
+
+.dl-card:active {
+  transform: translateY(-1px);
+}
+
+.dl-card-top {
+  align-items: flex-start;
+}
+
+.dl-badge {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dl-badge--draft {
+  background: #f0f2f5;
+  color: #9aa5b4;
+}
+
+.dl-menu-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #9aa5b4;
+  font-size: 14px;
+}
+
+.dl-card-header-group {
+  margin: 0;
+}
+
+.dl-card-title {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-height: 38px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.dl-card-meta {
+  gap: 4px;
+}
+
+.dl-card-meta span {
+  color: #9aa5b4;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.dl-card-meta .ti {
+  width: 12px;
+  color: #9aa5b4;
+  font-size: 12px;
+}
+
+.dl-card-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid #f0f2f5;
+}
+
+.dl-tl-avatar {
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.dl-approval-text {
+  color: #9aa5b4;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.dl-edit-btn {
+  min-width: 42px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #eef0fd;
+  color: #4f5bd5;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dl-edit-btn:hover {
+  background: #d5d9f8;
+  color: #4f5bd5;
+}
+
+.dl-section-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 96px;
+  padding: 18px;
+  border: 1px dashed #e8ecf1;
+  border-radius: 14px;
+  background: #f8f9fb;
+  color: #9aa5b4;
+}
+
+.dl-section-empty strong {
+  color: #4a5568;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dl-section-empty button {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #4f5bd5;
+  color: #ffffff;
+  font-family: 'DM Sans', var(--font-ui), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@media(max-width:1180px) {
+  .dl-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:980px) {
+  .dl-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:640px) {
+  .dl-page {
+    padding: 16px;
+  }
+
+  .dl-header,
+  .dl-lib-title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dl-header-btns {
+    width: 100%;
+  }
+
+  .dl-btn-ghost,
+  .dl-btn-primary {
+    justify-content: center;
+    flex: 1;
+  }
+
+  .dl-stat-grid,
+  .dl-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dl-controls,
+  .dl-filterbar,
+  .dl-sections {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .dl-search,
+  .dl-select-wrap,
+  .dl-select {
+    width: 100%;
+    min-width: 0;
+  }
+}

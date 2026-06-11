@@ -1,0 +1,368 @@
+/* Last-loaded campaign page reference overrides. */
+html body main.dashboard-shell .campaigns-modern-page {
+  gap: 20px !important;
+  padding: 24px !important;
+  background: #f5f6f8 !important;
+  color: #111827 !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-hero {
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaigns-page-kicker,
+html body main.dashboard-shell .campaigns-modern-page .table-eyebrow {
+  display: block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 0 4px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #9aa5b4 !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .08em !important;
+  line-height: 1.3 !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .campaigns-modern-hero h1 {
+  margin: 0 !important;
+  color: #111827 !important;
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button {
+  min-height: 34px !important;
+  padding: 7px 14px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transform: none !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-secondary {
+  border: 1px solid #e8ecf1 !important;
+  background: #ffffff !important;
+  color: #4a5568 !important;
+}
+
+html body main.dashboard-shell .campaigns-hero-actions .ui-button-primary {
+  border: 0 !important;
+  background: #4f5bd5 !important;
+  color: #ffffff !important;
+}
+
+html body main.dashboard-shell .campaign-count-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 12px !important;
+}
+
+html body main.dashboard-shell .campaign-count-row {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+html body main.dashboard-shell .campaign-count-row-top {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+html body main.dashboard-shell .campaign-count-row-bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  margin-top: -8px !important;
+}
+
+html body main.dashboard-shell .campaign-count-card {
+  min-height: 110px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 16px 18px !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-glow {
+  display: none !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+html body main.dashboard-shell .campaign-count-label {
+  min-width: 0 !important;
+  color: #9aa5b4 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+  line-height: 1.2 !important;
+  text-align: left !important;
+  text-transform: uppercase !important;
+}
+
+html body main.dashboard-shell .campaign-count-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  font-size: 15px !important;
+}
+
+html body main.dashboard-shell .campaign-count-card-total .campaign-count-icon { background: #eef0fd !important; color: #4f5bd5 !important; }
+html body main.dashboard-shell .campaign-count-card-running .campaign-count-icon { background: #f0f9ff !important; color: #0ea5e9 !important; }
+html body main.dashboard-shell .campaign-count-card-paused .campaign-count-icon { background: #fffbeb !important; color: #f59e0b !important; }
+html body main.dashboard-shell .campaign-count-card-failed .campaign-count-icon { background: #fff1f2 !important; color: #f43f5e !important; }
+html body main.dashboard-shell .campaign-count-card-incomplete .campaign-count-icon { background: #fff7ed !important; color: #ea580c !important; }
+html body main.dashboard-shell .campaign-count-card-completed .campaign-count-icon { background: #ecfdf5 !important; color: #10b981 !important; }
+html body main.dashboard-shell .campaign-count-card-scheduled .campaign-count-icon { background: #eef0fd !important; color: #7b83e6 !important; }
+
+html body main.dashboard-shell .campaign-count-card strong {
+  display: block !important;
+  margin: 0 !important;
+  color: #111827 !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+}
+
+html body main.dashboard-shell .campaign-count-percent {
+  display: block !important;
+  width: auto !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #9aa5b4 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .campaign-count-skeleton {
+  width: 92px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f8fafc 45%, #e2e8f0 100%) !important;
+  background-size: 220% 100% !important;
+}
+
+html body main.dashboard-shell .campaign-panel {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+html body main.dashboard-shell .campaign-table-header {
+  padding: 16px 20px 14px !important;
+  border-bottom: 1px solid #f0f2f5 !important;
+}
+
+html body main.dashboard-shell .campaign-panel-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 0 14px !important;
+}
+
+html body main.dashboard-shell .campaign-panel-head h2 {
+  margin: 0 !important;
+  color: #111827 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+html body main.dashboard-shell .campaign-panel-total {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #9aa5b4 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .campaign-toolbar {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin: 0 !important;
+}
+
+html body main.dashboard-shell .campaign-search-field {
+  position: relative !important;
+  flex: 1 1 220px !important;
+  min-width: 220px !important;
+  display: block !important;
+}
+
+html body main.dashboard-shell .campaign-search-field span,
+html body main.dashboard-shell .campaign-select-field span {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}
+
+html body main.dashboard-shell .campaign-search-icon {
+  position: absolute !important;
+  left: 9px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  color: #9aa5b4 !important;
+  font-size: 14px !important;
+  pointer-events: none !important;
+}
+
+html body main.dashboard-shell .campaign-search-field input,
+html body main.dashboard-shell .campaign-select-field select {
+  min-height: 34px !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 10px !important;
+  background-color: #f8f9fb !important;
+  color: #4a5568 !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .campaign-search-field input {
+  padding-left: 32px !important;
+  color: #111827 !important;
+}
+
+html body main.dashboard-shell .campaign-select-field {
+  position: relative !important;
+  min-width: 132px !important;
+}
+
+html body main.dashboard-shell .campaign-toolbar-refresh {
+  width: 34px !important;
+  height: 34px !important;
+  border: 1px solid #e8ecf1 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #9aa5b4 !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 2px !important;
+  margin: 0 !important;
+  padding: 0 20px !important;
+  border-bottom: 1px solid #f0f2f5 !important;
+  overflow-x: auto !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs button {
+  min-height: 31px !important;
+  padding: 6px 14px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px 10px 0 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #4a5568 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .campaign-status-tabs button.active {
+  border-color: #e8ecf1 #e8ecf1 #ffffff !important;
+  background: #ffffff !important;
+  color: #4f5bd5 !important;
+  font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .campaign-table-wrap {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+html body main.dashboard-shell .campaign-table th {
+  background: #f8f9fb !important;
+  color: #9aa5b4 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .07em !important;
+}
+
+html body main.dashboard-shell .campaign-table td {
+  color: #4a5568 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+html body main.dashboard-shell .campaign-table-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 20px !important;
+  border-top: 1px solid #f0f2f5 !important;
+  background: #ffffff !important;
+}
+
+html body main.dashboard-shell .campaign-table-footer .page-btn:disabled {
+  opacity: .45 !important;
+  cursor: not-allowed !important;
+}
+
+@media (max-width: 1180px) {
+  html body main.dashboard-shell .campaign-count-row-top,
+  html body main.dashboard-shell .campaign-count-row-bottom {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html body main.dashboard-shell .campaign-count-row-top,
+  html body main.dashboard-shell .campaign-count-row-bottom {
+    grid-template-columns: 1fr !important;
+  }
+}

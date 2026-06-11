@@ -1,6 +1,8 @@
 import './globals.css';
 import './theme.css';
 import './dashboard/reference-dashboard.css';
+import './campaigns/reference-redesign.css';
+import './client-data/reference-client-data.css';
 import { ThemeProvider } from '@/shared-components/layout-components/ThemeProvider';
 
 const themeInitScript = `

@@ -1,4 +1,5 @@
 import React from 'react';
+import DailyTimelinePlanningCenter from './DailyTimelinePlanningCenter';
 
 function TimelineItem({ item, checked = false, onToggle, onOpen }) {
   const statusText = checked ? 'Completed' : item.status || item.type || 'Pending';
@@ -34,16 +35,19 @@ export default function BottomGrid({
   onTimelineTaskStatesChange,
   setSelectedTimelineTask,
   setShowTimelinePopup,
-  setShowTimelineAddPopup,
   workspaceOverviewItems,
   openAnchoredPopup,
-  setShowLogsPopup
+  setShowLogsPopup,
+  onShowMessage
 }) {
   const visibleTimelineCards = inlineTimelineCards.slice(0, 3);
 
   return (
     <div className="dashboard-bottom-grid">
-        <section className="panel">
+      <DailyTimelinePlanningCenter onShowMessage={onShowMessage} />
+
+      <div className="dashboard-bottom-stack">
+        <section className="panel activity-timeline-card">
           <div className="activity-header">
             <div>
               <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 2 }}>Activity Timeline</div>
@@ -53,9 +57,6 @@ export default function BottomGrid({
               </div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              <button type="button" className="add-task-btn" onClick={() => setShowTimelineAddPopup(true)}>
-                <i className="ti ti-plus"></i> Add Task
-              </button>
               <button type="button" className="section-link" onClick={() => setShowTimelinePopup(true)}>
                 See All <i className="ti ti-arrow-right" style={{ fontSize: 12 }}></i>
               </button>
@@ -100,7 +101,7 @@ export default function BottomGrid({
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel workspace-overview-card">
           <div className="section-header" style={{ marginBottom: 14 }}>
             <span className="section-title">Workspace Overview</span>
             <button type="button" className="section-link" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
@@ -134,6 +135,7 @@ export default function BottomGrid({
             </div>
           </div>
         </section>
+      </div>
     </div>
   );
 }

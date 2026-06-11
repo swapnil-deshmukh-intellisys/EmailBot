@@ -509,6 +509,22 @@ const EDITABLE_ROW_FIELDS = [
   'senderId'
 ];
 const GRID_EDITABLE_FIELDS = [...EDITABLE_ROW_FIELDS];
+const REFERENCE_TABLE_COLUMNS = [
+  { field: 'name', label: 'Name' },
+  { field: 'surname', label: 'Surname' },
+  { field: 'designation', label: 'Designation' },
+  { field: 'cmpName', label: 'CMP Name' },
+  { field: 'sector', label: 'Sector' },
+  { field: 'country', label: 'Country' },
+  { field: 'email', label: 'Email' },
+  { field: 'listAddedDate', label: 'List Added Date' },
+  { field: 'source', label: 'Source' },
+  { field: 'leadType', label: 'Lead Type' },
+  { field: 'sourcer', label: 'Sourcer' },
+  { field: 'userId', label: 'User ID' },
+  { field: 'projectApproach', label: 'Project Approach' },
+  { field: 'senderId', label: 'Sender ID' }
+];
 const CLIENT_ROWS_PER_PAGE = 100;
 
 function mergeRowWithEdits(row, edits = {}) {
@@ -569,50 +585,52 @@ const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
   }, [applyNow]);
 
   return (
-    <div className="client-data-directory-filters client-data-directory-filters-inline">
-      <label className="client-data-filter-field">
-        <span>Search</span>
-        <input className="input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} onKeyDown={onEnterApply} placeholder="Name, email, company, source..." />
-      </label>
-      <label className="client-data-filter-field">
-        <span>Date</span>
-        <input className="input" type="date" value={localFilters.date} onChange={(event) => updateField('date', event.target.value)} />
-      </label>
-      <label className="client-data-filter-field">
-        <span>Sector</span>
-        <select className="input" value={localFilters.sector} onChange={(event) => updateField('sector', event.target.value)}>
-          <option value="">All sectors</option>
-          {filterOptions.sector.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-      </label>
-      <label className="client-data-filter-field">
-        <span>Country</span>
-        <select className="input" value={localFilters.country} onChange={(event) => updateField('country', event.target.value)}>
-          <option value="">All countries</option>
-          {filterOptions.country.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-      </label>
-      <label className="client-data-filter-field">
-        <span>Name</span>
-        <input className="input" value={localFilters.name} onChange={(event) => updateField('name', event.target.value)} onKeyDown={onEnterApply} placeholder="Client name" />
-      </label>
-      <label className="client-data-filter-field">
-        <span>Designation</span>
-        <input className="input" value={localFilters.designation} onChange={(event) => updateField('designation', event.target.value)} onKeyDown={onEnterApply} placeholder="Designation" />
-      </label>
-      <label className="client-data-filter-field">
-        <span>Fresh Lead</span>
-        <select className="input" value={localFilters.freshLead} onChange={(event) => updateField('freshLead', event.target.value)}>
-          <option value="">All leads</option>
-          <option value="fresh">Fresh leads</option>
-          <option value="contacted">Contacted leads</option>
-        </select>
-      </label>
-      <div className="client-data-filter-actions client-data-directory-filter-actions">
-        <Button type="button" variant="secondary" onClick={applyNow} disabled={!hasLocalChanges || isApplyingFilters}>
+    <div className="client-data-directory-filters client-data-directory-filters-inline filter-section">
+      <div className="filter-grid">
+        <label className="client-data-filter-field">
+          <span className="field-label">Search</span>
+          <input className="input filter-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} onKeyDown={onEnterApply} placeholder="Name, email, company, source..." />
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Date</span>
+          <input className="input filter-input" type="date" value={localFilters.date} onChange={(event) => updateField('date', event.target.value)} />
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Sector</span>
+          <select className="input filter-select" value={localFilters.sector} onChange={(event) => updateField('sector', event.target.value)}>
+            <option value="">All sectors</option>
+            {filterOptions.sector.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Country</span>
+          <select className="input filter-select" value={localFilters.country} onChange={(event) => updateField('country', event.target.value)}>
+            <option value="">All countries</option>
+            {filterOptions.country.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="filter-grid-2">
+        <label className="client-data-filter-field">
+          <span className="field-label">Name</span>
+          <input className="input filter-input" value={localFilters.name} onChange={(event) => updateField('name', event.target.value)} onKeyDown={onEnterApply} placeholder="Client name" />
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Designation</span>
+          <input className="input filter-input" value={localFilters.designation} onChange={(event) => updateField('designation', event.target.value)} onKeyDown={onEnterApply} placeholder="Designation" />
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Fresh Lead</span>
+          <select className="input filter-select" value={localFilters.freshLead} onChange={(event) => updateField('freshLead', event.target.value)}>
+            <option value="">All leads</option>
+            <option value="fresh">Fresh leads</option>
+            <option value="contacted">Contacted leads</option>
+          </select>
+        </label>
+        <Button type="button" className="client-data-filter-apply" variant="secondary" onClick={applyNow} disabled={!hasLocalChanges || isApplyingFilters}>
           {isApplyingFilters ? 'Applying...' : 'Apply Filters'}
         </Button>
-        <Button type="button" variant="ghost" onClick={onReset} disabled={(!hasAppliedFilters && !hasLocalChanges) || isApplyingFilters}>
+        <Button type="button" className="client-data-filter-reset" variant="ghost" onClick={onReset} disabled={(!hasAppliedFilters && !hasLocalChanges) || isApplyingFilters}>
           Reset Filters
         </Button>
       </div>
@@ -2181,17 +2199,23 @@ export default function ClientListPage() {
               </>
             ) : null}
             {activeTab === 'client-list' ? (
-              <section className="client-data-panel" ref={clientListRef}>
-                <div className="client-data-panel-head">
+              <section className="client-data-panel client-data-directory-card directory-card" ref={clientListRef}>
+                <div className="client-data-panel-head directory-header">
                   <div>
-                    <h2 className="ui-card-title">Client Directory</h2>
-                    <p className="ui-card-description client-directory-summary">
-                      {uploadedFiles.length} sheets | {filteredClientRows.length} clients | {repeatedClientCount} repeated | {contactedCount} contacted
-                    </p>
+                    <div className="dir-title-row">
+                      <h2 className="ui-card-title dir-title">Client Directory</h2>
+                    </div>
+                    <div className="ui-card-description client-directory-summary dir-meta">
+                      <span className="dir-meta-item"><i className="ti ti-table" aria-hidden="true" /> {uploadedFiles.length} sheets</span>
+                      <span className="dir-meta-item"><i className="ti ti-users" aria-hidden="true" /> {filteredClientRows.length} clients</span>
+                      <span className="dir-meta-item"><span className="dir-meta-dot" aria-hidden="true" /> {repeatedClientCount} repeated</span>
+                      <span className="dir-meta-item"><i className="ti ti-mail-check" aria-hidden="true" /> {contactedCount} contacted</span>
+                    </div>
                     {repeatedClientCount ? (
-                      <p className="client-directory-duplicate-summary">
-                        Repeated clients found: {repeatedClientCount}. Rows are highlighted in red.
-                      </p>
+                      <div className="client-directory-duplicate-summary warning-banner">
+                        <i className="ti ti-alert-triangle" aria-hidden="true" />
+                        <span>Repeated clients found: {repeatedClientCount}. Rows are highlighted in red.</span>
+                      </div>
                     ) : null}
                   </div>
                   <div className="client-data-panel-head-actions client-data-panel-head-actions-wide">
@@ -2200,7 +2224,7 @@ export default function ClientListPage() {
                 {selectionError ? <p className="client-data-custom-note error">{selectionError}</p> : null}
                 {selectionMessage ? <p className="client-data-custom-note success">{selectionMessage}</p> : null}
                 {showClientDirectory ? (
-                  <div className="ui-card-content">
+                  <div className="ui-card-content client-data-directory-content">
                     <ClientDirectoryFilters
                       initialFilters={filters}
                       filterOptions={filterOptions}
@@ -2209,49 +2233,40 @@ export default function ClientListPage() {
                       onApply={handleApplyFilters}
                       onReset={handleClearFilters}
                     />
-                    <div className="client-data-source-sheet-tabs" aria-label="Uploaded Excel sheet tabs">
+                    <div className="client-data-source-sheet-tabs sheet-tabs-wrap" aria-label="Uploaded Excel sheet tabs">
                       <button
                         type="button"
-                        className={`client-data-source-sheet-tab ${!activeSourceSheetId ? 'active' : ''}`}
+                        className={`client-data-source-sheet-tab sheet-tab ${!activeSourceSheetId ? 'active' : ''}`}
                         onClick={() => handleSheetTabChange('')}
                       >
                         <strong>All Clients</strong>
-                        <span>{allClientRows.length} clients</span>
+                        <span className="sheet-tab-count">{allClientRows.length}</span>
                       </button>
                       {sheetTabs.map((sheet) => (
                         <button
                           key={sheet.id}
                           type="button"
-                          className={`client-data-source-sheet-tab ${activeSourceSheetId === sheet.id ? 'active' : ''}`}
+                          className={`client-data-source-sheet-tab sheet-tab ${activeSourceSheetId === sheet.id ? 'active' : ''}`}
                           onClick={() => handleSheetTabChange(sheet.id)}
                           onDoubleClick={() => handleRenameSourceSheet(sheet)}
                           title={`${sheet.name}${sheet.sourceFile ? ` | ${sheet.sourceFile}` : ''}. Double click to rename.`}
                         >
                           <strong>{sheet.name}</strong>
-                          <span>{sheet.count || allClientRows.filter((row) => String(row.sourceListId || '') === sheet.id).length} clients</span>
+                          <span className="sheet-tab-count">{sheet.count || allClientRows.filter((row) => String(row.sourceListId || '') === sheet.id).length}</span>
                         </button>
                       ))}
                     </div>
-                    <p className="ui-card-description" style={{ marginBottom: 12 }}>
-                      Showing {filteredClientRows.length} of {clientRows.length} clients{activeSourceSheetId ? ' in selected sheet' : ''}.
-                    </p>
-                    {totalPages > 1 ? (
-                      <div className="client-data-filter-actions" style={{ marginBottom: 12 }}>
-                        <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
-                          Previous
-                        </Button>
-                        <span className="ui-card-description">Page {currentPage} of {totalPages}</span>
-                        <Button type="button" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
-                          Next
-                        </Button>
-                      </div>
-                    ) : null}
-                    <div className="client-data-sheet-savebar" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div className="client-data-filter-actions">
+                    <div className="client-data-sheet-savebar client-data-table-toolbar table-toolbar">
+                      <span className="ui-card-description showing-count">
+                        Showing {filteredClientRows.length} of {clientRows.length} clients{activeSourceSheetId ? ' in selected sheet' : ''}.
+                      </span>
+                      <div className="client-data-filter-actions client-data-toolbar-actions">
                         <div ref={createdSheetsPickerRef} style={{ position: 'relative' }}>
                           <Button
                             type="button"
+                            className="toolbar-btn success"
                             variant="ghost"
+                            leftIcon={<i className="ti ti-table-options" aria-hidden="true" />}
                             onClick={() => setShowCreatedSheetsPicker((prev) => !prev)}
                           >
                             Created Sheets
@@ -2307,7 +2322,9 @@ export default function ClientListPage() {
                         </div>
                         <Button
                           type="button"
+                          className="toolbar-btn"
                           variant="secondary"
+                          leftIcon={<i className="ti ti-file-spreadsheet" aria-hidden="true" />}
                           onClick={() => openCreateCustomListModal('directory')}
                           disabled={creatingSheet || !selectedCount}
                         >
@@ -2315,16 +2332,19 @@ export default function ClientListPage() {
                         </Button>
                         <Button
                           type="button"
+                          className="toolbar-btn danger"
                           variant="ghost"
+                          leftIcon={<i className="ti ti-trash" aria-hidden="true" />}
                           onClick={handleDeleteSelectedClients}
                           disabled={savingDirectory || !selectedCount}
-                          style={{ color: '#ef4444' }}
                         >
                           Delete Selected Clients
                         </Button>
                         <Button
                           type="button"
+                          className="toolbar-btn"
                           variant="secondary"
+                          leftIcon={<i className="ti ti-device-floppy" aria-hidden="true" />}
                           onClick={handleSaveDirectoryEdits}
                           disabled={savingDirectory || !editedRowIds.length || hasEditedEmailErrors || hasEditedDuplicateEmails}
                         >
@@ -2332,92 +2352,117 @@ export default function ClientListPage() {
                         </Button>
                         <Button
                           type="button"
+                          className="toolbar-btn add"
+                          variant="secondary"
+                          leftIcon={<i className="ti ti-plus" aria-hidden="true" />}
+                          onClick={handleAddNewRow}
+                          disabled={creatingRow}
+                        >
+                          {creatingRow ? 'Adding...' : 'Add New Row'}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="toolbar-btn danger"
                           variant="ghost"
+                          leftIcon={<i className="ti ti-x" aria-hidden="true" />}
                           onClick={handleCancelDirectoryEdits}
                           disabled={savingDirectory || !editedRowIds.length}
                         >
                           Cancel Changes
                         </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleAddNewRow}
-                        disabled={creatingRow}
-                      >
-                        {creatingRow ? 'Adding...' : 'Add New Row'}
+                    </div>
+                    <div className="client-data-pagination-row pagination-row">
+                      <Button type="button" className="page-btn" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
+                        <i className="ti ti-chevron-left" aria-hidden="true" /> Previous
+                      </Button>
+                      <span className="ui-card-description page-info">Page {currentPage} of {totalPages}</span>
+                      <Button type="button" className="page-btn" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
+                        Next <i className="ti ti-chevron-right" aria-hidden="true" />
                       </Button>
                     </div>
-                    <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet">
-                      <div className="client-data-table-head client-directory-excel-head" style={{ position: 'sticky', top: 0, zIndex: 3 }}>
-                        <span className="client-directory-excel-head-cell">#</span>
-                        <span className="client-directory-excel-head-cell">
-                          <input
-                            type="checkbox"
-                            checked={allVisibleSelected}
-                            onChange={toggleSelectAllVisible}
-                            aria-label="Select all visible clients"
-                          />
-                        </span>
-                        {TABLE_COLUMNS.slice(2).map((column) => (
-                          <span key={column} className="client-directory-excel-head-cell">{column}</span>
-                        ))}
-                      </div>
-                      {loading ? (
-                        <div className="client-data-table-row client-directory-excel-row">
-                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>Loading client data...</span>
-                        </div>
-                      ) : null}
-                      {!loading && error ? (
-                        <div className="client-data-table-row client-directory-excel-row">
-                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>{error}</span>
-                        </div>
-                      ) : null}
-                      {!loading && !error && !filteredClientRows.length ? (
-                        <div className="client-data-table-row client-directory-excel-row">
-                          <span className="client-directory-excel-cell" style={{ gridColumn: `1 / span ${TABLE_COLUMNS.length}` }}>No client data found.</span>
-                        </div>
-                      ) : null}
-                      {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
-                        const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
-                        return (
-                          <div key={row.id} className={`client-data-table-row client-directory-excel-row ${rowHasDuplicateEmail ? 'client-directory-duplicate-row' : ''}`}>
-                            <span className="client-directory-excel-cell">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</span>
-                            <span className="client-directory-excel-cell">
+                    <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet client-data-reference-table-wrap">
+                      <table className="client-data-reference-table data-table">
+                        <thead>
+                          <tr>
+                            <th>
                               <input
                                 type="checkbox"
-                                checked={selectedClientIds.includes(row.id)}
-                                onChange={() => toggleClientSelection(row.id)}
-                                aria-label={`Select ${row.name}`}
+                                checked={allVisibleSelected}
+                                onChange={toggleSelectAllVisible}
+                                aria-label="Select all visible clients"
                               />
-                            </span>
-                            {GRID_EDITABLE_FIELDS.map((field, fieldIndex) => {
-                              const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
-                              const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
-                              const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
-                              const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
-                              return (
-                                <span key={`${row.id}-${field}`} className="client-directory-excel-cell client-list-sheet-cell-wrap">
+                            </th>
+                            <th>#</th>
+                            {REFERENCE_TABLE_COLUMNS.map((column) => (
+                              <th key={column.field}>{column.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loading ? (
+                            <tr>
+                              <td colSpan={REFERENCE_TABLE_COLUMNS.length + 2}>Loading client data...</td>
+                            </tr>
+                          ) : null}
+                          {!loading && error ? (
+                            <tr>
+                              <td colSpan={REFERENCE_TABLE_COLUMNS.length + 2}>{error}</td>
+                            </tr>
+                          ) : null}
+                          {!loading && !error && !filteredClientRows.length ? (
+                            <tr>
+                              <td colSpan={REFERENCE_TABLE_COLUMNS.length + 2}>No client data found.</td>
+                            </tr>
+                          ) : null}
+                          {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
+                            const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
+                            return (
+                              <tr key={row.id} className={rowHasDuplicateEmail ? 'repeated client-directory-duplicate-row' : ''}>
+                                <td>
                                   <input
-                                    ref={(node) => {
-                                      cellRefs.current[`${row.id}:${field}`] = node;
-                                    }}
-                                    type={field === 'listAddedDate' ? 'date' : 'text'}
-                                    className={`client-list-sheet-cell ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
-                                    value={value}
-                                    onFocus={() => setActiveCell({ rowId: row.id, field })}
-                                    onClick={() => setActiveCell({ rowId: row.id, field })}
-                                    onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
-                                    onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
-                                    onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
-                                    aria-label={`${field} row ${rowIndex + 1}`}
+                                    type="checkbox"
+                                    checked={selectedClientIds.includes(row.id)}
+                                    onChange={() => toggleClientSelection(row.id)}
+                                    aria-label={`Select ${row.name}`}
                                   />
-                                </span>
-                              );
-                            })}
-                          </div>
-                        );
-                      }) : null}
+                                </td>
+                                <td className="client-row-number">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</td>
+                                {REFERENCE_TABLE_COLUMNS.map(({ field }, fieldIndex) => {
+                                  const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                                  const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
+                                  const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
+                                  const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
+                                  return (
+                                    <td key={`${row.id}-${field}`} className="client-list-sheet-cell-wrap">
+                                      <input
+                                        ref={(node) => {
+                                          cellRefs.current[`${row.id}:${field}`] = node;
+                                        }}
+                                        type={field === 'listAddedDate' ? 'date' : 'text'}
+                                        className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                        value={value}
+                                        onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                        onClick={() => setActiveCell({ rowId: row.id, field })}
+                                        onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
+                                        onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
+                                        onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
+                                        aria-label={`${field} row ${rowIndex + 1}`}
+                                      />
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          }) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="client-data-directory-legend legend">
+                      <div className="legend-item">
+                        <span className="legend-dot repeated" aria-hidden="true" />
+                        <span>Repeated client (row highlighted in red)</span>
+                      </div>
                     </div>
                     {hasEditedEmailErrors ? (
                       <div className="client-data-custom-note error">Invalid email format detected in edited rows. Fix before saving.</div>

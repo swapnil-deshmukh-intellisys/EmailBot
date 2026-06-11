@@ -10,9 +10,12 @@ const STEP_META = {
   7: { name: 'Schedule', action: 'Schedule', icon: 'ti-calendar-event' }
 };
 
-function getStepStatus(index, completedWorkflowSteps = [], activeWorkflowStep = 1) {
-  if (completedWorkflowSteps[index - 1]) return 'done';
-  if (Number(index) === Number(activeWorkflowStep)) return 'active';
+function getStepStatus(index, activeWorkflowStep = 1) {
+  const stepIndex = Number(index) || 0;
+  const currentStep = Math.max(1, Number(activeWorkflowStep) || 1);
+
+  if (stepIndex < currentStep) return 'done';
+  if (stepIndex === currentStep) return 'active';
   return '';
 }
 
@@ -43,7 +46,6 @@ function WorkflowStep({ step, status = '', onAction }) {
 
 export default function Workflow({
   workflowSteps = [],
-  completedWorkflowSteps = [],
   activeWorkflowStep = 1,
   handleWorkflowAction,
   workflowShellRef
@@ -67,7 +69,7 @@ export default function Workflow({
           <WorkflowStep
             key={step.index || step.title}
             step={step}
-            status={getStepStatus(step.index, completedWorkflowSteps, activeWorkflowStep)}
+            status={getStepStatus(step.index, activeWorkflowStep)}
             onAction={handleWorkflowAction}
           />
         ))}

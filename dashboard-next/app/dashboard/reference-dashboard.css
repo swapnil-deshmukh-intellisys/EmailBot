@@ -1732,3 +1732,74 @@ html body .dashboard-shell .ws-stat {
   border: 0 !important;
   box-shadow: none !important;
 }
+
+/* Dashboard repair overrides: keep only the intended broadcast table and stack the new bottom cards cleanly. */
+html body main.dashboard-shell #all-broadcast-performance > .reference-hidden-table-actions,
+html body main.dashboard-shell #all-broadcast-performance > .premium-table-wrap,
+html body main.dashboard-shell #all-broadcast-performance > .premium-table-footer {
+  display: none !important;
+}
+
+html body main.dashboard-shell #all-broadcast-performance > .broadcast-performance-table-wrap {
+  display: block !important;
+}
+
+html body main.dashboard-shell #all-broadcast-performance > .table-footer {
+  display: flex !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-grid > .planning-center-card,
+html body main.dashboard-shell .dashboard-bottom-stack {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-grid > .planning-center-card {
+  grid-column: auto !important;
+  height: auto !important;
+  min-height: 520px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack {
+  display: grid !important;
+  grid-template-rows: none !important;
+  align-content: start !important;
+  gap: 16px !important;
+  height: auto !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack > .panel {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack > .activity-timeline-card {
+  min-height: 300px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack > .workspace-overview-card {
+  min-height: 240px !important;
+}
+
+html body main.dashboard-shell .dashboard-bottom-stack .activity-list {
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+@media (max-width: 1023px) {
+  html body main.dashboard-shell .dashboard-bottom-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  html body main.dashboard-shell .dashboard-bottom-grid > .planning-center-card {
+    min-height: 0 !important;
+  }
+}

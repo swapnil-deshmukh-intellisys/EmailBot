@@ -4,11 +4,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const STATUSES = ['Pending', 'In Progress', 'Completed', 'Overdue'];
+const EDITABLE_STATUSES = ['Pending', 'In Progress', 'Completed'];
 const CATEGORIES = ['Sales', 'Outreach', 'Follow-Up', 'Research', 'Management', 'Campaign', 'Custom'];
+const PROJECTS = ['TEC', 'TUT', 'Custom'];
 const FILTERS = [
   ['Today', 'today'],
   ['Tomorrow', 'tomorrow'],
   ['This Week', 'week'],
+  ['Upcoming', 'upcoming'],
   ['Overdue', 'overdue'],
   ['Completed', 'completed'],
   ['My Tasks', 'my'],
@@ -24,7 +27,8 @@ const EMPTY_FORM = {
   dueTime: '',
   assignedToName: '',
   assignedToEmail: '',
-  projectName: '',
+  projectName: 'TEC',
+  customProjectName: '',
   category: 'Custom',
   notes: '',
   reminderAt: ''
@@ -39,6 +43,14 @@ function dateInput(value) {
 
 function todayInput() {
   return dateInput(new Date());
+}
+
+function dateTimeInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 function startOfDay(value = new Date()) {
@@ -70,30 +82,98 @@ function isOverdue(task) {
   return task.status !== 'Completed' && new Date(task.dueDate || 0) < startOfDay();
 }
 
-function formatDate(value) {
+function isNewAssignment(task) {
+  const assignedBy = String(task.assignedBy || task.assignedByName || '').trim().toLowerCase();
+  const assignedTo = String(task.assignedTo || task.assignedToName || '').trim().toLowerCase();
+  const createdAt = new Date(task.createdAt || 0);
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  return assignedBy && assignedTo && assignedBy !== assignedTo && createdAt.getTime() >= oneDayAgo;
+}
+
+function formatDate(value, options = {}) {
   const date = new Date(value || 0);
   if (Number.isNaN(date.getTime())) return 'No date';
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    ...options
+  });
 }
 
-function formatTime(value) {
-  if (!value) return 'All day';
-  return value;
-}
-
-function formatCreated(value) {
+function formatDateTime(value) {
   const date = new Date(value || 0);
   if (Number.isNaN(date.getTime())) return 'No time';
-  return date.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatDueTime(value) {
+  if (!value) return 'All day';
+  const [hourText, minuteText] = String(value).split(':');
+  const date = new Date();
+  date.setHours(Number(hourText || 0), Number(minuteText || 0), 0, 0);
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function groupLabel(value) {
+  if (isToday(value)) return `Today - ${formatDate(value, { month: 'long' })}`;
+  if (isTomorrow(value)) return `Tomorrow - ${formatDate(value, { month: 'long' })}`;
+  return formatDate(value, { weekday: 'short' });
 }
 
 function normalizeTask(task = {}) {
+  const status = isOverdue(task) ? 'Overdue' : task.status || 'Pending';
   return {
     ...task,
     id: String(task.id || task._id || ''),
-    status: isOverdue(task) ? 'Overdue' : task.status || 'Pending',
+    status,
     priority: PRIORITIES.includes(task.priority) ? task.priority : 'Medium',
-    category: CATEGORIES.includes(task.category) ? task.category : 'Custom'
+    category: CATEGORIES.includes(task.category) ? task.category : 'Custom',
+    assignedBy: task.assignedBy || task.assignedByName || task.assignedByEmail || 'Self',
+    assignedTo: task.assignedTo || task.assignedToName || task.assignedToEmail || 'Self'
+  };
+}
+
+function taskMatchesFilter(task, projectFilter, priorityFilter, statusFilter) {
+  if (projectFilter && ![task.projectName, task.projectId].some((value) => String(value || '').toLowerCase() === projectFilter.toLowerCase())) {
+    return false;
+  }
+  if (priorityFilter && task.priority !== priorityFilter) return false;
+  if (statusFilter && task.status !== statusFilter) return false;
+  return true;
+}
+
+function buildTaskQuery(range, filters = {}) {
+  const params = new URLSearchParams({ range });
+  if (filters.project) params.set('project', filters.project);
+  if (filters.priority) params.set('priority', filters.priority);
+  if (filters.status) params.set('status', filters.status);
+  return params.toString();
+}
+
+function taskPayload(form) {
+  const projectName = form.projectName === 'Custom'
+    ? String(form.customProjectName || 'Custom').trim()
+    : form.projectName;
+  return {
+    title: form.title.trim(),
+    description: form.description.trim(),
+    priority: form.priority,
+    status: form.status,
+    dueDate: form.dueDate,
+    dueTime: form.dueTime,
+    assignedToName: form.assignedToName.trim(),
+    assignedToEmail: form.assignedToEmail.trim(),
+    projectId: projectName,
+    projectName,
+    category: form.category,
+    notes: form.notes.trim(),
+    reminderAt: form.reminderAt || null
   };
 }
 
@@ -106,34 +186,61 @@ function TimelineStat({ label, value, tone = '' }) {
   );
 }
 
-function PlanningTask({ task, busyId, onEdit, onComplete, onDelete, onReassign, onNote, onReminder }) {
+function ReminderStrip({ reminders }) {
+  if (!reminders.length) return null;
+
   return (
-    <article className={`planning-task status-${task.status.toLowerCase().replace(/\s+/g, '-')}`}>
-      <time>{formatTime(task.dueTime)}</time>
+    <div className="planning-reminders">
+      {reminders.map((task) => {
+        const state = task.reminderState || (task.status === 'Overdue' ? 'overdue' : isToday(task.dueDate) ? 'due-today' : 'assignment');
+        const label = state === 'overdue'
+          ? 'Overdue'
+          : state === 'reminder-due'
+            ? 'Reminder'
+            : state === 'due-today'
+              ? 'Due today'
+              : `Assigned by ${task.assignedBy}`;
+        return <span key={`${task.id}-${state}`}>{label}: {task.title}</span>;
+      })}
+    </div>
+  );
+}
+
+function PlanningTask({ task, busyId, onEdit, onComplete, onDelete, onReassign, onNote, onReminder }) {
+  const statusSlug = task.status.toLowerCase().replace(/\s+/g, '-');
+
+  return (
+    <article className={`planning-task status-${statusSlug}`}>
+      <time>{formatDueTime(task.dueTime)}</time>
       <div className="planning-task-body">
         <div className="planning-task-head">
           <strong>{task.title}</strong>
           <span className={`planning-priority priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
-          <span className={`planning-status status-${task.status.toLowerCase().replace(/\s+/g, '-')}`}>{task.status}</span>
+          <span className={`planning-status status-${statusSlug}`}>{task.status}</span>
         </div>
         <p>{task.description || 'No description added.'}</p>
         <div className="planning-meta">
-          <em>Due {formatDate(task.dueDate)}</em>
-          <em>Created {formatCreated(task.createdAt)}</em>
-          <em>Updated {formatCreated(task.updatedAt)}</em>
-          <em>Assigned by: {task.assignedByName || 'Self'}</em>
-          <em>Assigned to: {task.assignedToName || task.assignedToEmail || 'Self'}</em>
-          <em>Project: {task.projectName || 'No project'}</em>
-          <em>{task.category}</em>
+          <em>Due Date: {formatDate(task.dueDate)}</em>
+          <em>Due Time: {formatDueTime(task.dueTime)}</em>
+          <em>Created Date: {formatDateTime(task.createdAt)}</em>
+          <em>Last Updated Date: {formatDateTime(task.updatedAt)}</em>
+          <em>Assigned by: {task.assignedBy}</em>
+          <em>Assigned to: {task.assignedTo}</em>
+          <em>Created by: {task.createdBy || task.userEmail || 'Self'}</em>
+          <em>Project: {task.projectName || task.projectId || 'No project'}</em>
+          <em>Category: {task.category}</em>
+          {task.reminderAt ? <em>Reminder: {formatDateTime(task.reminderAt)}</em> : null}
         </div>
         {task.notes ? <p className="planning-note">{task.notes}</p> : null}
         <div className="planning-actions">
-          {task.status !== 'Completed' ? <button type="button" disabled={busyId === task.id} onClick={() => onComplete(task)}>Complete</button> : null}
-          <button type="button" onClick={() => onEdit(task)}>Edit</button>
-          <button type="button" onClick={() => onReassign(task)}>Reassign</button>
-          <button type="button" onClick={() => onNote(task)}>Add Note</button>
-          <button type="button" onClick={() => onReminder(task)}>Add Reminder</button>
-          <button type="button" className="danger" disabled={busyId === task.id} onClick={() => onDelete(task)}>Delete</button>
+          {task.status !== 'Completed' ? (
+            <button type="button" disabled={busyId === task.id} onClick={() => onComplete(task)}>Complete Task</button>
+          ) : null}
+          <button type="button" disabled={busyId === task.id} onClick={() => onEdit(task)}>Edit Task</button>
+          <button type="button" disabled={busyId === task.id} onClick={() => onReassign(task)}>Reassign Task</button>
+          <button type="button" disabled={busyId === task.id} onClick={() => onNote(task)}>Add Note</button>
+          <button type="button" disabled={busyId === task.id} onClick={() => onReminder(task)}>Add Reminder</button>
+          <button type="button" className="danger" disabled={busyId === task.id} onClick={() => onDelete(task)}>Delete Task</button>
         </div>
       </div>
     </article>
@@ -144,6 +251,9 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [filter, setFilter] = useState('today');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
@@ -153,21 +263,29 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, dueDate: todayInput() });
 
   const loadTasks = async (nextFilter = filter) => {
+    const filters = {
+      project: projectFilter,
+      priority: priorityFilter,
+      status: statusFilter
+    };
+
     try {
       setLoading(true);
       const [allResponse, rangeResponse] = await Promise.all([
         fetch('/api/timeline-tasks?range=all', { cache: 'no-store' }),
-        fetch(`/api/timeline-tasks?range=${encodeURIComponent(nextFilter)}`, { cache: 'no-store' })
+        fetch(`/api/timeline-tasks?${buildTaskQuery(nextFilter, filters)}`, { cache: 'no-store' })
       ]);
       const allData = await allResponse.json().catch(() => ({}));
       const rangeData = await rangeResponse.json().catch(() => ({}));
       if (!allResponse.ok) throw new Error(allData?.error || 'Failed to load timeline tasks.');
       if (!rangeResponse.ok) throw new Error(rangeData?.error || 'Failed to load timeline tasks.');
+
       setTasks(Array.isArray(allData.tasks) ? allData.tasks.map(normalizeTask) : []);
       setFilteredTasks(Array.isArray(rangeData.tasks) ? rangeData.tasks.map(normalizeTask) : []);
       setError('');
     } catch (loadError) {
       setTasks([]);
+      setFilteredTasks([]);
       setError(loadError.message || 'Failed to load timeline tasks.');
     } finally {
       setLoading(false);
@@ -176,12 +294,23 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
 
   useEffect(() => {
     void loadTasks(filter);
-  }, [filter]);
+  }, [filter, projectFilter, priorityFilter, statusFilter]);
 
   const visibleTasks = useMemo(() => {
     return filteredTasks
+      .filter((task) => taskMatchesFilter(task, projectFilter, priorityFilter, statusFilter))
       .sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0) || String(a.dueTime || '').localeCompare(String(b.dueTime || '')));
-  }, [filteredTasks]);
+  }, [filteredTasks, projectFilter, priorityFilter, statusFilter]);
+
+  const groupedTasks = useMemo(() => {
+    const groups = new Map();
+    visibleTasks.forEach((task) => {
+      const label = groupLabel(task.dueDate);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(task);
+    });
+    return Array.from(groups.entries());
+  }, [visibleTasks]);
 
   const stats = useMemo(() => ({
     today: tasks.filter((task) => isToday(task.dueDate)).length,
@@ -193,12 +322,28 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
 
   const reminders = useMemo(() => {
     return tasks
-      .filter((task) => task.status !== 'Completed' && (isToday(task.dueDate) || task.status === 'Overdue'))
-      .slice(0, 2);
+      .filter((task) => task.status !== 'Completed')
+      .filter((task) => ['overdue', 'due-today', 'reminder-due'].includes(task.reminderState) || isToday(task.dueDate) || task.status === 'Overdue' || isNewAssignment(task))
+      .sort((a, b) => {
+        const aReminder = a.reminderAt ? new Date(a.reminderAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const bReminder = b.reminderAt ? new Date(b.reminderAt).getTime() : Number.MAX_SAFE_INTEGER;
+        return aReminder - bReminder || new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
+      })
+      .slice(0, 4);
+  }, [tasks]);
+
+  const projectOptions = useMemo(() => {
+    const values = new Set(PROJECTS);
+    tasks.forEach((task) => {
+      const project = String(task.projectName || task.projectId || '').trim();
+      if (project) values.add(project);
+    });
+    return Array.from(values);
   }, [tasks]);
 
   const openForm = (task = null, patch = {}) => {
     if (task) {
+      const projectName = task.projectName || task.projectId || 'Custom';
       setEditingId(task.id);
       setForm({
         title: task.title || '',
@@ -207,12 +352,13 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
         status: task.status === 'Overdue' ? 'Pending' : task.status || 'Pending',
         dueDate: dateInput(task.dueDate),
         dueTime: task.dueTime || '',
-        assignedToName: task.assignedToName || '',
+        assignedToName: task.assignedToName || task.assignedTo || '',
         assignedToEmail: task.assignedToEmail || '',
-        projectName: task.projectName || '',
+        projectName: PROJECTS.includes(projectName) ? projectName : 'Custom',
+        customProjectName: PROJECTS.includes(projectName) ? '' : projectName,
         category: task.category || 'Custom',
         notes: task.notes || '',
-        reminderAt: task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : '',
+        reminderAt: dateTimeInput(task.reminderAt),
         ...patch
       });
     } else {
@@ -229,11 +375,16 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
     setForm({ ...EMPTY_FORM, dueDate: todayInput() });
   };
 
+  const showError = (message) => {
+    setError(message);
+    onShowMessage?.(message, 'error');
+  };
+
   const saveTask = async (event) => {
     event.preventDefault();
     if (saving) return;
     if (!form.title.trim()) {
-      setError('Task title is required.');
+      showError('Task title is required.');
       return;
     }
     setSaving(true);
@@ -241,36 +392,31 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
       const response = await fetch(editingId ? `/api/timeline-tasks/${editingId}` : '/api/timeline-tasks', {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(taskPayload(form))
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Failed to save timeline task.');
       await loadTasks(filter);
-      setFormOpen(false);
+      closeForm();
       onShowMessage?.(editingId ? 'Timeline task saved.' : 'Timeline task added.', 'success');
     } catch (saveError) {
-      setError(saveError.message || 'Failed to save timeline task.');
+      showError(saveError.message || 'Failed to save timeline task.');
     } finally {
       setSaving(false);
     }
   };
 
-  const patchTask = async (task, patch) => {
+  const completeTask = async (task) => {
     if (!task.id || busyId) return;
     setBusyId(task.id);
     try {
-      const response = await fetch(`/api/timeline-tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch)
-      });
+      const response = await fetch(`/api/timeline-tasks/${task.id}/complete`, { method: 'POST' });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Failed to update timeline task.');
-      const nextTask = normalizeTask(data.task);
-      setTasks((items) => items.map((item) => item.id === task.id ? nextTask : item));
-      setFilteredTasks((items) => items.map((item) => item.id === task.id ? nextTask : item));
-    } catch (patchError) {
-      setError(patchError.message || 'Failed to update timeline task.');
+      if (!response.ok) throw new Error(data?.error || 'Failed to complete timeline task.');
+      await loadTasks(filter);
+      onShowMessage?.('Timeline task completed.', 'success');
+    } catch (completeError) {
+      showError(completeError.message || 'Failed to complete timeline task.');
     } finally {
       setBusyId('');
     }
@@ -283,10 +429,81 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
       const response = await fetch(`/api/timeline-tasks/${task.id}`, { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Failed to delete timeline task.');
-      setTasks((items) => items.filter((item) => item.id !== task.id));
-      setFilteredTasks((items) => items.filter((item) => item.id !== task.id));
+      await loadTasks(filter);
+      onShowMessage?.('Timeline task deleted.', 'success');
     } catch (deleteError) {
-      setError(deleteError.message || 'Failed to delete timeline task.');
+      showError(deleteError.message || 'Failed to delete timeline task.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const addTaskNote = async (task) => {
+    if (!task.id || busyId) return;
+    const note = window.prompt('Add note');
+    if (!note?.trim()) return;
+    setBusyId(task.id);
+    try {
+      const response = await fetch(`/api/timeline-tasks/${task.id}/note`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Failed to add note.');
+      await loadTasks(filter);
+      onShowMessage?.('Timeline note added.', 'success');
+    } catch (noteError) {
+      showError(noteError.message || 'Failed to add note.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const reassignTask = async (task) => {
+    if (!task.id || busyId) return;
+    const assignedToName = window.prompt('Assign to name', task.assignedToName || task.assignedTo || '');
+    if (assignedToName === null) return;
+    const assignedToEmail = window.prompt('Assign to email (optional)', task.assignedToEmail || '');
+    if (assignedToEmail === null) return;
+    if (!assignedToName.trim() && !assignedToEmail.trim()) return;
+
+    setBusyId(task.id);
+    try {
+      const response = await fetch(`/api/timeline-tasks/${task.id}/reassign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToName, assignedToEmail })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Failed to reassign task.');
+      await loadTasks(filter);
+      onShowMessage?.('Timeline task reassigned.', 'success');
+    } catch (reassignError) {
+      showError(reassignError.message || 'Failed to reassign task.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const addReminder = async (task) => {
+    if (!task.id || busyId) return;
+    const fallback = dateTimeInput(task.reminderAt || new Date());
+    const reminderAt = window.prompt('Reminder time (YYYY-MM-DDTHH:mm)', fallback);
+    if (!reminderAt?.trim()) return;
+    setBusyId(task.id);
+    try {
+      const response = await fetch(`/api/timeline-tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reminderAt })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Failed to add reminder.');
+      await loadTasks(filter);
+      onShowMessage?.('Timeline reminder saved.', 'success');
+    } catch (reminderError) {
+      showError(reminderError.message || 'Failed to add reminder.');
     } finally {
       setBusyId('');
     }
@@ -297,7 +514,7 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
       <div className="planning-head">
         <div>
           <span className="section-title">Daily Timeline & Planning Center</span>
-          <small>Human work planning, assignments, reminders, and management tasks.</small>
+          <small>Daily, weekly, future work planning, assignments, notes, and reminders.</small>
         </div>
         <button type="button" className="sales-add-btn" onClick={() => openForm()}>Add Task</button>
       </div>
@@ -310,13 +527,7 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
         <TimelineStat label="Upcoming Tasks" value={stats.upcoming} />
       </div>
 
-      {reminders.length ? (
-        <div className="planning-reminders">
-          {reminders.map((task) => (
-            <span key={task.id}>{task.status === 'Overdue' ? 'Overdue' : 'Due today'}: {task.title}</span>
-          ))}
-        </div>
-      ) : null}
+      <ReminderStrip reminders={reminders} />
 
       <div className="planning-filters">
         {FILTERS.map(([label, value]) => (
@@ -326,23 +537,52 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
         ))}
       </div>
 
+      <div className="planning-filter-selects">
+        <label>
+          <span>Project</span>
+          <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+            <option value="">All Projects</option>
+            {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Priority</span>
+          <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+            <option value="">All Priorities</option>
+            {PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">All Statuses</option>
+            {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+      </div>
+
       {error ? <p className="sales-error-state">{error}</p> : null}
       {loading ? <p className="sales-empty-state compact">Loading planning timeline...</p> : null}
 
       <div className="planning-list">
-        {!loading && !visibleTasks.length ? <p className="sales-empty-state">No planning tasks yet. Add your first daily task.</p> : null}
-        {visibleTasks.map((task) => (
-          <PlanningTask
-            key={task.id}
-            task={task}
-            busyId={busyId}
-            onEdit={openForm}
-            onComplete={(item) => patchTask(item, { status: 'Completed' })}
-            onDelete={deleteTask}
-            onReassign={(item) => openForm(item)}
-            onNote={(item) => openForm(item)}
-            onReminder={(item) => openForm(item, { reminderAt: item.reminderAt || new Date().toISOString().slice(0, 16) })}
-          />
+        {!loading && !groupedTasks.length ? <p className="sales-empty-state">No planning tasks match this view. Add a task for today, tomorrow, this week, or a future date.</p> : null}
+        {groupedTasks.map(([label, items]) => (
+          <div key={label} className="planning-day-group">
+            <div className="planning-day-label">{label}</div>
+            {items.map((task) => (
+              <PlanningTask
+                key={task.id}
+                task={task}
+                busyId={busyId}
+                onEdit={openForm}
+                onComplete={completeTask}
+                onDelete={deleteTask}
+                onReassign={reassignTask}
+                onNote={addTaskNote}
+                onReminder={addReminder}
+              />
+            ))}
+          </div>
         ))}
       </div>
 
@@ -353,18 +593,68 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
               <strong>{editingId ? 'Edit Task' : 'Add Task'}</strong>
               <button type="button" onClick={closeForm}>Close</button>
             </div>
-            <label className="wide"><span>Title</span><input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></label>
-            <label><span>Priority</span><select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Status</span><select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>{STATUSES.filter((item) => item !== 'Overdue').map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Due Date</span><input type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} /></label>
-            <label><span>Due Time</span><input type="time" value={form.dueTime} onChange={(event) => setForm((current) => ({ ...current, dueTime: event.target.value }))} /></label>
-            <label><span>Assigned To</span><input value={form.assignedToName} onChange={(event) => setForm((current) => ({ ...current, assignedToName: event.target.value }))} /></label>
-            <label><span>Assigned Email</span><input value={form.assignedToEmail} onChange={(event) => setForm((current) => ({ ...current, assignedToEmail: event.target.value }))} /></label>
-            <label><span>Project</span><input value={form.projectName} onChange={(event) => setForm((current) => ({ ...current, projectName: event.target.value }))} /></label>
-            <label><span>Category</span><select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>{CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Reminder</span><input type="datetime-local" value={form.reminderAt} onChange={(event) => setForm((current) => ({ ...current, reminderAt: event.target.value }))} /></label>
-            <label className="wide"><span>Description</span><textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
-            <label className="wide"><span>Notes</span><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+            <label className="wide">
+              <span>Title</span>
+              <input required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+            </label>
+            <label>
+              <span>Priority</span>
+              <select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
+                {PRIORITIES.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                {EDITABLE_STATUSES.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Due Date</span>
+              <input required type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
+            </label>
+            <label>
+              <span>Due Time</span>
+              <input type="time" value={form.dueTime} onChange={(event) => setForm((current) => ({ ...current, dueTime: event.target.value }))} />
+            </label>
+            <label>
+              <span>Assigned To</span>
+              <input value={form.assignedToName} onChange={(event) => setForm((current) => ({ ...current, assignedToName: event.target.value }))} />
+            </label>
+            <label>
+              <span>Assigned Email</span>
+              <input type="email" value={form.assignedToEmail} onChange={(event) => setForm((current) => ({ ...current, assignedToEmail: event.target.value }))} />
+            </label>
+            <label>
+              <span>Project</span>
+              <select value={form.projectName} onChange={(event) => setForm((current) => ({ ...current, projectName: event.target.value }))}>
+                {PROJECTS.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            {form.projectName === 'Custom' ? (
+              <label>
+                <span>Custom Project</span>
+                <input value={form.customProjectName} onChange={(event) => setForm((current) => ({ ...current, customProjectName: event.target.value }))} />
+              </label>
+            ) : null}
+            <label>
+              <span>Category</span>
+              <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>
+                {CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Reminder</span>
+              <input type="datetime-local" value={form.reminderAt} onChange={(event) => setForm((current) => ({ ...current, reminderAt: event.target.value }))} />
+            </label>
+            <label className="wide">
+              <span>Description</span>
+              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+            </label>
+            <label className="wide">
+              <span>Notes</span>
+              <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+            </label>
             <div className="sales-work-modal-actions">
               <button type="button" onClick={closeForm}>Cancel</button>
               <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Task'}</button>
