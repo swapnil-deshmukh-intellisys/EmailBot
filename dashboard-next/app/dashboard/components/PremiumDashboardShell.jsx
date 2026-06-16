@@ -3359,7 +3359,7 @@ export default function PremiumDashboardShell({
       {renderPortalPopup(
         showClientListPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
-          <div className="premium-calendar-modal premium-clientlist-modal premium-clientlist-modal-fit" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+          <div className={`premium-calendar-modal premium-clientlist-modal ${clientListTab === 'upload' ? 'premium-clientlist-modal-fit' : 'premium-clientlist-modal-narrow'}`} style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
             <div className="premium-clientlist-head premium-review-head">
               <div>
                 <span className="premium-popup-step-badge">1</span>
@@ -3368,21 +3368,6 @@ export default function PremiumDashboardShell({
                 <small className="premium-clientlist-stepcopy">Step 1 of 7</small>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>×</button>
-            </div>
-
-            <div className="premium-clientlist-summary">
-              <div>
-                <span>Current file</span>
-                <strong>{displayedClientListName}</strong>
-              </div>
-              <div>
-                <span>Next step</span>
-                <strong>Review List</strong>
-              </div>
-              <div>
-                <span>Target use</span>
-                <strong>Upload once, review once</strong>
-              </div>
             </div>
 
             <div className="premium-clientlist-tabs">
@@ -3451,9 +3436,31 @@ export default function PremiumDashboardShell({
                             onSelectList?.(item.id);
                           }}
                         />
-                        <div>
-                          <strong>{item.title}</strong>
-                          <p>{item.meta}</p>
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
+                            <strong>{item.title}</strong>
+                            <span className="premium-clientlist-kind-badge">Sheet</span>
+                          </div>
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
+                              <strong>{item.leadCount || 0}</strong> contacts
+                            </span>
+                            {item.uploadedAt && (
+                              <span className="premium-clientlist-meta-date">
+                                • Uploaded {(() => {
+                                  const d = new Date(item.uploadedAt);
+                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  });
+                                })()}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </label>
                     )) : (
@@ -3469,74 +3476,120 @@ export default function PremiumDashboardShell({
 
             {clientListTab === 'uploaded' ? (
               <div className="premium-clientlist-body">
-                <div className="premium-clientlist-section-copy">
-                  <strong>Uploaded Files</strong>
-                  <p>Choose any sheet you&apos;ve already uploaded.</p>
-                </div>
-                <div className="premium-clientlist-list">
-                  {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
-                    <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="uploadedList"
-                        checked={selectedUploadedList === item.id}
-                        onChange={() => {
-                          setSelectedUploadedList(item.id);
-                          onSelectList?.(item.id);
-                        }}
-                      />
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p>{item.meta}</p>
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
+                    <strong>Uploaded Files</strong>
+                    <p>Choose any sheet you&apos;ve already uploaded.</p>
+                  </div>
+                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
+                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="uploadedList"
+                          checked={selectedUploadedList === item.id}
+                          onChange={() => {
+                            setSelectedUploadedList(item.id);
+                            onSelectList?.(item.id);
+                          }}
+                        />
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
+                            <strong>{item.title}</strong>
+                            <span className="premium-clientlist-kind-badge">Sheet</span>
+                          </div>
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
+                              <strong>{item.leadCount || 0}</strong> contacts
+                            </span>
+                            {item.uploadedAt && (
+                              <span className="premium-clientlist-meta-date">
+                                • Uploaded {(() => {
+                                  const d = new Date(item.uploadedAt);
+                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  });
+                                })()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    )) : (
+                      <div className="premium-clientlist-empty">
+                        <strong>No uploaded lists yet.</strong>
+                        <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
                       </div>
-                    </label>
-                  )) : (
-                    <div className="premium-clientlist-empty">
-                      <strong>No uploaded lists yet.</strong>
-                      <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </section>
               </div>
             ) : null}
 
             {clientListTab === 'custom' ? (
               <div className="premium-clientlist-body">
-                <div className="premium-clientlist-section-copy">
-                  <strong>Customize List</strong>
-                  <p>Use a client list created in your workspace.</p>
-                </div>
-                <div className="premium-clientlist-list">
-                  {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
-                    <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="customList"
-                        checked={selectedCustomList === item.id}
-                        onChange={() => {
-                          setSelectedCustomList(item.id);
-                          onSelectList?.(item.id);
-                        }}
-                      />
-                      <div>
-                        <div className="premium-clientlist-item-title">
-                          <strong>{item.title}</strong>
-                          <span className="premium-clientlist-kind-badge">Custom</span>
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
+                    <strong>Customize List</strong>
+                    <p>Use a client list created in your workspace.</p>
+                  </div>
+                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
+                    {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
+                      <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="customList"
+                          checked={selectedCustomList === item.id}
+                          onChange={() => {
+                            setSelectedCustomList(item.id);
+                            onSelectList?.(item.id);
+                          }}
+                        />
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
+                            <strong>{item.title}</strong>
+                            <span className="premium-clientlist-kind-badge">Custom</span>
+                          </div>
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
+                              <strong>{item.leadCount || 0}</strong> contacts
+                            </span>
+                            {item.uploadedAt && (
+                              <span className="premium-clientlist-meta-date">
+                                • Saved {(() => {
+                                  const d = new Date(item.uploadedAt);
+                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  });
+                                })()}
+                              </span>
+                            )}
+                            {item.sourceFile && item.sourceFile !== item.title && (
+                              <span className="premium-clientlist-meta-file">
+                                • File: {item.sourceFile}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <p>{item.meta}</p>
-                        <small className="premium-clientlist-item-detail">
-                          {item.uploadedAt ? `Saved ${item.uploadedAt}` : 'Saved custom list'}
-                          {item.sourceFile ? ` • File: ${item.sourceFile}` : ''}
-                        </small>
+                      </label>
+                    )) : (
+                      <div className="premium-clientlist-empty">
+                        <strong>No saved client lists yet.</strong>
+                        <p>Your stored files will show up here with their details and contact count.</p>
                       </div>
-                    </label>
-                  )) : (
-                    <div className="premium-clientlist-empty">
-                      <strong>No saved client lists yet.</strong>
-                      <p>Your stored files will show up here with their details and contact count.</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </section>
               </div>
             ) : null}
 

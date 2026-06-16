@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { Selection } from '@tiptap/pm/state';
+import { Selection, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -36,6 +36,7 @@ const FONT_FAMILIES = [
 const FONT_SIZES = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
 const COLOR_SWATCHES = ['#111827', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#f97316'];
 const HIGHLIGHT_SWATCHES = ['transparent', '#fef3c7', '#dcfce7', '#dbeafe', '#fae8ff', '#fee2e2'];
+const isHexColor = (color) => /^#[0-9a-f]{6}$/i.test(String(color || ''));
 
 const sanitizeEditorHtml = (html = '') => {
   if (typeof window === 'undefined') return html;
@@ -45,6 +46,16 @@ const sanitizeEditorHtml = (html = '') => {
 };
 
 function ToolbarButton({ active = false, disabled = false, children, title, onClick, onSaveSelection }) {
+  const handleToolbarAction = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (disabled) return;
+    onSaveSelection?.();
+    window.setTimeout(() => {
+      onClick?.();
+    }, 0);
+  };
+
   return (
     <button
       type="button"
@@ -52,11 +63,17 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
       title={title}
       aria-pressed={active ? 'true' : 'false'}
       disabled={disabled}
+      onPointerDown={(event) => {
+        handleToolbarAction(event);
+      }}
       onMouseDown={(event) => {
         event.preventDefault();
-        onSaveSelection?.();
+        event.stopPropagation();
       }}
-      onClick={onClick}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -75,9 +92,29 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
 
 export default function RichTextEditor({ value, onChange, placeholder, normalizeDefaultWeight = false }) {
   const lastEmittedValueRef = useRef('');
+  const lastValuePropRef = useRef(value || '');
+  const lastLocalEditAtRef = useRef(0);
   const selectionJsonRef = useRef(null);
+  const lastTextSelectionJsonRef = useRef(null);
+  const toolbarInteractionRef = useRef(false);
+  const toolbarInteractionTimeoutRef = useRef(null);
+  const editorScrollRef = useRef({ top: 0, left: 0 });
   const editorIdRef = useRef(`editor-${Math.random().toString(36).slice(2)}`);
+  const domSelectionReaderRef = useRef(null);
+  const domRangeRef = useRef(null);
   const [, setToolbarVersion] = useState(0);
+
+  const rememberSelection = (selection) => {
+    if (!selection) return;
+    if (toolbarInteractionRef.current && selection.empty && lastTextSelectionJsonRef.current) {
+      selectionJsonRef.current = lastTextSelectionJsonRef.current;
+      return;
+    }
+    selectionJsonRef.current = selection.toJSON();
+    if (!selection.empty) {
+      lastTextSelectionJsonRef.current = selection.toJSON();
+    }
+  };
 
   // Track initial content to support reverting changes
   const initialContentRef = useRef('');
@@ -126,12 +163,29 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         id: editorIdRef.current,
         spellcheck: 'true'
       },
+      handleDOMEvents: {
+        keyup: (view) => {
+          rememberSelection(view.state.selection);
+          window.setTimeout(() => domSelectionReaderRef.current?.(), 0);
+          return false;
+        },
+        mouseup: (view) => {
+          rememberSelection(view.state.selection);
+          window.setTimeout(() => domSelectionReaderRef.current?.(), 0);
+          return false;
+        },
+        blur: (view) => {
+          rememberSelection(view.state.selection);
+          return false;
+        }
+      },
       transformPastedHTML: (html) => sanitizeEditorHtml(html)
     },
     immediatelyRender: false,
     onUpdate: ({ editor: activeEditor }) => {
       const next = sanitizeEditorHtml(activeEditor.getHTML());
       lastEmittedValueRef.current = next;
+      lastLocalEditAtRef.current = Date.now();
       onChange(next);
     }
   });
@@ -139,23 +193,93 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   useEffect(() => {
     if (!editor) return;
     const incoming = value || '';
-    if (incoming !== lastEmittedValueRef.current && incoming !== editor.getHTML()) {
+    const propChanged = incoming !== lastValuePropRef.current;
+    lastValuePropRef.current = incoming;
+    if (propChanged && incoming !== lastEmittedValueRef.current && incoming !== editor.getHTML()) {
+      if (Date.now() - lastLocalEditAtRef.current < 1000) return;
+      const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
+      const scrollSnapshot = {
+        windowX: window.scrollX,
+        windowY: window.scrollY,
+        editorTop: scrollTarget?.scrollTop || 0,
+        editorLeft: scrollTarget?.scrollLeft || 0,
+        selection: editor.state.selection.toJSON()
+      };
       editor.commands.setContent(incoming, false);
+      try {
+        const selection = Selection.fromJSON(editor.state.doc, scrollSnapshot.selection);
+        editor.view.dispatch(editor.state.tr.setSelection(selection).setMeta('preventScroll', true));
+      } catch {
+        // The incoming document may no longer contain the old selection.
+      }
+      requestAnimationFrame(() => {
+        if (scrollTarget) {
+          scrollTarget.scrollTop = scrollSnapshot.editorTop;
+          scrollTarget.scrollLeft = scrollSnapshot.editorLeft;
+        }
+        window.scrollTo(scrollSnapshot.windowX, scrollSnapshot.windowY);
+      });
     }
   }, [editor, normalizeDefaultWeight, value]);
 
+  const readDomTextSelection = () => {
+    if (!editor) return null;
+    const domSelection = window.getSelection?.();
+    if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) return null;
+
+    const editorDom = editor.view.dom;
+    const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
+    if (!anchorNode || !focusNode || !editorDom.contains(anchorNode) || !editorDom.contains(focusNode)) {
+      return null;
+    }
+
+    try {
+      const anchorPosition = editor.view.posAtDOM(anchorNode, anchorOffset);
+      const focusPosition = editor.view.posAtDOM(focusNode, focusOffset);
+      if (anchorPosition === focusPosition) return null;
+
+      const from = Math.max(0, Math.min(anchorPosition, focusPosition));
+      const to = Math.min(editor.state.doc.content.size, Math.max(anchorPosition, focusPosition));
+      if (to <= from) return null;
+
+      const currentSelection = editor.state.selection;
+      if (currentSelection instanceof TextSelection && currentSelection.from === from && currentSelection.to === to) {
+        domRangeRef.current = domSelection.getRangeAt(0).cloneRange();
+        rememberSelection(currentSelection);
+        return currentSelection;
+      }
+
+      const selection = TextSelection.create(editor.state.doc, from, to);
+      domRangeRef.current = domSelection.getRangeAt(0).cloneRange();
+      editor.view.dispatch(editor.state.tr.setSelection(selection).setMeta('preventScroll', true));
+      rememberSelection(selection);
+      return selection;
+    } catch {
+      return null;
+    }
+  };
+  domSelectionReaderRef.current = readDomTextSelection;
+
   useEffect(() => {
     if (!editor) return undefined;
-    const refreshToolbar = () => setToolbarVersion((version) => version + 1);
+    const refreshToolbar = () => {
+      const currentSelection = editor.state.selection;
+      if (!toolbarInteractionRef.current || !currentSelection.empty || !selectionJsonRef.current) {
+        rememberSelection(currentSelection);
+      }
+      setToolbarVersion((version) => version + 1);
+    };
     editor.on('selectionUpdate', refreshToolbar);
     editor.on('transaction', refreshToolbar);
     editor.on('focus', refreshToolbar);
     editor.on('blur', refreshToolbar);
+    document.addEventListener('selectionchange', readDomTextSelection);
     return () => {
       editor.off('selectionUpdate', refreshToolbar);
       editor.off('transaction', refreshToolbar);
       editor.off('focus', refreshToolbar);
       editor.off('blur', refreshToolbar);
+      document.removeEventListener('selectionchange', readDomTextSelection);
     };
   }, [editor]);
 
@@ -168,34 +292,175 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   }
 
   const saveSelection = () => {
-    selectionJsonRef.current = editor.state.selection.toJSON();
+    const currentSelection = readDomTextSelection() || editor.state.selection;
+    if (!currentSelection.empty || !lastTextSelectionJsonRef.current) {
+      rememberSelection(currentSelection);
+    }
+    toolbarInteractionRef.current = true;
+    window.clearTimeout(toolbarInteractionTimeoutRef.current);
+    toolbarInteractionTimeoutRef.current = window.setTimeout(() => {
+      toolbarInteractionRef.current = false;
+    }, 250);
+
+    const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
+    editorScrollRef.current = {
+      top: scrollTarget?.scrollTop || 0,
+      left: scrollTarget?.scrollLeft || 0
+    };
   };
 
-  const restoreSelection = () => {
-    if (!selectionJsonRef.current) return;
+  const restoreSelection = ({ preferTextSelection = false } = {}) => {
+    const selectionJson = preferTextSelection
+      ? (lastTextSelectionJsonRef.current || selectionJsonRef.current)
+      : selectionJsonRef.current;
+    if (!selectionJson) return editor.state.selection;
     try {
-      const selection = Selection.fromJSON(editor.state.doc, selectionJsonRef.current);
+      const selection = Selection.fromJSON(editor.state.doc, selectionJson);
       editor.view.dispatch(editor.state.tr.setSelection(selection));
+      editor.view.focus();
+      const domRange = domRangeRef.current;
+      if (domRange && editor.view.dom.contains(domRange.startContainer) && editor.view.dom.contains(domRange.endContainer)) {
+        const domSelection = window.getSelection?.();
+        domSelection?.removeAllRanges();
+        domSelection?.addRange(domRange);
+      }
+      return selection;
     } catch (error) {
       selectionJsonRef.current = null;
+      return editor.state.selection;
     }
   };
 
-  const runCommand = (callback) => {
-    restoreSelection();
-    const result = callback(editor.chain().focus());
+  const emitCurrentHtml = () => {
+    const next = sanitizeEditorHtml(editor.getHTML());
+    lastEmittedValueRef.current = next;
+    lastLocalEditAtRef.current = Date.now();
+    onChange(next);
+  };
+
+  const runCommand = (callback, options = {}) => {
+    const { requireSelection = false, preferTextSelection = false, expandEmptySelectionToBlock = false, preserveSelection = false } = options;
+    const windowScroll = { x: window.scrollX, y: window.scrollY };
+    const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
+    const editorScroll = {
+      top: scrollTarget?.scrollTop ?? editorScrollRef.current.top,
+      left: scrollTarget?.scrollLeft ?? editorScrollRef.current.left
+    };
+    editor.commands.focus(undefined, { scrollIntoView: false });
+    let restoredSelection = restoreSelection({ preferTextSelection });
+    if (expandEmptySelectionToBlock && restoredSelection?.empty) {
+      const { $from } = editor.state.selection;
+      const from = $from.start();
+      const to = $from.end();
+      if (to > from) {
+        const blockSelection = TextSelection.create(editor.state.doc, from, to);
+        editor.view.dispatch(editor.state.tr.setSelection(blockSelection));
+        restoredSelection = blockSelection;
+      }
+    }
+    if (requireSelection && (!restoredSelection || restoredSelection.empty)) {
+      requestAnimationFrame(() => {
+        if (scrollTarget) {
+          scrollTarget.scrollTop = editorScroll.top;
+          scrollTarget.scrollLeft = editorScroll.left;
+        }
+        window.scrollTo(windowScroll.x, windowScroll.y);
+      });
+      return false;
+    }
+    const activeSelection = editor.state.selection;
+    const commandChain = editor.chain();
+    const result = callback(commandChain);
+    if (preserveSelection && activeSelection instanceof TextSelection) {
+      try {
+        const nextSelection = TextSelection.create(
+          editor.state.doc,
+          activeSelection.from,
+          Math.min(activeSelection.to, editor.state.doc.content.size)
+        );
+        editor.view.dispatch(editor.state.tr.setSelection(nextSelection).setMeta('preventScroll', true));
+        rememberSelection(nextSelection);
+      } catch {
+        rememberSelection(editor.state.selection);
+      }
+    } else {
+      rememberSelection(editor.state.selection);
+    }
+    emitCurrentHtml();
     setToolbarVersion((version) => version + 1);
+    requestAnimationFrame(() => {
+      if (scrollTarget) {
+        scrollTarget.scrollTop = editorScroll.top;
+        scrollTarget.scrollLeft = editorScroll.left;
+      }
+      window.scrollTo(windowScroll.x, windowScroll.y);
+    });
     return result;
   };
 
+  const applyTextColor = (color) => {
+    runCommand((chain) => chain.setColor(color).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
+  };
+
+  const toggleSelectionMark = (markName, attrs = null, removeMarkNames = []) => {
+    const markType = editor.schema.marks[markName];
+    if (!markType) return false;
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+      removeMarkNames.forEach((name) => {
+        if (editor.schema.marks[name]) editor.commands.unsetMark(name);
+      });
+      return editor.commands.toggleMark(markName, attrs || {});
+    }
+
+    let transaction = editor.state.tr;
+    removeMarkNames.forEach((name) => {
+      const removeType = editor.schema.marks[name];
+      if (removeType) transaction = transaction.removeMark(from, to, removeType);
+    });
+
+    let textNodeCount = 0;
+    let markedTextNodeCount = 0;
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return;
+      textNodeCount += 1;
+      const hasMark = node.marks.some((mark) => {
+        if (mark.type !== markType) return false;
+        if (!attrs) return true;
+        return Object.entries(attrs).every(([key, value]) => mark.attrs?.[key] === value);
+      });
+      if (hasMark) markedTextNodeCount += 1;
+    });
+    const wholeRangeHasMark = textNodeCount > 0 && textNodeCount === markedTextNodeCount;
+
+    if (wholeRangeHasMark) {
+      transaction = transaction.removeMark(from, to, markType);
+    } else {
+      transaction = transaction.addMark(from, to, markType.create(attrs || undefined));
+    }
+    editor.view.dispatch(transaction);
+    return true;
+  };
+
+  const applyHighlightColor = (color) => {
+    runCommand(
+      (chain) => (color === 'transparent' ? chain.unsetHighlight().run() : chain.setHighlight({ color }).run()),
+      { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
+    );
+  };
+
   const setLink = () => {
-    restoreSelection();
+    const restoredSelection = restoreSelection({ preferTextSelection: true });
+    if (!restoredSelection || restoredSelection.empty) {
+      window.alert('Select text before adding a link.');
+      return;
+    }
     const previousUrl = editor.getAttributes('link').href || '';
     const rawUrl = window.prompt('Enter link URL', previousUrl);
     if (rawUrl === null) return;
     const trimmed = rawUrl.trim();
     if (!trimmed) {
-      runCommand((chain) => chain.extendMarkRange('link').unsetLink().run());
+      runCommand((chain) => chain.extendMarkRange('link').unsetLink().run(), { requireSelection: true, preferTextSelection: true });
       return;
     }
     const url = /^(https?:|mailto:|tel:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
@@ -205,7 +470,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
       window.alert('Please enter a valid URL.');
       return;
     }
-    runCommand((chain) => chain.extendMarkRange('link').setLink({ href: url }).run());
+    runCommand((chain) => chain.extendMarkRange('link').setLink({ href: url }).run(), { requireSelection: true, preferTextSelection: true });
   };
 
   const addImage = () => {
@@ -231,6 +496,9 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   };
 
   const textStyle = editor.getAttributes('textStyle') || {};
+  const highlightStyle = editor.getAttributes('highlight') || {};
+  const activeTextColor = isHexColor(textStyle.color) ? textStyle.color : '#111827';
+  const activeHighlightColor = isHexColor(highlightStyle.color) ? highlightStyle.color : '';
   const selectedHeading = [1, 2, 3].find((level) => editor.isActive('heading', { level }));
   const currentBlock = selectedHeading ? `h${selectedHeading}` : 'paragraph';
 
@@ -265,14 +533,14 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
       height: '24px',
       minWidth: '24px',
       border: isActive ? '2px solid #2563eb' : '1px solid rgba(15, 23, 42, 0.14)',
-      borderRadius: isTransparent ? '7px' : '999px',
+      borderRadius: '999px',
       cursor: 'pointer',
       position: 'relative',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: 0,
-      transition: 'transform 0.15s ease, border-color 0.15s ease'
+      transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease'
     };
     if (isTransparent) {
       base.background = '#ffffff';
@@ -291,13 +559,15 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         <select
           className="select wysiwyg-select"
           value={currentBlock}
-          onMouseDown={saveSelection}
+          onPointerDown={saveSelection}
+          onMouseDown={(event) => event.stopPropagation()}
+          onFocus={saveSelection}
           onChange={(event) => {
             const next = event.target.value;
-            if (next === 'paragraph') runCommand((chain) => chain.setParagraph().run());
-            if (next === 'h1') runCommand((chain) => chain.setHeading({ level: 1 }).run());
-            if (next === 'h2') runCommand((chain) => chain.setHeading({ level: 2 }).run());
-            if (next === 'h3') runCommand((chain) => chain.setHeading({ level: 3 }).run());
+            if (next === 'paragraph') runCommand((chain) => chain.setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
+            if (next === 'h1') runCommand((chain) => chain.setHeading({ level: 1 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
+            if (next === 'h2') runCommand((chain) => chain.setHeading({ level: 2 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
+            if (next === 'h3') runCommand((chain) => chain.setHeading({ level: 3 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
           }}
         >
           <option value="paragraph">Paragraph</option>
@@ -306,14 +576,17 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
           <option value="h3">Heading 3</option>
         </select>
 
-        {/* Headings Buttons */}
-        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 1 }).run())}>
+        {/* Paragraph & Headings Buttons */}
+        <ToolbarButton title="Paragraph" active={editor.isActive('paragraph')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+          <span style={{ fontWeight: 800, fontSize: '12px' }}>P</span>
+        </ToolbarButton>
+        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 1 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₁</span>
         </ToolbarButton>
-        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 2 }).run())}>
+        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 2 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₂</span>
         </ToolbarButton>
-        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 3 }).run())}>
+        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 3 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₃</span>
         </ToolbarButton>
 
@@ -321,8 +594,13 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         <select
           className="select wysiwyg-select"
           value={textStyle.fontFamily || ''}
-          onMouseDown={saveSelection}
-          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontFamily(event.target.value).run() : chain.unsetFontFamily().run())}
+          onPointerDown={saveSelection}
+          onMouseDown={(event) => event.stopPropagation()}
+          onFocus={saveSelection}
+          onChange={(event) => runCommand(
+            (chain) => event.target.value ? chain.setFontFamily(event.target.value).run() : chain.unsetFontFamily().run(),
+            { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
+          )}
         >
           <option value="">Font</option>
           {FONT_FAMILIES.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
@@ -332,8 +610,13 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         <select
           className="select wysiwyg-select compact"
           value={textStyle.fontSize || ''}
-          onMouseDown={saveSelection}
-          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontSize(event.target.value).run() : chain.unsetFontSize().run())}
+          onPointerDown={saveSelection}
+          onMouseDown={(event) => event.stopPropagation()}
+          onFocus={saveSelection}
+          onChange={(event) => runCommand(
+            (chain) => event.target.value ? chain.setFontSize(event.target.value).run() : chain.unsetFontSize().run(),
+            { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
+          )}
         >
           <option value="">Size</option>
           {FONT_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
@@ -348,36 +631,36 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         </ToolbarButton>
 
         {/* Formatting Actions */}
-        <ToolbarButton title="Bold" active={editor.isActive('bold')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleBold().run())}>
+        <ToolbarButton title="Bold" active={editor.isActive('bold')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('bold'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Bold />
         </ToolbarButton>
-        <ToolbarButton title="Italic" active={editor.isActive('italic')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleItalic().run())}>
+        <ToolbarButton title="Italic" active={editor.isActive('italic')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('italic'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Italic />
         </ToolbarButton>
-        <ToolbarButton title="Underline" active={editor.isActive('underline')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleUnderline().run())}>
+        <ToolbarButton title="Underline" active={editor.isActive('underline')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('underline'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Underline />
         </ToolbarButton>
-        <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleStrike().run())}>
+        <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('strike'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Strike />
         </ToolbarButton>
-        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSubscript().toggleSuperscript().run())}>
+        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('superscript', null, ['subscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Superscript />
         </ToolbarButton>
-        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSuperscript().toggleSubscript().run())}>
+        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('subscript', null, ['superscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Subscript />
         </ToolbarButton>
 
         {/* Alignment */}
-        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run())}>
+        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run(), { preferTextSelection: true, preserveSelection: true })}>
           <Icons.Left />
         </ToolbarButton>
-        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run())}>
+        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run(), { preferTextSelection: true, preserveSelection: true })}>
           <Icons.Center />
         </ToolbarButton>
-        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run())}>
+        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run(), { preferTextSelection: true, preserveSelection: true })}>
           <Icons.Right />
         </ToolbarButton>
-        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run())}>
+        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run(), { preferTextSelection: true, preserveSelection: true })}>
           <Icons.Justify />
         </ToolbarButton>
 
@@ -407,21 +690,21 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         </ToolbarButton>
 
         {/* Dynamic Color A Button with Underline */}
-        <label className="wysiwyg-color-control" title="Text color" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
+        <label className={`wysiwyg-color-control${textStyle.color ? ' is-active' : ''}`} title="Text color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
             <span style={{ fontSize: '13px', fontWeight: 'bold' }}>A</span>
-            <div style={{ width: '13px', height: '3px', background: textStyle.color || '#111827', marginTop: '1px', borderRadius: '1px' }} />
+            <div style={{ width: '13px', height: '3px', background: activeTextColor, marginTop: '1px', borderRadius: '1px' }} />
           </div>
-          <input type="color" value={textStyle.color || '#111827'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setColor(event.target.value).run())} style={{ width: 0, height: 0, opacity: 0, padding: 0, border: 0 }} />
+          <input type="color" value={activeTextColor} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyTextColor(event.target.value)} onChange={(event) => applyTextColor(event.target.value)} aria-label="Choose text color" />
         </label>
 
         {/* Dynamic Color HL Button with Highlighter and Underline */}
-        <label className="wysiwyg-color-control" title="Highlight color" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
+        <label className={`wysiwyg-color-control${activeHighlightColor ? ' is-active' : ''}`} title="Highlight color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '-0.5px' }}>HL</span>
-            <div style={{ width: '13px', height: '3px', background: textStyle.backgroundColor || '#fef3c7', marginTop: '1px', borderRadius: '1px' }} />
+            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>HL</span>
+            <div style={{ width: '13px', height: '3px', background: activeHighlightColor || '#fef3c7', marginTop: '1px', borderRadius: '1px' }} />
           </div>
-          <input type="color" value={textStyle.backgroundColor || '#fef3c7'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setBackgroundColor(event.target.value).run())} style={{ width: 0, height: 0, opacity: 0, padding: 0, border: 0 }} />
+          <input type="color" value={activeHighlightColor || '#fef3c7'} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyHighlightColor(event.target.value)} onChange={(event) => applyHighlightColor(event.target.value)} aria-label="Choose highlight color" />
         </label>
 
         {/* Color swatches with active checkmarks */}
@@ -434,8 +717,20 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
               className={`wysiwyg-swatch${isActive ? ' is-active' : ''}`}
               style={getSwatchStyle(color, isActive, false)}
               title={`Text ${color}`}
-              onMouseDown={(event) => { event.preventDefault(); saveSelection(); }}
-              onClick={() => runCommand((chain) => chain.setColor(color).run())}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                saveSelection();
+                applyTextColor(color);
+              }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
             >
               {isActive && (
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
@@ -449,7 +744,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         {/* Highlight swatches with active checkmarks and checkerboard/slash transparent option */}
         {HIGHLIGHT_SWATCHES.map((color) => {
           const isTransparent = color === 'transparent';
-          const isActive = isTransparent ? !textStyle.backgroundColor : textStyle.backgroundColor === color;
+          const isActive = isTransparent ? !activeHighlightColor : activeHighlightColor === color;
           return (
             <button
               key={color}
@@ -457,8 +752,20 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
               className={`wysiwyg-swatch highlight${isActive ? ' is-active' : ''}${isTransparent ? ' is-transparent' : ''}`}
               style={getSwatchStyle(color, isActive, isTransparent)}
               title={isTransparent ? 'No Highlight' : `Highlight ${color}`}
-              onMouseDown={(event) => { event.preventDefault(); saveSelection(); }}
-              onClick={() => runCommand((chain) => isTransparent ? chain.unsetBackgroundColor().run() : chain.setBackgroundColor(color).run())}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                saveSelection();
+                applyHighlightColor(color);
+              }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
             >
               {isTransparent && (
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
@@ -475,7 +782,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         })}
 
         {/* Clear Formatting button */}
-        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run())}>
+        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Clear />
         </ToolbarButton>
 

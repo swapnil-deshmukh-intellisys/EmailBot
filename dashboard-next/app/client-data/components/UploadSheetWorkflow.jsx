@@ -3,7 +3,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/app/components/ui/Button';
 
-const SHEET_FIELDS = ['Name', 'Surname', 'Designation', 'Email', 'Phone', 'Domain', 'Company', 'Sector', 'Country'];
+const SHEET_FIELDS = [
+  'Name',
+  'Surname',
+  'Designation',
+  'CMP Name',
+  'Sector',
+  'Country',
+  'Email',
+  'List Added Date',
+  'Source',
+  'Lead Type',
+  'Sourcer',
+  'User ID',
+  'Project Approach',
+  'Sender ID'
+];
+
+function getUploadFieldValue(row = {}, field = '') {
+  if (field === 'CMP Name') return String(row?.['CMP Name'] || row?.Company || row?.companyName || row?.cmpName || row?.data?.['CMP Name'] || row?.data?.Company || row?.data?.['Company Name'] || '');
+  if (field === 'List Added Date') return String(row?.['List Added Date'] || row?.listAddedDate || row?.uploadDate || row?.data?.['List Added Date'] || row?.data?.listAddedDate || '');
+  if (field === 'Lead Type') return String(row?.['Lead Type'] || row?.LeadType || row?.leadType || row?.data?.['Lead Type'] || row?.data?.LeadType || '');
+  if (field === 'User ID') return String(row?.['User ID'] || row?.UserId || row?.userId || row?.userIdText || row?.data?.['User ID'] || row?.data?.UserId || '');
+  if (field === 'Project Approach') return String(row?.['Project Approach'] || row?.ProjectApproach || row?.projectApproach || row?.data?.['Project Approach'] || row?.data?.ProjectApproach || '');
+  if (field === 'Sender ID') return String(row?.['Sender ID'] || row?.SenderId || row?.senderId || row?.data?.['Sender ID'] || row?.data?.SenderId || '');
+  return String(row?.[field] || row?.data?.[field] || '');
+}
 
 function statusClassName(status) {
   if (status === 'Valid') return 'client-upload-preview-row valid';
@@ -21,20 +46,33 @@ function compactUploadRow(row = {}) {
   };
 
   SHEET_FIELDS.forEach((field) => {
-    compact[field] = String(row?.[field] || '');
+    compact[field] = getUploadFieldValue(row, field);
   });
 
   compact.data = {
     Name: compact.Name,
     Surname: compact.Surname,
-    Company: compact.Company,
+    Company: compact['CMP Name'],
+    'CMP Name': compact['CMP Name'],
     Designation: compact.Designation,
     Email: compact.Email,
-    Phone: compact.Phone,
-    Domain: compact.Domain,
     Sector: compact.Sector,
-    Country: compact.Country
+    Country: compact.Country,
+    'List Added Date': compact['List Added Date'],
+    Source: compact.Source,
+    'Lead Type': compact['Lead Type'],
+    Sourcer: compact.Sourcer,
+    'User ID': compact['User ID'],
+    'Project Approach': compact['Project Approach'],
+    'Sender ID': compact['Sender ID']
   };
+  compact.Company = compact['CMP Name'];
+  compact.companyName = compact['CMP Name'];
+  compact.listAddedDate = compact['List Added Date'];
+  compact.leadType = compact['Lead Type'];
+  compact.userIdText = compact['User ID'];
+  compact.projectApproach = compact['Project Approach'];
+  compact.senderId = compact['Sender ID'];
   compact.duplicateMatches = Array.isArray(row?.duplicateMatches) ? row.duplicateMatches : [];
   compact.matchedSources = Array.isArray(row?.matchedSources) ? row.matchedSources : [];
 
@@ -152,13 +190,19 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
             ...(row?.data || {}),
             Name: row.Name,
             Surname: row.Surname,
-            Company: row.Company,
+            Company: getUploadFieldValue(row, 'CMP Name'),
+            'CMP Name': getUploadFieldValue(row, 'CMP Name'),
             Designation: row.Designation,
             Email: row.Email,
-            Phone: row.Phone,
-            Domain: row.Domain,
             Sector: row.Sector,
-            Country: row.Country
+            Country: row.Country,
+            'List Added Date': getUploadFieldValue(row, 'List Added Date'),
+            Source: getUploadFieldValue(row, 'Source'),
+            'Lead Type': getUploadFieldValue(row, 'Lead Type'),
+            Sourcer: getUploadFieldValue(row, 'Sourcer'),
+            'User ID': getUploadFieldValue(row, 'User ID'),
+            'Project Approach': getUploadFieldValue(row, 'Project Approach'),
+            'Sender ID': getUploadFieldValue(row, 'Sender ID')
           }))
         })
       );
@@ -182,13 +226,19 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
             ...(row?.data || {}),
             Name: row.Name,
             Surname: row.Surname,
-            Company: row.Company,
+            Company: getUploadFieldValue(row, 'CMP Name'),
+            'CMP Name': getUploadFieldValue(row, 'CMP Name'),
             Designation: row.Designation,
             Email: row.Email,
-            Phone: row.Phone,
-            Domain: row.Domain,
             Sector: row.Sector,
-            Country: row.Country
+            Country: row.Country,
+            'List Added Date': getUploadFieldValue(row, 'List Added Date'),
+            Source: getUploadFieldValue(row, 'Source'),
+            'Lead Type': getUploadFieldValue(row, 'Lead Type'),
+            Sourcer: getUploadFieldValue(row, 'Sourcer'),
+            'User ID': getUploadFieldValue(row, 'User ID'),
+            'Project Approach': getUploadFieldValue(row, 'Project Approach'),
+            'Sender ID': getUploadFieldValue(row, 'Sender ID')
           }))
         })
       );
@@ -533,7 +583,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                                 onKeyDown={(event) => handleCellKeyDown(event, rowIndex, colIndex)}
                                 onPaste={(event) => handleCellPaste(event, rowIndex, colIndex)}
                               >
-                                {String(row?.[field] || '')}
+                                {getUploadFieldValue(row, field)}
                               </div>
                             ))}
                             <span className={`client-directory-excel-cell client-upload-cell-status client-upload-status client-upload-status-${String(row.validationStatus || '').toLowerCase()}`}>
@@ -551,7 +601,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                       <div className="client-upload-preview-grid client-upload-preview-grid-head">
                         <span className="client-upload-cell-name">Name</span>
                         <span className="client-upload-cell-email">Email</span>
-                        <span className="client-upload-cell-company">Company</span>
+                        <span className="client-upload-cell-company">CMP Name</span>
                         <span className="client-upload-cell-status">Status</span>
                         <span className="client-upload-cell-details">Details</span>
                       </div>
@@ -567,13 +617,13 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                           <div className="client-upload-cell-email">
                             <div className="client-upload-read-stack">
                               <span>{row.Email || '-'}</span>
-                              <span>{row.Phone || '-'}</span>
-                              <span>{row.Domain || '-'}</span>
+                              <span>{getUploadFieldValue(row, 'List Added Date') || '-'}</span>
+                              <span>{getUploadFieldValue(row, 'Source') || '-'}</span>
                             </div>
                           </div>
                           <div className="client-upload-cell-company">
                             <div className="client-upload-read-stack">
-                              <span>{row.Company || '-'}</span>
+                              <span>{getUploadFieldValue(row, 'CMP Name') || '-'}</span>
                               <span>{row.Sector || '-'}</span>
                               <span>{row.Country || '-'}</span>
                             </div>
@@ -609,7 +659,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
                       <strong>New row #{row.rowNumber}</strong>
                       <p>{[row.Name, row.Surname].filter(Boolean).join(' ') || '-'}</p>
                       <span>{row.Email || '-'} | {row.Phone || '-'}</span>
-                      <span>{row.Company || '-'}</span>
+                      <span>{getUploadFieldValue(row, 'CMP Name') || '-'}</span>
                     </div>
                     <div>
                       <strong>Existing match</strong>

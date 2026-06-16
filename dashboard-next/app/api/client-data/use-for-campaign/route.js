@@ -28,7 +28,7 @@ export async function POST(req) {
       listId: String(list._id),
       name: list.name,
       count: Array.isArray(list.leads) ? list.leads.length : 0,
-      redirectUrl: `/dashboard/user?listId=${encodeURIComponent(String(list._id))}&source=client-data`
+      redirectUrl: '/campaigns'
     });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Failed to use selected sheet for campaign.' }, { status: 500 });

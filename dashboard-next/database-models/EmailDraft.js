@@ -23,6 +23,7 @@ const EmailDraftSchema = new mongoose.Schema(
     senderAccountId: { type: String, default: '', index: true },
     senderFrom: { type: String, default: '', index: true },
     sector: { type: String, default: '', index: true },
+    country: { type: String, default: '', index: true },
     city: { type: String, default: '', index: true },
     campaignName: { type: String, default: '', index: true },
     domain: { type: String, default: '', index: true },

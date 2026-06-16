@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppLayout from '@/app/components/layout/AppLayout';
 import Badge from '@/app/components/ui/Badge';
 import Button from '@/app/components/ui/Button';
@@ -614,6 +615,9 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
     <div className="dashboard-subscription-modal-backdrop campaign-detail-backdrop" onClick={onClose}>
       <section className="dashboard-subscription-modal campaign-detail-drawer" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
         <div className="dashboard-subscription-modal-head campaign-detail-head">
+          <button type="button" className="page-back-button campaign-detail-back-button" onClick={onClose} aria-label="Go back to campaigns">
+            <i className="ti ti-arrow-left" aria-hidden="true" />
+          </button>
           <div>
             <span>Campaign Details</span>
             <h2>{campaign.name || 'Campaign'}</h2>
@@ -767,6 +771,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
 }
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const campaignListRef = useRef(null);
   const [isMounted, setIsMounted] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
@@ -956,11 +961,18 @@ export default function CampaignsPage() {
     setSelectedCampaignId(campaignId);
   }, []);
 
+  const handleBackToPreviousPage = useCallback(() => {
+    router.back();
+  }, [router]);
+
   if (!isMounted) {
     return (
       <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
         <main className="campaigns-page-shell campaigns-modern-page">
           <section className="campaigns-modern-hero">
+            <button type="button" className="page-back-button campaigns-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
+              <i className="ti ti-arrow-left" aria-hidden="true" />
+            </button>
             <div>
               <span className="campaigns-page-kicker">Live campaign operations</span>
               <h1>Campaigns</h1>
@@ -981,6 +993,9 @@ export default function CampaignsPage() {
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       <main className="campaigns-page-shell campaigns-modern-page">
         <section className="campaigns-modern-hero">
+          <button type="button" className="page-back-button campaigns-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
+            <i className="ti ti-arrow-left" aria-hidden="true" />
+          </button>
           <div>
             <span className="campaigns-page-kicker">Live campaign operations</span>
             <h1>Campaigns</h1>

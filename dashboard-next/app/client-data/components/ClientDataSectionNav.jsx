@@ -13,9 +13,15 @@ export default function ClientDataSectionNav({ activeTab = '', onTabChange = nul
   const pathname = usePathname();
   const router = useRouter();
   const visibleSections = CLIENT_DATA_SECTIONS;
+  const handleBackToPreviousPage = () => {
+    router.back();
+  };
 
   return (
     <section className="client-data-page-header">
+      <button type="button" className="page-back-button client-data-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
+        <i className="ti ti-arrow-left" aria-hidden="true" />
+      </button>
       <div className="client-data-page-header-copy">
         <h1>Client Data</h1>
       </div>

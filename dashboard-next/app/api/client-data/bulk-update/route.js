@@ -1,7 +1,9 @@
 ﻿import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import ClientRecord from '@/models/ClientRecord';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import { refreshSheetCounts } from '@/app/api/client-sheets/_sheetUtils';
 
 function normalizeEmail(raw) {
   return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
@@ -71,6 +73,26 @@ function applyLeadPatch(lead, patch = {}) {
   };
 }
 
+function applyRecordPatch(record, patch = {}) {
+  if ('name' in patch) record.name = String(patch.name || '').trim();
+  if ('surname' in patch) record.surname = String(patch.surname || '').trim();
+  if ('designation' in patch) record.designation = String(patch.designation || '').trim();
+  if ('cmpName' in patch || 'companyName' in patch) record.companyName = String(patch.cmpName ?? patch.companyName ?? '').trim();
+  if ('sector' in patch) record.sector = String(patch.sector || '').trim();
+  if ('country' in patch) record.country = String(patch.country || '').trim();
+  if ('email' in patch) record.email = normalizeEmail(patch.email);
+  if ('source' in patch) record.source = String(patch.source || '').trim();
+  if ('leadType' in patch) record.leadType = String(patch.leadType || '').trim();
+  if ('sourcer' in patch) record.sourcer = String(patch.sourcer || '').trim();
+  if ('userId' in patch || 'userIdText' in patch) record.userIdText = String(patch.userId ?? patch.userIdText ?? '').trim();
+  if ('projectApproach' in patch) record.projectApproach = String(patch.projectApproach || '').trim();
+  if ('senderId' in patch) record.senderId = String(patch.senderId || '').trim();
+  if ('listAddedDate' in patch) record.listAddedDate = parseDateOrNull(patch.listAddedDate);
+  record.isInvalid = !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(record.email || '');
+  record.invalidReason = record.isInvalid ? 'Invalid email format' : '';
+  record.rawData = { ...(record.rawData || {}), ...patch };
+}
+
 export async function PATCH(req) {
   try {
     const auth = await requireAuth(req);
@@ -84,16 +106,32 @@ export async function PATCH(req) {
     }
 
     const byList = new Map();
+    const recordUpdates = [];
     for (const item of updates) {
       const rowId = String(item?.rowId || item?.id || '').trim();
+      const patch = item?.changes || item?.patch || item || {};
+      if (rowId.startsWith('record:')) {
+        const recordId = rowId.slice('record:'.length);
+        if (recordId) recordUpdates.push({ recordId, patch });
+        continue;
+      }
       const [listId, indexToken] = rowId.split('__');
       const leadIndex = Number(indexToken);
       if (!listId || !Number.isInteger(leadIndex) || leadIndex < 0) continue;
       if (!byList.has(listId)) byList.set(listId, []);
-      byList.get(listId).push({ leadIndex, patch: item?.changes || item?.patch || item || {} });
+      byList.get(listId).push({ leadIndex, patch });
     }
 
     const touched = [];
+    const touchedSheets = new Set();
+    for (const item of recordUpdates) {
+      const record = await ClientRecord.findOne(buildAuthOwnerFilter(auth, { _id: item.recordId, deletedAt: null }));
+      if (!record) continue;
+      applyRecordPatch(record, item.patch);
+      await record.save();
+      if (record.sheetId) touchedSheets.add(String(record.sheetId));
+    }
+
     for (const [listId, items] of byList.entries()) {
       const list = await LeadList.findOne(getListQuery(auth, listId));
       if (!list) continue;
@@ -106,7 +144,11 @@ export async function PATCH(req) {
       touched.push(listId);
     }
 
-    return NextResponse.json({ ok: true, updatedLists: touched });
+    for (const sheetId of touchedSheets) {
+      await refreshSheetCounts(sheetId);
+    }
+
+    return NextResponse.json({ ok: true, updatedLists: touched, updatedSheets: Array.from(touchedSheets) });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Failed to bulk update rows' }, { status: 500 });
   }

@@ -16,7 +16,7 @@ const TABLE_COLUMNS = [
   'Name',
   'Surname',
   'Designation',
-  'Cmp Name',
+  'CMP Name',
   'Sector',
   'Country',
   'Email',
@@ -33,10 +33,11 @@ const PASTE_COLUMNS = [
   { key: 'name', label: 'Name' },
   { key: 'surname', label: 'Surname' },
   { key: 'designation', label: 'Designation' },
-  { key: 'cmpName', label: 'Company Name' },
+  { key: 'cmpName', label: 'CMP Name' },
   { key: 'sector', label: 'Sector' },
   { key: 'country', label: 'Country' },
   { key: 'email', label: 'Email' },
+  { key: 'listAddedDate', label: 'List Added Date' },
   { key: 'source', label: 'Source' },
   { key: 'leadType', label: 'Lead Type' },
   { key: 'sourcer', label: 'Sourcer' },
@@ -238,6 +239,35 @@ function normalizeHeader(value = '') {
   return normalizeText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const PASTE_COLUMN_ALIASES = {
+  name: ['name', 'firstname', 'first name', 'contact name', 'contact'],
+  surname: ['surname', 'lastname', 'last name'],
+  designation: ['designation', 'title', 'job title', 'position'],
+  cmpName: ['cmp name', 'cmpname', 'company', 'company name', 'companyname', 'organization', 'organisation', 'account'],
+  sector: ['sector', 'industry'],
+  country: ['country'],
+  email: ['email', 'e-mail', 'mail', 'mail id', 'email address'],
+  listAddedDate: ['list added date', 'date', 'added date', 'upload date'],
+  source: ['source'],
+  leadType: ['lead type', 'leadtype'],
+  sourcer: ['sourcer', 'source by', 'sourceby'],
+  userId: ['user id', 'userid'],
+  projectApproach: ['project approach', 'projectapproach', 'approach', 'used in project', 'usedinproject'],
+  senderId: ['sender id', 'senderid']
+};
+
+function resolvePasteColumnKey(header = '') {
+  const normalized = normalizeHeader(header);
+  if (!normalized) return '';
+  for (const column of PASTE_COLUMNS) {
+    if (normalizeHeader(column.label) === normalized || normalizeHeader(column.key) === normalized) return column.key;
+  }
+  for (const [key, aliases] of Object.entries(PASTE_COLUMN_ALIASES)) {
+    if (aliases.some((alias) => normalizeHeader(alias) === normalized)) return key;
+  }
+  return '';
+}
+
 function isCountry(text) {
   const t = text.trim().toLowerCase();
   if (t === 'uk' || t === 'us' || t === 'usa' || t === 'uae' || t === 'in' || t === 'netherlands' || t === 'canada') return true;
@@ -346,15 +376,15 @@ function parseSingleClientBlock(blockLines) {
   return {
     name,
     surname,
-    designation: designation || sector || 'Consultant',
+    designation: designation || '',
     cmpName,
-    sector: sector || 'Consulting',
-    country: country || 'US',
+    sector: sector || '',
+    country,
     email: email.toLowerCase(),
     source: 'Pasted Block',
-    leadType: 'TUT',
+    leadType: '',
     sourcer: linkedin || '', // Map LinkedIn to Sourcer
-    userId: 'Default',
+    userId: '',
     projectApproach: '',
     senderId: ''
   };
@@ -407,8 +437,7 @@ function parsePastedRows(rawText = '') {
   } else {
     // Normal horizontal spreadsheet row parsing
     const parsed = lines.map(splitDelimitedLine);
-    const headerMap = new Map(PASTE_COLUMNS.map((column) => [normalizeHeader(column.label), column.key]));
-    const firstLineKeys = parsed[0].map((cell) => headerMap.get(normalizeHeader(cell)));
+    const firstLineKeys = parsed[0].map((cell) => resolvePasteColumnKey(cell));
     const hasHeader = firstLineKeys.filter(Boolean).length >= 2;
     const rows = hasHeader ? parsed.slice(1) : parsed;
     return rows.map((cells, rowIndex) => {
@@ -422,7 +451,7 @@ function parsePastedRows(rawText = '') {
         if (typeof row[column.key] !== 'string') row[column.key] = '';
       });
       row.email = normalizeText(row.email).toLowerCase();
-      row.sector = autoDetectSector(row);
+      if (!normalizeText(row.sector)) row.sector = '';
       return row;
     }).filter(hasVisibleClientData);
   }
@@ -471,7 +500,7 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
     leadIndex,
     name: getLeadValue(lead, 'Name', 'name') || '-',
     surname: getLeadValue(lead, 'Surname', 'surname', 'Last Name', 'lastName') || '-',
-    cmpName: getLeadValue(lead, 'Company', 'company', 'Company Name', 'companyName') || '-',
+    cmpName: getLeadValue(lead, 'CMP Name', 'cmpName', 'Company', 'company', 'Company Name', 'companyName') || '-',
     sector: getLeadValue(lead, 'Sector', 'sector', 'Industry', 'industry') || '-',
     country: getLeadValue(lead, 'Country', 'country') || '-',
     email: email || '-',
@@ -484,8 +513,8 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
     source: String(list?.sourceFile || list?.name || 'Uploaded File'),
     leadType: getLeadValue(lead, 'Lead Type', 'LeadType', 'leadType') || '-',
     sourcer: getLeadValue(lead, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
-    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId') || '-',
-    projectApproach: getLeadValue(lead, 'Project Approach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
+    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId', 'userIdText') || '-',
+    projectApproach: getLeadValue(lead, 'Project Approach', 'ProjectApproach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
     senderId: getLeadValue(lead, 'Sender ID', 'SenderId', 'senderId') || '-',
     freshLead,
     rawLead: lead
@@ -704,8 +733,30 @@ export default function ClientListPage() {
   const switchClientDataTab = (tab) => {
     setActiveTab(tab);
     const nextUrl = tab === 'client-list' ? '/client-data/client-list' : `/client-data/client-list?tab=${tab}`;
-    window.history.replaceState(null, '', nextUrl);
+    if (window.location.pathname + window.location.search !== nextUrl) {
+      window.history.pushState(null, '', nextUrl);
+    }
   };
+
+  const openClientDataList = (sheetId = '') => {
+    setActiveTab('client-list');
+    setShowCreatedSheetsPicker(false);
+    if (sheetId) setActiveSourceSheetId(String(sheetId));
+    const nextUrl = '/client-data/client-list';
+    if (window.location.pathname + window.location.search !== nextUrl) {
+      window.history.pushState(null, '', nextUrl);
+    }
+    requestAnimationFrame(() => clientListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  useEffect(() => {
+    const syncTabFromLocation = () => {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      setActiveTab(['upload', 'customize', 'bin', 'client-list'].includes(tab) ? tab : 'client-list');
+    };
+    window.addEventListener('popstate', syncTabFromLocation);
+    return () => window.removeEventListener('popstate', syncTabFromLocation);
+  }, []);
 
   useEffect(() => {
     const onDocClick = (event) => {
@@ -1100,7 +1151,9 @@ export default function ClientListPage() {
       setSelectionMessage(data.message || `Created ${name} with ${rows.length} selected clients.`);
       showToast('success', data.message || `Created ${name} with ${rows.length} selected clients.`);
       setActiveTab('customize');
-      window.history.replaceState(null, '', '/client-data/client-list?tab=customize');
+      if (window.location.pathname + window.location.search !== '/client-data/client-list?tab=customize') {
+        window.history.pushState(null, '', '/client-data/client-list?tab=customize');
+      }
     } catch (err) {
       setSelectionError(err.message || 'Failed to create custom list');
       showToast('error', err.message || 'Failed to create custom list');
@@ -1922,7 +1975,7 @@ export default function ClientListPage() {
       window.localStorage?.setItem?.('campaign:selectedClientListId', data.listId);
       window.localStorage?.setItem?.('campaign:selectedClientListName', data.name || '');
       showToast('success', `${data.name || 'Selected sheet'} attached to Campaign Workflow.`);
-      router.push(data.redirectUrl || `/dashboard/user?listId=${encodeURIComponent(data.listId)}`);
+      router.push('/campaigns');
     } catch (err) {
       setSelectionError(err.message || 'Failed to use sheet for campaign');
       showToast('error', err.message || 'Failed to use sheet for campaign');
@@ -2299,7 +2352,7 @@ export default function ClientListPage() {
                                       type="button"
                                       size="sm"
                                       variant="secondary"
-                                      onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
+                                      onClick={() => openClientDataList(list._id)}
                                     >
                                       Upload This Sheet
                                     </Button>
@@ -2442,6 +2495,7 @@ export default function ClientListPage() {
                                         type={field === 'listAddedDate' ? 'date' : 'text'}
                                         className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
                                         value={value}
+                                        readOnly={!EDITABLE_ROW_FIELDS.includes(field)}
                                         onFocus={() => setActiveCell({ rowId: row.id, field })}
                                         onClick={() => setActiveCell({ rowId: row.id, field })}
                                         onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
@@ -2502,7 +2556,7 @@ export default function ClientListPage() {
                             <Badge variant={badgeToneMap[row.status] || 'default'}>{row.status}</Badge>
                           </div>
                           <div className="client-data-mobile-grid">
-                            <div><span>Cmp Name</span><strong>{row.cmpName}</strong></div>
+                            <div><span>CMP Name</span><strong>{row.cmpName}</strong></div>
                             <div><span>Designation</span><strong>{row.designation}</strong></div>
                             <div><span>Sector</span><strong>{row.sector}</strong></div>
                             <div><span>Country</span><strong>{row.country}</strong></div>
@@ -2543,7 +2597,7 @@ export default function ClientListPage() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
+                            onClick={() => openClientDataList(list._id || list.id)}
                           >
                             View
                           </Button>
@@ -2570,7 +2624,7 @@ export default function ClientListPage() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
+                            onClick={() => openClientDataList(list._id || list.id)}
                             style={{ marginLeft: 8 }}
                           >
                             Edit Clients

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
 import Button from '@/shared-components/ui-components/UiActionButton';
@@ -45,13 +46,32 @@ function formatRelativeDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
   const diffMs = Date.now() - date.getTime();
-  const minute = 60000, hour = 3600000, day = 86400000;
-  if (diffMs < minute) return 'Just now';
-  if (diffMs < hour)   return `${Math.floor(diffMs / minute)}m ago`;
-  if (diffMs < day)    return `${Math.floor(diffMs / hour)}h ago`;
-  if (diffMs < 2*day)  return 'Yesterday';
-  if (diffMs < 7*day)  return `${Math.floor(diffMs / day)} days ago`;
-  return date.toLocaleDateString();
+  const second = 1000, minute = 60000, hour = 3600000, day = 86400000;
+  if (diffMs >= 0 && diffMs < minute) {
+    const seconds = Math.max(1, Math.floor(diffMs / second));
+    return `${seconds} ${seconds === 1 ? 'second' : 'seconds'} ago`;
+  }
+  if (diffMs >= 0 && diffMs < hour) {
+    const minutes = Math.floor(diffMs / minute);
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  }
+  if (diffMs >= 0 && diffMs < day) {
+    const hours = Math.floor(diffMs / hour);
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  }
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function formatDraftTimestamp(value, label) {
+  const formatted = formatRelativeDate(value);
+  if (formatted === '-') return `${label} -`;
+  return formatted.includes('ago') ? `${label} ${formatted}` : formatted;
 }
 
 function getDraftStatus(draft) {
@@ -94,8 +114,8 @@ function resolveDraftCampaign(draft = {}) {
   return String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim();
 }
 
-function resolveDraftCity(draft = {}) {
-  return String(draft?.city || draft?.City || draft?.location || '').trim();
+function resolveDraftCountry(draft = {}) {
+  return String(draft?.country || draft?.Country || draft?.city || draft?.City || draft?.location || '').trim();
 }
 
 function escapeHtml(v) {
@@ -120,6 +140,7 @@ function useMenuState() {
 }
 
 export default function DraftsPage() {
+  const router = useRouter();
   /* ── state ── */
   const [drafts, setDrafts]                     = useState([]);
   const [loading, setLoading]                   = useState(true);
@@ -129,7 +150,7 @@ export default function DraftsPage() {
   const [draftSubject, setDraftSubject]         = useState('');
   const [draftCategory, setDraftCategory]       = useState(CATEGORY_OPTIONS[0].value);
   const [draftSector, setDraftSector]           = useState('');
-  const [draftCity, setDraftCity]               = useState('');
+  const [draftCountry, setDraftCountry]         = useState('');
   const [draftCampaignName, setDraftCampaignName] = useState('');
   const [draftProject, setDraftProject]         = useState('tec');
   const [draftTitle, setDraftTitle]             = useState('');
@@ -255,7 +276,7 @@ export default function DraftsPage() {
     setShowWorkspace(true);
     setEditingDraftId('');
     setDraftTitle(''); setDraftSubject(''); setDraftSector('');
-    setDraftCity(''); setDraftCampaignName(''); setDraftProject('tec');
+    setDraftCountry(''); setDraftCampaignName(''); setDraftProject('tec');
     setDraftCategory(CATEGORY_OPTIONS[0].value); setEditorHtml(''); setSaveMessage('');
   };
 
@@ -271,7 +292,7 @@ export default function DraftsPage() {
     setDraftTitle(String(draft?.title || ''));
     setDraftSubject(String(draft?.subject || ''));
     setDraftSector(String(draft?.sector || ''));
-    setDraftCity(resolveDraftCity(draft));
+    setDraftCountry(resolveDraftCountry(draft));
     setDraftCampaignName(resolveDraftCampaign(draft));
     setDraftProject(resolveDraftProject(draft) || 'tec');
     setDraftCategory(resolveDraftLibraryType(draft) || CATEGORY_OPTIONS[0].value);
@@ -294,7 +315,8 @@ export default function DraftsPage() {
     setDraftActionMessage(''); setDraftActionError('');
     try {
       const draftType = resolveDraftLibraryType(draft);
-      const res  = await fetch('/api/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ category:draftType, draftType, title:`${draft?.title||draft?.subject||'Untitled'} Copy`, sector:String(draft?.sector||'').trim(), city:resolveDraftCity(draft), campaignName:resolveDraftCampaign(draft), project:resolveDraftProject(draft), subject:String(draft?.subject||'').trim()||`${draft?.title||'Untitled'} Copy`, body:String(draft?.body||draft?.bodyHtml||draft?.html||'').trim() }) });
+      const country = resolveDraftCountry(draft);
+      const res  = await fetch('/api/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ category:draftType, draftType, title:`${draft?.title||draft?.subject||'Untitled'} Copy`, sector:String(draft?.sector||'').trim(), country, city:country, campaignName:resolveDraftCampaign(draft), project:resolveDraftProject(draft), subject:String(draft?.subject||'').trim()||`${draft?.title||'Untitled'} Copy`, body:String(draft?.body||draft?.bodyHtml||draft?.html||'').trim() }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to duplicate');
       if (data?.draft) setDrafts(prev => [data.draft, ...prev]);
@@ -327,7 +349,8 @@ export default function DraftsPage() {
     }
     setSavingDraft(true);
     try {
-      const payload = { category: normalizeDraftType(draftCategory), draftType: normalizeDraftType(draftCategory), title: draftTitle.trim(), sector: draftSector.trim(), city: draftCity.trim(), campaignName: draftCampaignName.trim(), project: ['tec','tut'].includes(draftProject?.toLowerCase()) ? draftProject.toLowerCase() : '', subject: draftSubject.trim(), body: editorHtml };
+      const country = draftCountry.trim();
+      const payload = { category: normalizeDraftType(draftCategory), draftType: normalizeDraftType(draftCategory), title: draftTitle.trim(), sector: draftSector.trim(), country, city: country, campaignName: draftCampaignName.trim(), project: ['tec','tut'].includes(draftProject?.toLowerCase()) ? draftProject.toLowerCase() : '', subject: draftSubject.trim(), body: editorHtml };
       const res  = await fetch(editingDraftId ? `/api/drafts/${editingDraftId}` : '/api/drafts', { method: editingDraftId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to save');
@@ -354,6 +377,13 @@ export default function DraftsPage() {
   };
 
   const clearAllFilters = () => { setLibraryTypeFilter(''); setLibrarySectorFilter(''); setLibraryProjectFilter(''); setLibraryCampaignFilter(''); setLibrarySearchQuery(''); };
+  const handleBackToPreviousPage = () => {
+    if (showWorkspace) {
+      setShowWorkspace(false);
+      return;
+    }
+    router.back();
+  };
 
   /* ── render ── */
   return (
@@ -363,6 +393,9 @@ export default function DraftsPage() {
 
         {/* PAGE HEADER */}
         <div className="dl-header">
+          <button type="button" className="page-back-button dl-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
+            <i className="ti ti-arrow-left" aria-hidden="true" />
+          </button>
           <div className="dl-header-title-area">
             <span className="dl-eyebrow">DRAFT LIBRARY</span>
             <h1 className="dl-h1">Drafts</h1>
@@ -400,7 +433,7 @@ export default function DraftsPage() {
           <section className={`workspace-panel draft-workspace-panel draft-workspace-panel-full`}>
             <div className="workspace-panel-head">
               <button type="button" className="dl-back-btn" onClick={() => setShowWorkspace(false)}>
-                <i className="ti ti-arrow-left" /> Back to Library
+                <i className="ti ti-arrow-left" aria-hidden="true" />
               </button>
               <div><h2>{editingDraftId ? 'Edit Draft' : 'Create Draft'}</h2></div>
               <div className="draft-workspace-mode">
@@ -416,7 +449,7 @@ export default function DraftsPage() {
                   <label className="draft-workspace-title-field"><span>Draft Type</span><select value={draftCategory} onChange={e => setDraftCategory(e.target.value)}>{CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
                   <label className="draft-workspace-title-field"><span>Campaign Name</span><input type="text" value={draftCampaignName} onChange={e => setDraftCampaignName(e.target.value)} placeholder="Enter campaign name" /></label>
                   <label className="draft-workspace-title-field"><span>Sector</span><input type="text" value={draftSector} onChange={e => setDraftSector(e.target.value)} placeholder="Enter sector" /></label>
-                  <label className="draft-workspace-title-field"><span>City</span><input type="text" value={draftCity} onChange={e => setDraftCity(e.target.value)} placeholder="Enter city" /></label>
+                  <label className="draft-workspace-title-field"><span>Country</span><input type="text" value={draftCountry} onChange={e => setDraftCountry(e.target.value)} placeholder="Enter country" /></label>
                   <label className="draft-workspace-title-field"><span>Project</span><select value={draftProject} onChange={e => setDraftProject(e.target.value)}>{PROJECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
                 </div>
                 <div className="draft-body-label">Draft Body</div>
@@ -653,7 +686,8 @@ export default function DraftsPage() {
                                 <div className="dl-card-meta">
                                   <span><i className="ti ti-building" />{draft?.sector || 'No sector'}</span>
                                   <span><i className="ti ti-folder" />{projectValue ? projectValue.toUpperCase() : 'No project'}</span>
-                                  <span><i className="ti ti-clock" />{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</span>
+                                  <span><i className="ti ti-calendar-plus" />{formatDraftTimestamp(draft?.createdAt, 'Created')}</span>
+                                  <span><i className="ti ti-clock" />{formatDraftTimestamp(draft?.updatedAt || draft?.createdAt, 'Updated')}</span>
                                 </div>
 
                                 {/* Bottom row */}
@@ -704,8 +738,8 @@ export default function DraftsPage() {
                 >
                   {/* Modal head */}
                   <div className="dl-modal-head">
-                    <button type="button" className="dl-modal-back-btn" onClick={() => setPreviewDraft(null)}>
-                      <i className="ti ti-arrow-left" /> Back
+                    <button type="button" className="dl-modal-back-btn" onClick={() => setPreviewDraft(null)} aria-label="Go back">
+                      <i className="ti ti-arrow-left" aria-hidden="true" />
                     </button>
                     <div>
                       <span className="dl-badge" style={{ background: pm.badgeColor, color: pm.badgeText, borderColor: pm.badgeBorder }}>
@@ -721,7 +755,8 @@ export default function DraftsPage() {
                       { l:'Project',    v: resolveDraftProject(previewDraft)?.toUpperCase() || '—' },
                       { l:'Sector',     v: previewDraft?.sector || '—' },
                       { l:'Draft Type', v: draftTypeLabel(ptype) },
-                      { l:'Updated',    v: formatRelativeDate(previewDraft?.updatedAt || previewDraft?.createdAt) },
+                      { l:'Created',    v: formatDraftTimestamp(previewDraft?.createdAt, 'Created') },
+                      { l:'Updated',    v: formatDraftTimestamp(previewDraft?.updatedAt || previewDraft?.createdAt, 'Updated') },
                       { l:'Status',     v: isApproved ? '✓ Approved by TL' : 'Pending', ok: isApproved }
                     ].map(m => (
                       <div key={m.l} className={`dl-modal-meta-item${m.ok ? ' dl-modal-meta-item--ok' : ''}`}>
@@ -797,8 +832,8 @@ export default function DraftsPage() {
                             <span className="dl-stats-val">{resolveDraftProject(previewDraft)?.toUpperCase() || '—'}</span>
                           </div>
                           <div className="dl-stats-row">
-                            <span className="dl-stats-lbl">City / Location</span>
-                            <span className="dl-stats-val">{resolveDraftCity(previewDraft) || '—'}</span>
+                            <span className="dl-stats-lbl">Country</span>
+                            <span className="dl-stats-val">{resolveDraftCountry(previewDraft) || '—'}</span>
                           </div>
                           <div className="dl-stats-row">
                             <span className="dl-stats-lbl">Campaign Name</span>

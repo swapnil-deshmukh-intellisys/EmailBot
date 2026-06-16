@@ -8,6 +8,7 @@ import { requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 import {
   applyDuplicateFlags,
+  CLIENT_SHEET_COLUMNS,
   collectProjectEmailCounts,
   normalizeProject,
   rawRowToRecord,
@@ -117,7 +118,7 @@ export async function POST(req) {
       for (const item of sheets) {
         const sheetName = String(item.sheetName || item.name || fileName).trim() || fileName;
         const sheetRows = Array.isArray(item.rows) ? item.rows.filter(hasMeaningfulLeadData) : [];
-        const sheetColumns = Array.isArray(item.columns) && item.columns.length ? item.columns.map(String) : columns;
+        const sheetColumns = CLIENT_SHEET_COLUMNS;
         const clientSheet = await ClientSheet.create({
           userId: auth.currentUser._id,
           userEmail,

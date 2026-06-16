@@ -21,7 +21,7 @@ export default function DraftDetailClientPage({ draftId }) {
   const [draftSubject, setDraftSubject] = useState('');
   const [draftCategory, setDraftCategory] = useState('cover_story');
   const [draftSector, setDraftSector] = useState('');
-  const [draftCity, setDraftCity] = useState('');
+  const [draftCountry, setDraftCountry] = useState('');
   const [draftCampaignName, setDraftCampaignName] = useState('');
   const [draftProject, setDraftProject] = useState('tec');
   const [editorHtml, setEditorHtml] = useState('');
@@ -40,7 +40,7 @@ export default function DraftDetailClientPage({ draftId }) {
         setDraftSubject(String(draft.subject || ''));
         setDraftCategory(normalizeDraftType(draft.draftType || draft.category || 'cover_story'));
         setDraftSector(String(draft.sector || ''));
-        setDraftCity(String(draft.city || ''));
+        setDraftCountry(String(draft.country || draft.city || ''));
         setDraftCampaignName(String(draft.campaignName || draft.campaign || ''));
         setDraftProject(['tec', 'tut'].includes(String(draft.project || '').toLowerCase()) ? String(draft.project).toLowerCase() : 'tec');
         setEditorHtml(String(draft.bodyHtml || draft.html || draft.body || ''));
@@ -73,7 +73,8 @@ export default function DraftDetailClientPage({ draftId }) {
           category: normalizeDraftType(draftCategory),
           draftType: normalizeDraftType(draftCategory),
           sector: draftSector.trim(),
-          city: draftCity.trim(),
+          country: draftCountry.trim(),
+          city: draftCountry.trim(),
           campaignName: draftCampaignName.trim(),
           project: draftProject,
           body: editorHtml,
@@ -94,12 +95,14 @@ export default function DraftDetailClientPage({ draftId }) {
     <DashboardPlaceholderShell>
       <section className="workspace-page" style={{ '--workspace-accent': '#f97316' }}>
         <div className="workspace-hero">
+          <button type="button" className="page-back-button draft-detail-page-back-button" onClick={() => router.back()} aria-label="Go back to previous page">
+            <i className="ti ti-arrow-left" aria-hidden="true" />
+          </button>
           <div>
             <span className="workspace-kicker">Drafts</span>
             <h1>{loading ? 'Loading Draft' : draftTitle || 'Edit Draft'}</h1>
           </div>
           <div className="workspace-hero-actions">
-            <Button variant="secondary" className="workspace-secondary" onClick={() => router.push('/drafts')}>Back</Button>
             <Button className="workspace-primary" onClick={saveDraft} disabled={saving || loading}>
               {saving ? 'Saving...' : 'Update Draft'}
             </Button>
@@ -139,8 +142,8 @@ export default function DraftDetailClientPage({ draftId }) {
                   <input value={draftSector} onChange={(event) => setDraftSector(event.target.value)} placeholder="Enter sector" />
                 </label>
                 <label className="draft-workspace-title-field">
-                  <span>City</span>
-                  <input value={draftCity} onChange={(event) => setDraftCity(event.target.value)} placeholder="Enter city" />
+                  <span>Country</span>
+                  <input value={draftCountry} onChange={(event) => setDraftCountry(event.target.value)} placeholder="Enter country" />
                 </label>
               </div>
               <div className="draft-body-label">Draft Body</div>

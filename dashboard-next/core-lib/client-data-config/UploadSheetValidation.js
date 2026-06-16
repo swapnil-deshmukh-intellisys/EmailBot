@@ -19,6 +19,8 @@ const MEANINGFUL_LEAD_FIELDS = [
   'contactName',
   'Company',
   'company',
+  'CMP Name',
+  'cmpName',
   'Company Name',
   'companyName',
   'Designation',
@@ -41,6 +43,8 @@ const MEANINGFUL_LEAD_FIELDS = [
   'industry',
   'Country',
   'country',
+  'List Added Date',
+  'listAddedDate',
   'City',
   'city',
   'Location',
@@ -185,9 +189,6 @@ function autoCorrectLeadFields(mapped) {
 
   corrected.Email = normalizeEmail(corrected.Email || corrected.data.Email || corrected.data.email || '');
 
-  if (!corrected.Domain) {
-    corrected.Domain = inferDomainFromEmail(corrected.Email);
-  }
   corrected.Domain = normalizeDomain(corrected.Domain);
 
   if (!corrected.Name || !corrected.Surname) {
@@ -203,20 +204,8 @@ function autoCorrectLeadFields(mapped) {
     if (!corrected.Surname) corrected.Surname = split.surname;
   }
 
-  if (!corrected.Name) {
-    const inferred = inferNameFromEmail(corrected.Email);
-    corrected.Name = inferred.firstName;
-    if (!corrected.Surname) corrected.Surname = inferred.surname;
-  }
-
   corrected.Name = toTitleCase(corrected.Name);
   corrected.Surname = toTitleCase(corrected.Surname);
-
-  if (!corrected.Company) {
-    corrected.Company =
-      getFirstPresent(corrected.data, ['Organization', 'organization', 'Account', 'account']) ||
-      humanizeDomainLabel(corrected.Domain || inferDomainFromEmail(corrected.Email));
-  }
   corrected.Company = toTitleCase(corrected.Company);
   corrected.Designation = toTitleCase(corrected.Designation);
   corrected.Sector = toTitleCase(corrected.Sector);
@@ -242,7 +231,9 @@ function autoCorrectLeadFields(mapped) {
     Phone: corrected.Phone,
     Domain: corrected.Domain,
     Sector: corrected.Sector,
-    Country: corrected.Country
+    Country: corrected.Country,
+    'List Added Date': corrected.ListAddedDate || corrected.data?.['List Added Date'] || corrected.data?.listAddedDate || '',
+    listAddedDate: corrected.ListAddedDate || corrected.data?.['List Added Date'] || corrected.data?.listAddedDate || ''
   };
 
   return corrected;
@@ -257,7 +248,7 @@ export function mapRawRowToLead(rawRow = {}) {
   const splitFullName = splitNameParts(fullName);
   const name = getFirstPresent(row, ['Name', 'name', 'First Name', 'firstName']) || splitFullName.firstName;
   const surname = getFirstPresent(row, ['Surname', 'surname', 'Last Name', 'lastName']) || splitFullName.surname;
-  const company = getFirstPresent(row, ['Company', 'company', 'Company Name', 'companyName']);
+  const company = getFirstPresent(row, ['CMP Name', 'cmpName', 'Company', 'company', 'Company Name', 'companyName']);
   const designation = getFirstPresent(row, ['Designation', 'designation', 'Title', 'title']);
   const email = normalizeEmail(row.Email || row.email || '');
   const phone = normalizePhone(row.Phone || row.phone || row.Mobile || row.mobile || '');
@@ -265,6 +256,7 @@ export function mapRawRowToLead(rawRow = {}) {
   const domain = normalizeDomain(row.Domain || row.domain || row.Website || row.website || '');
   const sector = getFirstPresent(row, ['Sector', 'sector', 'Industry', 'industry']);
   const country = getFirstPresent(row, ['Country', 'country']);
+  const listAddedDate = getFirstPresent(row, ['List Added Date', 'listAddedDate', 'Added Date', 'Date', 'Upload Date']);
   const source = getFirstPresent(row, ['Source', 'source']);
   const sourcer = getFirstPresent(row, ['Sourcer', 'sourcer']);
   const leadType = getFirstPresent(row, ['Lead Type', 'LeadType', 'leadType']);
@@ -286,6 +278,7 @@ export function mapRawRowToLead(rawRow = {}) {
     Domain: domain,
     Sector: sector,
     Country: country,
+    ListAddedDate: listAddedDate,
     Source: source,
     Sourcer: sourcer,
     LeadType: leadType,
@@ -297,6 +290,7 @@ export function mapRawRowToLead(rawRow = {}) {
       Name: name,
       Surname: surname,
       Company: company,
+      'CMP Name': company,
       Designation: designation,
       Email: email,
       Phone: phone,
@@ -305,6 +299,8 @@ export function mapRawRowToLead(rawRow = {}) {
       Domain: domain,
       Sector: sector,
       Country: country,
+      'List Added Date': listAddedDate,
+      listAddedDate,
       Source: source,
       Sourcer: sourcer,
       LeadType: leadType,

@@ -80,7 +80,7 @@ export async function POST(req) {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, country, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
     const draftHtml = draftParts.bodyHtml;
@@ -90,6 +90,7 @@ export async function POST(req) {
     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
     }
+    const countryValue = String(country || city || '').trim();
     const draft = await EmailDraft.create({
       userId: auth.currentUser._id,
       userEmail,
@@ -98,7 +99,8 @@ export async function POST(req) {
       title,
       project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
       sector: String(sector || '').trim(),
-      city: String(city || '').trim(),
+      country: countryValue,
+      city: countryValue,
       campaignName: String(campaignName || '').trim(),
       domain: String(domain || '').trim().toLowerCase(),
       subject,

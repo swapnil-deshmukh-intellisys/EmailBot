@@ -89,7 +89,7 @@ export async function POST(req) {
         sheetName: workbookSheet.sheetName || originalFileName,
         originalFileName,
         kind: 'uploaded',
-        columns: workbookSheet.columns.length ? workbookSheet.columns : CLIENT_SHEET_COLUMNS,
+        columns: CLIENT_SHEET_COLUMNS,
         createdBy: userEmail
       });
 
@@ -122,7 +122,7 @@ export async function POST(req) {
         sourceFileId: String(uploadRecord._id),
         sourceFileName: originalFileName,
         kind: 'uploaded',
-        columns: workbookSheet.columns.length ? workbookSheet.columns : CLIENT_SHEET_COLUMNS,
+        columns: CLIENT_SHEET_COLUMNS,
         dataCenterMeta: {
           sourceType: 'client_sheet_upload',
           clientSheetId: String(sheet._id),

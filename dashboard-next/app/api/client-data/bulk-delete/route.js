@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
+import ClientRecord from '@/models/ClientRecord';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+import { refreshSheetCounts } from '@/app/api/client-sheets/_sheetUtils';
 
 function getListQuery(auth, listId) {
   return buildAuthOwnerFilter(auth, { _id: listId });
@@ -20,8 +22,15 @@ export async function POST(req) {
     }
 
     const byList = new Map();
+    const recordIds = [];
     for (const rowId of rowIds) {
-      const parts = String(rowId).trim().split('__');
+      const normalizedRowId = String(rowId).trim();
+      if (normalizedRowId.startsWith('record:')) {
+        const recordId = normalizedRowId.slice('record:'.length);
+        if (recordId) recordIds.push(recordId);
+        continue;
+      }
+      const parts = normalizedRowId.split('__');
       const listId = parts[0];
       const indexToken = parts[1];
       const leadIndex = Number(indexToken);
@@ -31,6 +40,24 @@ export async function POST(req) {
     }
 
     const touched = [];
+    const touchedSheets = new Set();
+    if (recordIds.length) {
+      const records = await ClientRecord.find({
+        ...buildAuthOwnerFilter(auth),
+        _id: { $in: recordIds },
+        deletedAt: null
+      }).select('sheetId').lean();
+      if (records.length) {
+        await ClientRecord.updateMany(
+          { ...buildAuthOwnerFilter(auth), _id: { $in: records.map((record) => record._id) }, deletedAt: null },
+          { $set: { deletedAt: new Date() } }
+        );
+        records.forEach((record) => {
+          if (record.sheetId) touchedSheets.add(String(record.sheetId));
+        });
+      }
+    }
+
     for (const [listId, indices] of byList.entries()) {
       const list = await LeadList.findOne(getListQuery(auth, listId));
       if (!list) continue;
@@ -46,7 +73,11 @@ export async function POST(req) {
       touched.push(listId);
     }
 
-    return NextResponse.json({ ok: true, deletedCount: rowIds.length, updatedLists: touched });
+    for (const sheetId of touchedSheets) {
+      await refreshSheetCounts(sheetId);
+    }
+
+    return NextResponse.json({ ok: true, deletedCount: rowIds.length, updatedLists: touched, updatedSheets: Array.from(touchedSheets) });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Failed to bulk delete rows' }, { status: 500 });
   }

@@ -34,7 +34,7 @@ export async function PATCH(req, { params }) {
     if (auth.errorResponse) return auth.errorResponse;
     await connectDB();
     const { id } = params;
-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
+    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, country, city, campaignName, domain, project } = await req.json();
     const normalizedDraftType = normalizeDraftType(draftType || category);
     const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
     const draftHtml = draftParts.bodyHtml;
@@ -44,6 +44,7 @@ export async function PATCH(req, { params }) {
     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
     }
+    const countryValue = String(country || city || '').trim();
     const draft = await EmailDraft.findOneAndUpdate(
       buildAuthOwnerFilter(auth, { _id: id }),
       {
@@ -52,7 +53,8 @@ export async function PATCH(req, { params }) {
         title,
         project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
         sector: String(sector || '').trim(),
-        city: String(city || '').trim(),
+        country: countryValue,
+        city: countryValue,
         campaignName: String(campaignName || '').trim(),
         domain: String(domain || '').trim().toLowerCase(),
         subject,
