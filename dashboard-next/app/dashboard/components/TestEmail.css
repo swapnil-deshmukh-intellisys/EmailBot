@@ -214,3 +214,89 @@
   cursor: pointer !important;
   accent-color: #4f46e5 !important;
 }
+
+/* Step 6: use the modal height better and keep the send row compact. */
+.premium-test-email-modal .premium-test-email-body {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto auto auto !important;
+  gap: 8px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.premium-test-email-modal .premium-test-email-preview {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.premium-test-email-modal .premium-test-email-preview-top {
+  padding: 8px 12px !important;
+}
+
+.premium-test-email-modal .premium-test-email-preview-label {
+  padding: 8px 12px 0 !important;
+}
+
+.premium-test-email-modal .premium-test-email-message {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 12px !important;
+}
+
+.premium-test-email-modal .premium-test-email-sendrow {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  margin-top: 4px !important;
+  padding: 12px 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.premium-test-email-modal .premium-test-email-field {
+  gap: 0 !important;
+}
+
+.premium-test-email-modal .premium-test-email-field span {
+  display: none !important;
+}
+
+.premium-test-email-modal .premium-test-email-field input {
+  min-height: 40px !important;
+  padding: 0 4px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.premium-test-email-modal .premium-test-email-field input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.premium-test-email-modal .premium-test-email-field input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.premium-test-email-modal .premium-test-email-send {
+  height: 40px !important;
+  border-radius: 10px !important;
+}
+
+.premium-test-email-modal .premium-test-email-error,
+.premium-test-email-modal .premium-test-email-success {
+  margin-top: 0 !important;
+}
+
+.premium-test-email-modal .premium-test-email-check {
+  margin-top: 0 !important;
+  padding: 2px 2px 0 !important;
+  align-self: start !important;
+}

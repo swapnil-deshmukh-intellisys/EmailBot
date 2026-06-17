@@ -22636,6 +22636,15 @@ b {
   padding: 10px;
 }
 
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar.is-collapsible {
+  max-height: 54px;
+  overflow: hidden;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar.is-collapsible.is-expanded {
+  max-height: none;
+}
+
 .premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar .button,
 .premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar .select {
   min-height: 34px;
@@ -22648,6 +22657,31 @@ b {
 .premium-template-modal .premium-summary-message-editor .wysiwyg-editor {
   min-height: clamp(340px, 46vh, 620px);
   max-height: none;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px 10px;
+  background: #ffffff;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: none;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle:hover {
+  background: #f8fafc;
+  border-color: #c7d2fe;
 }
 
 .premium-draft-summary-meta {
@@ -22680,6 +22714,133 @@ b {
   font-size: 13px;
   font-weight: 800;
   overflow-wrap: anywhere;
+}
+
+.premium-draft-summary-subject {
+  display: block;
+}
+
+.premium-draft-summary-subject input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+}
+
+.premium-draft-summary-subject input::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.premium-draft-summary-subject input:focus {
+  border-color: #c7d2fe;
+  box-shadow: none;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-wrap {
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar.is-collapsible {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  max-height: 52px !important;
+  overflow: hidden !important;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar.is-collapsible.is-expanded {
+  flex-wrap: wrap !important;
+  max-height: none !important;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle-row {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  padding: 0 10px 8px !important;
+  background: #ffffff !important;
+  visibility: visible !important;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border: 1px solid #dbe3ef !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  color: #4f46e5 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.premium-template-modal .premium-summary-message-editor .wysiwyg-toolbar-toggle:hover {
+  background: #f8fafc !important;
+  border-color: #c7d2fe !important;
+}
+
+body .premium-test-email-modal .premium-test-email-body {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto auto auto !important;
+  gap: 12px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+body .premium-test-email-modal .premium-test-email-preview {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+body .premium-test-email-modal .premium-test-email-message {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+
+body .premium-test-email-modal .premium-test-email-sendrow {
+  margin-top: auto !important;
+  align-items: center !important;
+}
+
+body .premium-test-email-modal .premium-test-email-field {
+  gap: 0 !important;
+}
+
+body .premium-test-email-modal .premium-test-email-field span {
+  display: none !important;
+}
+
+body .premium-test-email-modal .premium-test-email-field input {
+  min-height: 42px !important;
+  border: 1px solid #dbe3ef !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 14px !important;
+}
+
+body .premium-test-email-modal .premium-test-email-field input::placeholder {
+  color: #94a3b8 !important;
 }
 
 .premium-draft-full-preview {
@@ -33588,7 +33749,7 @@ body .premium-test-email-modal {
 
 body .premium-test-email-modal .premium-test-email-body {
   max-height: calc(90vh - 150px) !important;
-  overflow: auto !important;
+  overflow: hidden !important;
 }
 
 body .premium-test-email-modal .premium-test-email-preview,
@@ -33598,9 +33759,10 @@ body .premium-template-modal .premium-template-body {
 }
 
 body .premium-test-email-modal .premium-test-email-message {
-  min-height: 600px !important;
+  min-height: 0 !important;
+  height: 100% !important;
   max-height: none !important;
-  overflow: auto !important;
+  overflow-y: auto !important;
 }
 
 body .premium-template-modal .premium-draft-full-preview,

@@ -4828,7 +4828,6 @@ export default function PremiumDashboardShell({
 
               <div className="premium-test-email-sendrow">
                 <label className="premium-test-email-field">
-                  <span>Send test to</span>
                   <input
                     type="email"
                     value={testEmailTo || testEmailAddress}
@@ -4836,6 +4835,7 @@ export default function PremiumDashboardShell({
                       setTestEmailAddress(event.target.value);
                       onTestEmailToChange?.(event.target.value);
                     }}
+                    placeholder="Send test to"
                   />
                 </label>
                 <button
@@ -4925,16 +4925,6 @@ export default function PremiumDashboardShell({
             </div>
 
             <div className="wf-body premium-template-body">
-              <label className="premium-template-field">
-                <span>Subject</span>
-                <input
-                  type="text"
-                  value={effectiveDraftSubject}
-                  onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
-                  placeholder="Effortless Email Sending for Your Lists - No Compromises"
-                />
-              </label>
-
               <section className="premium-draft-summary-meta">
                 <article>
                   <span>From</span>
@@ -4958,6 +4948,15 @@ export default function PremiumDashboardShell({
                 </article>
               </section>
 
+              <label className="premium-draft-summary-subject">
+                <input
+                  type="text"
+                  value={effectiveDraftSubject}
+                  onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
+                  placeholder="Subject"
+                />
+              </label>
+
               <div className="premium-template-field premium-template-message-head">
                 <span>Message</span>
               </div>
@@ -4966,6 +4965,7 @@ export default function PremiumDashboardShell({
                   value={effectiveDraftMessage}
                   onChange={(next) => onDraftBodyChange ? onDraftBodyChange(next) : setDraftMessage(next)}
                   placeholder="Write your template message..."
+                  collapsibleToolbar
                 />
               </div>
 

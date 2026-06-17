@@ -90,7 +90,7 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
   );
 }
 
-export default function RichTextEditor({ value, onChange, placeholder, normalizeDefaultWeight = false }) {
+export default function RichTextEditor({ value, onChange, placeholder, normalizeDefaultWeight = false, collapsibleToolbar = false }) {
   const lastEmittedValueRef = useRef('');
   const lastValuePropRef = useRef(value || '');
   const lastLocalEditAtRef = useRef(0);
@@ -103,6 +103,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   const domSelectionReaderRef = useRef(null);
   const domRangeRef = useRef(null);
   const [, setToolbarVersion] = useState(0);
+  const [toolbarExpanded, setToolbarExpanded] = useState(false);
 
   const rememberSelection = (selection) => {
     if (!selection) return;
@@ -553,7 +554,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
 
   return (
     <div className="wysiwyg-wrap tiptap-editor-wrap">
-      <div className="wysiwyg-toolbar row tiptap-toolbar">
+      <div className={`wysiwyg-toolbar row tiptap-toolbar${collapsibleToolbar ? ' is-collapsible' : ''}${toolbarExpanded ? ' is-expanded' : ''}`}>
         
         {/* Paragraph & Headings Select dropdown */}
         <select
@@ -792,6 +793,18 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         </ToolbarButton>
 
       </div>
+
+      {collapsibleToolbar ? (
+        <div className="wysiwyg-toolbar-toggle-row">
+          <button
+            type="button"
+            className="wysiwyg-toolbar-toggle"
+            onClick={() => setToolbarExpanded((current) => !current)}
+          >
+            {toolbarExpanded ? 'Show less' : 'Show more'}
+          </button>
+        </div>
+      ) : null}
 
       <EditorContent editor={editor} className="wysiwyg-editor tiptap-editor" />
     </div>
