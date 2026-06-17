@@ -1,0 +1,208 @@
+commit 02b43e23ce11a0e6545ea4e5b77a0e3efc9ced55
+Author: akshay-intellisys <akshaymore.intellisys@gmail.com>
+Date:   Thu Jun 11 11:52:53 2026 +0530
+
+    client data design draft
+
+diff --git a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+index 471ef9d..b0cd3c9 100644
+--- a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
++++ b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+@@ -22,6 +22,15 @@ import BottomGrid from './BottomGrid';
+ const MAX_SCHEDULE_DELAY_MINUTES = 1440;
+ const MAX_SCHEDULE_DELAY_HOURS = 24;
+ const MAX_SCHEDULE_DELAY_SECONDS = 86400;
++const DEFAULT_WORKFLOW_STEP_COUNT = 7;
++
++function getSequentialActiveWorkflowStep(stepCompletionChecks = [], totalSteps = DEFAULT_WORKFLOW_STEP_COUNT) {
++  const safeTotal = Math.max(1, Number(totalSteps) || DEFAULT_WORKFLOW_STEP_COUNT);
++  const firstIncompleteIndex = Array.from({ length: safeTotal }, (_, index) => Boolean(stepCompletionChecks[index]))
++    .findIndex((done) => !done);
++
++  return firstIncompleteIndex === -1 ? safeTotal + 1 : firstIncompleteIndex + 1;
++}
+ 
+ function getDelayInputLimit(unit = 'minutes') {
+   const normalizedUnit = normalizeDurationUnit(unit);
+@@ -692,13 +701,13 @@ export default function PremiumDashboardShell({
+     return () => clearTimeout(timer);
+   }, [showTimelineAddPopup]);
+   const timelineSortedCards = useMemo(() => {
+-    const combinedCards = [...(timelineCards || []), ...(timelineCustomTasks || [])];
++    const combinedCards = [...(timelineCards || [])];
+     return combinedCards.sort((a, b) => {
+       const aTime = parseEventDate(`${a.date} ${a.time || ''}`)?.getTime?.() || parseEventDate(a.date)?.getTime?.() || 0;
+       const bTime = parseEventDate(`${b.date} ${b.time || ''}`)?.getTime?.() || parseEventDate(b.date)?.getTime?.() || 0;
+       return bTime - aTime;
+     });
+-  }, [timelineCards, timelineCustomTasks]);
++  }, [timelineCards]);
+   const groupedTimelineCards = useMemo(() => {
+     return timelineSortedCards.reduce((groups, item) => {
+       const label = timelineDateLabel(item.date);
+@@ -776,6 +785,7 @@ export default function PremiumDashboardShell({
+   const [showCampaignPopup, setShowCampaignPopup] = useState(false);
+   const [showSelectDraftPopup, setShowSelectDraftPopup] = useState(false);
+   const [showTestEmailPopup, setShowTestEmailPopup] = useState(false);
++  const [workflowPosition, setWorkflowPosition] = useState(1);
+   const [showDayPopup, setShowDayPopup] = useState(false);
+   const [showDraftContinueWarning, setShowDraftContinueWarning] = useState(false);
+   const [draftSaving, setDraftSaving] = useState(false);
+@@ -883,23 +893,24 @@ export default function PremiumDashboardShell({
+       return false;
+     });
+   }, [campaignProjectFilter, senderAccounts]);
+-  const completedWorkflowSteps = useMemo(() => {
++  const workflowStepCount = workflowSteps?.length || DEFAULT_WORKFLOW_STEP_COUNT;
++  const workflowCompletionChecks = useMemo(() => {
+     const hasList = Boolean(selectedListId);
+     const hasOverview = Array.isArray(previewRows) && previewRows.length > 0;
+     const hasCampaignSetup = Boolean(String(effectiveCampaignName || '').trim());
+     const hasDraft = Boolean(String(effectiveDraftSubject || '').trim() || String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim());
+-    const hasDraftSummary = hasDraft;
+-    const hasTestMail = Boolean(String(testEmailTo || '').trim());
++    const hasTestMail = workflowPosition > 6;
+     const hasSchedule = sendMode === 'send_now' || Boolean(String(scheduledSlot || manualScheduledSlot || scheduledTimeValue || '').trim());
+ 
+     return [
+       hasList,
+       hasOverview,
+       hasCampaignSetup,
+-      hasDraft,
+-      hasDraftSummary,
++      // Draft data can prefill the editor, but only the workflow position can complete these steps.
++      workflowPosition > 4 && hasDraft,
++      workflowPosition > 5 && hasDraft,
+       hasTestMail,
+-      hasSchedule
++      workflowPosition > 7 && hasSchedule
+     ];
+   }, [
+     selectedListId,
+@@ -907,15 +918,13 @@ export default function PremiumDashboardShell({
+     effectiveCampaignName,
+     effectiveDraftSubject,
+     effectiveDraftMessage,
+-    testEmailTo,
++    workflowPosition,
++    sendMode,
+     scheduledSlot,
+-    manualScheduledSlot
++    manualScheduledSlot,
++    scheduledTimeValue
+   ]);
+-  const activeWorkflowStep = Math.max(1, Math.min(
+-    workflowSteps.length,
+-    completedWorkflowSteps.findIndex((done) => !done) + 1 || workflowSteps.length
+-  ));
+-  const completedWorkflowCount = completedWorkflowSteps.filter(Boolean).length;
++  const activeWorkflowStep = getSequentialActiveWorkflowStep(workflowCompletionChecks, workflowStepCount);
+ 
+   useEffect(() => {
+     setSendMode(initialScheduleMode || 'send_now');
+@@ -2211,6 +2220,7 @@ export default function PremiumDashboardShell({
+     }
+     setShowClientListSelectionNote(false);
+     onSelectList?.(selectedList);
++    setWorkflowPosition((current) => Math.max(current, 2));
+     setShowClientListPopup(false);
+     setShowOverviewPopup(true);
+   };
+@@ -2238,6 +2248,7 @@ export default function PremiumDashboardShell({
+       return;
+     }
+     setShowOverviewNotice(false);
++    setWorkflowPosition((current) => Math.max(current, 3));
+     setShowOverviewPopup(false);
+     setShowCampaignPopup(true);
+   };
+@@ -2255,6 +2266,7 @@ export default function PremiumDashboardShell({
+   };
+   const handleOverviewNext = () => {
+     setShowOverviewNotice(false);
++    setWorkflowPosition((current) => Math.max(current, 3));
+     setShowOverviewPopup(false);
+     setShowCampaignPopup(true);
+   };
+@@ -2496,6 +2508,7 @@ export default function PremiumDashboardShell({
+ 
+       const details = buildScheduleSuccessDetails(result);
+       setScheduleSuccessDetails(details);
++      setWorkflowPosition((current) => Math.max(current, workflowStepCount + 1));
+       setShowScheduleSuccessPopup(false);
+       setScheduleInlineNotice({
+         tone: 'success',
+@@ -2527,7 +2540,8 @@ export default function PremiumDashboardShell({
+       onShowMessage?.(`Please fill: ${campaignMissingFields.join(', ')} before continuing.`, 'warning');
+       return;
+     }
+-      setShowCampaignNotice(false);
++    setShowCampaignNotice(false);
++    setWorkflowPosition((current) => Math.max(current, 4));
+     setShowCampaignPopup(false);
+     setShowSelectDraftPopup(true);
+   };
+@@ -2609,7 +2623,12 @@ export default function PremiumDashboardShell({
+       replies: Boolean(campaign?.tracking?.replies)
+     });
+     setShowCampaignNotice(false);
+-    openWorkflowStep(campaign.workflowOpenStep || campaign.workflowStep || 3);
++    const resumeWorkflowStep = Math.max(
++      1,
++      Math.min(workflowStepCount + 1, Number(campaign.workflowOpenStep || campaign.workflowStep || 3) || 3)
++    );
++    setWorkflowPosition(resumeWorkflowStep);
++    openWorkflowStep(resumeWorkflowStep);
+     onShowMessage?.(
+       isNextProcess
+         ? `${campaign.workflowStepLabel || 'Next mail'} is ready. Review the draft and continue.`
+@@ -2638,7 +2657,8 @@ export default function PremiumDashboardShell({
+     onSelectedDraftTypeChange,
+     onShowMessage,
+     effectiveSavedDrafts,
+-    senderAccounts
++    senderAccounts,
++    workflowStepCount
+   ]);
+   useEffect(() => {
+     if (selectedListId) {
+@@ -2793,7 +2813,6 @@ export default function PremiumDashboardShell({
+ 
+       <Workflow
+         workflowSteps={workflowSteps}
+-        completedWorkflowSteps={completedWorkflowSteps}
+         activeWorkflowStep={activeWorkflowStep}
+         handleWorkflowAction={handleWorkflowAction}
+         selectedDraftType={selectedDraftType}
+@@ -2894,7 +2913,6 @@ export default function PremiumDashboardShell({
+         onTimelineTaskStatesChange={onTimelineTaskStatesChange}
+         setSelectedTimelineTask={setSelectedTimelineTask}
+         setShowTimelinePopup={setShowTimelinePopup}
+-        setShowTimelineAddPopup={setShowTimelineAddPopup}
+         workspaceOverviewItems={workspaceOverviewItems}
+         openAnchoredPopup={openAnchoredPopup}
+         setShowLogsPopup={setShowLogsPopup}
+@@ -4484,6 +4502,7 @@ export default function PremiumDashboardShell({
+                     return;
+                   }
+                   setShowDraftContinueWarning(false);
++                  setWorkflowPosition((current) => Math.max(current, 5));
+                   setShowSelectDraftPopup(false);
+                   setShowDraftSummaryPopup(true);
+                 }}
+@@ -4689,6 +4708,7 @@ export default function PremiumDashboardShell({
+                 type="button"
+                 className="premium-template-next"
+                 onClick={async () => {
++                  setWorkflowPosition((current) => Math.max(current, 7));
+                   setShowTestEmailPopup(false);
+                   setShowSchedulePopup(true);
+                 }}
+@@ -4802,6 +4822,7 @@ export default function PremiumDashboardShell({
+                     onShowMessage?.('Complete required details first.', 'warning');
+                     return;
+                   }
++                  setWorkflowPosition((current) => Math.max(current, 6));
+                   setShowDraftSummaryPopup(false);
+                   setShowTestEmailPopup(true);
+                 }}
