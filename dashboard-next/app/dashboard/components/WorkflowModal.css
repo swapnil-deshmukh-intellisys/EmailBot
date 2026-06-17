@@ -1,0 +1,357 @@
+/* ==========================================================================
+   SHARED DESIGN SYSTEM & BASE LAYOUT FOR CAMPAIGN WORKFLOW
+   ========================================================================== */
+
+/* Shared Backdrop */
+.wf-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(15, 23, 42, 0.3) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 130 !important;
+  padding: 40px 24px !important;
+}
+
+/* Shared Modal Container Sizing */
+.premium-calendar-modal.wf-modal,
+.wf-modal,
+.pr-uploadlist-modal,
+.premium-review-modal,
+.premium-campaign-modal,
+.premium-select-draft-modal,
+.premium-template-modal,
+.premium-test-email-modal,
+.premium-schedule-modal {
+  width: min(90vw, 780px) !important;
+  max-width: min(90vw, 780px) !important;
+  height: min(90vh, 760px) !important;
+  max-height: min(90vh, 760px) !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.02) !important;
+  overflow: hidden !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  color: #1f2937 !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 140 !important;
+}
+
+/* Header Section */
+.wf-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 72px !important;
+  height: 72px !important;
+  padding: 0 24px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  background: #ffffff !important;
+  flex-shrink: 0 !important;
+}
+
+.wf-header-title {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: center !important;
+  letter-spacing: -0.01em !important;
+}
+
+.wf-header-badge {
+  position: absolute !important;
+  left: 24px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: #eef2ff !important;
+  color: #4f46e5 !important;
+  border-radius: 50% !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.wf-header-step {
+  position: absolute !important;
+  right: 64px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+}
+
+.wf-header-close {
+  position: absolute !important;
+  right: 24px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 26px !important;
+  font-weight: 300 !important;
+  color: #94a3b8 !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  line-height: 1 !important;
+  transition: color 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.wf-header-close:hover {
+  color: #4f46e5 !important;
+}
+
+/* Body Section */
+.wf-body {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 24px !important;
+  background: #f8fafc !important;
+  overflow-y: auto !important;
+  min-height: 0 !important;
+}
+
+/* Hide scrollbar on modal body and internal lists */
+.wf-body::-webkit-scrollbar,
+.wf-modal ::-webkit-scrollbar,
+.pr-uploadlist-list::-webkit-scrollbar,
+.premium-select-draft-list::-webkit-scrollbar,
+.premium-select-draft-preview::-webkit-scrollbar,
+.premium-select-draft-preview-body::-webkit-scrollbar,
+.premium-draft-full-preview-body::-webkit-scrollbar {
+  display: none !important;
+}
+
+.wf-body,
+.wf-modal *,
+.pr-uploadlist-list,
+.premium-select-draft-list,
+.premium-select-draft-preview,
+.premium-select-draft-preview-body,
+.premium-draft-full-preview-body {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important;  /* IE and Edge */
+}
+
+/* Footer Section */
+.wf-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 16px 24px !important;
+  border-top: 1px solid #f1f5f9 !important;
+  background: #ffffff !important;
+  flex-shrink: 0 !important;
+}
+
+.wf-footer-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+/* Standardized Buttons */
+.wf-modal button {
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+/* wf-btn-primary (Continue/Save) */
+.wf-modal button.wf-btn-primary {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  padding: 10px 20px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.wf-modal button.wf-btn-primary:hover:not(.is-disabled):not(:disabled) {
+  background: #4338ca !important;
+}
+
+/* wf-btn-secondary (Back/Subtle/Ghost) */
+.wf-modal button.wf-btn-secondary {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 10px 20px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.wf-modal button.wf-btn-secondary:hover:not(.is-disabled):not(:disabled) {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* wf-btn-danger */
+.wf-modal button.wf-btn-danger {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fca5a5 !important;
+  padding: 10px 20px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.wf-modal button.wf-btn-danger:hover {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: #f87171 !important;
+}
+
+/* Disabled button states */
+.wf-modal button.is-disabled,
+.wf-modal button:disabled {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+/* Standardized Custom Radio Buttons */
+.wf-modal input[type="radio"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-color: #ffffff !important;
+  margin: 0 !important;
+  font: inherit !important;
+  color: #4f46e5 !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid #cbd5e1 !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+  position: relative !important;
+}
+
+.wf-modal input[type="radio"]:hover {
+  border-color: #a5b4fc !important;
+}
+
+.wf-modal input[type="radio"]:checked {
+  border-color: #4f46e5 !important;
+  background-color: #ffffff !important;
+}
+
+.wf-modal input[type="radio"]:checked::before {
+  content: "" !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background-color: #4f46e5 !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.wf-modal input[type="radio"]:focus,
+.wf-modal input[type="radio"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Standardized responsive layout definitions */
+@media (max-width: 980px) {
+  .wf-backdrop {
+    padding: 16px 12px !important;
+  }
+
+  .premium-calendar-modal.wf-modal,
+  .wf-modal,
+  .pr-uploadlist-modal,
+  .premium-review-modal,
+  .premium-campaign-modal,
+  .premium-select-draft-modal,
+  .premium-template-modal,
+  .premium-test-email-modal,
+  .premium-schedule-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    height: calc(100dvh - 36px) !important;
+    max-height: calc(100dvh - 36px) !important;
+  }
+
+  .wf-body {
+    padding: 16px !important;
+  }
+
+  .wf-footer {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 16px !important;
+  }
+
+  .wf-footer-left {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  
+  .wf-footer-left button,
+  .wf-footer button {
+    width: 100% !important;
+  }
+}

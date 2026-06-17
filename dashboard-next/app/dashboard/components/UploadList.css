@@ -1,0 +1,381 @@
+/* ==========================================================================
+   PAGE-SPECIFIC STYLES FOR UPLOAD LIST (STEP 1)
+   ========================================================================== */
+
+/* Segmented Tabs Control */
+.pr-uploadlist-tabs {
+  display: flex !important;
+  justify-content: center !important;
+  padding: 16px 24px !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.pr-uploadlist-tabs-container {
+  display: inline-flex !important;
+  background: #f1f5f9 !important;
+  padding: 4px !important;
+  border-radius: 12px !important;
+  width: 100% !important;
+  max-width: 340px !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.pr-uploadlist-tabs-container button {
+  flex: 1 !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-align: center !important;
+}
+
+.pr-uploadlist-tabs-container button:hover {
+  color: #0f172a !important;
+}
+
+.pr-uploadlist-tabs-container button.active {
+  color: #4f46e5 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Split Pane Layout (Upload Sheet tab) */
+.pr-uploadlist-split {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 20px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.pr-uploadlist-pane {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  padding: 24px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 10px 15px -3px rgba(15, 23, 42, 0.03) !important;
+  min-height: 0 !important;
+}
+
+.pr-uploadlist-section-copy {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.pr-uploadlist-section-copy strong {
+  display: block !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.01em !important;
+}
+
+.pr-uploadlist-section-copy p {
+  margin: 0 !important;
+  font-size: 12px !important;
+  color: #64748b !important;
+  line-height: 1.5 !important;
+}
+
+/* Premium Compact Upload Box Dropzone */
+.pr-uploadlist-uploadbox {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  min-height: 140px !important;
+  padding: 24px !important;
+  border: 2px dashed #cbd5e1 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  margin: 8px 0 !important;
+  text-align: center !important;
+}
+
+.pr-uploadlist-uploadbox:hover {
+  background: #eff6ff !important;
+  border-color: #4f46e5 !important;
+  box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.08) !important;
+  transform: translateY(-2px) !important;
+}
+
+.pr-uploadlist-uploadicon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 44px !important;
+  height: 44px !important;
+  font-size: 20px !important;
+  font-weight: bold !important;
+  color: #4f46e5 !important;
+  background: #eef2ff !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  transition: all 0.2s ease !important;
+  border: 1px solid #c7d2fe !important;
+}
+
+.pr-uploadlist-uploadbox:hover .pr-uploadlist-uploadicon {
+  transform: scale(1.08) !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+.pr-uploadlist-uploadbox-text {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+.pr-uploadlist-uploadbox-text strong {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+
+.pr-uploadlist-uploadbox-text span {
+  font-size: 11px !important;
+  color: #64748b !important;
+}
+
+.pr-uploadlist-fileinfo-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.pr-uploadlist-filename {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 220px !important;
+}
+
+.pr-uploadlist-filetype-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 2px 6px !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  color: #4f46e5 !important;
+  background: #eef2ff !important;
+  border: 1px solid #c7d2fe !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+}
+
+.pr-uploadlist-status-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-top: 4px !important;
+}
+
+.pr-uploadlist-status-dot {
+  width: 6px !important;
+  height: 6px !important;
+  background: #10b981 !important;
+  border-radius: 50% !important;
+  animation: pr-uploadlist-pulse 2s infinite ease-in-out !important;
+}
+
+@keyframes pr-uploadlist-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.6;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+  }
+}
+
+.pr-uploadlist-status-text {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #059669 !important;
+}
+
+.pr-uploadlist-uploadicon.success {
+  background: #dcfce7 !important;
+  color: #10b981 !important;
+  font-size: 18px !important;
+  border-color: #bbf7d0 !important;
+}
+
+/* Spinner for Loading State */
+.pr-uploadlist-spinner {
+  width: 32px !important;
+  height: 32px !important;
+  border: 3px solid rgba(79, 70, 229, 0.1) !important;
+  border-top-color: #4f46e5 !important;
+  border-radius: 50% !important;
+  animation: pr-uploadlist-spin 0.6s linear infinite !important;
+  flex-shrink: 0 !important;
+}
+
+@keyframes pr-uploadlist-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Radio Lists */
+.pr-uploadlist-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  padding-right: 2px !important;
+}
+
+/* List Item */
+.pr-uploadlist-item {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: center !important;
+  padding: 14px 16px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  position: relative !important;
+}
+
+.pr-uploadlist-item:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02) !important;
+}
+
+.pr-uploadlist-item.selected {
+  background: #f5f3ff !important;
+  border-color: #c7d2fe !important;
+}
+
+.pr-uploadlist-item input[type="radio"] {
+  /* Styled globally in WorkflowModal.css, overrides accent-color */
+  flex-shrink: 0 !important;
+}
+
+.pr-uploadlist-item-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+
+.pr-uploadlist-item-title {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.pr-uploadlist-item-title strong {
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 220px !important;
+}
+
+.pr-uploadlist-kind-badge {
+  padding: 2px 6px !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #4f46e5 !important;
+  background: #eef2ff !important;
+  border-radius: 4px !important;
+}
+
+.pr-uploadlist-item-meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+}
+
+.pr-uploadlist-meta-count strong {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+.pr-uploadlist-meta-date,
+.pr-uploadlist-meta-file {
+  color: #94a3b8 !important;
+}
+
+/* Empty States */
+.pr-uploadlist-empty {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 36px 20px !important;
+  text-align: center !important;
+  background: #f8fafc !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 12px !important;
+  color: #64748b !important;
+}
+
+.pr-uploadlist-empty strong {
+  font-size: 13px !important;
+  color: #334155 !important;
+}
+
+.pr-uploadlist-empty p {
+  margin: 4px 0 0 0 !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+/* Mobile Responsive */
+@media (max-width: 820px) {
+  .pr-uploadlist-split {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    height: auto !important;
+  }
+
+  .pr-uploadlist-list {
+    max-height: 220px !important;
+  }
+}

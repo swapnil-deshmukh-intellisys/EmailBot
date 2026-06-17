@@ -1,0 +1,861 @@
+﻿diff --git a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+index d19d9b2..d3c35d3 100644
+--- a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
++++ b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+@@ -862,7 +862,6 @@ export default function PremiumDashboardShell({
+     { label: 'Month Wise', value: '30d' }
+   ]);
+   const [selectedDraftId, setSelectedDraftId] = useState('');
+-  const [testPreviewMode, setTestPreviewMode] = useState('desktop');
+   const [testEmailAddress, setTestEmailAddress] = useState('');
+   const [testEmailSent, setTestEmailSent] = useState(false);
+   const [testEmailSending, setTestEmailSending] = useState(false);
+@@ -1049,13 +1048,13 @@ export default function PremiumDashboardShell({
+     if (centeredKeys.has(key)) {
+       const sizeMap = {
+         notifications: { width: 'min(92vw, 560px)', maxHeight: 'min(78vh, 480px)' },
+-        clientList: { width: 'min(92vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+-        overview: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+-        campaign: { width: 'min(90vw, 900px)', maxHeight: 'min(84vh, 820px)' },
+-        selectDraft: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+-        testEmail: { width: '90vw', maxHeight: '90vh' },
+-        draftSummary: { width: 'min(94vw, 1040px)', maxHeight: '90vh' },
+-        schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
++        clientList: { width: 'min(88vw, 680px)', maxHeight: 'min(78vh, 620px)' },
++        overview: { width: 'min(90vw, 760px)', maxHeight: 'min(80vh, 680px)' },
++        campaign: { width: 'min(88vw, 680px)', maxHeight: 'min(78vh, 620px)' },
++        selectDraft: { width: 'min(90vw, 760px)', maxHeight: 'min(80vh, 680px)' },
++        testEmail: { width: 'min(90vw, 760px)', maxHeight: 'min(80vh, 680px)' },
++        draftSummary: { width: 'min(90vw, 780px)', maxHeight: 'min(82vh, 700px)' },
++        schedule: { width: 'min(88vw, 660px)', maxHeight: 'min(78vh, 620px)' },
+         calendar: { width: 'min(92vw, 620px)', maxHeight: 'min(82vh, 680px)' },
+         day: { width: 'min(92vw, 560px)', maxHeight: 'min(82vh, 680px)' },
+         timeline: { width: 'min(90vw, 740px)', maxHeight: 'min(78vh, 680px)' },
+@@ -1198,10 +1197,10 @@ export default function PremiumDashboardShell({
+     }, {});
+   }, [draftTypeItems, effectiveDraftLibrary]);
+   const selectedSavedDraft = useMemo(() => {
+-    const currentDraftId = activeDraftId || selectedDraftId;
++    const currentDraftId = selectedDraftId || activeDraftId;
+     if (!currentDraftId) return null;
+-    return filteredSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
+-  }, [activeDraftId, filteredSavedDrafts, selectedDraftId]);
++    return effectiveDraftLibrary.find((draft) => String(draft.id || '') === String(currentDraftId)) || null;
++  }, [activeDraftId, effectiveDraftLibrary, selectedDraftId]);
+   const selectedDraftTypeLabel = selectedDraftType ? draftTypeLabel(selectedDraftType) : 'Choose Draft Type';
+   const templateDraftForSelectedType = useMemo(() => {
+     if (!selectedDraftType || filteredSavedDrafts.length) return null;
+@@ -1639,15 +1638,14 @@ export default function PremiumDashboardShell({
+     setCurrentTablePage(1);
+   }, [selectedTagFilters, tableSearch]);
+ 
+-  useEffect(() => {
+-    if (!previewRows.length) return;
+-    const columns = previewColumns.length
+-      ? previewColumns
+-      : Array.from(new Set(previewRows.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
+-    const mergedColumns = Array.from(new Set([...columns, ...reviewLocalColumns]));
+-    setColumnMappings(
+-      mergedColumns.map((column) => {
+-        const isAddedColumn = reviewLocalColumns.includes(column);
++  const buildReviewStateFromPreview = (rows = [], columns = [], addedColumns = []) => {
++    const safeRows = Array.isArray(rows) ? rows : [];
++    const baseColumns = Array.isArray(columns) && columns.length
++      ? columns
++      : Array.from(new Set(safeRows.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
++    const mergedColumns = Array.from(new Set([...baseColumns, ...addedColumns]));
++    const mappings = mergedColumns.map((column) => {
++      const isAddedColumn = addedColumns.includes(column);
+       const mappedField = isAddedColumn
+         ? 'Notes'
+         : /email/i.test(column)
+@@ -1664,18 +1662,22 @@ export default function PremiumDashboardShell({
+       return {
+         sheetColumn: column,
+         mappedField,
+-          sample: String(previewRows.find((row) => row?.[column])?.[column] || ''),
++        sample: String(safeRows.find((row) => row?.[column])?.[column] || ''),
+         status: mappedField === 'Ignore' ? 'warning' : 'success'
+       };
+-      })
+-    );
+-    setOverviewRows(
+-      previewRows.map((row, index) => ({
++    });
++    const reviewRows = safeRows.map((row, index) => ({
+       id: index + 1,
+-        ...Object.fromEntries(reviewLocalColumns.map((column) => [column, ''])),
++      ...Object.fromEntries(addedColumns.map((column) => [column, ''])),
+       ...row
+-      }))
+-    );
++    }));
++    return { mappings, rows: reviewRows };
++  };
++
++  useEffect(() => {
++    const nextReview = buildReviewStateFromPreview(previewRows, previewColumns, reviewLocalColumns);
++    setColumnMappings(nextReview.mappings);
++    setOverviewRows(nextReview.rows);
+   }, [previewColumns, previewRows, reviewLocalColumns]);
+ 
+ 
+@@ -1685,8 +1687,8 @@ export default function PremiumDashboardShell({
+       setSelectedDraftId('');
+       return;
+     }
+-    const currentDraftId = activeDraftId || selectedDraftId;
+-    const hasVisibleSelection = filteredSavedDrafts.some((draft) => draft.id === currentDraftId);
++    const currentDraftId = selectedDraftId || activeDraftId;
++    const hasVisibleSelection = filteredSavedDrafts.some((draft) => String(draft.id || '') === String(currentDraftId));
+     if (!hasVisibleSelection) {
+       setSelectedDraftId(filteredSavedDrafts[0].id);
+     }
+@@ -1849,8 +1851,16 @@ export default function PremiumDashboardShell({
+ 
+     setDraftSaving(true);
+     try {
+-      const result = await onSaveDraft?.();
++      const selectedWorkflowDraftId = String(selectedDraftId || activeDraftId || '').trim();
++      const result = await onSaveDraft?.({
++        draftId: selectedWorkflowDraftId && !selectedWorkflowDraftId.startsWith('template:')
++          ? selectedWorkflowDraftId
++          : ''
++      });
+       if (result?.ok === false) return false;
++      if (result?.draftId) {
++        setSelectedDraftId(result.draftId);
++      }
+       setSelectDraftTab('my-drafts');
+       onShowMessage?.('Draft saved. It is now available in My Drafts.', 'success');
+       return true;
+@@ -2047,9 +2057,13 @@ export default function PremiumDashboardShell({
+     () => columnMappings.filter((item) => item.mappedField !== 'Ignore'),
+     [columnMappings]
+   );
++  const reviewTableColumns = useMemo(
++    () => columnMappings,
++    [columnMappings]
++  );
+   const overviewGridTemplate = useMemo(
+-    () => `48px 56px repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(150px, 1fr))`,
+-    [activeOverviewColumns.length]
++    () => `48px 56px repeat(${Math.max(1, reviewTableColumns.length)}, minmax(168px, 168px))`,
++    [reviewTableColumns.length]
+   );
+   const emailMapping = useMemo(
+     () => columnMappings.find((item) => item.mappedField === 'Email') || null,
+@@ -2092,13 +2106,12 @@ export default function PremiumDashboardShell({
+       return emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
+     }).length;
+     return [
+-      { label: 'File Name', value: selectedClientListSummary.title || 'clients_april.xlsx' },
+       { label: 'Total Records', value: String(overviewRows.length) },
+       { label: 'Columns Detected', value: String(columnMappings.length) },
+       { label: 'Valid Emails', value: String(validEmails) },
+       { label: 'Missing Values', value: String(missingValueCount) }
+     ];
+-  }, [columnMappings.length, emailMapping, missingValueCount, overviewRows, selectedClientListSummary.title]);
++  }, [columnMappings.length, emailMapping, missingValueCount, overviewRows]);
+   const filteredOverviewRows = useMemo(() => {
+     const query = overviewSearch.trim().toLowerCase();
+     return overviewRows.filter((row) => {
+@@ -2143,7 +2156,7 @@ export default function PremiumDashboardShell({
+     const insertIndex = Number.isInteger(sourceIndex)
+       ? Math.max(0, Math.min(overviewRows.length, sourceIndex + 1))
+       : overviewRows.length;
+-    const blankRow = Object.fromEntries(activeOverviewColumns.map((column) => [column.sheetColumn, '']));
++    const blankRow = Object.fromEntries(reviewTableColumns.map((column) => [column.sheetColumn, '']));
+ 
+     // Keep the review grid responsive immediately, then delegate to the parent preview state for persistence.
+     setOverviewRows((current) => {
+@@ -2237,7 +2250,13 @@ export default function PremiumDashboardShell({
+     onShowMessage?.('Proceeding without a client list. You can continue exploring the workflow and choose a list later.', 'info');
+   };
+   const handleOverviewConfirm = () => {
+-    if (!overviewRows.length) {
++    const reviewRowsReady = overviewRows.length || previewRows.length;
++    if (!overviewRows.length && previewRows.length) {
++      const nextReview = buildReviewStateFromPreview(previewRows, previewColumns, reviewLocalColumns);
++      setColumnMappings(nextReview.mappings);
++      setOverviewRows(nextReview.rows);
++    }
++    if (!reviewRowsReady) {
+       if (!hasShownOverviewWarningRef.current) {
+         hasShownOverviewWarningRef.current = true;
+         setShowOverviewNotice(true);
+@@ -2681,6 +2700,16 @@ export default function PremiumDashboardShell({
+     try {
+       const result = await Promise.resolve(onUploadFile?.(event));
+       const nextListId = String(result?.listId || result?.id || result?._id || '').trim();
++      const uploadedPreviewRows = Array.isArray(result?.previewRows) ? result.previewRows : [];
++      const uploadedPreviewColumns = Array.isArray(result?.previewColumns) ? result.previewColumns : [];
++      if (uploadedPreviewRows.length) {
++        const nextReview = buildReviewStateFromPreview(uploadedPreviewRows, uploadedPreviewColumns, []);
++        setReviewLocalColumns([]);
++        setColumnMappings(nextReview.mappings);
++        setOverviewRows(nextReview.rows);
++        setOverviewFilter('all');
++        setOverviewSearch('');
++      }
+       if (nextListId) {
+         setUploadedListId(nextListId);
+         onSelectList?.(nextListId);
+@@ -3359,7 +3388,7 @@ export default function PremiumDashboardShell({
+       {renderPortalPopup(
+         showClientListPopup,
+         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
+-          <div className={`premium-calendar-modal premium-clientlist-modal ${clientListTab === 'upload' ? 'premium-clientlist-modal-fit' : 'premium-clientlist-modal-narrow'}`} style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
++          <div className="premium-calendar-modal premium-clientlist-modal premium-clientlist-modal-fit" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+             <div className="premium-clientlist-head premium-review-head">
+               <div>
+                 <span className="premium-popup-step-badge">1</span>
+@@ -3436,31 +3465,9 @@ export default function PremiumDashboardShell({
+                             onSelectList?.(item.id);
+                           }}
+                         />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
++                        <div>
+                           <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Sheet</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                ΓÇó Uploaded {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                          </div>
++                          <p>{item.meta}</p>
+                         </div>
+                       </label>
+                     )) : (
+@@ -3476,12 +3483,11 @@ export default function PremiumDashboardShell({
+ 
+             {clientListTab === 'uploaded' ? (
+               <div className="premium-clientlist-body">
+-                <section className="premium-clientlist-pane">
+                 <div className="premium-clientlist-section-copy">
+                   <strong>Uploaded Files</strong>
+                   <p>Choose any sheet you&apos;ve already uploaded.</p>
+                 </div>
+-                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
++                <div className="premium-clientlist-list">
+                   {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+                     <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+                       <input
+@@ -3493,31 +3499,9 @@ export default function PremiumDashboardShell({
+                           onSelectList?.(item.id);
+                         }}
+                       />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
++                      <div>
+                         <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Sheet</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                ΓÇó Uploaded {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                          </div>
++                        <p>{item.meta}</p>
+                       </div>
+                     </label>
+                   )) : (
+@@ -3527,69 +3511,75 @@ export default function PremiumDashboardShell({
+                     </div>
+                   )}
+                 </div>
+-                </section>
+               </div>
+             ) : null}
+ 
+             {clientListTab === 'custom' ? (
+-              <div className="premium-clientlist-body">
+-                <section className="premium-clientlist-pane">
+-                  <div className="premium-clientlist-section-copy">
+-                    <strong>Customize List</strong>
+-                    <p>Use a client list created in your workspace.</p>
+-                  </div>
+-                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
+-                    {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
+-                      <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+-                        <input
+-                          type="radio"
+-                          name="customList"
+-                          checked={selectedCustomList === item.id}
+-                          onChange={() => {
+-                            setSelectedCustomList(item.id);
+-                            onSelectList?.(item.id);
+-                          }}
+-                        />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
+-                            <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Custom</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                ΓÇó Saved {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                            {item.sourceFile && item.sourceFile !== item.title && (
+-                              <span className="premium-clientlist-meta-file">
+-                                ΓÇó File: {item.sourceFile}
+-                              </span>
+-                            )}
++              <div className="premium-clientlist-body cl-split-body">
++                {/* ΓöÇΓöÇ Left panel: scrollable card list ΓöÇΓöÇ */}
++                <div className="cl-panel-left">
++                  {effectiveCustomLists.length ? effectiveCustomLists.map((item) => {
++                    const savedDate = item.uploadedAt
++                      ? new Date(item.uploadedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
++                      : null;
++                    const isSelected = selectedCustomList === item.id;
++                    return (
++                      <label
++                        key={item.id}
++                        className={`cl-card${isSelected ? ' cl-card-active' : ''}`}
++                        onClick={() => { setSelectedCustomList(item.id); onSelectList?.(item.id); }}
++                      >
++                        <input type="radio" name="customList" checked={isSelected} onChange={() => {}} style={{ display: 'none' }} />
++                        <div className="cl-card-top">
++                          <span className="cl-card-name">{item.title}</span>
++                          <span className="cl-card-badge">Custom</span>
+                         </div>
++                        <div className="cl-card-meta">
++                          <span>{item.leadCount} contacts</span>
++                          {savedDate ? <span>Saved {savedDate}</span> : null}
+                         </div>
++                        {item.sourceFile ? (
++                          <div className="cl-card-file" title={item.sourceFile}>{item.sourceFile}</div>
++                        ) : null}
+                       </label>
+-                    )) : (
++                    );
++                  }) : (
+                     <div className="premium-clientlist-empty">
+                       <strong>No saved client lists yet.</strong>
+-                        <p>Your stored files will show up here with their details and contact count.</p>
++                      <p>Your stored files will appear here once created in your workspace.</p>
++                    </div>
++                  )}
++                </div>
++                {/* ΓöÇΓöÇ Right panel: placeholder / selected info ΓöÇΓöÇ */}
++                <div className="cl-panel-right">
++                  {selectedCustomList ? (() => {
++                    const sel = effectiveCustomLists.find((i) => i.id === selectedCustomList);
++                    if (!sel) return null;
++                    const savedDate = sel.uploadedAt
++                      ? new Date(sel.uploadedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
++                      : null;
++                    return (
++                      <div className="cl-selected-info">
++                        <div className="cl-selected-icon">Γ£ô</div>
++                        <strong className="cl-selected-name">{sel.title}</strong>
++                        <span className="cl-card-badge" style={{ alignSelf: 'center' }}>Custom</span>
++                        <div className="cl-selected-meta">
++                          <span>{sel.leadCount} contacts</span>
++                          {savedDate ? <span>Saved {savedDate}</span> : null}
++                        </div>
++                        {sel.sourceFile ? (
++                          <div className="cl-card-file" title={sel.sourceFile} style={{ maxWidth: '100%' }}>{sel.sourceFile}</div>
++                        ) : null}
++                        <p className="cl-selected-hint">List selected ΓÇö click Continue to proceed.</p>
++                      </div>
++                    );
++                  })() : (
++                    <div className="cl-placeholder">
++                      <div className="cl-placeholder-icon">Γÿ░</div>
++                      <p>Select a custom list to continue</p>
+                     </div>
+                   )}
+                 </div>
+-                </section>
+               </div>
+             ) : null}
+ 
+@@ -3640,52 +3630,6 @@ export default function PremiumDashboardShell({
+                   </article>
+                 ))}
+               </div>
+-
+-              <section className="premium-review-block">
+-                <div className="premium-review-block-head">
+-                  <div>
+-                    <h4>Column Mapping</h4>
+-                  </div>
+-                  <button type="button" className="ghost subtle" onClick={() => setMappingCollapsed((current) => !current)}>
+-                    {mappingCollapsed ? 'Show Mapping' : 'Minimize'}
+-                  </button>
+-                </div>
+-                {!mappingCollapsed ? <div className="premium-review-mapping">
+-                  <div className="premium-review-mapping-head">
+-                    <span>Sheet Column Name</span>
+-                    <span>Mapped Field</span>
+-                    <span>Sample Value / Preview</span>
+-                  </div>
+-                  {columnMappings.map((item) => (
+-                    <div key={item.sheetColumn} className="premium-review-mapping-row">
+-                      <strong>{item.sheetColumn}</strong>
+-                      <div className={`premium-review-status ${item.status}`}>
+-                        <span>{item.status === 'success' ? 'Γ£ô' : item.status === 'warning' ? '!' : 'Γ£ò'}</span>
+-                        <select
+-                          value={item.mappedField}
+-                          onChange={(event) =>
+-                            setColumnMappings((current) =>
+-                              current.map((entry) =>
+-                                entry.sheetColumn === item.sheetColumn
+-                                  ? { ...entry, mappedField: event.target.value, status: event.target.value === 'Ignore' ? 'warning' : 'success' }
+-                                  : entry
+-                              )
+-                            )
+-                          }
+-                        >
+-                          {mappedFieldOptions.map((option) => (
+-                            <option key={option} value={option}>
+-                              {option}
+-                            </option>
+-                          ))}
+-                        </select>
+-                      </div>
+-                      <span>{item.sample}</span>
+-                    </div>
+-                  ))}
+-                </div> : null}
+-              </section>
+-
+               <section className="premium-review-block">
+                 <div className="premium-review-block-head premium-review-block-head-table">
+                   <div>
+@@ -3730,8 +3674,14 @@ export default function PremiumDashboardShell({
+                 </div>
+ 
+                 <div className="premium-review-tablewrap">
+-                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
+-                    <span>Row</span>
++                  <div
++                    className="premium-review-table premium-review-table-head"
++                    style={{
++                      gridTemplateColumns: `84px ${overviewGridTemplate}`,
++                      '--rv-grid-tpl': `84px ${overviewGridTemplate}`
++                    }}
++                  >
++                    <span className="premium-review-row-action-head">Row</span>
+                     <span className="premium-review-select-cell">
+                       <input
+                         type="checkbox"
+@@ -3740,8 +3690,8 @@ export default function PremiumDashboardShell({
+                         aria-label="Select all visible rows"
+                       />
+                     </span>
+-                    <span>#</span>
+-                    {activeOverviewColumns.map((item) => (
++                    <span className="premium-review-row-index-head">#</span>
++                    {reviewTableColumns.map((item) => (
+                       <span key={`head-${item.sheetColumn}`} className="premium-review-head-cell">
+                         <input
+                           value={item.sheetColumn}
+@@ -3769,7 +3719,14 @@ export default function PremiumDashboardShell({
+                     {filteredOverviewRows.map((row, index) => {
+                       const issues = rowIssues[row.id] || [];
+                       return (
+-                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
++                        <div
++                          key={row.id}
++                          className="premium-review-table premium-review-table-row"
++                          style={{
++                            gridTemplateColumns: `84px ${overviewGridTemplate}`,
++                            '--rv-grid-tpl': `84px ${overviewGridTemplate}`
++                          }}
++                        >
+                           <span className="premium-review-row-action-cell">
+                             <button type="button" className="ghost subtle" onClick={() => addOverviewRow(row.id)}>
+                               + Row
+@@ -3783,8 +3740,8 @@ export default function PremiumDashboardShell({
+                               aria-label={`Select row ${index + 1}`}
+                             />
+                           </span>
+-                          <span>{index + 1}</span>
+-                          {activeOverviewColumns.map((mapping) => {
++                          <span className="premium-review-row-index-cell">{index + 1}</span>
++                          {reviewTableColumns.map((mapping) => {
+                             const field = mapping.sheetColumn;
+                             const cellKey = `${row.id}-${field}`;
+                             const isActive = editingCell === cellKey;
+@@ -3816,8 +3773,7 @@ export default function PremiumDashboardShell({
+                                   />
+                                 ) : (
+                                   <>
+-                                    <span>{value || 'Missing value'}</span>
+-                                    <i>?</i>
++                                    <span>{value || 'Missing'}</span>
+                                   </>
+                                 )}
+                               </label>
+@@ -3826,10 +3782,56 @@ export default function PremiumDashboardShell({
+                         </div>
+                       );
+                     })}
++                    {!filteredOverviewRows.length ? (
++                      <div className="premium-review-table-empty">
++                        {overviewRows.length ? 'No rows match the current search or filter.' : 'No uploaded sheet data found.'}
++                      </div>
++                    ) : null}
+                   </div>
+                 </div>
+               </section>
+ 
++              <details className="premium-review-mapping-panel">
++                <summary>
++                  <span>Column Mapping</span>
++                  <strong>{activeOverviewColumns.length} mapped fields ready</strong>
++                </summary>
++                <div className="premium-review-mapping">
++                  <div className="premium-review-mapping-head">
++                    <span>Sheet Column Name</span>
++                    <span>Mapped Field</span>
++                    <span>Sample Value / Preview</span>
++                  </div>
++                  {columnMappings.map((item) => (
++                    <div key={item.sheetColumn} className="premium-review-mapping-row">
++                      <strong>{item.sheetColumn}</strong>
++                      <div className={`premium-review-status ${item.status}`}>
++                        <span>{item.status === 'success' ? 'OK' : item.status === 'warning' ? '!' : 'X'}</span>
++                        <select
++                          value={item.mappedField}
++                          onChange={(event) =>
++                            setColumnMappings((current) =>
++                              current.map((entry) =>
++                                entry.sheetColumn === item.sheetColumn
++                                  ? { ...entry, mappedField: event.target.value, status: event.target.value === 'Ignore' ? 'warning' : 'success' }
++                                  : entry
++                              )
++                            )
++                          }
++                        >
++                          {mappedFieldOptions.map((option) => (
++                            <option key={option} value={option}>
++                              {option}
++                            </option>
++                          ))}
++                        </select>
++                      </div>
++                      <span>{item.sample}</span>
++                    </div>
++                  ))}
++                </div>
++              </details>
++
+               <section className="premium-review-validation">
+                 <div className="premium-review-validation-col">
+                   <div className="success">
+@@ -3884,6 +3886,7 @@ export default function PremiumDashboardShell({
+                   type="button"
+                   className="ghost subtle"
+                   onClick={handleOverviewBack}
++                  aria-label="Go back"
+                 >
+                   Back
+                 </button>
+@@ -4079,8 +4082,9 @@ export default function PremiumDashboardShell({
+                   setShowSchedulePopup(false);
+                   setShowTestEmailPopup(true);
+                 }}
++                aria-label="Go back"
+               >
+-                Back
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               <button
+                 type="button"
+@@ -4229,8 +4233,9 @@ export default function PremiumDashboardShell({
+                   setShowCampaignPopup(false);
+                   setShowOverviewPopup(true);
+                 }}
++                aria-label="Go back"
+               >
+-                Back
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               <button
+                 type="button"
+@@ -4328,11 +4333,11 @@ export default function PremiumDashboardShell({
+                   </div>
+                   {filteredSavedDrafts.length ? (
+                     filteredSavedDrafts.map((draft) => (
+-                      <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
++                      <label key={draft.id} className={`premium-select-draft-item ${(selectedDraftId || activeDraftId) === draft.id ? 'selected' : ''}`}>
+                         <input
+                           type="radio"
+                           name="savedDraft"
+-                          checked={activeDraftId === draft.id || selectedDraftId === draft.id}
++                          checked={(selectedDraftId || activeDraftId) === draft.id}
+                           onChange={() => {
+                             const draftId = String(draft.id || '');
+                             const draftType = normalizeDraftType(draft.draftType || draft.category || selectedDraftType);
+@@ -4348,14 +4353,17 @@ export default function PremiumDashboardShell({
+                         <div>
+                           <strong>{draft.title}</strong>
+                           <small>{draftTypeLabel(draft.draftType || draft.category)} Draft</small>
+-                          <p>Subject: {draft.subject}</p>
++                          <p className="premium-select-draft-subject-line">
++                            <span>Subject</span>
++                            <b>{draft.subject || 'No subject'}</b>
++                          </p>
+                           <div className="premium-select-draft-meta">
+-                            <span>Campaign: {draft.campaignName || 'No campaign'}</span>
+-                            <span>Sector: {draft.sector || 'No sector'}</span>
+-                            <span>City: {draft.city || 'No city'}</span>
+-                            <span>Project: {draft.project ? String(draft.project).toUpperCase() : 'No project'}</span>
+-                            <span>Saved Date: {draft.savedDate || 'No saved date'}</span>
+-                            <span>Saved Time: {draft.savedTime || 'No saved time'}</span>
++                            <span><b>Campaign</b>{draft.campaignName || 'No campaign'}</span>
++                            <span><b>Sector</b>{draft.sector || 'No sector'}</span>
++                            <span><b>City</b>{draft.city || 'No city'}</span>
++                            <span><b>Project</b>{draft.project ? String(draft.project).toUpperCase() : 'No project'}</span>
++                            <span><b>Saved Date</b>{draft.savedDate || 'No saved date'}</span>
++                            <span><b>Saved Time</b>{draft.savedTime || 'No saved time'}</span>
+                           </div>
+                           <small>{draft.updated}</small>
+                         </div>
+@@ -4373,12 +4381,15 @@ export default function PremiumDashboardShell({
+                       <div>
+                         <strong>{templateDraftForSelectedType.title}</strong>
+                         <small>{draftTypeLabel(templateDraftForSelectedType.draftType)} Draft</small>
+-                        <p>Subject: {templateDraftForSelectedType.subject}</p>
++                        <p className="premium-select-draft-subject-line">
++                          <span>Subject</span>
++                          <b>{templateDraftForSelectedType.subject || 'No subject'}</b>
++                        </p>
+                         <div className="premium-select-draft-meta">
+-                          <span>Campaign: No campaign</span>
+-                          <span>Sector: No sector</span>
+-                          <span>City: No city</span>
+-                          <span>Project: No project</span>
++                          <span><b>Campaign</b>No campaign</span>
++                          <span><b>Sector</b>No sector</span>
++                          <span><b>City</b>No city</span>
++                          <span><b>Project</b>No project</span>
+                         </div>
+                         <small>{templateDraftForSelectedType.updated}</small>
+                       </div>
+@@ -4532,8 +4543,9 @@ export default function PremiumDashboardShell({
+                   setShowSelectDraftPopup(false);
+                   setShowCampaignPopup(true);
+                 }}
++                aria-label="Go back"
+               >
+-                Back
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               {selectDraftTab === 'create' ? (
+                 <button
+@@ -4652,35 +4664,9 @@ export default function PremiumDashboardShell({
+                     <p>Recipient Test Email: {testEmailTo || testEmailAddress || 'Enter test recipient'}</p>
+                     <p>Sender Account: {selectedAccountLabel || 'Select Mail ID'}</p>
+                   </div>
+-                  <div className="premium-test-email-device-toggle">
+-                    <button
+-                      type="button"
+-                      className={testPreviewMode === 'desktop' ? 'active' : ''}
+-                      onClick={() => setTestPreviewMode('desktop')}
+-                      title="Desktop Preview"
+-                    >
+-                      ≡ƒûÑ
+-                    </button>
+-                    <button
+-                      type="button"
+-                      className={testPreviewMode === 'tablet' ? 'active' : ''}
+-                      onClick={() => setTestPreviewMode('tablet')}
+-                      title="Tablet Preview"
+-                    >
+-                      Γû¡
+-                    </button>
+-                    <button
+-                      type="button"
+-                      className={testPreviewMode === 'mobile' ? 'active' : ''}
+-                      onClick={() => setTestPreviewMode('mobile')}
+-                      title="Mobile Preview"
+-                    >
+-                      ≡ƒô▒
+-                    </button>
+-                  </div>
+                 </div>
+                 <div className="premium-test-email-preview-label">Full Email Preview</div>
+-                <div className={`premium-test-email-message ${testPreviewMode}`}>
++                <div className="premium-test-email-message">
+                   <EmailRenderer
+                     html={effectiveDraftMessage}
+                     empty={<p>Your test preview will appear here after you add a draft message.</p>}
+@@ -4690,9 +4676,10 @@ export default function PremiumDashboardShell({
+ 
+               <div className="premium-test-email-sendrow">
+                 <label className="premium-test-email-field">
+-                  <span>Send test to</span>
+                   <input
+                     type="email"
++                    placeholder="Send test to"
++                    aria-label="Send test to"
+                     value={testEmailTo || testEmailAddress}
+                     onChange={(event) => {
+                       setTestEmailAddress(event.target.value);
+@@ -4754,8 +4741,9 @@ export default function PremiumDashboardShell({
+                   setShowTestEmailPopup(false);
+                   setShowDraftSummaryPopup(true);
+                 }}
++                aria-label="Go back"
+               >
+-                Back
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               <button
+                 type="button"
+@@ -4777,27 +4765,24 @@ export default function PremiumDashboardShell({
+         showDraftSummaryPopup,
+         <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
+           <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
+-            <div className="premium-template-head">
+-              <div>
++            <div className="premium-template-head premium-summary-head">
++              <div className="premium-summary-title-wrap">
+                 <span className="premium-popup-step-badge">5</span>
+                 <h3>Summary</h3>
+                 <p>Write your subject and message, then save it as a reusable draft.</p>
+                 <small className="premium-template-stepcopy">Step 5 of 7</small>
+               </div>
+-              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>├ù</button>
++              <button
++                type="button"
++                className="ghost subtle premium-summary-close"
++                onClick={() => setShowDraftSummaryPopup(false)}
++                aria-label="Close draft summary"
++              >
++                <span aria-hidden="true">├ù</span>
++              </button>
+             </div>
+ 
+             <div className="premium-template-body">
+-              <label className="premium-template-field">
+-                <span>Subject</span>
+-                <input
+-                  type="text"
+-                  value={effectiveDraftSubject}
+-                  onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
+-                  placeholder="Effortless Email Sending for Your Lists - No Compromises"
+-                />
+-              </label>
+-
+               <section className="premium-draft-summary-meta">
+                 <article>
+                   <span>From</span>
+@@ -4821,6 +4806,16 @@ export default function PremiumDashboardShell({
+                 </article>
+               </section>
+ 
++              <label className="premium-template-field premium-summary-subject-field">
++                <span>Subject</span>
++                <input
++                  type="text"
++                  value={effectiveDraftSubject}
++                  onChange={(event) => onDraftSubjectChange ? onDraftSubjectChange(event.target.value) : setDraftSubject(event.target.value)}
++                  placeholder="Effortless Email Sending for Your Lists - No Compromises"
++                />
++              </label>
++
+               <div className="premium-template-field premium-template-message-head">
+                 <span>Message</span>
+               </div>
+@@ -4832,18 +4827,6 @@ export default function PremiumDashboardShell({
+                 />
+               </div>
+ 
+-              <section className="premium-draft-full-preview">
+-                <div className="premium-draft-full-preview-head">
+-                  <span>Full Email Preview</span>
+-                  <strong>{effectiveDraftSubject || 'No subject'}</strong>
+-                </div>
+-                <EmailRenderer
+-                  html={effectiveDraftMessage}
+-                  className="premium-draft-full-preview-body"
+-                  empty={<p>Your full email preview will appear here after you add draft content.</p>}
+-                />
+-              </section>
+-
+             </div>
+             <div className="premium-template-actions">
+               <button
+@@ -4853,8 +4836,9 @@ export default function PremiumDashboardShell({
+                   setShowDraftSummaryPopup(false);
+                   setShowSelectDraftPopup(true);
+                 }}
++                aria-label="Go back"
+               >
+-                Back
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               <button
+                 type="button"
+@@ -4875,12 +4859,17 @@ export default function PremiumDashboardShell({
+                     onShowMessage?.('Complete required details first.', 'warning');
+                     return;
+                   }
++                  const saved = await handleSaveDraft();
++                  if (!saved) return;
+                   setWorkflowPosition((current) => Math.max(current, 6));
+                   setShowDraftSummaryPopup(false);
+                   setShowTestEmailPopup(true);
+                 }}
++                disabled={draftSaving}
+               >
+-                {String(effectiveDraftSubject || '').trim() && String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim()
++                {draftSaving
++                  ? 'Saving...'
++                  : String(effectiveDraftSubject || '').trim() && String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim()
+                     ? 'Continue'
+                     : 'Complete required details first'}
+               </button>

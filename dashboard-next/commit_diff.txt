@@ -1,0 +1,3074 @@
+﻿diff --git a/dashboard-next/app/api/client-data/bulk-delete/route.js b/dashboard-next/app/api/client-data/bulk-delete/route.js
+index 4403847..7c8639b 100644
+--- a/dashboard-next/app/api/client-data/bulk-delete/route.js
++++ b/dashboard-next/app/api/client-data/bulk-delete/route.js
+@@ -1,7 +1,9 @@
+ import { NextResponse } from 'next/server';
+ import connectDB from '@/lib/mongodb';
+ import LeadList from '@/models/LeadList';
++import ClientRecord from '@/models/ClientRecord';
+ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
++import { refreshSheetCounts } from '@/app/api/client-sheets/_sheetUtils';
+ 
+ function getListQuery(auth, listId) {
+   return buildAuthOwnerFilter(auth, { _id: listId });
+@@ -20,8 +22,15 @@ export async function POST(req) {
+     }
+ 
+     const byList = new Map();
++    const recordIds = [];
+     for (const rowId of rowIds) {
+-      const parts = String(rowId).trim().split('__');
++      const normalizedRowId = String(rowId).trim();
++      if (normalizedRowId.startsWith('record:')) {
++        const recordId = normalizedRowId.slice('record:'.length);
++        if (recordId) recordIds.push(recordId);
++        continue;
++      }
++      const parts = normalizedRowId.split('__');
+       const listId = parts[0];
+       const indexToken = parts[1];
+       const leadIndex = Number(indexToken);
+@@ -31,6 +40,24 @@ export async function POST(req) {
+     }
+ 
+     const touched = [];
++    const touchedSheets = new Set();
++    if (recordIds.length) {
++      const records = await ClientRecord.find({
++        ...buildAuthOwnerFilter(auth),
++        _id: { $in: recordIds },
++        deletedAt: null
++      }).select('sheetId').lean();
++      if (records.length) {
++        await ClientRecord.updateMany(
++          { ...buildAuthOwnerFilter(auth), _id: { $in: records.map((record) => record._id) }, deletedAt: null },
++          { $set: { deletedAt: new Date() } }
++        );
++        records.forEach((record) => {
++          if (record.sheetId) touchedSheets.add(String(record.sheetId));
++        });
++      }
++    }
++
+     for (const [listId, indices] of byList.entries()) {
+       const list = await LeadList.findOne(getListQuery(auth, listId));
+       if (!list) continue;
+@@ -46,7 +73,11 @@ export async function POST(req) {
+       touched.push(listId);
+     }
+ 
+-    return NextResponse.json({ ok: true, deletedCount: rowIds.length, updatedLists: touched });
++    for (const sheetId of touchedSheets) {
++      await refreshSheetCounts(sheetId);
++    }
++
++    return NextResponse.json({ ok: true, deletedCount: rowIds.length, updatedLists: touched, updatedSheets: Array.from(touchedSheets) });
+   } catch (error) {
+     return NextResponse.json({ ok: false, error: error.message || 'Failed to bulk delete rows' }, { status: 500 });
+   }
+diff --git a/dashboard-next/app/api/client-data/bulk-update/route.js b/dashboard-next/app/api/client-data/bulk-update/route.js
+index e86e47f..f96b92c 100644
+--- a/dashboard-next/app/api/client-data/bulk-update/route.js
++++ b/dashboard-next/app/api/client-data/bulk-update/route.js
+@@ -1,7 +1,9 @@
+ ∩╗┐import { NextResponse } from 'next/server';
+ import connectDB from '@/lib/mongodb';
+ import LeadList from '@/models/LeadList';
++import ClientRecord from '@/models/ClientRecord';
+ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
++import { refreshSheetCounts } from '@/app/api/client-sheets/_sheetUtils';
+ 
+ function normalizeEmail(raw) {
+   return String(raw || '').split(/[;,/]/)[0].trim().toLowerCase();
+@@ -71,6 +73,26 @@ function applyLeadPatch(lead, patch = {}) {
+   };
+ }
+ 
++function applyRecordPatch(record, patch = {}) {
++  if ('name' in patch) record.name = String(patch.name || '').trim();
++  if ('surname' in patch) record.surname = String(patch.surname || '').trim();
++  if ('designation' in patch) record.designation = String(patch.designation || '').trim();
++  if ('cmpName' in patch || 'companyName' in patch) record.companyName = String(patch.cmpName ?? patch.companyName ?? '').trim();
++  if ('sector' in patch) record.sector = String(patch.sector || '').trim();
++  if ('country' in patch) record.country = String(patch.country || '').trim();
++  if ('email' in patch) record.email = normalizeEmail(patch.email);
++  if ('source' in patch) record.source = String(patch.source || '').trim();
++  if ('leadType' in patch) record.leadType = String(patch.leadType || '').trim();
++  if ('sourcer' in patch) record.sourcer = String(patch.sourcer || '').trim();
++  if ('userId' in patch || 'userIdText' in patch) record.userIdText = String(patch.userId ?? patch.userIdText ?? '').trim();
++  if ('projectApproach' in patch) record.projectApproach = String(patch.projectApproach || '').trim();
++  if ('senderId' in patch) record.senderId = String(patch.senderId || '').trim();
++  if ('listAddedDate' in patch) record.listAddedDate = parseDateOrNull(patch.listAddedDate);
++  record.isInvalid = !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(record.email || '');
++  record.invalidReason = record.isInvalid ? 'Invalid email format' : '';
++  record.rawData = { ...(record.rawData || {}), ...patch };
++}
++
+ export async function PATCH(req) {
+   try {
+     const auth = await requireAuth(req);
+@@ -84,16 +106,32 @@ export async function PATCH(req) {
+     }
+ 
+     const byList = new Map();
++    const recordUpdates = [];
+     for (const item of updates) {
+       const rowId = String(item?.rowId || item?.id || '').trim();
++      const patch = item?.changes || item?.patch || item || {};
++      if (rowId.startsWith('record:')) {
++        const recordId = rowId.slice('record:'.length);
++        if (recordId) recordUpdates.push({ recordId, patch });
++        continue;
++      }
+       const [listId, indexToken] = rowId.split('__');
+       const leadIndex = Number(indexToken);
+       if (!listId || !Number.isInteger(leadIndex) || leadIndex < 0) continue;
+       if (!byList.has(listId)) byList.set(listId, []);
+-      byList.get(listId).push({ leadIndex, patch: item?.changes || item?.patch || item || {} });
++      byList.get(listId).push({ leadIndex, patch });
+     }
+ 
+     const touched = [];
++    const touchedSheets = new Set();
++    for (const item of recordUpdates) {
++      const record = await ClientRecord.findOne(buildAuthOwnerFilter(auth, { _id: item.recordId, deletedAt: null }));
++      if (!record) continue;
++      applyRecordPatch(record, item.patch);
++      await record.save();
++      if (record.sheetId) touchedSheets.add(String(record.sheetId));
++    }
++
+     for (const [listId, items] of byList.entries()) {
+       const list = await LeadList.findOne(getListQuery(auth, listId));
+       if (!list) continue;
+@@ -106,7 +144,11 @@ export async function PATCH(req) {
+       touched.push(listId);
+     }
+ 
+-    return NextResponse.json({ ok: true, updatedLists: touched });
++    for (const sheetId of touchedSheets) {
++      await refreshSheetCounts(sheetId);
++    }
++
++    return NextResponse.json({ ok: true, updatedLists: touched, updatedSheets: Array.from(touchedSheets) });
+   } catch (error) {
+     return NextResponse.json({ ok: false, error: error.message || 'Failed to bulk update rows' }, { status: 500 });
+   }
+diff --git a/dashboard-next/app/api/client-data/list/route.js b/dashboard-next/app/api/client-data/list/route.js
+index e3f0bca..624c7d1 100644
+--- a/dashboard-next/app/api/client-data/list/route.js
++++ b/dashboard-next/app/api/client-data/list/route.js
+@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
+ import connectDB from '@/lib/mongodb';
+ import LeadList from '@/models/LeadList';
+ import Campaign from '@/models/Campaign';
++import ClientSheet from '@/models/ClientSheet';
++import ClientRecord from '@/models/ClientRecord';
+ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
+ import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+ import { activeListFilter, moveExpiredUploadsToBin } from '@/app/api/client-data/_retention';
+@@ -12,15 +14,25 @@ function normalizeText(value = '') {
+ 
+ function getLeadValue(lead = {}, ...keys) {
+   const data = lead?.data || {};
++  const rawData = lead?.rawData || {};
+   for (const key of keys) {
+     const direct = normalizeText(lead?.[key]);
+     if (direct) return direct;
+     const nested = normalizeText(data?.[key]);
+     if (nested) return nested;
++    const raw = normalizeText(rawData?.[key]);
++    if (raw) return raw;
+   }
+   return '';
+ }
+ 
++function formatDateOnly(value) {
++  if (!value) return '';
++  const date = value instanceof Date ? value : new Date(value);
++  if (Number.isNaN(date.getTime())) return '';
++  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
++}
++
+ function normalizeProject(value = '') {
+   const raw = String(value || '').trim().toLowerCase();
+   if (raw.includes('tut') || raw.includes('unicorn') || raw.includes('theunicorntimes.com')) return 'tut';
+@@ -57,34 +69,76 @@ function listProjectKey(list = {}, campaignsByListId = new Map()) {
+   return fromListText === 'tec' || fromListText === 'tut' ? fromListText : 'unassigned';
+ }
+ 
+-function buildClientRow(list = {}, lead = {}, leadIndex = 0, project = 'unassigned') {
++function buildClientRow(list = {}, lead = {}, leadIndex = 0, project = 'unassigned', campaigns = []) {
+   const email = getLeadValue(lead, 'Email', 'email');
+-  const leadSource = getLeadValue(lead, 'Source', 'source');
+-  const leadAddedDate = getLeadValue(lead, 'List Added Date', 'ListAddedDate', 'listAddedDate');
++  const leadSource = getLeadValue(lead, 'Source', 'source', 'Source File', 'sourceFile');
++  const leadAddedDate = getLeadValue(lead, 'List Added Date', 'ListAddedDate', 'listAddedDate', 'Date', 'date');
++  const listAddedDateRaw = leadAddedDate || lead?.uploadDate || list?.uploadedAt || list?.uploadDate || list?.createdAt || null;
+   return {
+     id: `${String(list?._id || '')}__${leadIndex}`,
+     sourceListId: String(list?._id || ''),
++    sheetName: String(list?.name || list?.sourceFile || 'Unknown Sheet'),
+     leadIndex,
+     sourceFile: String(list?.sourceFile || list?.name || ''),
+-    name: getLeadValue(lead, 'Name', 'name') || '-',
++    name: getLeadValue(lead, 'Name', 'name', 'First Name', 'firstName') || '-',
+     surname: getLeadValue(lead, 'Surname', 'surname', 'Last Name', 'lastName') || '-',
+     designation: getLeadValue(lead, 'Designation', 'designation', 'Title', 'title') || '-',
+-    cmpName: getLeadValue(lead, 'Company', 'company', 'Company Name', 'companyName') || '-',
++    cmpName: getLeadValue(lead, 'Company', 'company', 'Company Name', 'companyName', 'Cmp Name', 'CMP Name', 'cmpName') || '-',
+     sector: getLeadValue(lead, 'Sector', 'sector', 'Industry', 'industry') || '-',
+     country: getLeadValue(lead, 'Country', 'country') || '-',
+     email: email || '-',
+-    listAddedDateRaw: leadAddedDate || lead?.uploadDate || list?.uploadedAt || list?.uploadDate || list?.createdAt || null,
++    listAddedDate: formatDateOnly(listAddedDateRaw),
++    listAddedDateRaw,
+     source: leadSource || String(list?.sourceFile || list?.name || 'Uploaded File'),
+     project,
+     leadType: getLeadValue(lead, 'Lead Type', 'LeadType', 'leadType') || '-',
+     sourcer: getLeadValue(lead, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
+-    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId') || '-',
+-    projectApproach: getLeadValue(lead, 'Project Approach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
++    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId', 'userIdText') || '-',
++    projectApproach: getLeadValue(lead, 'Project Approach', 'ProjectApproach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
+     senderId: getLeadValue(lead, 'Sender ID', 'SenderId', 'senderId') || '-',
+     status: normalizeText(lead?.status) || 'Pending'
+   };
+ }
+ 
++function recordStatus(record = {}) {
++  if (record.isInvalid) return 'Missing Email';
++  if (normalizeText(record.status) && normalizeText(record.status) !== 'Pending') return normalizeText(record.status);
++  return normalizeText(record.email) ? 'Verified' : 'Missing Email';
++}
++
++function buildRecordRow(sheet = {}, record = {}, project = 'unassigned', campaigns = []) {
++  const sourceListId = String(sheet.sourceListId || '');
++  const sheetId = String(sheet._id || '');
++  const listAddedDateRaw = record.listAddedDate || record.createdAt || sheet.createdAt || null;
++  return {
++    id: `record:${String(record._id || record.id || '')}`,
++    recordId: String(record._id || record.id || ''),
++    sourceListId: sourceListId || `sheet:${sheetId}`,
++    sheetId,
++    sheetName: String(sheet.sheetName || sheet.name || sheet.originalFileName || 'Client Sheet'),
++    leadIndex: Number(record.rowIndex || 0),
++    sourceFile: String(sheet.originalFileName || record.source || sheet.sheetName || ''),
++    name: normalizeText(record.name) || getLeadValue(record, 'Name', 'name', 'First Name', 'firstName') || '-',
++    surname: normalizeText(record.surname) || getLeadValue(record, 'Surname', 'surname', 'Last Name', 'lastName') || '-',
++    designation: normalizeText(record.designation) || getLeadValue(record, 'Designation', 'designation', 'Title', 'title') || '-',
++    cmpName: normalizeText(record.companyName) || getLeadValue(record, 'Company', 'company', 'Company Name', 'companyName', 'Cmp Name', 'CMP Name', 'cmpName') || '-',
++    sector: normalizeText(record.sector) || getLeadValue(record, 'Sector', 'sector', 'Industry', 'industry') || '-',
++    country: normalizeText(record.country) || getLeadValue(record, 'Country', 'country') || '-',
++    email: normalizeText(record.email).toLowerCase() || getLeadValue(record, 'Email', 'email') || '-',
++    listAddedDate: formatDateOnly(listAddedDateRaw),
++    listAddedDateRaw,
++    source: normalizeText(record.source) || String(sheet.originalFileName || sheet.sheetName || 'Uploaded File'),
++    project,
++    leadType: normalizeText(record.leadType) || getLeadValue(record, 'Lead Type', 'LeadType', 'leadType') || '-',
++    sourcer: normalizeText(record.sourcer) || getLeadValue(record, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
++    userId: normalizeText(record.userIdText) || getLeadValue(record, 'User ID', 'UserId', 'userId', 'userIdText') || '-',
++    projectApproach: normalizeText(record.projectApproach) || getLeadValue(record, 'Project Approach', 'ProjectApproach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
++    senderId: normalizeText(record.senderId) || getLeadValue(record, 'Sender ID', 'SenderId', 'senderId') || '-',
++    freshLead: !record.contactedCount && !record.lastContactedAt,
++    status: recordStatus(record)
++  };
++}
++
+ export async function GET(req) {
+   try {
+     const auth = await requireAuth(req);
+@@ -122,11 +176,15 @@ export async function GET(req) {
+       'leads.data'
+     ].join(' ');
+ 
+-    const [lists, campaignDocs] = await Promise.all([
++    const [lists, campaignDocs, clientSheets] = await Promise.all([
+       LeadList.find(query).select(projection).sort({ createdAt: -1 }).lean(),
+       Campaign.find(buildAuthOwnerFilter(auth))
+         .select('listId project projectId projectName senderFrom senderAccount.from senderAccount.user createdAt')
+         .sort({ createdAt: -1 })
++        .lean(),
++      ClientSheet.find(buildAuthOwnerFilter(auth, { deletedAt: null }))
++        .select('sheetName originalFileName sourceListId project projectId kind totalRows freshCount repeatedCount invalidCount createdAt updatedAt')
++        .sort({ updatedAt: -1, createdAt: -1 })
+         .lean()
+     ]);
+     const campaignsByListId = campaignDocs.reduce((map, campaign) => {
+@@ -136,14 +194,50 @@ export async function GET(req) {
+       map.get(listId).push(campaign);
+       return map;
+     }, new Map());
+-    const rows = [];
+     const scopedLists = requestedProject ? lists.filter((list) => listProjectKey(list, campaignsByListId) === requestedProject) : lists;
++    const scopedSheets = requestedProject
++      ? clientSheets.filter((sheet) => normalizeProject(sheet.project || sheet.projectId || '') === requestedProject)
++      : clientSheets;
++    const rows = [];
++    const sheetIds = scopedSheets.map((sheet) => sheet._id).filter(Boolean);
++    const records = sheetIds.length
++      ? await ClientRecord.find({
++        ...buildAuthOwnerFilter(auth),
++        sheetId: { $in: sheetIds },
++        deletedAt: null
++      })
++        .sort({ rowIndex: 1, createdAt: 1 })
++        .lean()
++      : [];
++    const recordsBySheetId = records.reduce((map, record) => {
++      const sheetId = String(record.sheetId || '');
++      if (!sheetId) return map;
++      if (!map.has(sheetId)) map.set(sheetId, []);
++      map.get(sheetId).push(record);
++      return map;
++    }, new Map());
++    const nativeSourceListIdsWithRecords = new Set();
++
++    scopedSheets.forEach((sheet) => {
++      const sheetRecords = recordsBySheetId.get(String(sheet._id)) || [];
++      if (!sheetRecords.length) return;
++      const sourceListId = String(sheet.sourceListId || '');
++      if (sourceListId) nativeSourceListIdsWithRecords.add(sourceListId);
++      const project = normalizeProject(sheet.project || sheet.projectId || '');
++      const listCampaigns = sourceListId ? campaignsByListId.get(sourceListId) || [] : [];
++      sheetRecords.forEach((record) => {
++        rows.push(buildRecordRow(sheet, record, project || 'unassigned', listCampaigns));
++      });
++    });
++
+     for (const list of scopedLists) {
++      if (nativeSourceListIdsWithRecords.has(String(list._id))) continue;
+       const leads = Array.isArray(list?.leads) ? list.leads : [];
+       const project = listProjectKey(list, campaignsByListId);
++      const listCampaigns = campaignsByListId.get(String(list._id)) || [];
+       leads.forEach((lead, index) => {
+         if (hasMeaningfulLeadData(lead)) {
+-          rows.push(buildClientRow(list, lead, index, project));
++          rows.push(buildClientRow(list, lead, index, project, listCampaigns));
+         }
+       });
+     }
+@@ -160,7 +254,7 @@ export async function GET(req) {
+         uploadedAt: list.uploadedAt || null,
+         createdAt: list.createdAt || null,
+         autoDeleteAt: list.autoDeleteAt || null,
+-        leadCount: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData).length : 0
++        leadCount: rows.filter((row) => String(row.sourceListId || '') === String(list._id)).length || (Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData).length : 0)
+       }))
+     });
+   } catch (error) {
+diff --git a/dashboard-next/app/api/client-data/use-for-campaign/route.js b/dashboard-next/app/api/client-data/use-for-campaign/route.js
+index 4320520..1589f22 100644
+--- a/dashboard-next/app/api/client-data/use-for-campaign/route.js
++++ b/dashboard-next/app/api/client-data/use-for-campaign/route.js
+@@ -28,7 +28,7 @@ export async function POST(req) {
+       listId: String(list._id),
+       name: list.name,
+       count: Array.isArray(list.leads) ? list.leads.length : 0,
+-      redirectUrl: `/dashboard/user?listId=${encodeURIComponent(String(list._id))}&source=client-data`
++      redirectUrl: '/campaigns'
+     });
+   } catch (error) {
+     return NextResponse.json({ ok: false, error: error.message || 'Failed to use selected sheet for campaign.' }, { status: 500 });
+diff --git a/dashboard-next/app/api/client-sheets/_sheetUtils.js b/dashboard-next/app/api/client-sheets/_sheetUtils.js
+index 289a812..e2a133a 100644
+--- a/dashboard-next/app/api/client-sheets/_sheetUtils.js
++++ b/dashboard-next/app/api/client-sheets/_sheetUtils.js
+@@ -10,7 +10,7 @@ export const CLIENT_SHEET_COLUMNS = [
+   'Name',
+   'Surname',
+   'Designation',
+-  'Company Name',
++  'CMP Name',
+   'Sector',
+   'Country',
+   'Email',
+@@ -130,7 +130,7 @@ export function rawRowToRecord(row = {}, context = {}) {
+     name: getRawValue(row, 'name', 'Name', 'First Name'),
+     surname: getRawValue(row, 'surname', 'Surname', 'Last Name'),
+     designation: getRawValue(row, 'designation', 'Designation', 'Title'),
+-    companyName: getRawValue(row, 'companyName', 'cmpName', 'Company', 'Company Name', 'Cmp Name'),
++    companyName: getRawValue(row, 'companyName', 'cmpName', 'CMP Name', 'Cmp Name', 'Company', 'Company Name'),
+     sector: getRawValue(row, 'sector', 'Sector', 'Industry'),
+     country: getRawValue(row, 'country', 'Country'),
+     email,
+@@ -161,6 +161,7 @@ export function recordToLead(record = {}) {
+     Surname: normalizeText(record.surname),
+     Designation: normalizeText(record.designation),
+     Company: normalizeText(record.companyName),
++    'CMP Name': normalizeText(record.companyName),
+     'Company Name': normalizeText(record.companyName),
+     Sector: normalizeText(record.sector),
+     Country: normalizeText(record.country),
+diff --git a/dashboard-next/app/api/client-sheets/upload/route.js b/dashboard-next/app/api/client-sheets/upload/route.js
+index 49bd4e9..9e3987c 100644
+--- a/dashboard-next/app/api/client-sheets/upload/route.js
++++ b/dashboard-next/app/api/client-sheets/upload/route.js
+@@ -89,7 +89,7 @@ export async function POST(req) {
+         sheetName: workbookSheet.sheetName || originalFileName,
+         originalFileName,
+         kind: 'uploaded',
+-        columns: workbookSheet.columns.length ? workbookSheet.columns : CLIENT_SHEET_COLUMNS,
++        columns: CLIENT_SHEET_COLUMNS,
+         createdBy: userEmail
+       });
+ 
+@@ -122,7 +122,7 @@ export async function POST(req) {
+         sourceFileId: String(uploadRecord._id),
+         sourceFileName: originalFileName,
+         kind: 'uploaded',
+-        columns: workbookSheet.columns.length ? workbookSheet.columns : CLIENT_SHEET_COLUMNS,
++        columns: CLIENT_SHEET_COLUMNS,
+         dataCenterMeta: {
+           sourceType: 'client_sheet_upload',
+           clientSheetId: String(sheet._id),
+diff --git a/dashboard-next/app/api/drafts/[id]/route.js b/dashboard-next/app/api/drafts/[id]/route.js
+index 5180399..e5f626f 100644
+--- a/dashboard-next/app/api/drafts/[id]/route.js
++++ b/dashboard-next/app/api/drafts/[id]/route.js
+@@ -34,7 +34,7 @@ export async function PATCH(req, { params }) {
+     if (auth.errorResponse) return auth.errorResponse;
+     await connectDB();
+     const { id } = params;
+-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
++    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, country, city, campaignName, domain, project } = await req.json();
+     const normalizedDraftType = normalizeDraftType(draftType || category);
+     const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
+     const draftHtml = draftParts.bodyHtml;
+@@ -44,6 +44,7 @@ export async function PATCH(req, { params }) {
+     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
+       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
+     }
++    const countryValue = String(country || city || '').trim();
+     const draft = await EmailDraft.findOneAndUpdate(
+       buildAuthOwnerFilter(auth, { _id: id }),
+       {
+@@ -52,7 +53,8 @@ export async function PATCH(req, { params }) {
+         title,
+         project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
+         sector: String(sector || '').trim(),
+-        city: String(city || '').trim(),
++        country: countryValue,
++        city: countryValue,
+         campaignName: String(campaignName || '').trim(),
+         domain: String(domain || '').trim().toLowerCase(),
+         subject,
+diff --git a/dashboard-next/app/api/drafts/route.js b/dashboard-next/app/api/drafts/route.js
+index 1611c70..7192513 100644
+--- a/dashboard-next/app/api/drafts/route.js
++++ b/dashboard-next/app/api/drafts/route.js
+@@ -80,7 +80,7 @@ export async function POST(req) {
+     const auth = await requireAuth(req);
+     if (auth.errorResponse) return auth.errorResponse;
+     const userEmail = String(auth.currentUser.email || auth.currentUser.identifier || '').toLowerCase();
+-    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, city, campaignName, domain, project } = await req.json();
++    const { category, draftType, title, subject, body, html, bodyHtml, bodyText, sector, country, city, campaignName, domain, project } = await req.json();
+     const normalizedDraftType = normalizeDraftType(draftType || category);
+     const draftParts = buildEmailParts({ html: bodyHtml || html || body || '', text: bodyText || '' });
+     const draftHtml = draftParts.bodyHtml;
+@@ -90,6 +90,7 @@ export async function POST(req) {
+     if (!ALLOWED_DRAFT_TYPES.includes(normalizedDraftType)) {
+       return NextResponse.json({ error: 'Invalid draftType' }, { status: 400 });
+     }
++    const countryValue = String(country || city || '').trim();
+     const draft = await EmailDraft.create({
+       userId: auth.currentUser._id,
+       userEmail,
+@@ -98,7 +99,8 @@ export async function POST(req) {
+       title,
+       project: ['tec', 'tut'].includes(String(project || '').trim().toLowerCase()) ? String(project || '').trim().toLowerCase() : '',
+       sector: String(sector || '').trim(),
+-      city: String(city || '').trim(),
++      country: countryValue,
++      city: countryValue,
+       campaignName: String(campaignName || '').trim(),
+       domain: String(domain || '').trim().toLowerCase(),
+       subject,
+diff --git a/dashboard-next/app/api/uploads/commit/route.js b/dashboard-next/app/api/uploads/commit/route.js
+index 0a1d93f..b7602bf 100644
+--- a/dashboard-next/app/api/uploads/commit/route.js
++++ b/dashboard-next/app/api/uploads/commit/route.js
+@@ -8,6 +8,7 @@ import { requireAuth } from '@/lib/apiAuth';
+ import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
+ import {
+   applyDuplicateFlags,
++  CLIENT_SHEET_COLUMNS,
+   collectProjectEmailCounts,
+   normalizeProject,
+   rawRowToRecord,
+@@ -117,7 +118,7 @@ export async function POST(req) {
+       for (const item of sheets) {
+         const sheetName = String(item.sheetName || item.name || fileName).trim() || fileName;
+         const sheetRows = Array.isArray(item.rows) ? item.rows.filter(hasMeaningfulLeadData) : [];
+-        const sheetColumns = Array.isArray(item.columns) && item.columns.length ? item.columns.map(String) : columns;
++        const sheetColumns = CLIENT_SHEET_COLUMNS;
+         const clientSheet = await ClientSheet.create({
+           userId: auth.currentUser._id,
+           userEmail,
+diff --git a/dashboard-next/app/campaigns/page.js b/dashboard-next/app/campaigns/page.js
+index e2e1c9c..2b54879 100644
+--- a/dashboard-next/app/campaigns/page.js
++++ b/dashboard-next/app/campaigns/page.js
+@@ -1,6 +1,7 @@
+ 'use client';
+ 
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import { useRouter } from 'next/navigation';
+ import AppLayout from '@/app/components/layout/AppLayout';
+ import Badge from '@/app/components/ui/Badge';
+ import Button from '@/app/components/ui/Button';
+@@ -614,6 +615,9 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
+     <div className="dashboard-subscription-modal-backdrop campaign-detail-backdrop" onClick={onClose}>
+       <section className="dashboard-subscription-modal campaign-detail-drawer" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+         <div className="dashboard-subscription-modal-head campaign-detail-head">
++          <button type="button" className="page-back-button campaign-detail-back-button" onClick={onClose} aria-label="Go back to campaigns">
++            <i className="ti ti-arrow-left" aria-hidden="true" />
++          </button>
+           <div>
+             <span>Campaign Details</span>
+             <h2>{campaign.name || 'Campaign'}</h2>
+@@ -767,6 +771,7 @@ function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
+ }
+ 
+ export default function CampaignsPage() {
++  const router = useRouter();
+   const campaignListRef = useRef(null);
+   const [isMounted, setIsMounted] = useState(false);
+   const [campaigns, setCampaigns] = useState([]);
+@@ -956,11 +961,18 @@ export default function CampaignsPage() {
+     setSelectedCampaignId(campaignId);
+   }, []);
+ 
++  const handleBackToPreviousPage = useCallback(() => {
++    router.back();
++  }, [router]);
++
+   if (!isMounted) {
+     return (
+       <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+         <main className="campaigns-page-shell campaigns-modern-page">
+           <section className="campaigns-modern-hero">
++            <button type="button" className="page-back-button campaigns-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
++              <i className="ti ti-arrow-left" aria-hidden="true" />
++            </button>
+             <div>
+               <span className="campaigns-page-kicker">Live campaign operations</span>
+               <h1>Campaigns</h1>
+@@ -981,6 +993,9 @@ export default function CampaignsPage() {
+     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
+       <main className="campaigns-page-shell campaigns-modern-page">
+         <section className="campaigns-modern-hero">
++          <button type="button" className="page-back-button campaigns-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
++            <i className="ti ti-arrow-left" aria-hidden="true" />
++          </button>
+           <div>
+             <span className="campaigns-page-kicker">Live campaign operations</span>
+             <h1>Campaigns</h1>
+diff --git a/dashboard-next/app/client-data/client-list/page.js b/dashboard-next/app/client-data/client-list/page.js
+index fa7c428..f0f2483 100644
+--- a/dashboard-next/app/client-data/client-list/page.js
++++ b/dashboard-next/app/client-data/client-list/page.js
+@@ -16,7 +16,7 @@ const TABLE_COLUMNS = [
+   'Name',
+   'Surname',
+   'Designation',
+-  'Cmp Name',
++  'CMP Name',
+   'Sector',
+   'Country',
+   'Email',
+@@ -33,10 +33,11 @@ const PASTE_COLUMNS = [
+   { key: 'name', label: 'Name' },
+   { key: 'surname', label: 'Surname' },
+   { key: 'designation', label: 'Designation' },
+-  { key: 'cmpName', label: 'Company Name' },
++  { key: 'cmpName', label: 'CMP Name' },
+   { key: 'sector', label: 'Sector' },
+   { key: 'country', label: 'Country' },
+   { key: 'email', label: 'Email' },
++  { key: 'listAddedDate', label: 'List Added Date' },
+   { key: 'source', label: 'Source' },
+   { key: 'leadType', label: 'Lead Type' },
+   { key: 'sourcer', label: 'Sourcer' },
+@@ -238,6 +239,35 @@ function normalizeHeader(value = '') {
+   return normalizeText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+ }
+ 
++const PASTE_COLUMN_ALIASES = {
++  name: ['name', 'firstname', 'first name', 'contact name', 'contact'],
++  surname: ['surname', 'lastname', 'last name'],
++  designation: ['designation', 'title', 'job title', 'position'],
++  cmpName: ['cmp name', 'cmpname', 'company', 'company name', 'companyname', 'organization', 'organisation', 'account'],
++  sector: ['sector', 'industry'],
++  country: ['country'],
++  email: ['email', 'e-mail', 'mail', 'mail id', 'email address'],
++  listAddedDate: ['list added date', 'date', 'added date', 'upload date'],
++  source: ['source'],
++  leadType: ['lead type', 'leadtype'],
++  sourcer: ['sourcer', 'source by', 'sourceby'],
++  userId: ['user id', 'userid'],
++  projectApproach: ['project approach', 'projectapproach', 'approach', 'used in project', 'usedinproject'],
++  senderId: ['sender id', 'senderid']
++};
++
++function resolvePasteColumnKey(header = '') {
++  const normalized = normalizeHeader(header);
++  if (!normalized) return '';
++  for (const column of PASTE_COLUMNS) {
++    if (normalizeHeader(column.label) === normalized || normalizeHeader(column.key) === normalized) return column.key;
++  }
++  for (const [key, aliases] of Object.entries(PASTE_COLUMN_ALIASES)) {
++    if (aliases.some((alias) => normalizeHeader(alias) === normalized)) return key;
++  }
++  return '';
++}
++
+ function isCountry(text) {
+   const t = text.trim().toLowerCase();
+   if (t === 'uk' || t === 'us' || t === 'usa' || t === 'uae' || t === 'in' || t === 'netherlands' || t === 'canada') return true;
+@@ -346,15 +376,15 @@ function parseSingleClientBlock(blockLines) {
+   return {
+     name,
+     surname,
+-    designation: designation || sector || 'Consultant',
++    designation: designation || '',
+     cmpName,
+-    sector: sector || 'Consulting',
+-    country: country || 'US',
++    sector: sector || '',
++    country,
+     email: email.toLowerCase(),
+     source: 'Pasted Block',
+-    leadType: 'TUT',
++    leadType: '',
+     sourcer: linkedin || '', // Map LinkedIn to Sourcer
+-    userId: 'Default',
++    userId: '',
+     projectApproach: '',
+     senderId: ''
+   };
+@@ -407,8 +437,7 @@ function parsePastedRows(rawText = '') {
+   } else {
+     // Normal horizontal spreadsheet row parsing
+     const parsed = lines.map(splitDelimitedLine);
+-    const headerMap = new Map(PASTE_COLUMNS.map((column) => [normalizeHeader(column.label), column.key]));
+-    const firstLineKeys = parsed[0].map((cell) => headerMap.get(normalizeHeader(cell)));
++    const firstLineKeys = parsed[0].map((cell) => resolvePasteColumnKey(cell));
+     const hasHeader = firstLineKeys.filter(Boolean).length >= 2;
+     const rows = hasHeader ? parsed.slice(1) : parsed;
+     return rows.map((cells, rowIndex) => {
+@@ -422,7 +451,7 @@ function parsePastedRows(rawText = '') {
+         if (typeof row[column.key] !== 'string') row[column.key] = '';
+       });
+       row.email = normalizeText(row.email).toLowerCase();
+-      row.sector = autoDetectSector(row);
++      if (!normalizeText(row.sector)) row.sector = '';
+       return row;
+     }).filter(hasVisibleClientData);
+   }
+@@ -471,7 +500,7 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
+     leadIndex,
+     name: getLeadValue(lead, 'Name', 'name') || '-',
+     surname: getLeadValue(lead, 'Surname', 'surname', 'Last Name', 'lastName') || '-',
+-    cmpName: getLeadValue(lead, 'Company', 'company', 'Company Name', 'companyName') || '-',
++    cmpName: getLeadValue(lead, 'CMP Name', 'cmpName', 'Company', 'company', 'Company Name', 'companyName') || '-',
+     sector: getLeadValue(lead, 'Sector', 'sector', 'Industry', 'industry') || '-',
+     country: getLeadValue(lead, 'Country', 'country') || '-',
+     email: email || '-',
+@@ -484,8 +513,8 @@ function buildLeadRow(list, lead, listIndex, leadIndex) {
+     source: String(list?.sourceFile || list?.name || 'Uploaded File'),
+     leadType: getLeadValue(lead, 'Lead Type', 'LeadType', 'leadType') || '-',
+     sourcer: getLeadValue(lead, 'Sourcer', 'sourcer', 'Source By', 'sourceBy') || '-',
+-    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId') || '-',
+-    projectApproach: getLeadValue(lead, 'Project Approach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
++    userId: getLeadValue(lead, 'User ID', 'UserId', 'userId', 'userIdText') || '-',
++    projectApproach: getLeadValue(lead, 'Project Approach', 'ProjectApproach', 'projectApproach', 'Approach', 'approach', 'Used In Project', 'UsedInProject', 'usedInProject') || '-',
+     senderId: getLeadValue(lead, 'Sender ID', 'SenderId', 'senderId') || '-',
+     freshLead,
+     rawLead: lead
+@@ -704,9 +733,31 @@ export default function ClientListPage() {
+   const switchClientDataTab = (tab) => {
+     setActiveTab(tab);
+     const nextUrl = tab === 'client-list' ? '/client-data/client-list' : `/client-data/client-list?tab=${tab}`;
+-    window.history.replaceState(null, '', nextUrl);
++    if (window.location.pathname + window.location.search !== nextUrl) {
++      window.history.pushState(null, '', nextUrl);
++    }
+   };
+ 
++  const openClientDataList = (sheetId = '') => {
++    setActiveTab('client-list');
++    setShowCreatedSheetsPicker(false);
++    if (sheetId) setActiveSourceSheetId(String(sheetId));
++    const nextUrl = '/client-data/client-list';
++    if (window.location.pathname + window.location.search !== nextUrl) {
++      window.history.pushState(null, '', nextUrl);
++    }
++    requestAnimationFrame(() => clientListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
++  };
++
++  useEffect(() => {
++    const syncTabFromLocation = () => {
++      const tab = new URLSearchParams(window.location.search).get('tab');
++      setActiveTab(['upload', 'customize', 'bin', 'client-list'].includes(tab) ? tab : 'client-list');
++    };
++    window.addEventListener('popstate', syncTabFromLocation);
++    return () => window.removeEventListener('popstate', syncTabFromLocation);
++  }, []);
++
+   useEffect(() => {
+     const onDocClick = (event) => {
+       if (!showCreatedSheetsPicker) return;
+@@ -1100,7 +1151,9 @@ export default function ClientListPage() {
+       setSelectionMessage(data.message || `Created ${name} with ${rows.length} selected clients.`);
+       showToast('success', data.message || `Created ${name} with ${rows.length} selected clients.`);
+       setActiveTab('customize');
+-      window.history.replaceState(null, '', '/client-data/client-list?tab=customize');
++      if (window.location.pathname + window.location.search !== '/client-data/client-list?tab=customize') {
++        window.history.pushState(null, '', '/client-data/client-list?tab=customize');
++      }
+     } catch (err) {
+       setSelectionError(err.message || 'Failed to create custom list');
+       showToast('error', err.message || 'Failed to create custom list');
+@@ -1922,7 +1975,7 @@ export default function ClientListPage() {
+       window.localStorage?.setItem?.('campaign:selectedClientListId', data.listId);
+       window.localStorage?.setItem?.('campaign:selectedClientListName', data.name || '');
+       showToast('success', `${data.name || 'Selected sheet'} attached to Campaign Workflow.`);
+-      router.push(data.redirectUrl || `/dashboard/user?listId=${encodeURIComponent(data.listId)}`);
++      router.push('/campaigns');
+     } catch (err) {
+       setSelectionError(err.message || 'Failed to use sheet for campaign');
+       showToast('error', err.message || 'Failed to use sheet for campaign');
+@@ -2299,7 +2352,7 @@ export default function ClientListPage() {
+                                       type="button"
+                                       size="sm"
+                                       variant="secondary"
+-                                      onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id))}&autoUpload=1`)}
++                                      onClick={() => openClientDataList(list._id)}
+                                     >
+                                       Upload This Sheet
+                                     </Button>
+@@ -2442,6 +2495,7 @@ export default function ClientListPage() {
+                                         type={field === 'listAddedDate' ? 'date' : 'text'}
+                                         className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                         value={value}
++                                        readOnly={!EDITABLE_ROW_FIELDS.includes(field)}
+                                         onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                         onClick={() => setActiveCell({ rowId: row.id, field })}
+                                         onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
+@@ -2502,7 +2556,7 @@ export default function ClientListPage() {
+                             <Badge variant={badgeToneMap[row.status] || 'default'}>{row.status}</Badge>
+                           </div>
+                           <div className="client-data-mobile-grid">
+-                            <div><span>Cmp Name</span><strong>{row.cmpName}</strong></div>
++                            <div><span>CMP Name</span><strong>{row.cmpName}</strong></div>
+                             <div><span>Designation</span><strong>{row.designation}</strong></div>
+                             <div><span>Sector</span><strong>{row.sector}</strong></div>
+                             <div><span>Country</span><strong>{row.country}</strong></div>
+@@ -2543,7 +2597,7 @@ export default function ClientListPage() {
+                             type="button"
+                             size="sm"
+                             variant="ghost"
+-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
++                            onClick={() => openClientDataList(list._id || list.id)}
+                           >
+                             View
+                           </Button>
+@@ -2570,7 +2624,7 @@ export default function ClientListPage() {
+                             type="button"
+                             size="sm"
+                             variant="ghost"
+-                            onClick={() => router.push(`/dashboard/user?listId=${encodeURIComponent(String(list._id || list.id))}&autoUpload=1`)}
++                            onClick={() => openClientDataList(list._id || list.id)}
+                             style={{ marginLeft: 8 }}
+                           >
+                             Edit Clients
+diff --git a/dashboard-next/app/client-data/components/ClientDataSectionNav.jsx b/dashboard-next/app/client-data/components/ClientDataSectionNav.jsx
+index ddca374..bd2e4cb 100644
+--- a/dashboard-next/app/client-data/components/ClientDataSectionNav.jsx
++++ b/dashboard-next/app/client-data/components/ClientDataSectionNav.jsx
+@@ -13,9 +13,15 @@ export default function ClientDataSectionNav({ activeTab = '', onTabChange = nul
+   const pathname = usePathname();
+   const router = useRouter();
+   const visibleSections = CLIENT_DATA_SECTIONS;
++  const handleBackToPreviousPage = () => {
++    router.back();
++  };
+ 
+   return (
+     <section className="client-data-page-header">
++      <button type="button" className="page-back-button client-data-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
++        <i className="ti ti-arrow-left" aria-hidden="true" />
++      </button>
+       <div className="client-data-page-header-copy">
+         <h1>Client Data</h1>
+       </div>
+diff --git a/dashboard-next/app/client-data/components/UploadSheetWorkflow.jsx b/dashboard-next/app/client-data/components/UploadSheetWorkflow.jsx
+index 03daab3..e6d5231 100644
+--- a/dashboard-next/app/client-data/components/UploadSheetWorkflow.jsx
++++ b/dashboard-next/app/client-data/components/UploadSheetWorkflow.jsx
+@@ -3,7 +3,32 @@
+ import { useEffect, useMemo, useRef, useState } from 'react';
+ import Button from '@/app/components/ui/Button';
+ 
+-const SHEET_FIELDS = ['Name', 'Surname', 'Designation', 'Email', 'Phone', 'Domain', 'Company', 'Sector', 'Country'];
++const SHEET_FIELDS = [
++  'Name',
++  'Surname',
++  'Designation',
++  'CMP Name',
++  'Sector',
++  'Country',
++  'Email',
++  'List Added Date',
++  'Source',
++  'Lead Type',
++  'Sourcer',
++  'User ID',
++  'Project Approach',
++  'Sender ID'
++];
++
++function getUploadFieldValue(row = {}, field = '') {
++  if (field === 'CMP Name') return String(row?.['CMP Name'] || row?.Company || row?.companyName || row?.cmpName || row?.data?.['CMP Name'] || row?.data?.Company || row?.data?.['Company Name'] || '');
++  if (field === 'List Added Date') return String(row?.['List Added Date'] || row?.listAddedDate || row?.uploadDate || row?.data?.['List Added Date'] || row?.data?.listAddedDate || '');
++  if (field === 'Lead Type') return String(row?.['Lead Type'] || row?.LeadType || row?.leadType || row?.data?.['Lead Type'] || row?.data?.LeadType || '');
++  if (field === 'User ID') return String(row?.['User ID'] || row?.UserId || row?.userId || row?.userIdText || row?.data?.['User ID'] || row?.data?.UserId || '');
++  if (field === 'Project Approach') return String(row?.['Project Approach'] || row?.ProjectApproach || row?.projectApproach || row?.data?.['Project Approach'] || row?.data?.ProjectApproach || '');
++  if (field === 'Sender ID') return String(row?.['Sender ID'] || row?.SenderId || row?.senderId || row?.data?.['Sender ID'] || row?.data?.SenderId || '');
++  return String(row?.[field] || row?.data?.[field] || '');
++}
+ 
+ function statusClassName(status) {
+   if (status === 'Valid') return 'client-upload-preview-row valid';
+@@ -21,20 +46,33 @@ function compactUploadRow(row = {}) {
+   };
+ 
+   SHEET_FIELDS.forEach((field) => {
+-    compact[field] = String(row?.[field] || '');
++    compact[field] = getUploadFieldValue(row, field);
+   });
+ 
+   compact.data = {
+     Name: compact.Name,
+     Surname: compact.Surname,
+-    Company: compact.Company,
++    Company: compact['CMP Name'],
++    'CMP Name': compact['CMP Name'],
+     Designation: compact.Designation,
+     Email: compact.Email,
+-    Phone: compact.Phone,
+-    Domain: compact.Domain,
+     Sector: compact.Sector,
+-    Country: compact.Country
++    Country: compact.Country,
++    'List Added Date': compact['List Added Date'],
++    Source: compact.Source,
++    'Lead Type': compact['Lead Type'],
++    Sourcer: compact.Sourcer,
++    'User ID': compact['User ID'],
++    'Project Approach': compact['Project Approach'],
++    'Sender ID': compact['Sender ID']
+   };
++  compact.Company = compact['CMP Name'];
++  compact.companyName = compact['CMP Name'];
++  compact.listAddedDate = compact['List Added Date'];
++  compact.leadType = compact['Lead Type'];
++  compact.userIdText = compact['User ID'];
++  compact.projectApproach = compact['Project Approach'];
++  compact.senderId = compact['Sender ID'];
+   compact.duplicateMatches = Array.isArray(row?.duplicateMatches) ? row.duplicateMatches : [];
+   compact.matchedSources = Array.isArray(row?.matchedSources) ? row.matchedSources : [];
+ 
+@@ -152,13 +190,19 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+             ...(row?.data || {}),
+             Name: row.Name,
+             Surname: row.Surname,
+-            Company: row.Company,
++            Company: getUploadFieldValue(row, 'CMP Name'),
++            'CMP Name': getUploadFieldValue(row, 'CMP Name'),
+             Designation: row.Designation,
+             Email: row.Email,
+-            Phone: row.Phone,
+-            Domain: row.Domain,
+             Sector: row.Sector,
+-            Country: row.Country
++            Country: row.Country,
++            'List Added Date': getUploadFieldValue(row, 'List Added Date'),
++            Source: getUploadFieldValue(row, 'Source'),
++            'Lead Type': getUploadFieldValue(row, 'Lead Type'),
++            Sourcer: getUploadFieldValue(row, 'Sourcer'),
++            'User ID': getUploadFieldValue(row, 'User ID'),
++            'Project Approach': getUploadFieldValue(row, 'Project Approach'),
++            'Sender ID': getUploadFieldValue(row, 'Sender ID')
+           }))
+         })
+       );
+@@ -182,13 +226,19 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+             ...(row?.data || {}),
+             Name: row.Name,
+             Surname: row.Surname,
+-            Company: row.Company,
++            Company: getUploadFieldValue(row, 'CMP Name'),
++            'CMP Name': getUploadFieldValue(row, 'CMP Name'),
+             Designation: row.Designation,
+             Email: row.Email,
+-            Phone: row.Phone,
+-            Domain: row.Domain,
+             Sector: row.Sector,
+-            Country: row.Country
++            Country: row.Country,
++            'List Added Date': getUploadFieldValue(row, 'List Added Date'),
++            Source: getUploadFieldValue(row, 'Source'),
++            'Lead Type': getUploadFieldValue(row, 'Lead Type'),
++            Sourcer: getUploadFieldValue(row, 'Sourcer'),
++            'User ID': getUploadFieldValue(row, 'User ID'),
++            'Project Approach': getUploadFieldValue(row, 'Project Approach'),
++            'Sender ID': getUploadFieldValue(row, 'Sender ID')
+           }))
+         })
+       );
+@@ -533,7 +583,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+                                 onKeyDown={(event) => handleCellKeyDown(event, rowIndex, colIndex)}
+                                 onPaste={(event) => handleCellPaste(event, rowIndex, colIndex)}
+                               >
+-                                {String(row?.[field] || '')}
++                                {getUploadFieldValue(row, field)}
+                               </div>
+                             ))}
+                             <span className={`client-directory-excel-cell client-upload-cell-status client-upload-status client-upload-status-${String(row.validationStatus || '').toLowerCase()}`}>
+@@ -551,7 +601,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+                       <div className="client-upload-preview-grid client-upload-preview-grid-head">
+                         <span className="client-upload-cell-name">Name</span>
+                         <span className="client-upload-cell-email">Email</span>
+-                        <span className="client-upload-cell-company">Company</span>
++                        <span className="client-upload-cell-company">CMP Name</span>
+                         <span className="client-upload-cell-status">Status</span>
+                         <span className="client-upload-cell-details">Details</span>
+                       </div>
+@@ -567,13 +617,13 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+                           <div className="client-upload-cell-email">
+                             <div className="client-upload-read-stack">
+                               <span>{row.Email || '-'}</span>
+-                              <span>{row.Phone || '-'}</span>
+-                              <span>{row.Domain || '-'}</span>
++                              <span>{getUploadFieldValue(row, 'List Added Date') || '-'}</span>
++                              <span>{getUploadFieldValue(row, 'Source') || '-'}</span>
+                             </div>
+                           </div>
+                           <div className="client-upload-cell-company">
+                             <div className="client-upload-read-stack">
+-                              <span>{row.Company || '-'}</span>
++                              <span>{getUploadFieldValue(row, 'CMP Name') || '-'}</span>
+                               <span>{row.Sector || '-'}</span>
+                               <span>{row.Country || '-'}</span>
+                             </div>
+@@ -609,7 +659,7 @@ export default function UploadSheetWorkflow({ buttonClassName = '', onUploadSave
+                       <strong>New row #{row.rowNumber}</strong>
+                       <p>{[row.Name, row.Surname].filter(Boolean).join(' ') || '-'}</p>
+                       <span>{row.Email || '-'} | {row.Phone || '-'}</span>
+-                      <span>{row.Company || '-'}</span>
++                      <span>{getUploadFieldValue(row, 'CMP Name') || '-'}</span>
+                     </div>
+                     <div>
+                       <strong>Existing match</strong>
+diff --git a/dashboard-next/app/dashboard/DashboardClientPage.jsx b/dashboard-next/app/dashboard/DashboardClientPage.jsx
+index e3d9b8a..83a12ec 100644
+--- a/dashboard-next/app/dashboard/DashboardClientPage.jsx
++++ b/dashboard-next/app/dashboard/DashboardClientPage.jsx
+@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
+ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+ import dynamic from 'next/dynamic';
+ import { useRouter, useSearchParams } from 'next/navigation';
+-import RichTextEditor from '@/modules/draft-module/draft-components/RichTextDraftEditor';
+ import { FancyStatCard } from './components/DashboardUiPrimitives';
+ import {
+   COUNTRY_TIME_SLOTS,
+@@ -190,106 +189,6 @@ function initialsFromName(value = '') {
+   return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
+ }
+ 
+-function RichTextEditorLegacy({ value, onChange, placeholder }) {
+-  const editorRef = useRef(null);
+-  const changeTimerRef = useRef(null);
+-
+-  useEffect(() => {
+-    if (!editorRef.current) return;
+-    if (editorRef.current.innerHTML !== (value || '')) {
+-      editorRef.current.innerHTML = value || '';
+-    }
+-  }, [value]);
+-
+-  useEffect(() => {
+-    return () => {
+-      if (changeTimerRef.current) {
+-        clearTimeout(changeTimerRef.current);
+-      }
+-    };
+-  }, []);
+-
+-  const updateValue = (immediate = false) => {
+-    const next = editorRef.current?.innerHTML || '';
+-    if (immediate) {
+-      if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+-      onChange(next);
+-      return;
+-    }
+-    if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
+-    changeTimerRef.current = setTimeout(() => onChange(next), 220);
+-  };
+-
+-  const runCommand = (command, val = null) => {
+-    if (!editorRef.current) return;
+-    editorRef.current.focus();
+-    document.execCommand(command, false, val);
+-    updateValue(true);
+-  };
+-
+-  const onPaste = (e) => {
+-    const html = e.clipboardData?.getData('text/html');
+-    if (html) {
+-      e.preventDefault();
+-      runCommand('insertHTML', html);
+-      return;
+-    }
+-
+-    const text = e.clipboardData?.getData('text/plain');
+-    if (text) {
+-      e.preventDefault();
+-      const normalized = String(text).replace(/\r\n/g, "\n");
+-      const escaped = normalized
+-        .replace(/&/g, "&amp;")
+-        .replace(/</g, "&lt;")
+-        .replace(/>/g, "&gt;");
+-      // Preserve line breaks and spacing when clipboard has only plain text.
+-      const wrapped = `<div style="white-space:pre-wrap;font-family:Inter, 'Segoe UI', Arial, sans-serif;font-size:15px;line-height:1.6;">${escaped}</div>`;
+-      runCommand("insertHTML", wrapped);
+-    }
+-  };
+-
+-  return (
+-    <div className="wysiwyg-wrap">
+-      <div className="wysiwyg-toolbar row">
+-        <select className="select wysiwyg-select" defaultValue="" onChange={(e) => runCommand('fontName', e.target.value)}>
+-          <option value="" disabled>Font</option>
+-          <option value="Inter">Inter</option>
+-          <option value="Arial">Arial</option>
+-          <option value="Calibri">Calibri</option>
+-          <option value="Georgia">Georgia</option>
+-          <option value="Verdana">Verdana</option>
+-        </select>
+-        <select className="select wysiwyg-select" defaultValue="" onChange={(e) => runCommand('fontSize', e.target.value)}>
+-          <option value="" disabled>Size</option>
+-          <option value="2">Small</option>
+-          <option value="3">Normal</option>
+-          <option value="4">Medium</option>
+-          <option value="5">Large</option>
+-          <option value="6">XL</option>
+-        </select>
+-        <button type="button" className="button secondary" onClick={() => runCommand('bold')}>B</button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('italic')}><i>I</i></button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('underline')}><u>U</u></button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('insertUnorderedList')}>List</button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('justifyLeft')}>Left</button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('justifyCenter')}>Center</button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('justifyRight')}>Right</button>
+-        <button type="button" className="button secondary" onClick={() => runCommand('removeFormat')}>Clear Format</button>
+-      </div>
+-      <div
+-        ref={editorRef}
+-        className="wysiwyg-editor"
+-        contentEditable
+-        suppressContentEditableWarning
+-        data-placeholder={placeholder || 'Compose your draft here...'}
+-        onInput={() => updateValue(false)}
+-        onBlur={() => updateValue(true)}
+-        onPaste={onPaste}
+-      />
+-    </div>
+-  );
+-}
+ const PROJECT_PRESET_SENDERS = {
+   tec: [
+     'lily@theentrepreneurialchronicle.com',
+@@ -1379,30 +1278,45 @@ const handleDeleteDraft = async (draft) => {
+         return { ok: false };
+       }
+       const category = normalizeDraftType(selectedDraft);
++      const activeDraft = activeSavedDraftId
++        ? savedDrafts.find((draft) => String(draft._id || draft.id || '') === String(activeSavedDraftId))
++        : null;
+       const count = savedDrafts.filter((d) => d.category === category).length;
+       const baseTitle = changeInDraftValue
+         ? changeInDraftValue
+-        : `${DRAFT_CATEGORIES.find((c) => c.value === category)?.label || category} Draft ${count + 1}`;
++        : activeDraft?.title || `${DRAFT_CATEGORIES.find((c) => c.value === category)?.label || category} Draft ${count + 1}`;
++      const payload = {
++        category,
++        draftType: category,
++        title: baseTitle,
++        campaignName: activeDraft?.campaignName || campaignName,
++        project: String(activeDraft?.project || project || '').trim().toLowerCase(),
++        sector: activeDraft?.sector || '',
++        country: activeDraft?.country || '',
++        city: activeDraft?.city || '',
++        subject: draftSubject,
++        body: normalizeEmailDraftHtml(draftBody),
++        bodyHtml: normalizeEmailDraftHtml(draftBody),
++        bodyText: ''
++      };
++      const isUpdatingExistingDraft = Boolean(
++        activeDraft &&
++        activeSavedDraftId &&
++        /^[0-9a-f]{24}$/i.test(String(activeSavedDraftId))
++      );
+ 
+-      await safeFetchJson('/api/drafts', {
+-        method: 'POST',
++      const result = await safeFetchJson(isUpdatingExistingDraft ? `/api/drafts/${activeSavedDraftId}` : '/api/drafts', {
++        method: isUpdatingExistingDraft ? 'PATCH' : 'POST',
+         headers: { 'Content-Type': 'application/json' },
+-        body: JSON.stringify({
+-          category,
+-          draftType: category,
+-          title: baseTitle,
+-          campaignName,
+-          project: String(project || '').trim().toLowerCase(),
+-          subject: draftSubject,
+-          body: normalizeEmailDraftHtml(draftBody),
+-          bodyHtml: normalizeEmailDraftHtml(draftBody),
+-          bodyText: ''
+-        })
++        body: JSON.stringify(payload)
+       });
+ 
+       setSavedDraftFilterCategory(category);
+       await loadSavedDrafts();
+-      notify('Draft added successfully.', 'success');
++      if (!isUpdatingExistingDraft && result?.draft?._id) {
++        setActiveSavedDraftId(result.draft._id);
++      }
++      notify(isUpdatingExistingDraft ? 'Draft updated successfully.' : 'Draft added successfully.', 'success');
+       return { ok: true };
+     } catch (err) {
+       notify(err.message || 'Failed to save draft', 'error');
+diff --git a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+index b0cd3c9..d19d9b2 100644
+--- a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
++++ b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+@@ -3359,7 +3359,7 @@ export default function PremiumDashboardShell({
+       {renderPortalPopup(
+         showClientListPopup,
+         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
+-          <div className="premium-calendar-modal premium-clientlist-modal premium-clientlist-modal-fit" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
++          <div className={`premium-calendar-modal premium-clientlist-modal ${clientListTab === 'upload' ? 'premium-clientlist-modal-fit' : 'premium-clientlist-modal-narrow'}`} style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+             <div className="premium-clientlist-head premium-review-head">
+               <div>
+                 <span className="premium-popup-step-badge">1</span>
+@@ -3370,21 +3370,6 @@ export default function PremiumDashboardShell({
+               <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>├ù</button>
+             </div>
+ 
+-            <div className="premium-clientlist-summary">
+-              <div>
+-                <span>Current file</span>
+-                <strong>{displayedClientListName}</strong>
+-              </div>
+-              <div>
+-                <span>Next step</span>
+-                <strong>Review List</strong>
+-              </div>
+-              <div>
+-                <span>Target use</span>
+-                <strong>Upload once, review once</strong>
+-              </div>
+-            </div>
+-
+             <div className="premium-clientlist-tabs">
+               <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
+                 Customize List
+@@ -3451,9 +3436,31 @@ export default function PremiumDashboardShell({
+                             onSelectList?.(item.id);
+                           }}
+                         />
+-                        <div>
+-                          <strong>{item.title}</strong>
+-                          <p>{item.meta}</p>
++                        <div className="premium-clientlist-item-content">
++                          <div className="premium-clientlist-item-title">
++                            <strong>{item.title}</strong>
++                            <span className="premium-clientlist-kind-badge">Sheet</span>
++                          </div>
++                          <div className="premium-clientlist-item-meta">
++                            <span className="premium-clientlist-meta-count">
++                              <strong>{item.leadCount || 0}</strong> contacts
++                            </span>
++                            {item.uploadedAt && (
++                              <span className="premium-clientlist-meta-date">
++                                ΓÇó Uploaded {(() => {
++                                  const d = new Date(item.uploadedAt);
++                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
++                                    month: 'short',
++                                    day: 'numeric',
++                                    year: 'numeric'
++                                  }) + ', ' + d.toLocaleTimeString(undefined, {
++                                    hour: '2-digit',
++                                    minute: '2-digit'
++                                  });
++                                })()}
++                              </span>
++                            )}
++                          </div>
+                         </div>
+                       </label>
+                     )) : (
+@@ -3469,74 +3476,120 @@ export default function PremiumDashboardShell({
+ 
+             {clientListTab === 'uploaded' ? (
+               <div className="premium-clientlist-body">
+-                <div className="premium-clientlist-section-copy">
+-                  <strong>Uploaded Files</strong>
+-                  <p>Choose any sheet you&apos;ve already uploaded.</p>
+-                </div>
+-                <div className="premium-clientlist-list">
+-                  {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+-                    <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+-                      <input
+-                        type="radio"
+-                        name="uploadedList"
+-                        checked={selectedUploadedList === item.id}
+-                        onChange={() => {
+-                          setSelectedUploadedList(item.id);
+-                          onSelectList?.(item.id);
+-                        }}
+-                      />
+-                      <div>
+-                        <strong>{item.title}</strong>
+-                        <p>{item.meta}</p>
++                <section className="premium-clientlist-pane">
++                  <div className="premium-clientlist-section-copy">
++                    <strong>Uploaded Files</strong>
++                    <p>Choose any sheet you&apos;ve already uploaded.</p>
++                  </div>
++                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
++                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
++                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
++                        <input
++                          type="radio"
++                          name="uploadedList"
++                          checked={selectedUploadedList === item.id}
++                          onChange={() => {
++                            setSelectedUploadedList(item.id);
++                            onSelectList?.(item.id);
++                          }}
++                        />
++                        <div className="premium-clientlist-item-content">
++                          <div className="premium-clientlist-item-title">
++                            <strong>{item.title}</strong>
++                            <span className="premium-clientlist-kind-badge">Sheet</span>
++                          </div>
++                          <div className="premium-clientlist-item-meta">
++                            <span className="premium-clientlist-meta-count">
++                              <strong>{item.leadCount || 0}</strong> contacts
++                            </span>
++                            {item.uploadedAt && (
++                              <span className="premium-clientlist-meta-date">
++                                ΓÇó Uploaded {(() => {
++                                  const d = new Date(item.uploadedAt);
++                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
++                                    month: 'short',
++                                    day: 'numeric',
++                                    year: 'numeric'
++                                  }) + ', ' + d.toLocaleTimeString(undefined, {
++                                    hour: '2-digit',
++                                    minute: '2-digit'
++                                  });
++                                })()}
++                              </span>
++                            )}
++                          </div>
++                        </div>
++                      </label>
++                    )) : (
++                      <div className="premium-clientlist-empty">
++                        <strong>No uploaded lists yet.</strong>
++                        <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
+                       </div>
+-                    </label>
+-                  )) : (
+-                    <div className="premium-clientlist-empty">
+-                      <strong>No uploaded lists yet.</strong>
+-                      <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
+-                    </div>
+-                  )}
+-                </div>
++                    )}
++                  </div>
++                </section>
+               </div>
+             ) : null}
+ 
+             {clientListTab === 'custom' ? (
+               <div className="premium-clientlist-body">
+-                <div className="premium-clientlist-section-copy">
+-                  <strong>Customize List</strong>
+-                  <p>Use a client list created in your workspace.</p>
+-                </div>
+-                <div className="premium-clientlist-list">
+-                  {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
+-                    <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+-                      <input
+-                        type="radio"
+-                        name="customList"
+-                        checked={selectedCustomList === item.id}
+-                        onChange={() => {
+-                          setSelectedCustomList(item.id);
+-                          onSelectList?.(item.id);
+-                        }}
+-                      />
+-                      <div>
+-                        <div className="premium-clientlist-item-title">
+-                          <strong>{item.title}</strong>
+-                          <span className="premium-clientlist-kind-badge">Custom</span>
++                <section className="premium-clientlist-pane">
++                  <div className="premium-clientlist-section-copy">
++                    <strong>Customize List</strong>
++                    <p>Use a client list created in your workspace.</p>
++                  </div>
++                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
++                    {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
++                      <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
++                        <input
++                          type="radio"
++                          name="customList"
++                          checked={selectedCustomList === item.id}
++                          onChange={() => {
++                            setSelectedCustomList(item.id);
++                            onSelectList?.(item.id);
++                          }}
++                        />
++                        <div className="premium-clientlist-item-content">
++                          <div className="premium-clientlist-item-title">
++                            <strong>{item.title}</strong>
++                            <span className="premium-clientlist-kind-badge">Custom</span>
++                          </div>
++                          <div className="premium-clientlist-item-meta">
++                            <span className="premium-clientlist-meta-count">
++                              <strong>{item.leadCount || 0}</strong> contacts
++                            </span>
++                            {item.uploadedAt && (
++                              <span className="premium-clientlist-meta-date">
++                                ΓÇó Saved {(() => {
++                                  const d = new Date(item.uploadedAt);
++                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
++                                    month: 'short',
++                                    day: 'numeric',
++                                    year: 'numeric'
++                                  }) + ', ' + d.toLocaleTimeString(undefined, {
++                                    hour: '2-digit',
++                                    minute: '2-digit'
++                                  });
++                                })()}
++                              </span>
++                            )}
++                            {item.sourceFile && item.sourceFile !== item.title && (
++                              <span className="premium-clientlist-meta-file">
++                                ΓÇó File: {item.sourceFile}
++                              </span>
++                            )}
++                          </div>
+                         </div>
+-                        <p>{item.meta}</p>
+-                        <small className="premium-clientlist-item-detail">
+-                          {item.uploadedAt ? `Saved ${item.uploadedAt}` : 'Saved custom list'}
+-                          {item.sourceFile ? ` ΓÇó File: ${item.sourceFile}` : ''}
+-                        </small>
++                      </label>
++                    )) : (
++                      <div className="premium-clientlist-empty">
++                        <strong>No saved client lists yet.</strong>
++                        <p>Your stored files will show up here with their details and contact count.</p>
+                       </div>
+-                    </label>
+-                  )) : (
+-                    <div className="premium-clientlist-empty">
+-                      <strong>No saved client lists yet.</strong>
+-                      <p>Your stored files will show up here with their details and contact count.</p>
+-                    </div>
+-                  )}
+-                </div>
++                    )}
++                  </div>
++                </section>
+               </div>
+             ) : null}
+ 
+diff --git a/dashboard-next/app/drafts/DraftsClientPage.jsx b/dashboard-next/app/drafts/DraftsClientPage.jsx
+index fc9df35..96162b4 100644
+--- a/dashboard-next/app/drafts/DraftsClientPage.jsx
++++ b/dashboard-next/app/drafts/DraftsClientPage.jsx
+@@ -1,6 +1,7 @@
+ 'use client';
+ 
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import { useRouter } from 'next/navigation';
+ import { AnimatePresence, motion } from 'framer-motion';
+ import { DashboardPlaceholderShell } from '@/shared-components/common-components/workspace-components/WorkspaceComponentExports';
+ import Button from '@/shared-components/ui-components/UiActionButton';
+@@ -45,13 +46,32 @@ function formatRelativeDate(value) {
+   const date = new Date(value);
+   if (Number.isNaN(date.getTime())) return '-';
+   const diffMs = Date.now() - date.getTime();
+-  const minute = 60000, hour = 3600000, day = 86400000;
+-  if (diffMs < minute) return 'Just now';
+-  if (diffMs < hour)   return `${Math.floor(diffMs / minute)}m ago`;
+-  if (diffMs < day)    return `${Math.floor(diffMs / hour)}h ago`;
+-  if (diffMs < 2*day)  return 'Yesterday';
+-  if (diffMs < 7*day)  return `${Math.floor(diffMs / day)} days ago`;
+-  return date.toLocaleDateString();
++  const second = 1000, minute = 60000, hour = 3600000, day = 86400000;
++  if (diffMs >= 0 && diffMs < minute) {
++    const seconds = Math.max(1, Math.floor(diffMs / second));
++    return `${seconds} ${seconds === 1 ? 'second' : 'seconds'} ago`;
++  }
++  if (diffMs >= 0 && diffMs < hour) {
++    const minutes = Math.floor(diffMs / minute);
++    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
++  }
++  if (diffMs >= 0 && diffMs < day) {
++    const hours = Math.floor(diffMs / hour);
++    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
++  }
++  return date.toLocaleString('en-US', {
++    month: 'short',
++    day: 'numeric',
++    year: 'numeric',
++    hour: 'numeric',
++    minute: '2-digit'
++  });
++}
++
++function formatDraftTimestamp(value, label) {
++  const formatted = formatRelativeDate(value);
++  if (formatted === '-') return `${label} -`;
++  return formatted.includes('ago') ? `${label} ${formatted}` : formatted;
+ }
+ 
+ function getDraftStatus(draft) {
+@@ -94,8 +114,8 @@ function resolveDraftCampaign(draft = {}) {
+   return String(draft?.campaignName || draft?.campaign || draft?.campaignId || '').trim();
+ }
+ 
+-function resolveDraftCity(draft = {}) {
+-  return String(draft?.city || draft?.City || draft?.location || '').trim();
++function resolveDraftCountry(draft = {}) {
++  return String(draft?.country || draft?.Country || draft?.city || draft?.City || draft?.location || '').trim();
+ }
+ 
+ function escapeHtml(v) {
+@@ -120,6 +140,7 @@ function useMenuState() {
+ }
+ 
+ export default function DraftsPage() {
++  const router = useRouter();
+   /* ΓöÇΓöÇ state ΓöÇΓöÇ */
+   const [drafts, setDrafts]                     = useState([]);
+   const [loading, setLoading]                   = useState(true);
+@@ -129,7 +150,7 @@ export default function DraftsPage() {
+   const [draftSubject, setDraftSubject]         = useState('');
+   const [draftCategory, setDraftCategory]       = useState(CATEGORY_OPTIONS[0].value);
+   const [draftSector, setDraftSector]           = useState('');
+-  const [draftCity, setDraftCity]               = useState('');
++  const [draftCountry, setDraftCountry]         = useState('');
+   const [draftCampaignName, setDraftCampaignName] = useState('');
+   const [draftProject, setDraftProject]         = useState('tec');
+   const [draftTitle, setDraftTitle]             = useState('');
+@@ -255,7 +276,7 @@ export default function DraftsPage() {
+     setShowWorkspace(true);
+     setEditingDraftId('');
+     setDraftTitle(''); setDraftSubject(''); setDraftSector('');
+-    setDraftCity(''); setDraftCampaignName(''); setDraftProject('tec');
++    setDraftCountry(''); setDraftCampaignName(''); setDraftProject('tec');
+     setDraftCategory(CATEGORY_OPTIONS[0].value); setEditorHtml(''); setSaveMessage('');
+   };
+ 
+@@ -271,7 +292,7 @@ export default function DraftsPage() {
+     setDraftTitle(String(draft?.title || ''));
+     setDraftSubject(String(draft?.subject || ''));
+     setDraftSector(String(draft?.sector || ''));
+-    setDraftCity(resolveDraftCity(draft));
++    setDraftCountry(resolveDraftCountry(draft));
+     setDraftCampaignName(resolveDraftCampaign(draft));
+     setDraftProject(resolveDraftProject(draft) || 'tec');
+     setDraftCategory(resolveDraftLibraryType(draft) || CATEGORY_OPTIONS[0].value);
+@@ -294,7 +315,8 @@ export default function DraftsPage() {
+     setDraftActionMessage(''); setDraftActionError('');
+     try {
+       const draftType = resolveDraftLibraryType(draft);
+-      const res  = await fetch('/api/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ category:draftType, draftType, title:`${draft?.title||draft?.subject||'Untitled'} Copy`, sector:String(draft?.sector||'').trim(), city:resolveDraftCity(draft), campaignName:resolveDraftCampaign(draft), project:resolveDraftProject(draft), subject:String(draft?.subject||'').trim()||`${draft?.title||'Untitled'} Copy`, body:String(draft?.body||draft?.bodyHtml||draft?.html||'').trim() }) });
++      const country = resolveDraftCountry(draft);
++      const res  = await fetch('/api/drafts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ category:draftType, draftType, title:`${draft?.title||draft?.subject||'Untitled'} Copy`, sector:String(draft?.sector||'').trim(), country, city:country, campaignName:resolveDraftCampaign(draft), project:resolveDraftProject(draft), subject:String(draft?.subject||'').trim()||`${draft?.title||'Untitled'} Copy`, body:String(draft?.body||draft?.bodyHtml||draft?.html||'').trim() }) });
+       const data = await res.json();
+       if (!res.ok) throw new Error(data?.error || 'Failed to duplicate');
+       if (data?.draft) setDrafts(prev => [data.draft, ...prev]);
+@@ -327,7 +349,8 @@ export default function DraftsPage() {
+     }
+     setSavingDraft(true);
+     try {
+-      const payload = { category: normalizeDraftType(draftCategory), draftType: normalizeDraftType(draftCategory), title: draftTitle.trim(), sector: draftSector.trim(), city: draftCity.trim(), campaignName: draftCampaignName.trim(), project: ['tec','tut'].includes(draftProject?.toLowerCase()) ? draftProject.toLowerCase() : '', subject: draftSubject.trim(), body: editorHtml };
++      const country = draftCountry.trim();
++      const payload = { category: normalizeDraftType(draftCategory), draftType: normalizeDraftType(draftCategory), title: draftTitle.trim(), sector: draftSector.trim(), country, city: country, campaignName: draftCampaignName.trim(), project: ['tec','tut'].includes(draftProject?.toLowerCase()) ? draftProject.toLowerCase() : '', subject: draftSubject.trim(), body: editorHtml };
+       const res  = await fetch(editingDraftId ? `/api/drafts/${editingDraftId}` : '/api/drafts', { method: editingDraftId ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+       const data = await res.json();
+       if (!res.ok) throw new Error(data?.error || 'Failed to save');
+@@ -354,6 +377,13 @@ export default function DraftsPage() {
+   };
+ 
+   const clearAllFilters = () => { setLibraryTypeFilter(''); setLibrarySectorFilter(''); setLibraryProjectFilter(''); setLibraryCampaignFilter(''); setLibrarySearchQuery(''); };
++  const handleBackToPreviousPage = () => {
++    if (showWorkspace) {
++      setShowWorkspace(false);
++      return;
++    }
++    router.back();
++  };
+ 
+   /* ΓöÇΓöÇ render ΓöÇΓöÇ */
+   return (
+@@ -363,6 +393,9 @@ export default function DraftsPage() {
+ 
+         {/* PAGE HEADER */}
+         <div className="dl-header">
++          <button type="button" className="page-back-button dl-page-back-button" onClick={handleBackToPreviousPage} aria-label="Go back to previous page">
++            <i className="ti ti-arrow-left" aria-hidden="true" />
++          </button>
+           <div className="dl-header-title-area">
+             <span className="dl-eyebrow">DRAFT LIBRARY</span>
+             <h1 className="dl-h1">Drafts</h1>
+@@ -400,7 +433,7 @@ export default function DraftsPage() {
+           <section className={`workspace-panel draft-workspace-panel draft-workspace-panel-full`}>
+             <div className="workspace-panel-head">
+               <button type="button" className="dl-back-btn" onClick={() => setShowWorkspace(false)}>
+-                <i className="ti ti-arrow-left" /> Back to Library
++                <i className="ti ti-arrow-left" aria-hidden="true" />
+               </button>
+               <div><h2>{editingDraftId ? 'Edit Draft' : 'Create Draft'}</h2></div>
+               <div className="draft-workspace-mode">
+@@ -416,7 +449,7 @@ export default function DraftsPage() {
+                   <label className="draft-workspace-title-field"><span>Draft Type</span><select value={draftCategory} onChange={e => setDraftCategory(e.target.value)}>{CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+                   <label className="draft-workspace-title-field"><span>Campaign Name</span><input type="text" value={draftCampaignName} onChange={e => setDraftCampaignName(e.target.value)} placeholder="Enter campaign name" /></label>
+                   <label className="draft-workspace-title-field"><span>Sector</span><input type="text" value={draftSector} onChange={e => setDraftSector(e.target.value)} placeholder="Enter sector" /></label>
+-                  <label className="draft-workspace-title-field"><span>City</span><input type="text" value={draftCity} onChange={e => setDraftCity(e.target.value)} placeholder="Enter city" /></label>
++                  <label className="draft-workspace-title-field"><span>Country</span><input type="text" value={draftCountry} onChange={e => setDraftCountry(e.target.value)} placeholder="Enter country" /></label>
+                   <label className="draft-workspace-title-field"><span>Project</span><select value={draftProject} onChange={e => setDraftProject(e.target.value)}>{PROJECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+                 </div>
+                 <div className="draft-body-label">Draft Body</div>
+@@ -653,7 +686,8 @@ export default function DraftsPage() {
+                                 <div className="dl-card-meta">
+                                   <span><i className="ti ti-building" />{draft?.sector || 'No sector'}</span>
+                                   <span><i className="ti ti-folder" />{projectValue ? projectValue.toUpperCase() : 'No project'}</span>
+-                                  <span><i className="ti ti-clock" />{formatRelativeDate(draft?.updatedAt || draft?.createdAt)}</span>
++                                  <span><i className="ti ti-calendar-plus" />{formatDraftTimestamp(draft?.createdAt, 'Created')}</span>
++                                  <span><i className="ti ti-clock" />{formatDraftTimestamp(draft?.updatedAt || draft?.createdAt, 'Updated')}</span>
+                                 </div>
+ 
+                                 {/* Bottom row */}
+@@ -704,8 +738,8 @@ export default function DraftsPage() {
+                 >
+                   {/* Modal head */}
+                   <div className="dl-modal-head">
+-                    <button type="button" className="dl-modal-back-btn" onClick={() => setPreviewDraft(null)}>
+-                      <i className="ti ti-arrow-left" /> Back
++                    <button type="button" className="dl-modal-back-btn" onClick={() => setPreviewDraft(null)} aria-label="Go back">
++                      <i className="ti ti-arrow-left" aria-hidden="true" />
+                     </button>
+                     <div>
+                       <span className="dl-badge" style={{ background: pm.badgeColor, color: pm.badgeText, borderColor: pm.badgeBorder }}>
+@@ -721,7 +755,8 @@ export default function DraftsPage() {
+                       { l:'Project',    v: resolveDraftProject(previewDraft)?.toUpperCase() || 'ΓÇö' },
+                       { l:'Sector',     v: previewDraft?.sector || 'ΓÇö' },
+                       { l:'Draft Type', v: draftTypeLabel(ptype) },
+-                      { l:'Updated',    v: formatRelativeDate(previewDraft?.updatedAt || previewDraft?.createdAt) },
++                      { l:'Created',    v: formatDraftTimestamp(previewDraft?.createdAt, 'Created') },
++                      { l:'Updated',    v: formatDraftTimestamp(previewDraft?.updatedAt || previewDraft?.createdAt, 'Updated') },
+                       { l:'Status',     v: isApproved ? 'Γ£ô Approved by TL' : 'Pending', ok: isApproved }
+                     ].map(m => (
+                       <div key={m.l} className={`dl-modal-meta-item${m.ok ? ' dl-modal-meta-item--ok' : ''}`}>
+@@ -797,8 +832,8 @@ export default function DraftsPage() {
+                             <span className="dl-stats-val">{resolveDraftProject(previewDraft)?.toUpperCase() || 'ΓÇö'}</span>
+                           </div>
+                           <div className="dl-stats-row">
+-                            <span className="dl-stats-lbl">City / Location</span>
+-                            <span className="dl-stats-val">{resolveDraftCity(previewDraft) || 'ΓÇö'}</span>
++                            <span className="dl-stats-lbl">Country</span>
++                            <span className="dl-stats-val">{resolveDraftCountry(previewDraft) || 'ΓÇö'}</span>
+                           </div>
+                           <div className="dl-stats-row">
+                             <span className="dl-stats-lbl">Campaign Name</span>
+diff --git a/dashboard-next/app/drafts/[id]/DraftDetailClientPage.jsx b/dashboard-next/app/drafts/[id]/DraftDetailClientPage.jsx
+index cf45e33..00ce128 100644
+--- a/dashboard-next/app/drafts/[id]/DraftDetailClientPage.jsx
++++ b/dashboard-next/app/drafts/[id]/DraftDetailClientPage.jsx
+@@ -21,7 +21,7 @@ export default function DraftDetailClientPage({ draftId }) {
+   const [draftSubject, setDraftSubject] = useState('');
+   const [draftCategory, setDraftCategory] = useState('cover_story');
+   const [draftSector, setDraftSector] = useState('');
+-  const [draftCity, setDraftCity] = useState('');
++  const [draftCountry, setDraftCountry] = useState('');
+   const [draftCampaignName, setDraftCampaignName] = useState('');
+   const [draftProject, setDraftProject] = useState('tec');
+   const [editorHtml, setEditorHtml] = useState('');
+@@ -40,7 +40,7 @@ export default function DraftDetailClientPage({ draftId }) {
+         setDraftSubject(String(draft.subject || ''));
+         setDraftCategory(normalizeDraftType(draft.draftType || draft.category || 'cover_story'));
+         setDraftSector(String(draft.sector || ''));
+-        setDraftCity(String(draft.city || ''));
++        setDraftCountry(String(draft.country || draft.city || ''));
+         setDraftCampaignName(String(draft.campaignName || draft.campaign || ''));
+         setDraftProject(['tec', 'tut'].includes(String(draft.project || '').toLowerCase()) ? String(draft.project).toLowerCase() : 'tec');
+         setEditorHtml(String(draft.bodyHtml || draft.html || draft.body || ''));
+@@ -73,7 +73,8 @@ export default function DraftDetailClientPage({ draftId }) {
+           category: normalizeDraftType(draftCategory),
+           draftType: normalizeDraftType(draftCategory),
+           sector: draftSector.trim(),
+-          city: draftCity.trim(),
++          country: draftCountry.trim(),
++          city: draftCountry.trim(),
+           campaignName: draftCampaignName.trim(),
+           project: draftProject,
+           body: editorHtml,
+@@ -94,12 +95,14 @@ export default function DraftDetailClientPage({ draftId }) {
+     <DashboardPlaceholderShell>
+       <section className="workspace-page" style={{ '--workspace-accent': '#f97316' }}>
+         <div className="workspace-hero">
++          <button type="button" className="page-back-button draft-detail-page-back-button" onClick={() => router.back()} aria-label="Go back to previous page">
++            <i className="ti ti-arrow-left" aria-hidden="true" />
++          </button>
+           <div>
+             <span className="workspace-kicker">Drafts</span>
+             <h1>{loading ? 'Loading Draft' : draftTitle || 'Edit Draft'}</h1>
+           </div>
+           <div className="workspace-hero-actions">
+-            <Button variant="secondary" className="workspace-secondary" onClick={() => router.push('/drafts')}>Back</Button>
+             <Button className="workspace-primary" onClick={saveDraft} disabled={saving || loading}>
+               {saving ? 'Saving...' : 'Update Draft'}
+             </Button>
+@@ -139,8 +142,8 @@ export default function DraftDetailClientPage({ draftId }) {
+                   <input value={draftSector} onChange={(event) => setDraftSector(event.target.value)} placeholder="Enter sector" />
+                 </label>
+                 <label className="draft-workspace-title-field">
+-                  <span>City</span>
+-                  <input value={draftCity} onChange={(event) => setDraftCity(event.target.value)} placeholder="Enter city" />
++                  <span>Country</span>
++                  <input value={draftCountry} onChange={(event) => setDraftCountry(event.target.value)} placeholder="Enter country" />
+                 </label>
+               </div>
+               <div className="draft-body-label">Draft Body</div>
+diff --git a/dashboard-next/app/globals.css b/dashboard-next/app/globals.css
+index 733a580..477d7fb 100644
+--- a/dashboard-next/app/globals.css
++++ b/dashboard-next/app/globals.css
+@@ -13592,6 +13592,7 @@ html.theme-dark .warmup-editor-textarea {
+   padding: 0;
+   overflow: hidden;
+   max-height: min(86vh, calc(100vh - 32px));
++  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+ }
+ 
+ .premium-clientlist-modal-fit {
+@@ -13604,6 +13605,16 @@ html.theme-dark .warmup-editor-textarea {
+   min-height: 0;
+ }
+ 
++.premium-clientlist-modal-narrow {
++  width: min(94vw, 500px) !important;
++  max-width: min(94vw, 500px) !important;
++  max-height: min(86vh, calc(100vh - 32px)) !important;
++  overflow: hidden !important;
++  display: grid;
++  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
++  min-height: 0;
++}
++
+ .premium-clientlist-head {
+   display: flex;
+   align-items: flex-start;
+@@ -13841,20 +13852,34 @@ html.theme-dark .warmup-editor-textarea {
+ 
+ .premium-clientlist-item {
+   display: grid;
+-  grid-template-columns: 24px 1fr;
+-  gap: 10px;
+-  align-items: start;
+-  padding: 11px 14px;
+-  border-top: 1px solid rgba(226, 232, 240, 0.78);
++  grid-template-columns: 18px 1fr;
++  gap: 12px;
++  align-items: center;
++  padding: 10px 14px;
++  border-top: 1px solid rgba(241, 245, 249, 0.85);
+   background: transparent;
++  transition: background-color 0.15s ease, border-color 0.15s ease;
++  cursor: pointer;
+ }
+ 
+ .premium-clientlist-item:first-child {
+   border-top: 0;
+ }
+ 
++.premium-clientlist-item:hover {
++  background: rgba(248, 250, 252, 0.95);
++}
++
+ .premium-clientlist-item.selected {
+-  background: rgba(255, 247, 237, 0.8);
++  background: rgba(255, 247, 237, 0.92);
++}
++
++.premium-clientlist-item input[type="radio"] {
++  margin: 0;
++  accent-color: #f97316;
++  width: 14px;
++  height: 14px;
++  cursor: pointer;
+ }
+ 
+ .client-data-upload-grid {
+@@ -14741,30 +14766,46 @@ html.theme-dark .warmup-editor-textarea {
+   color: #0f172a;
+ }
+ 
+-.premium-clientlist-item strong {
+-  display: block;
+-  font-size: 12px;
+-  color: #243244;
++.premium-clientlist-item-content {
++  display: flex;
++  flex-direction: column;
++  gap: 3px;
++  min-width: 0;
++  width: 100%;
+ }
+ 
+ .premium-clientlist-item-title {
+   display: flex;
+   align-items: center;
++  flex-wrap: wrap;
+   gap: 8px;
++  width: 100%;
++}
++
++.premium-clientlist-item-title strong {
++  display: inline-block;
++  font-size: 13px;
++  font-weight: 600;
++  color: #1e293b;
++  margin: 0;
++  white-space: nowrap;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  max-width: 280px;
+ }
+ 
+ .premium-clientlist-kind-badge {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+-  min-height: 20px;
+-  padding: 0 8px;
+-  border-radius: 999px;
+-  background: rgba(59, 130, 246, 0.08);
+-  color: #3b82f6;
+-  font-size: 9px;
+-  font-weight: 800;
+-  letter-spacing: 0.08em;
++  height: 18px;
++  padding: 0 6px;
++  border-radius: 4px;
++  background: rgba(241, 245, 249, 0.9);
++  color: #64748b;
++  font-size: 8.5px;
++  font-weight: 700;
++  letter-spacing: 0.05em;
+   text-transform: uppercase;
+ }
+ 
+@@ -14781,6 +14822,38 @@ html.theme-dark .warmup-editor-textarea {
+   color: #94a3b8;
+ }
+ 
++.premium-clientlist-item-meta {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  column-gap: 6px;
++  row-gap: 2px;
++  font-size: 11px;
++  color: #64748b;
++  width: 100%;
++}
++
++.premium-clientlist-meta-count {
++  font-weight: 500;
++}
++
++.premium-clientlist-meta-count strong {
++  color: #0f172a;
++  font-weight: 700;
++}
++
++.premium-clientlist-meta-date {
++  color: #94a3b8;
++}
++
++.premium-clientlist-meta-file {
++  color: #94a3b8;
++  white-space: nowrap;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  max-width: 240px;
++}
++
+ .premium-clientlist-actions {
+   display: flex;
+   justify-content: center;
+diff --git a/dashboard-next/core-lib/client-data-config/UploadSheetValidation.js b/dashboard-next/core-lib/client-data-config/UploadSheetValidation.js
+index a0076df..f012b4b 100644
+--- a/dashboard-next/core-lib/client-data-config/UploadSheetValidation.js
++++ b/dashboard-next/core-lib/client-data-config/UploadSheetValidation.js
+@@ -19,6 +19,8 @@ const MEANINGFUL_LEAD_FIELDS = [
+   'contactName',
+   'Company',
+   'company',
++  'CMP Name',
++  'cmpName',
+   'Company Name',
+   'companyName',
+   'Designation',
+@@ -41,6 +43,8 @@ const MEANINGFUL_LEAD_FIELDS = [
+   'industry',
+   'Country',
+   'country',
++  'List Added Date',
++  'listAddedDate',
+   'City',
+   'city',
+   'Location',
+@@ -185,9 +189,6 @@ function autoCorrectLeadFields(mapped) {
+ 
+   corrected.Email = normalizeEmail(corrected.Email || corrected.data.Email || corrected.data.email || '');
+ 
+-  if (!corrected.Domain) {
+-    corrected.Domain = inferDomainFromEmail(corrected.Email);
+-  }
+   corrected.Domain = normalizeDomain(corrected.Domain);
+ 
+   if (!corrected.Name || !corrected.Surname) {
+@@ -203,20 +204,8 @@ function autoCorrectLeadFields(mapped) {
+     if (!corrected.Surname) corrected.Surname = split.surname;
+   }
+ 
+-  if (!corrected.Name) {
+-    const inferred = inferNameFromEmail(corrected.Email);
+-    corrected.Name = inferred.firstName;
+-    if (!corrected.Surname) corrected.Surname = inferred.surname;
+-  }
+-
+   corrected.Name = toTitleCase(corrected.Name);
+   corrected.Surname = toTitleCase(corrected.Surname);
+-
+-  if (!corrected.Company) {
+-    corrected.Company =
+-      getFirstPresent(corrected.data, ['Organization', 'organization', 'Account', 'account']) ||
+-      humanizeDomainLabel(corrected.Domain || inferDomainFromEmail(corrected.Email));
+-  }
+   corrected.Company = toTitleCase(corrected.Company);
+   corrected.Designation = toTitleCase(corrected.Designation);
+   corrected.Sector = toTitleCase(corrected.Sector);
+@@ -242,7 +231,9 @@ function autoCorrectLeadFields(mapped) {
+     Phone: corrected.Phone,
+     Domain: corrected.Domain,
+     Sector: corrected.Sector,
+-    Country: corrected.Country
++    Country: corrected.Country,
++    'List Added Date': corrected.ListAddedDate || corrected.data?.['List Added Date'] || corrected.data?.listAddedDate || '',
++    listAddedDate: corrected.ListAddedDate || corrected.data?.['List Added Date'] || corrected.data?.listAddedDate || ''
+   };
+ 
+   return corrected;
+@@ -257,7 +248,7 @@ export function mapRawRowToLead(rawRow = {}) {
+   const splitFullName = splitNameParts(fullName);
+   const name = getFirstPresent(row, ['Name', 'name', 'First Name', 'firstName']) || splitFullName.firstName;
+   const surname = getFirstPresent(row, ['Surname', 'surname', 'Last Name', 'lastName']) || splitFullName.surname;
+-  const company = getFirstPresent(row, ['Company', 'company', 'Company Name', 'companyName']);
++  const company = getFirstPresent(row, ['CMP Name', 'cmpName', 'Company', 'company', 'Company Name', 'companyName']);
+   const designation = getFirstPresent(row, ['Designation', 'designation', 'Title', 'title']);
+   const email = normalizeEmail(row.Email || row.email || '');
+   const phone = normalizePhone(row.Phone || row.phone || row.Mobile || row.mobile || '');
+@@ -265,6 +256,7 @@ export function mapRawRowToLead(rawRow = {}) {
+   const domain = normalizeDomain(row.Domain || row.domain || row.Website || row.website || '');
+   const sector = getFirstPresent(row, ['Sector', 'sector', 'Industry', 'industry']);
+   const country = getFirstPresent(row, ['Country', 'country']);
++  const listAddedDate = getFirstPresent(row, ['List Added Date', 'listAddedDate', 'Added Date', 'Date', 'Upload Date']);
+   const source = getFirstPresent(row, ['Source', 'source']);
+   const sourcer = getFirstPresent(row, ['Sourcer', 'sourcer']);
+   const leadType = getFirstPresent(row, ['Lead Type', 'LeadType', 'leadType']);
+@@ -286,6 +278,7 @@ export function mapRawRowToLead(rawRow = {}) {
+     Domain: domain,
+     Sector: sector,
+     Country: country,
++    ListAddedDate: listAddedDate,
+     Source: source,
+     Sourcer: sourcer,
+     LeadType: leadType,
+@@ -297,6 +290,7 @@ export function mapRawRowToLead(rawRow = {}) {
+       Name: name,
+       Surname: surname,
+       Company: company,
++      'CMP Name': company,
+       Designation: designation,
+       Email: email,
+       Phone: phone,
+@@ -305,6 +299,8 @@ export function mapRawRowToLead(rawRow = {}) {
+       Domain: domain,
+       Sector: sector,
+       Country: country,
++      'List Added Date': listAddedDate,
++      listAddedDate,
+       Source: source,
+       Sourcer: sourcer,
+       LeadType: leadType,
+diff --git a/dashboard-next/database-models/EmailDraft.js b/dashboard-next/database-models/EmailDraft.js
+index 854fe5f..5828e22 100644
+--- a/dashboard-next/database-models/EmailDraft.js
++++ b/dashboard-next/database-models/EmailDraft.js
+@@ -23,6 +23,7 @@ const EmailDraftSchema = new mongoose.Schema(
+     senderAccountId: { type: String, default: '', index: true },
+     senderFrom: { type: String, default: '', index: true },
+     sector: { type: String, default: '', index: true },
++    country: { type: String, default: '', index: true },
+     city: { type: String, default: '', index: true },
+     campaignName: { type: String, default: '', index: true },
+     domain: { type: String, default: '', index: true },
+diff --git a/dashboard-next/modules/draft-module/draft-components/DraftEditor.jsx b/dashboard-next/modules/draft-module/draft-components/DraftEditor.jsx
+new file mode 100644
+index 0000000..99fa5a5
+--- /dev/null
++++ b/dashboard-next/modules/draft-module/draft-components/DraftEditor.jsx
+@@ -0,0 +1,426 @@
++'use client';
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++const BLOCK_TYPES = [
++  { label: 'Paragraph', value: 'P' },
++  { label: 'Heading 1', value: 'H1' },
++  { label: 'Heading 2', value: 'H2' },
++  { label: 'Heading 3', value: 'H3' },
++  { label: 'Blockquote', value: 'BLOCKQUOTE' }
++];
++
++const FONT_FAMILIES = [
++  'Arial',
++  'Inter',
++  'Roboto',
++  'Times New Roman',
++  'Poppins',
++  'Montserrat'
++];
++
++const FONT_SIZES = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
++
++function ToolbarButton({ children, title, onCommand, disabled = false, className = '' }) {
++  return (
++    <button
++      type="button"
++      className={`imp-draft-editor-tool ${className}`.trim()}
++      title={title}
++      disabled={disabled}
++      onMouseDown={(event) => {
++        event.preventDefault();
++        if (!disabled) onCommand?.();
++      }}
++    >
++      {children}
++    </button>
++  );
++}
++
++export default function DraftEditor({
++  value = '',
++  onChange,
++  placeholder = 'Write your email draft...',
++  className = ''
++}) {
++  const editorRef = useRef(null);
++  const savedRangeRef = useRef(null);
++  const seededRef = useRef(false);
++  const [isEmpty, setIsEmpty] = useState(true);
++
++  const emitChange = useCallback(() => {
++    const editor = editorRef.current;
++    if (!editor) return;
++    const html = editor.innerHTML;
++    setIsEmpty(!String(editor.textContent || '').trim());
++    onChange?.(html);
++  }, [onChange]);
++
++  const saveSelection = useCallback(() => {
++    if (typeof window === 'undefined') return;
++    const editor = editorRef.current;
++    const selection = window.getSelection?.();
++    if (!editor || !selection || selection.rangeCount === 0) return;
++    const range = selection.getRangeAt(0);
++    if (editor.contains(range.commonAncestorContainer)) {
++      savedRangeRef.current = range.cloneRange();
++    }
++  }, []);
++
++  const restoreSelection = useCallback(() => {
++    const editor = editorRef.current;
++    const selection = window.getSelection?.();
++    if (!editor || !selection) return;
++
++    editor.focus({ preventScroll: true });
++    selection.removeAllRanges();
++
++    if (savedRangeRef.current && editor.contains(savedRangeRef.current.commonAncestorContainer)) {
++      selection.addRange(savedRangeRef.current);
++      return;
++    }
++
++    const range = document.createRange();
++    range.selectNodeContents(editor);
++    range.collapse(false);
++    selection.addRange(range);
++    savedRangeRef.current = range.cloneRange();
++  }, []);
++
++  const runCommand = useCallback((command, valueArg = null) => {
++    restoreSelection();
++    document.execCommand(command, false, valueArg);
++    saveSelection();
++    emitChange();
++  }, [emitChange, restoreSelection, saveSelection]);
++
++  const applyFontSize = useCallback((size) => {
++    restoreSelection();
++    document.execCommand('fontSize', false, '7');
++    editorRef.current?.querySelectorAll('font[size="7"]').forEach((node) => {
++      node.removeAttribute('size');
++      node.style.fontSize = size;
++    });
++    saveSelection();
++    emitChange();
++  }, [emitChange, restoreSelection, saveSelection]);
++
++  const clearFormatting = useCallback(() => {
++    restoreSelection();
++    document.execCommand('removeFormat', false, null);
++    document.execCommand('unlink', false, null);
++    saveSelection();
++    emitChange();
++  }, [emitChange, restoreSelection, saveSelection]);
++
++  const createLink = useCallback(() => {
++    restoreSelection();
++    const url = window.prompt('Enter link URL');
++    if (!url) return;
++    const safeUrl = /^(https?:|mailto:|tel:)/i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
++    document.execCommand('createLink', false, safeUrl);
++    saveSelection();
++    emitChange();
++  }, [emitChange, restoreSelection, saveSelection]);
++
++  const handleKeyDown = useCallback((event) => {
++    const modifier = event.ctrlKey || event.metaKey;
++    if (!modifier) return;
++
++    const key = event.key.toLowerCase();
++    if (key === 'b') {
++      event.preventDefault();
++      runCommand('bold');
++    } else if (key === 'i') {
++      event.preventDefault();
++      runCommand('italic');
++    } else if (key === 'u') {
++      event.preventDefault();
++      runCommand('underline');
++    } else if (key === 'z' && event.shiftKey) {
++      event.preventDefault();
++      runCommand('redo');
++    } else if (key === 'z') {
++      event.preventDefault();
++      runCommand('undo');
++    } else if (key === 'y') {
++      event.preventDefault();
++      runCommand('redo');
++    }
++  }, [runCommand]);
++
++  useEffect(() => {
++    if (seededRef.current || !editorRef.current) return;
++    editorRef.current.innerHTML = value || '';
++    setIsEmpty(!String(editorRef.current.textContent || '').trim());
++    seededRef.current = true;
++  }, [value]);
++
++  return (
++    <div className={`imp-draft-editor ${className}`.trim()}>
++      <style jsx>{`
++        .imp-draft-editor {
++          overflow: hidden;
++          border: 1px solid #cbd5e1;
++          border-radius: 14px;
++          background: #ffffff;
++          color: #0f172a;
++          font-family: 'DM Sans', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
++          box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
++        }
++
++        .imp-draft-editor-toolbar {
++          display: flex;
++          align-items: flex-start;
++          gap: 8px;
++          flex-wrap: wrap;
++          padding: 10px;
++          border-bottom: 0.5px solid #cbd5e1;
++          background: linear-gradient(180deg, #f8fafc, #f1f5f9);
++        }
++
++        .imp-draft-editor-group {
++          display: inline-flex;
++          align-items: center;
++          gap: 5px;
++          min-height: 38px;
++          padding: 4px;
++          border: 1px solid rgba(203, 213, 225, 0.78);
++          border-radius: 11px;
++          background: rgba(255, 255, 255, 0.88);
++          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
++        }
++
++        .imp-draft-editor-group.is-fluid {
++          flex: 1 1 250px;
++          min-width: 240px;
++        }
++
++        .imp-draft-editor-group-label {
++          padding: 0 5px;
++          color: #64748b;
++          font: 700 9px/1 'DM Sans', Inter, system-ui, sans-serif;
++          letter-spacing: 0.06em;
++          text-transform: uppercase;
++        }
++
++        .imp-draft-editor-select,
++        .imp-draft-editor-color,
++        .imp-draft-editor-tool {
++          height: 30px;
++          border: 1px solid #cbd5e1;
++          border-radius: 8px;
++          background: #ffffff;
++          color: #0f172a;
++          font: 500 12px 'DM Sans', Inter, system-ui, sans-serif;
++          box-shadow: none;
++        }
++
++        .imp-draft-editor-select {
++          min-width: 92px;
++          padding: 0 24px 0 9px;
++        }
++
++        .imp-draft-editor-tool {
++          min-width: 30px;
++          padding: 0 9px;
++          cursor: pointer;
++        }
++
++        .imp-draft-editor-tool:hover,
++        .imp-draft-editor-select:hover,
++        .imp-draft-editor-color:hover {
++          border-color: #6366f1;
++          background: #eef2ff;
++        }
++
++        .imp-draft-editor-tool:disabled {
++          opacity: 0.45;
++          cursor: not-allowed;
++        }
++
++        .imp-draft-editor-color {
++          width: 30px;
++          min-width: 30px;
++          padding: 5px;
++          cursor: pointer;
++        }
++
++        .imp-draft-editor-tool.is-primary {
++          min-width: 34px;
++          color: #3730a3;
++          background: #eef2ff;
++          border-color: rgba(99, 102, 241, 0.28);
++          font-weight: 800;
++        }
++
++        .imp-draft-editor-tool.is-danger-soft {
++          color: #b45309;
++          background: #fffbeb;
++          border-color: #fde68a;
++        }
++
++        .imp-draft-editor-body-wrap {
++          position: relative;
++          background: #ffffff;
++        }
++
++        .imp-draft-editor-placeholder {
++          position: absolute;
++          top: 20px;
++          left: 24px;
++          color: #94a3b8;
++          font-size: 14px;
++          pointer-events: none;
++        }
++
++        .imp-draft-editor-body {
++          min-height: 380px;
++          padding: 20px 24px;
++          outline: none;
++          color: #0f172a;
++          font: 400 14px/1.7 'DM Sans', Inter, system-ui, sans-serif;
++          overflow-wrap: anywhere;
++        }
++
++        .imp-draft-editor-body :global(h1) {
++          margin: 0 0 14px;
++          font-size: 28px;
++          line-height: 1.25;
++        }
++
++        .imp-draft-editor-body :global(h2) {
++          margin: 0 0 12px;
++          font-size: 22px;
++          line-height: 1.3;
++        }
++
++        .imp-draft-editor-body :global(h3) {
++          margin: 0 0 10px;
++          font-size: 18px;
++          line-height: 1.35;
++        }
++
++        .imp-draft-editor-body :global(blockquote) {
++          margin: 10px 0;
++          padding: 10px 14px;
++          border-left: 3px solid #6366f1;
++          background: #f8fafc;
++          color: #334155;
++        }
++      `}</style>
++
++      <div className="imp-draft-editor-toolbar" aria-label="Draft editor toolbar">
++        <div className="imp-draft-editor-group is-fluid">
++          <span className="imp-draft-editor-group-label">Format</span>
++          <select
++            className="imp-draft-editor-select"
++            defaultValue="P"
++            onMouseDown={saveSelection}
++            onChange={(event) => runCommand('formatBlock', event.target.value)}
++            aria-label="Block type"
++          >
++            {BLOCK_TYPES.map((item) => (
++              <option key={item.value} value={item.value}>{item.label}</option>
++            ))}
++          </select>
++
++          <select
++            className="imp-draft-editor-select"
++            defaultValue=""
++            onMouseDown={saveSelection}
++            onChange={(event) => event.target.value && runCommand('fontName', event.target.value)}
++            aria-label="Font family"
++          >
++            <option value="">Font</option>
++            {FONT_FAMILIES.map((font) => (
++              <option key={font} value={font}>{font}</option>
++            ))}
++          </select>
++
++          <select
++            className="imp-draft-editor-select"
++            defaultValue=""
++            onMouseDown={saveSelection}
++            onChange={(event) => event.target.value && applyFontSize(event.target.value)}
++            aria-label="Font size"
++          >
++            <option value="">Size</option>
++            {FONT_SIZES.map((size) => (
++              <option key={size} value={size}>{size}</option>
++            ))}
++          </select>
++        </div>
++
++        <div className="imp-draft-editor-group">
++          <span className="imp-draft-editor-group-label">Style</span>
++          <ToolbarButton title="Bold" onCommand={() => runCommand('bold')}>B</ToolbarButton>
++          <ToolbarButton title="Italic" onCommand={() => runCommand('italic')}><i>I</i></ToolbarButton>
++          <ToolbarButton title="Underline" onCommand={() => runCommand('underline')}><u>U</u></ToolbarButton>
++          <ToolbarButton title="Strikethrough" onCommand={() => runCommand('strikeThrough')}><s>S</s></ToolbarButton>
++        </div>
++
++        <div className="imp-draft-editor-group">
++          <span className="imp-draft-editor-group-label">Color</span>
++          <input
++            className="imp-draft-editor-color"
++            type="color"
++            defaultValue="#0f172a"
++            title="Text color"
++            onMouseDown={saveSelection}
++            onInput={(event) => runCommand('foreColor', event.currentTarget.value)}
++            aria-label="Text color"
++          />
++          <input
++            className="imp-draft-editor-color"
++            type="color"
++            defaultValue="#fff3a3"
++            title="Highlight color"
++            onMouseDown={saveSelection}
++            onInput={(event) => runCommand('hiliteColor', event.currentTarget.value)}
++            aria-label="Highlight color"
++          />
++        </div>
++
++        <div className="imp-draft-editor-group">
++          <span className="imp-draft-editor-group-label">Layout</span>
++          <ToolbarButton title="Align left" onCommand={() => runCommand('justifyLeft')}>L</ToolbarButton>
++          <ToolbarButton title="Align center" onCommand={() => runCommand('justifyCenter')}>C</ToolbarButton>
++          <ToolbarButton title="Align right" onCommand={() => runCommand('justifyRight')}>R</ToolbarButton>
++          <ToolbarButton title="Bullet list" onCommand={() => runCommand('insertUnorderedList')}>UL</ToolbarButton>
++          <ToolbarButton title="Numbered list" onCommand={() => runCommand('insertOrderedList')}>OL</ToolbarButton>
++          <ToolbarButton title="Indent" onCommand={() => runCommand('indent')}>In</ToolbarButton>
++          <ToolbarButton title="Outdent" onCommand={() => runCommand('outdent')}>Out</ToolbarButton>
++          <ToolbarButton title="Insert link" onCommand={createLink}>Link</ToolbarButton>
++        </div>
++
++        <div className="imp-draft-editor-group">
++          <span className="imp-draft-editor-group-label">Edit</span>
++          <ToolbarButton title="Undo" onCommand={() => runCommand('undo')}>Undo</ToolbarButton>
++          <ToolbarButton title="Redo" onCommand={() => runCommand('redo')}>Redo</ToolbarButton>
++          <ToolbarButton title="Clear formatting" onCommand={clearFormatting} className="is-danger-soft">Clear</ToolbarButton>
++        </div>
++      </div>
++
++      <div className="imp-draft-editor-body-wrap">
++        {isEmpty ? <div className="imp-draft-editor-placeholder">{placeholder}</div> : null}
++        <div
++          ref={editorRef}
++          className="imp-draft-editor-body"
++          contentEditable
++          suppressContentEditableWarning
++          role="textbox"
++          aria-multiline="true"
++          spellCheck="true"
++          onInput={emitChange}
++          onKeyDown={handleKeyDown}
++          onKeyUp={saveSelection}
++          onMouseUp={saveSelection}
++          onFocus={saveSelection}
++          onBlur={saveSelection}
++        />
++      </div>
++    </div>
++  );
++}
+diff --git a/dashboard-next/modules/draft-module/draft-components/RichTextDraftEditor.js b/dashboard-next/modules/draft-module/draft-components/RichTextDraftEditor.js
+index 8a6cdac..4b8f4b4 100644
+--- a/dashboard-next/modules/draft-module/draft-components/RichTextDraftEditor.js
++++ b/dashboard-next/modules/draft-module/draft-components/RichTextDraftEditor.js
+@@ -2,7 +2,7 @@
+ 
+ import { useEffect, useMemo, useRef, useState } from 'react';
+ import { EditorContent, useEditor } from '@tiptap/react';
+-import { Selection } from '@tiptap/pm/state';
++import { Selection, TextSelection } from '@tiptap/pm/state';
+ import StarterKit from '@tiptap/starter-kit';
+ import { TextStyle } from '@tiptap/extension-text-style';
+ import { Color } from '@tiptap/extension-color';
+@@ -36,6 +36,7 @@ const FONT_FAMILIES = [
+ const FONT_SIZES = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
+ const COLOR_SWATCHES = ['#111827', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#f97316'];
+ const HIGHLIGHT_SWATCHES = ['transparent', '#fef3c7', '#dcfce7', '#dbeafe', '#fae8ff', '#fee2e2'];
++const isHexColor = (color) => /^#[0-9a-f]{6}$/i.test(String(color || ''));
+ 
+ const sanitizeEditorHtml = (html = '') => {
+   if (typeof window === 'undefined') return html;
+@@ -45,6 +46,16 @@ const sanitizeEditorHtml = (html = '') => {
+ };
+ 
+ function ToolbarButton({ active = false, disabled = false, children, title, onClick, onSaveSelection }) {
++  const handleToolbarAction = (event) => {
++    event.preventDefault();
++    event.stopPropagation();
++    if (disabled) return;
++    onSaveSelection?.();
++    window.setTimeout(() => {
++      onClick?.();
++    }, 0);
++  };
++
+   return (
+     <button
+       type="button"
+@@ -52,11 +63,17 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
+       title={title}
+       aria-pressed={active ? 'true' : 'false'}
+       disabled={disabled}
++      onPointerDown={(event) => {
++        handleToolbarAction(event);
++      }}
+       onMouseDown={(event) => {
+         event.preventDefault();
+-        onSaveSelection?.();
++        event.stopPropagation();
++      }}
++      onClick={(event) => {
++        event.preventDefault();
++        event.stopPropagation();
+       }}
+-      onClick={onClick}
+       style={{
+         display: 'inline-flex',
+         alignItems: 'center',
+@@ -75,10 +92,30 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
+ 
+ export default function RichTextEditor({ value, onChange, placeholder, normalizeDefaultWeight = false }) {
+   const lastEmittedValueRef = useRef('');
++  const lastValuePropRef = useRef(value || '');
++  const lastLocalEditAtRef = useRef(0);
+   const selectionJsonRef = useRef(null);
++  const lastTextSelectionJsonRef = useRef(null);
++  const toolbarInteractionRef = useRef(false);
++  const toolbarInteractionTimeoutRef = useRef(null);
++  const editorScrollRef = useRef({ top: 0, left: 0 });
+   const editorIdRef = useRef(`editor-${Math.random().toString(36).slice(2)}`);
++  const domSelectionReaderRef = useRef(null);
++  const domRangeRef = useRef(null);
+   const [, setToolbarVersion] = useState(0);
+ 
++  const rememberSelection = (selection) => {
++    if (!selection) return;
++    if (toolbarInteractionRef.current && selection.empty && lastTextSelectionJsonRef.current) {
++      selectionJsonRef.current = lastTextSelectionJsonRef.current;
++      return;
++    }
++    selectionJsonRef.current = selection.toJSON();
++    if (!selection.empty) {
++      lastTextSelectionJsonRef.current = selection.toJSON();
++    }
++  };
++
+   // Track initial content to support reverting changes
+   const initialContentRef = useRef('');
+   useEffect(() => {
+@@ -126,12 +163,29 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         id: editorIdRef.current,
+         spellcheck: 'true'
+       },
++      handleDOMEvents: {
++        keyup: (view) => {
++          rememberSelection(view.state.selection);
++          window.setTimeout(() => domSelectionReaderRef.current?.(), 0);
++          return false;
++        },
++        mouseup: (view) => {
++          rememberSelection(view.state.selection);
++          window.setTimeout(() => domSelectionReaderRef.current?.(), 0);
++          return false;
++        },
++        blur: (view) => {
++          rememberSelection(view.state.selection);
++          return false;
++        }
++      },
+       transformPastedHTML: (html) => sanitizeEditorHtml(html)
+     },
+     immediatelyRender: false,
+     onUpdate: ({ editor: activeEditor }) => {
+       const next = sanitizeEditorHtml(activeEditor.getHTML());
+       lastEmittedValueRef.current = next;
++      lastLocalEditAtRef.current = Date.now();
+       onChange(next);
+     }
+   });
+@@ -139,23 +193,93 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+   useEffect(() => {
+     if (!editor) return;
+     const incoming = value || '';
+-    if (incoming !== lastEmittedValueRef.current && incoming !== editor.getHTML()) {
++    const propChanged = incoming !== lastValuePropRef.current;
++    lastValuePropRef.current = incoming;
++    if (propChanged && incoming !== lastEmittedValueRef.current && incoming !== editor.getHTML()) {
++      if (Date.now() - lastLocalEditAtRef.current < 1000) return;
++      const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
++      const scrollSnapshot = {
++        windowX: window.scrollX,
++        windowY: window.scrollY,
++        editorTop: scrollTarget?.scrollTop || 0,
++        editorLeft: scrollTarget?.scrollLeft || 0,
++        selection: editor.state.selection.toJSON()
++      };
+       editor.commands.setContent(incoming, false);
++      try {
++        const selection = Selection.fromJSON(editor.state.doc, scrollSnapshot.selection);
++        editor.view.dispatch(editor.state.tr.setSelection(selection).setMeta('preventScroll', true));
++      } catch {
++        // The incoming document may no longer contain the old selection.
++      }
++      requestAnimationFrame(() => {
++        if (scrollTarget) {
++          scrollTarget.scrollTop = scrollSnapshot.editorTop;
++          scrollTarget.scrollLeft = scrollSnapshot.editorLeft;
++        }
++        window.scrollTo(scrollSnapshot.windowX, scrollSnapshot.windowY);
++      });
+     }
+   }, [editor, normalizeDefaultWeight, value]);
+ 
++  const readDomTextSelection = () => {
++    if (!editor) return null;
++    const domSelection = window.getSelection?.();
++    if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) return null;
++
++    const editorDom = editor.view.dom;
++    const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
++    if (!anchorNode || !focusNode || !editorDom.contains(anchorNode) || !editorDom.contains(focusNode)) {
++      return null;
++    }
++
++    try {
++      const anchorPosition = editor.view.posAtDOM(anchorNode, anchorOffset);
++      const focusPosition = editor.view.posAtDOM(focusNode, focusOffset);
++      if (anchorPosition === focusPosition) return null;
++
++      const from = Math.max(0, Math.min(anchorPosition, focusPosition));
++      const to = Math.min(editor.state.doc.content.size, Math.max(anchorPosition, focusPosition));
++      if (to <= from) return null;
++
++      const currentSelection = editor.state.selection;
++      if (currentSelection instanceof TextSelection && currentSelection.from === from && currentSelection.to === to) {
++        domRangeRef.current = domSelection.getRangeAt(0).cloneRange();
++        rememberSelection(currentSelection);
++        return currentSelection;
++      }
++
++      const selection = TextSelection.create(editor.state.doc, from, to);
++      domRangeRef.current = domSelection.getRangeAt(0).cloneRange();
++      editor.view.dispatch(editor.state.tr.setSelection(selection).setMeta('preventScroll', true));
++      rememberSelection(selection);
++      return selection;
++    } catch {
++      return null;
++    }
++  };
++  domSelectionReaderRef.current = readDomTextSelection;
++
+   useEffect(() => {
+     if (!editor) return undefined;
+-    const refreshToolbar = () => setToolbarVersion((version) => version + 1);
++    const refreshToolbar = () => {
++      const currentSelection = editor.state.selection;
++      if (!toolbarInteractionRef.current || !currentSelection.empty || !selectionJsonRef.current) {
++        rememberSelection(currentSelection);
++      }
++      setToolbarVersion((version) => version + 1);
++    };
+     editor.on('selectionUpdate', refreshToolbar);
+     editor.on('transaction', refreshToolbar);
+     editor.on('focus', refreshToolbar);
+     editor.on('blur', refreshToolbar);
++    document.addEventListener('selectionchange', readDomTextSelection);
+     return () => {
+       editor.off('selectionUpdate', refreshToolbar);
+       editor.off('transaction', refreshToolbar);
+       editor.off('focus', refreshToolbar);
+       editor.off('blur', refreshToolbar);
++      document.removeEventListener('selectionchange', readDomTextSelection);
+     };
+   }, [editor]);
+ 
+@@ -168,34 +292,175 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+   }
+ 
+   const saveSelection = () => {
+-    selectionJsonRef.current = editor.state.selection.toJSON();
++    const currentSelection = readDomTextSelection() || editor.state.selection;
++    if (!currentSelection.empty || !lastTextSelectionJsonRef.current) {
++      rememberSelection(currentSelection);
++    }
++    toolbarInteractionRef.current = true;
++    window.clearTimeout(toolbarInteractionTimeoutRef.current);
++    toolbarInteractionTimeoutRef.current = window.setTimeout(() => {
++      toolbarInteractionRef.current = false;
++    }, 250);
++
++    const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
++    editorScrollRef.current = {
++      top: scrollTarget?.scrollTop || 0,
++      left: scrollTarget?.scrollLeft || 0
++    };
+   };
+ 
+-  const restoreSelection = () => {
+-    if (!selectionJsonRef.current) return;
++  const restoreSelection = ({ preferTextSelection = false } = {}) => {
++    const selectionJson = preferTextSelection
++      ? (lastTextSelectionJsonRef.current || selectionJsonRef.current)
++      : selectionJsonRef.current;
++    if (!selectionJson) return editor.state.selection;
+     try {
+-      const selection = Selection.fromJSON(editor.state.doc, selectionJsonRef.current);
++      const selection = Selection.fromJSON(editor.state.doc, selectionJson);
+       editor.view.dispatch(editor.state.tr.setSelection(selection));
++      editor.view.focus();
++      const domRange = domRangeRef.current;
++      if (domRange && editor.view.dom.contains(domRange.startContainer) && editor.view.dom.contains(domRange.endContainer)) {
++        const domSelection = window.getSelection?.();
++        domSelection?.removeAllRanges();
++        domSelection?.addRange(domRange);
++      }
++      return selection;
+     } catch (error) {
+       selectionJsonRef.current = null;
++      return editor.state.selection;
+     }
+   };
+ 
+-  const runCommand = (callback) => {
+-    restoreSelection();
+-    const result = callback(editor.chain().focus());
++  const emitCurrentHtml = () => {
++    const next = sanitizeEditorHtml(editor.getHTML());
++    lastEmittedValueRef.current = next;
++    lastLocalEditAtRef.current = Date.now();
++    onChange(next);
++  };
++
++  const runCommand = (callback, options = {}) => {
++    const { requireSelection = false, preferTextSelection = false, expandEmptySelectionToBlock = false, preserveSelection = false } = options;
++    const windowScroll = { x: window.scrollX, y: window.scrollY };
++    const scrollTarget = editor.view.dom.closest('.wysiwyg-editor');
++    const editorScroll = {
++      top: scrollTarget?.scrollTop ?? editorScrollRef.current.top,
++      left: scrollTarget?.scrollLeft ?? editorScrollRef.current.left
++    };
++    editor.commands.focus(undefined, { scrollIntoView: false });
++    let restoredSelection = restoreSelection({ preferTextSelection });
++    if (expandEmptySelectionToBlock && restoredSelection?.empty) {
++      const { $from } = editor.state.selection;
++      const from = $from.start();
++      const to = $from.end();
++      if (to > from) {
++        const blockSelection = TextSelection.create(editor.state.doc, from, to);
++        editor.view.dispatch(editor.state.tr.setSelection(blockSelection));
++        restoredSelection = blockSelection;
++      }
++    }
++    if (requireSelection && (!restoredSelection || restoredSelection.empty)) {
++      requestAnimationFrame(() => {
++        if (scrollTarget) {
++          scrollTarget.scrollTop = editorScroll.top;
++          scrollTarget.scrollLeft = editorScroll.left;
++        }
++        window.scrollTo(windowScroll.x, windowScroll.y);
++      });
++      return false;
++    }
++    const activeSelection = editor.state.selection;
++    const commandChain = editor.chain();
++    const result = callback(commandChain);
++    if (preserveSelection && activeSelection instanceof TextSelection) {
++      try {
++        const nextSelection = TextSelection.create(
++          editor.state.doc,
++          activeSelection.from,
++          Math.min(activeSelection.to, editor.state.doc.content.size)
++        );
++        editor.view.dispatch(editor.state.tr.setSelection(nextSelection).setMeta('preventScroll', true));
++        rememberSelection(nextSelection);
++      } catch {
++        rememberSelection(editor.state.selection);
++      }
++    } else {
++      rememberSelection(editor.state.selection);
++    }
++    emitCurrentHtml();
+     setToolbarVersion((version) => version + 1);
++    requestAnimationFrame(() => {
++      if (scrollTarget) {
++        scrollTarget.scrollTop = editorScroll.top;
++        scrollTarget.scrollLeft = editorScroll.left;
++      }
++      window.scrollTo(windowScroll.x, windowScroll.y);
++    });
+     return result;
+   };
+ 
++  const applyTextColor = (color) => {
++    runCommand((chain) => chain.setColor(color).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
++  };
++
++  const toggleSelectionMark = (markName, attrs = null, removeMarkNames = []) => {
++    const markType = editor.schema.marks[markName];
++    if (!markType) return false;
++    const { from, to, empty } = editor.state.selection;
++    if (empty) {
++      removeMarkNames.forEach((name) => {
++        if (editor.schema.marks[name]) editor.commands.unsetMark(name);
++      });
++      return editor.commands.toggleMark(markName, attrs || {});
++    }
++
++    let transaction = editor.state.tr;
++    removeMarkNames.forEach((name) => {
++      const removeType = editor.schema.marks[name];
++      if (removeType) transaction = transaction.removeMark(from, to, removeType);
++    });
++
++    let textNodeCount = 0;
++    let markedTextNodeCount = 0;
++    editor.state.doc.nodesBetween(from, to, (node) => {
++      if (!node.isText) return;
++      textNodeCount += 1;
++      const hasMark = node.marks.some((mark) => {
++        if (mark.type !== markType) return false;
++        if (!attrs) return true;
++        return Object.entries(attrs).every(([key, value]) => mark.attrs?.[key] === value);
++      });
++      if (hasMark) markedTextNodeCount += 1;
++    });
++    const wholeRangeHasMark = textNodeCount > 0 && textNodeCount === markedTextNodeCount;
++
++    if (wholeRangeHasMark) {
++      transaction = transaction.removeMark(from, to, markType);
++    } else {
++      transaction = transaction.addMark(from, to, markType.create(attrs || undefined));
++    }
++    editor.view.dispatch(transaction);
++    return true;
++  };
++
++  const applyHighlightColor = (color) => {
++    runCommand(
++      (chain) => (color === 'transparent' ? chain.unsetHighlight().run() : chain.setHighlight({ color }).run()),
++      { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
++    );
++  };
++
+   const setLink = () => {
+-    restoreSelection();
++    const restoredSelection = restoreSelection({ preferTextSelection: true });
++    if (!restoredSelection || restoredSelection.empty) {
++      window.alert('Select text before adding a link.');
++      return;
++    }
+     const previousUrl = editor.getAttributes('link').href || '';
+     const rawUrl = window.prompt('Enter link URL', previousUrl);
+     if (rawUrl === null) return;
+     const trimmed = rawUrl.trim();
+     if (!trimmed) {
+-      runCommand((chain) => chain.extendMarkRange('link').unsetLink().run());
++      runCommand((chain) => chain.extendMarkRange('link').unsetLink().run(), { requireSelection: true, preferTextSelection: true });
+       return;
+     }
+     const url = /^(https?:|mailto:|tel:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+@@ -205,7 +470,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+       window.alert('Please enter a valid URL.');
+       return;
+     }
+-    runCommand((chain) => chain.extendMarkRange('link').setLink({ href: url }).run());
++    runCommand((chain) => chain.extendMarkRange('link').setLink({ href: url }).run(), { requireSelection: true, preferTextSelection: true });
+   };
+ 
+   const addImage = () => {
+@@ -231,6 +496,9 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+   };
+ 
+   const textStyle = editor.getAttributes('textStyle') || {};
++  const highlightStyle = editor.getAttributes('highlight') || {};
++  const activeTextColor = isHexColor(textStyle.color) ? textStyle.color : '#111827';
++  const activeHighlightColor = isHexColor(highlightStyle.color) ? highlightStyle.color : '';
+   const selectedHeading = [1, 2, 3].find((level) => editor.isActive('heading', { level }));
+   const currentBlock = selectedHeading ? `h${selectedHeading}` : 'paragraph';
+ 
+@@ -265,14 +533,14 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+       height: '24px',
+       minWidth: '24px',
+       border: isActive ? '2px solid #2563eb' : '1px solid rgba(15, 23, 42, 0.14)',
+-      borderRadius: isTransparent ? '7px' : '999px',
++      borderRadius: '999px',
+       cursor: 'pointer',
+       position: 'relative',
+       display: 'flex',
+       alignItems: 'center',
+       justifyContent: 'center',
+       padding: 0,
+-      transition: 'transform 0.15s ease, border-color 0.15s ease'
++      transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease'
+     };
+     if (isTransparent) {
+       base.background = '#ffffff';
+@@ -291,13 +559,15 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         <select
+           className="select wysiwyg-select"
+           value={currentBlock}
+-          onMouseDown={saveSelection}
++          onPointerDown={saveSelection}
++          onMouseDown={(event) => event.stopPropagation()}
++          onFocus={saveSelection}
+           onChange={(event) => {
+             const next = event.target.value;
+-            if (next === 'paragraph') runCommand((chain) => chain.setParagraph().run());
+-            if (next === 'h1') runCommand((chain) => chain.setHeading({ level: 1 }).run());
+-            if (next === 'h2') runCommand((chain) => chain.setHeading({ level: 2 }).run());
+-            if (next === 'h3') runCommand((chain) => chain.setHeading({ level: 3 }).run());
++            if (next === 'paragraph') runCommand((chain) => chain.setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
++            if (next === 'h1') runCommand((chain) => chain.setHeading({ level: 1 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
++            if (next === 'h2') runCommand((chain) => chain.setHeading({ level: 2 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
++            if (next === 'h3') runCommand((chain) => chain.setHeading({ level: 3 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true });
+           }}
+         >
+           <option value="paragraph">Paragraph</option>
+@@ -306,14 +576,17 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+           <option value="h3">Heading 3</option>
+         </select>
+ 
+-        {/* Headings Buttons */}
+-        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 1 }).run())}>
++        {/* Paragraph & Headings Buttons */}
++        <ToolbarButton title="Paragraph" active={editor.isActive('paragraph')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
++          <span style={{ fontWeight: 800, fontSize: '12px' }}>P</span>
++        </ToolbarButton>
++        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 1 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>HΓéü</span>
+         </ToolbarButton>
+-        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 2 }).run())}>
++        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 2 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>HΓéé</span>
+         </ToolbarButton>
+-        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 3 }).run())}>
++        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 3 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <span style={{ fontWeight: 'bold', fontSize: '12px' }}>HΓéâ</span>
+         </ToolbarButton>
+ 
+@@ -321,8 +594,13 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         <select
+           className="select wysiwyg-select"
+           value={textStyle.fontFamily || ''}
+-          onMouseDown={saveSelection}
+-          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontFamily(event.target.value).run() : chain.unsetFontFamily().run())}
++          onPointerDown={saveSelection}
++          onMouseDown={(event) => event.stopPropagation()}
++          onFocus={saveSelection}
++          onChange={(event) => runCommand(
++            (chain) => event.target.value ? chain.setFontFamily(event.target.value).run() : chain.unsetFontFamily().run(),
++            { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
++          )}
+         >
+           <option value="">Font</option>
+           {FONT_FAMILIES.map((font) => <option key={font.label} value={font.value}>{font.label}</option>)}
+@@ -332,8 +610,13 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         <select
+           className="select wysiwyg-select compact"
+           value={textStyle.fontSize || ''}
+-          onMouseDown={saveSelection}
+-          onChange={(event) => runCommand((chain) => event.target.value ? chain.setFontSize(event.target.value).run() : chain.unsetFontSize().run())}
++          onPointerDown={saveSelection}
++          onMouseDown={(event) => event.stopPropagation()}
++          onFocus={saveSelection}
++          onChange={(event) => runCommand(
++            (chain) => event.target.value ? chain.setFontSize(event.target.value).run() : chain.unsetFontSize().run(),
++            { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true }
++          )}
+         >
+           <option value="">Size</option>
+           {FONT_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+@@ -348,36 +631,36 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         </ToolbarButton>
+ 
+         {/* Formatting Actions */}
+-        <ToolbarButton title="Bold" active={editor.isActive('bold')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleBold().run())}>
++        <ToolbarButton title="Bold" active={editor.isActive('bold')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('bold'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Bold />
+         </ToolbarButton>
+-        <ToolbarButton title="Italic" active={editor.isActive('italic')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleItalic().run())}>
++        <ToolbarButton title="Italic" active={editor.isActive('italic')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('italic'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Italic />
+         </ToolbarButton>
+-        <ToolbarButton title="Underline" active={editor.isActive('underline')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleUnderline().run())}>
++        <ToolbarButton title="Underline" active={editor.isActive('underline')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('underline'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Underline />
+         </ToolbarButton>
+-        <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleStrike().run())}>
++        <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('strike'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Strike />
+         </ToolbarButton>
+-        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSubscript().toggleSuperscript().run())}>
++        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('superscript', null, ['subscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Superscript />
+         </ToolbarButton>
+-        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetSuperscript().toggleSubscript().run())}>
++        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('subscript', null, ['superscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Subscript />
+         </ToolbarButton>
+ 
+         {/* Alignment */}
+-        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run())}>
++        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run(), { preferTextSelection: true, preserveSelection: true })}>
+           <Icons.Left />
+         </ToolbarButton>
+-        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run())}>
++        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run(), { preferTextSelection: true, preserveSelection: true })}>
+           <Icons.Center />
+         </ToolbarButton>
+-        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run())}>
++        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run(), { preferTextSelection: true, preserveSelection: true })}>
+           <Icons.Right />
+         </ToolbarButton>
+-        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run())}>
++        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run(), { preferTextSelection: true, preserveSelection: true })}>
+           <Icons.Justify />
+         </ToolbarButton>
+ 
+@@ -407,21 +690,21 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         </ToolbarButton>
+ 
+         {/* Dynamic Color A Button with Underline */}
+-        <label className="wysiwyg-color-control" title="Text color" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
++        <label className={`wysiwyg-color-control${textStyle.color ? ' is-active' : ''}`} title="Text color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+             <span style={{ fontSize: '13px', fontWeight: 'bold' }}>A</span>
+-            <div style={{ width: '13px', height: '3px', background: textStyle.color || '#111827', marginTop: '1px', borderRadius: '1px' }} />
++            <div style={{ width: '13px', height: '3px', background: activeTextColor, marginTop: '1px', borderRadius: '1px' }} />
+           </div>
+-          <input type="color" value={textStyle.color || '#111827'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setColor(event.target.value).run())} style={{ width: 0, height: 0, opacity: 0, padding: 0, border: 0 }} />
++          <input type="color" value={activeTextColor} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyTextColor(event.target.value)} onChange={(event) => applyTextColor(event.target.value)} aria-label="Choose text color" />
+         </label>
+ 
+         {/* Dynamic Color HL Button with Highlighter and Underline */}
+-        <label className="wysiwyg-color-control" title="Highlight color" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
++        <label className={`wysiwyg-color-control${activeHighlightColor ? ' is-active' : ''}`} title="Highlight color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+-            <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '-0.5px' }}>HL</span>
+-            <div style={{ width: '13px', height: '3px', background: textStyle.backgroundColor || '#fef3c7', marginTop: '1px', borderRadius: '1px' }} />
++            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>HL</span>
++            <div style={{ width: '13px', height: '3px', background: activeHighlightColor || '#fef3c7', marginTop: '1px', borderRadius: '1px' }} />
+           </div>
+-          <input type="color" value={textStyle.backgroundColor || '#fef3c7'} onMouseDown={saveSelection} onChange={(event) => runCommand((chain) => chain.setBackgroundColor(event.target.value).run())} style={{ width: 0, height: 0, opacity: 0, padding: 0, border: 0 }} />
++          <input type="color" value={activeHighlightColor || '#fef3c7'} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyHighlightColor(event.target.value)} onChange={(event) => applyHighlightColor(event.target.value)} aria-label="Choose highlight color" />
+         </label>
+ 
+         {/* Color swatches with active checkmarks */}
+@@ -434,8 +717,20 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+               className={`wysiwyg-swatch${isActive ? ' is-active' : ''}`}
+               style={getSwatchStyle(color, isActive, false)}
+               title={`Text ${color}`}
+-              onMouseDown={(event) => { event.preventDefault(); saveSelection(); }}
+-              onClick={() => runCommand((chain) => chain.setColor(color).run())}
++              onPointerDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++                saveSelection();
++                applyTextColor(color);
++              }}
++              onMouseDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
++              onClick={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
+             >
+               {isActive && (
+                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+@@ -449,7 +744,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         {/* Highlight swatches with active checkmarks and checkerboard/slash transparent option */}
+         {HIGHLIGHT_SWATCHES.map((color) => {
+           const isTransparent = color === 'transparent';
+-          const isActive = isTransparent ? !textStyle.backgroundColor : textStyle.backgroundColor === color;
++          const isActive = isTransparent ? !activeHighlightColor : activeHighlightColor === color;
+           return (
+             <button
+               key={color}
+@@ -457,8 +752,20 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+               className={`wysiwyg-swatch highlight${isActive ? ' is-active' : ''}${isTransparent ? ' is-transparent' : ''}`}
+               style={getSwatchStyle(color, isActive, isTransparent)}
+               title={isTransparent ? 'No Highlight' : `Highlight ${color}`}
+-              onMouseDown={(event) => { event.preventDefault(); saveSelection(); }}
+-              onClick={() => runCommand((chain) => isTransparent ? chain.unsetBackgroundColor().run() : chain.setBackgroundColor(color).run())}
++              onPointerDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++                saveSelection();
++                applyHighlightColor(color);
++              }}
++              onMouseDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
++              onClick={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
+             >
+               {isTransparent && (
+                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+@@ -475,7 +782,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
+         })}
+ 
+         {/* Clear Formatting button */}
+-        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run())}>
++        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+           <Icons.Clear />
+         </ToolbarButton>
+ 
+diff --git a/dashboard-next/test-db.js b/dashboard-next/test-db.js
+new file mode 100644
+index 0000000..d66ce66
+--- /dev/null
++++ b/dashboard-next/test-db.js
+@@ -0,0 +1,32 @@
++const mongoose = require('mongoose');
++require('dotenv').config();
++
++const LeadSchema = new mongoose.Schema({ Email: String }, { _id: false });
++const LeadListSchema = new mongoose.Schema(
++  {
++    userId: mongoose.Schema.Types.ObjectId,
++    userEmail: String,
++    name: String,
++    sourceFile: String,
++    kind: String,
++    deletedAt: Date,
++    project: String,
++    projectId: String,
++    projectName: String,
++    leads: [LeadSchema]
++  },
++  { timestamps: true }
++);
++
++const LeadList = mongoose.models.LeadList || mongoose.model('LeadList', LeadListSchema);
++
++async function run() {
++  await mongoose.connect(process.env.MONGODB_URI);
++  const lists = await LeadList.find({ userEmail: 'akshaymore.intellisys@gmail.com', deletedAt: null }).lean();
++  for (const list of lists) {
++    console.log(`- ID: ${list._id}, Name: "${list.name}", Kind: "${list.kind}", Project: "${list.project}", ProjectId: "${list.projectId}", ProjectName: "${list.projectName}", Leads: ${list.leads?.length}`);
++  }
++  await mongoose.disconnect();
++}
++
++run().catch(console.error);

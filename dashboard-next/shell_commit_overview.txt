@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -17,14 +17,6 @@ import StatStrip from './StatStrip';
 import Workflow from './Workflow';
 import MainPanels from './MainPanels';
 import BottomGrid from './BottomGrid';
-import './WorkflowModal.css';
-import './UploadList.css';
-import './ReviewList.css';
-import './Campaign.css';
-import './Draft.css';
-import './DraftDummy.css';
-import './TestEmail.css';
-import './Schedule.css';
 
 
 const MAX_SCHEDULE_DELAY_MINUTES = 1440;
@@ -240,7 +232,7 @@ function TimelineItem({ item, checked = false, onToggle, onOpen }) {
           </label>
           <div className="premium-timeline-copy">
             <strong>{item.title}</strong>
-            <small>{item.date}{item.time ? ` • ${item.time}` : ''}</small>
+            <small>{item.date}{item.time ? ` ΓÇó ${item.time}` : ''}</small>
           </div>
           {item.type ? <span className={`premium-timeline-type type-${String(item.type).toLowerCase()}`}>{item.type}</span> : null}
           <span className={`premium-timeline-status ${checked ? 'done' : 'pending'}`}>
@@ -270,14 +262,14 @@ function LogItem({ item, detailed = false }) {
       : String(sourceLabel || '').toLowerCase().includes('campaign')
         ? 'campaign'
         : 'system';
-  const sourceIcon = sourceTone === 'timeline' ? '⏱' : sourceTone === 'inbox' ? '✉' : sourceTone === 'campaign' ? '◉' : '•';
+  const sourceIcon = sourceTone === 'timeline' ? 'ΓÅ▒' : sourceTone === 'inbox' ? 'Γ£ë' : sourceTone === 'campaign' ? 'Γùë' : 'ΓÇó';
   return (
     <div className={`premium-log-item ${detailed ? 'detailed' : 'compact'} ${isSentLog ? 'sent' : ''}`}>
       <strong>{detailed ? item.time : item.tag}</strong>
       <div>
         <span className={`premium-log-source tone-${sourceTone}`}>
           <span className="premium-log-source-icon">{sourceIcon}</span>
-          {detailed ? `${sourceLabel} • ${actionLabel}` : sourceLabel}
+          {detailed ? `${sourceLabel} ΓÇó ${actionLabel}` : sourceLabel}
         </span>
         <p>{item.msg}</p>
         {!detailed && item.time ? <small>{item.time}</small> : null}
@@ -1057,13 +1049,13 @@ export default function PremiumDashboardShell({
     if (centeredKeys.has(key)) {
       const sizeMap = {
         notifications: { width: 'min(92vw, 560px)', maxHeight: 'min(78vh, 480px)' },
-        clientList: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        overview: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        campaign: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        selectDraft: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        testEmail: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        draftSummary: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
-        schedule: { width: 'min(90vw, 780px)', maxHeight: 'min(90vh, 760px)' },
+        clientList: { width: 'min(92vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+        overview: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+        campaign: { width: 'min(90vw, 900px)', maxHeight: 'min(84vh, 820px)' },
+        selectDraft: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+        testEmail: { width: '90vw', maxHeight: '90vh' },
+        draftSummary: { width: 'min(94vw, 1040px)', maxHeight: '90vh' },
+        schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
         calendar: { width: 'min(92vw, 620px)', maxHeight: 'min(82vh, 680px)' },
         day: { width: 'min(92vw, 560px)', maxHeight: 'min(82vh, 680px)' },
         timeline: { width: 'min(90vw, 740px)', maxHeight: 'min(78vh, 680px)' },
@@ -1122,7 +1114,7 @@ export default function PremiumDashboardShell({
     const kindLabel = isCustom ? 'Custom' : 'Uploaded';
     return [kindLabel, contacts, when, sourceFile ? `File: ${sourceFile}` : '']
       .filter(Boolean)
-      .join(' • ');
+      .join(' ΓÇó ');
   };
   const normalizedClientLists = lists.length
     ? lists.map((item) => ({
@@ -2957,7 +2949,7 @@ export default function PremiumDashboardShell({
             <div className="section-header">
               <h3>Events on {selectedDate.toLocaleDateString('en-GB')}</h3>
               <button type="button" className="ghost subtle" onClick={() => setShowCalendarPopup(false)}>
-                ×
+                ├ù
               </button>
             </div>
             <div className="premium-calendar-modal-list">
@@ -2965,7 +2957,7 @@ export default function PremiumDashboardShell({
                 <div key={item.id} className="premium-calendar-event" style={{ '--event-color': item.color || '#2563eb' }}>
                   <span>{item.type}</span>
                   <p>{item.title}</p>
-                  <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} • {item.priority || 'Medium'}</small>
+                  <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} ΓÇó {item.priority || 'Medium'}</small>
                   {item.detail ? <small>{item.detail}</small> : null}
                   <div className="premium-calendar-event-actions">
                     <button type="button" className="ghost subtle" onClick={() => openEventForm(selectedDate, item)}>Edit</button>
@@ -2989,7 +2981,7 @@ export default function PremiumDashboardShell({
                 <p>Daily activity, events, and quick actions for this date.</p>
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowDayPopup(false)}>
-                ×
+                ├ù
               </button>
             </div>
             <div className="premium-day-modal-summary">
@@ -3008,7 +3000,7 @@ export default function PremiumDashboardShell({
                   <div key={item.id} className="premium-calendar-event" style={{ '--event-color': item.color || '#2563eb' }}>
                     <span>{item.type}</span>
                     <p>{item.title}</p>
-                    <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} • {item.priority || 'Medium'}</small>
+                    <small>{item.startTime || 'All day'}{item.endTime ? ` - ${item.endTime}` : ''} ΓÇó {item.priority || 'Medium'}</small>
                     {item.detail ? <small>{item.detail}</small> : null}
                     <div className="premium-calendar-event-actions">
                       <button type="button" className="ghost subtle" onClick={() => openEventForm(selectedDate, item)}>Edit</button>
@@ -3050,7 +3042,7 @@ export default function PremiumDashboardShell({
                   {calendarSaving ? 'Saving...' : 'Save Event'}
                 </button>
                 <button type="button" className="ghost subtle" onClick={() => setShowEventFormPopup(false)} aria-label="Close event modal">
-                  ×
+                  ├ù
                 </button>
               </div>
             </div>
@@ -3145,7 +3137,7 @@ export default function PremiumDashboardShell({
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotificationsPopup(false)}>
           <div className="premium-calendar-modal premium-notifications-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-panel-head premium-modal-head-actions-only">
-              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>×</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotificationsPopup(false)}>├ù</button>
             </div>
             <div className="premium-calendar-modal-list">
               {replyNotificationCards.length ? (
@@ -3169,7 +3161,7 @@ export default function PremiumDashboardShell({
                 <span className="premium-section-kicker">Notes</span>
                 <h3>All Quick Notes</h3>
               </div>
-              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>×</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>├ù</button>
             </div>
             <div className="premium-calendar-modal-list">
               {quickNotes.length ? (
@@ -3193,7 +3185,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
             <div className="section-header">
               <h3>All Activity Timeline Events</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>×</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowTimelinePopup(false)}>├ù</button>
             </div>
             <div className="premium-calendar-modal-list">
               {selectedTimelineTask ? (
@@ -3203,7 +3195,7 @@ export default function PremiumDashboardShell({
                   <p>{selectedTimelineTask.text}</p>
                   <small>
                     {selectedTimelineTask.date}
-                    {selectedTimelineTask.time ? ` • ${selectedTimelineTask.time}` : ''}
+                    {selectedTimelineTask.time ? ` ΓÇó ${selectedTimelineTask.time}` : ''}
                   </small>
                 </div>
               ) : null}
@@ -3250,7 +3242,7 @@ export default function PremiumDashboardShell({
           <div className="premium-calendar-modal" style={popupStyleFor('timeline')} onClick={(event) => event.stopPropagation()}>
             <div className="section-header">
               <h3>Add Timeline Task</h3>
-              <button type="button" className="ghost subtle" onClick={() => setShowTimelineAddPopup(false)}>×</button>
+              <button type="button" className="ghost subtle" onClick={() => setShowTimelineAddPopup(false)}>├ù</button>
             </div>
             <div className="premium-timeline-add-form">
                 <input
@@ -3343,7 +3335,7 @@ export default function PremiumDashboardShell({
             <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
               <div className="section-header">
                 <h3>System Monitor</h3>
-                <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>×</button>
+                <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>├ù</button>
               </div>
               <div className="premium-calendar-modal-list">
                 {Object.entries(logPopupGroups).map(([label, items]) => (
@@ -3366,32 +3358,33 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showClientListPopup,
-        <div className="wf-backdrop" onClick={() => setShowClientListPopup(false)}>
-          <div className="premium-calendar-modal wf-modal pr-uploadlist-modal" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">1</span>
-              <h3 className="wf-header-title">Step 1: Upload List</h3>
-              <small className="wf-header-step">Step 1 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowClientListPopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
+          <div className={`premium-calendar-modal premium-clientlist-modal ${clientListTab === 'upload' ? 'premium-clientlist-modal-fit' : 'premium-clientlist-modal-narrow'}`} style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-clientlist-head premium-review-head">
+              <div>
+                <span className="premium-popup-step-badge">1</span>
+                <h3>Upload List</h3>
+                <p>Upload a new list or select from your existing lists.</p>
+                <small className="premium-clientlist-stepcopy">Step 1 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>├ù</button>
             </div>
 
-            <div className="pr-uploadlist-tabs">
-              <div className="pr-uploadlist-tabs-container">
-                <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
-                  Customize List
-                </button>
-                <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
-                  Upload Sheet
-                </button>
-              </div>
+            <div className="premium-clientlist-tabs">
+              <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
+                Customize List
+              </button>
+              <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
+                Upload Sheet
+              </button>
             </div>
 
             {clientListTab === 'upload' ? (
-              <div className="wf-body pr-uploadlist-body pr-uploadlist-split">
-                <section className="pr-uploadlist-pane">
-                  <div className="pr-uploadlist-section-copy">
+              <div className="premium-clientlist-body premium-clientlist-split">
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
                     <strong>Upload Sheet</strong>
-                    <p>Choose one sheet, then continue to the review step.</p>
+                    <p>Choose one sheet, name it, then continue to the review step.</p>
                   </div>
                   <input
                     type="file"
@@ -3400,54 +3393,40 @@ export default function PremiumDashboardShell({
                     style={{ display: 'none' }}
                     id="premium-shell-upload-input"
                   />
-                  <label className="pr-uploadlist-uploadbox" htmlFor="premium-shell-upload-input">
+                  <label className="premium-clientlist-uploadbox" htmlFor="premium-shell-upload-input">
+                    <div className="premium-clientlist-uploadicon">+</div>
+                    <strong>Upload sheet</strong>
+                    <span>Click to browse CSV or XLSX</span>
+                    <small>Max file size: 10MB</small>
+                    {selectedListName || selectedUploadFileName || clientListName ? (
+                      <small style={{ marginTop: 6, color: 'var(--success)', fontWeight: 700 }}>
+                        Selected file: {selectedListName || selectedUploadFileName || clientListName}
+                      </small>
+                    ) : null}
                     {clientListUploading ? (
-                      <>
-                        <div className="pr-uploadlist-spinner"></div>
-                        <div className="pr-uploadlist-uploadbox-text">
-                          <strong>Uploading...</strong>
-                          <span>Please wait while we process your sheet</span>
-                        </div>
-                      </>
-                    ) : (selectedListName || selectedUploadFileName || clientListName) ? (
-                      (() => {
-                        const fileName = selectedListName || selectedUploadFileName || clientListName;
-                        const fileExt = String(fileName).split('.').pop()?.toUpperCase() || 'FILE';
-                        return (
-                          <>
-                            <div className="pr-uploadlist-uploadicon success">✓</div>
-                            <div className="pr-uploadlist-uploadbox-text">
-                              <div className="pr-uploadlist-fileinfo-row">
-                                <strong className="pr-uploadlist-filename">{fileName}</strong>
-                                <span className="pr-uploadlist-filetype-badge">{fileExt}</span>
-                              </div>
-                              <div className="pr-uploadlist-status-row">
-                                <span className="pr-uploadlist-status-dot"></span>
-                                <span className="pr-uploadlist-status-text">Ready to import</span>
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <>
-                        <div className="pr-uploadlist-uploadicon">+</div>
-                        <div className="pr-uploadlist-uploadbox-text">
-                          <strong>Choose a sheet to import</strong>
-                          <span>Click here to browse Excel or CSV files (Max 10MB)</span>
-                        </div>
-                      </>
-                    )}
+                      <small style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                        Uploading file...
+                      </small>
+                    ) : null}
+                  </label>
+                  <label className="premium-clientlist-field">
+                    <span>List Name</span>
+                    <input
+                      type="text"
+                      value={clientListName}
+                      onChange={(event) => setClientListName(event.target.value)}
+                      placeholder="Enter list name"
+                    />
                   </label>
                 </section>
-                <section className="pr-uploadlist-pane">
-                  <div className="pr-uploadlist-section-copy">
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
                     <strong>Uploaded Files</strong>
                     <p>All uploaded sheets are available here.</p>
                   </div>
-                  <div className="pr-uploadlist-list">
+                  <div className="premium-clientlist-list">
                     {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
-                      <label key={item.id} className={`pr-uploadlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
                         <input
                           type="radio"
                           name="uploadedListFromUpload"
@@ -3457,18 +3436,18 @@ export default function PremiumDashboardShell({
                             onSelectList?.(item.id);
                           }}
                         />
-                        <div className="pr-uploadlist-item-content">
-                          <div className="pr-uploadlist-item-title">
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
                             <strong>{item.title}</strong>
-                            <span className="pr-uploadlist-kind-badge">Sheet</span>
+                            <span className="premium-clientlist-kind-badge">Sheet</span>
                           </div>
-                          <div className="pr-uploadlist-item-meta">
-                            <span className="pr-uploadlist-meta-count">
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
                               <strong>{item.leadCount || 0}</strong> contacts
                             </span>
                             {item.uploadedAt && (
-                              <span className="pr-uploadlist-meta-date">
-                                • Uploaded {(() => {
+                              <span className="premium-clientlist-meta-date">
+                                ΓÇó Uploaded {(() => {
                                   const d = new Date(item.uploadedAt);
                                   return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
                                     month: 'short',
@@ -3485,7 +3464,7 @@ export default function PremiumDashboardShell({
                         </div>
                       </label>
                     )) : (
-                      <div className="pr-uploadlist-empty">
+                      <div className="premium-clientlist-empty">
                         <strong>No uploaded files yet.</strong>
                         <p>Upload a sheet first, and it will appear here for everyone in this workflow.</p>
                       </div>
@@ -3496,15 +3475,15 @@ export default function PremiumDashboardShell({
             ) : null}
 
             {clientListTab === 'uploaded' ? (
-              <div className="wf-body pr-uploadlist-body">
-                <section className="pr-uploadlist-pane">
-                  <div className="pr-uploadlist-section-copy">
+              <div className="premium-clientlist-body">
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
                     <strong>Uploaded Files</strong>
                     <p>Choose any sheet you&apos;ve already uploaded.</p>
                   </div>
-                  <div className="pr-uploadlist-list" style={{ maxHeight: '360px' }}>
+                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
                     {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
-                      <label key={item.id} className={`pr-uploadlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
                         <input
                           type="radio"
                           name="uploadedList"
@@ -3514,18 +3493,18 @@ export default function PremiumDashboardShell({
                             onSelectList?.(item.id);
                           }}
                         />
-                        <div className="pr-uploadlist-item-content">
-                          <div className="pr-uploadlist-item-title">
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
                             <strong>{item.title}</strong>
-                            <span className="pr-uploadlist-kind-badge">Sheet</span>
+                            <span className="premium-clientlist-kind-badge">Sheet</span>
                           </div>
-                          <div className="pr-uploadlist-item-meta">
-                            <span className="pr-uploadlist-meta-count">
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
                               <strong>{item.leadCount || 0}</strong> contacts
                             </span>
                             {item.uploadedAt && (
-                              <span className="pr-uploadlist-meta-date">
-                                • Uploaded {(() => {
+                              <span className="premium-clientlist-meta-date">
+                                ΓÇó Uploaded {(() => {
                                   const d = new Date(item.uploadedAt);
                                   return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
                                     month: 'short',
@@ -3542,7 +3521,7 @@ export default function PremiumDashboardShell({
                         </div>
                       </label>
                     )) : (
-                      <div className="pr-uploadlist-empty">
+                      <div className="premium-clientlist-empty">
                         <strong>No uploaded lists yet.</strong>
                         <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
                       </div>
@@ -3553,15 +3532,15 @@ export default function PremiumDashboardShell({
             ) : null}
 
             {clientListTab === 'custom' ? (
-              <div className="wf-body pr-uploadlist-body">
-                <section className="pr-uploadlist-pane">
-                  <div className="pr-uploadlist-section-copy">
+              <div className="premium-clientlist-body">
+                <section className="premium-clientlist-pane">
+                  <div className="premium-clientlist-section-copy">
                     <strong>Customize List</strong>
                     <p>Use a client list created in your workspace.</p>
                   </div>
-                  <div className="pr-uploadlist-list" style={{ maxHeight: '360px' }}>
+                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
                     {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
-                      <label key={item.id} className={`pr-uploadlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+                      <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
                         <input
                           type="radio"
                           name="customList"
@@ -3571,18 +3550,18 @@ export default function PremiumDashboardShell({
                             onSelectList?.(item.id);
                           }}
                         />
-                        <div className="pr-uploadlist-item-content">
-                          <div className="pr-uploadlist-item-title">
+                        <div className="premium-clientlist-item-content">
+                          <div className="premium-clientlist-item-title">
                             <strong>{item.title}</strong>
-                            <span className="pr-uploadlist-kind-badge">Custom</span>
+                            <span className="premium-clientlist-kind-badge">Custom</span>
                           </div>
-                          <div className="pr-uploadlist-item-meta">
-                            <span className="pr-uploadlist-meta-count">
+                          <div className="premium-clientlist-item-meta">
+                            <span className="premium-clientlist-meta-count">
                               <strong>{item.leadCount || 0}</strong> contacts
                             </span>
                             {item.uploadedAt && (
-                              <span className="pr-uploadlist-meta-date">
-                                • Saved {(() => {
+                              <span className="premium-clientlist-meta-date">
+                                ΓÇó Saved {(() => {
                                   const d = new Date(item.uploadedAt);
                                   return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
                                     month: 'short',
@@ -3596,15 +3575,15 @@ export default function PremiumDashboardShell({
                               </span>
                             )}
                             {item.sourceFile && item.sourceFile !== item.title && (
-                              <span className="pr-uploadlist-meta-file">
-                                • File: {item.sourceFile}
+                              <span className="premium-clientlist-meta-file">
+                                ΓÇó File: {item.sourceFile}
                               </span>
                             )}
                           </div>
                         </div>
                       </label>
                     )) : (
-                      <div className="pr-uploadlist-empty">
+                      <div className="premium-clientlist-empty">
                         <strong>No saved client lists yet.</strong>
                         <p>Your stored files will show up here with their details and contact count.</p>
                       </div>
@@ -3614,31 +3593,40 @@ export default function PremiumDashboardShell({
               </div>
             ) : null}
 
-            <div className="wf-footer">
-              <div className="wf-footer-left"></div>
+            <div className="premium-clientlist-actions">
               <button
                 type="button"
-                className={`wf-btn-primary${clientListActionReady ? '' : ' is-disabled'}`}
+                className={`premium-template-next${clientListActionReady ? '' : ' is-disabled'}`}
                 onClick={handleClientListNext}
               >
                 {clientListUploading ? 'Uploading...' : canContinueClientList ? 'Continue' : 'Select required list first'}
               </button>
             </div>
+            {showClientListSelectionNote ? (
+              <p className="premium-review-inline-note premium-review-inline-note-warning">
+                No file selected or uploaded yet. Please select a list first, then continue.
+              </p>
+            ) : null}
           </div>
         </div>
       )}
 
       {renderPortalPopup(
         showOverviewPopup,
-        <div className="wf-backdrop" onClick={() => setShowOverviewPopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-review-modal" style={popupStyleFor('overview')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">2</span>
-              <h3 className="wf-header-title">Step 2: Review List</h3>
-              <small className="wf-header-step">Step 2 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowOverviewPopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowOverviewPopup(false)}>
+          <div className="premium-calendar-modal premium-review-modal" style={popupStyleFor('overview')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-clientlist-head">
+              <div>
+                <span className="premium-popup-step-badge">2</span>
+                <h3>Review List</h3>
+                <p>Check mappings, fix issues, and confirm the data before moving on.</p>
+                <small className="premium-review-stepcopy">Step 2 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowOverviewPopup(false)}>
+                ├ù
+              </button>
             </div>
-            <div className="wf-body premium-review-body">
+            <div className="premium-review-body">
               {showProceedWithoutListNote ? (
                 <p className="premium-review-inline-note premium-review-inline-note-warning">
                   Proceeding without a client list. You can continue exploring the workflow and choose a list later.
@@ -3672,7 +3660,7 @@ export default function PremiumDashboardShell({
                     <div key={item.sheetColumn} className="premium-review-mapping-row">
                       <strong>{item.sheetColumn}</strong>
                       <div className={`premium-review-status ${item.status}`}>
-                        <span>{item.status === 'success' ? '✓' : item.status === 'warning' ? '!' : '✕'}</span>
+                        <span>{item.status === 'success' ? 'Γ£ô' : item.status === 'warning' ? '!' : 'Γ£ò'}</span>
                         <select
                           value={item.mappedField}
                           onChange={(event) =>
@@ -3881,7 +3869,7 @@ export default function PremiumDashboardShell({
                   </div>
                   <div className="error">
                     <div>
-                      <span>✕</span>
+                      <span>Γ£ò</span>
                       <p>{overviewRows.filter((row) => rowIssues[row.id]?.includes('invalid')).length} invalid email formats found</p>
                     </div>
                     <button type="button" onClick={() => setOverviewFilter('errors')}>View</button>
@@ -3890,18 +3878,18 @@ export default function PremiumDashboardShell({
               </section>
             </div>
 
-            <div className="wf-footer">
-              <div className="wf-footer-left">
+            <div className="premium-clientlist-actions premium-review-actions">
+              <div className="premium-review-actions-left">
                 <button
                   type="button"
-                  className="wf-btn-secondary"
+                  className="ghost subtle"
                   onClick={handleOverviewBack}
                 >
                   Back
                 </button>
                 <button
                   type="button"
-                  className="wf-btn-secondary"
+                  className="ghost subtle"
                   onClick={handleOverviewReupload}
                 >
                   Re-upload
@@ -3914,7 +3902,7 @@ export default function PremiumDashboardShell({
               ) : null}
               <button
                 type="button"
-                className={`wf-btn-primary${hasOverviewData ? '' : ' is-disabled'}`}
+                className={`ghost subtle${hasOverviewData ? '' : ' is-disabled'}`}
                 onClick={handleOverviewConfirm}
               >
                 {hasOverviewData ? 'Continue' : 'Select required file first'}
@@ -3926,16 +3914,18 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showSchedulePopup,
-        <div className="wf-backdrop" onClick={() => setShowSchedulePopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-schedule-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">7</span>
-              <h3 className="wf-header-title">Step 7: Schedule</h3>
-              <small className="wf-header-step">Step 7 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowSchedulePopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowSchedulePopup(false)}>
+          <div className="premium-calendar-modal premium-schedule-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-schedule-head">
+              <div>
+                <span className="premium-popup-step-badge">7</span>
+                <h3>Schedule</h3>
+                <small className="premium-schedule-stepcopy">Step 7 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowSchedulePopup(false)}>├ù</button>
             </div>
 
-            <div className="wf-body premium-schedule-body">
+            <div className="premium-schedule-body">
               <div className="premium-schedule-mode">
                 <label className={sendMode === 'send_now' ? 'active' : ''}>
                   <input
@@ -4081,22 +4071,20 @@ export default function PremiumDashboardShell({
               ) : null}
             </div>
 
-            <div className="wf-footer">
-              <div className="wf-footer-left">
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={() => {
-                    setShowSchedulePopup(false);
-                    setShowTestEmailPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-              </div>
+            <div className="premium-schedule-actions">
               <button
                 type="button"
-                className={`wf-btn-primary${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+                className="ghost subtle"
+                onClick={() => {
+                  setShowSchedulePopup(false);
+                  setShowTestEmailPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
                 aria-disabled={!canAttemptScheduleAction}
                 onClick={handleScheduleStart}
               >
@@ -4109,16 +4097,20 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showCampaignPopup,
-        <div className="wf-backdrop" onClick={() => setShowCampaignPopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-campaign-modal" style={popupStyleFor('campaign')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">3</span>
-              <h3 className="wf-header-title">Step 3: Create Campaign</h3>
-              <small className="wf-header-step">Step 3 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowCampaignPopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowCampaignPopup(false)}>
+          <div className="premium-calendar-modal premium-campaign-modal" style={popupStyleFor('campaign')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-campaign-head">
+              <div>
+                <span className="premium-popup-step-badge">3</span>
+                <h3>Create Campaign</h3>
+                <small className="premium-campaign-stepcopy">Step 3 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowCampaignPopup(false)}>
+                ├ù
+              </button>
             </div>
 
-            <div className="wf-body premium-campaign-body">
+            <div className="premium-campaign-body">
               <label className="premium-campaign-field premium-campaign-name-field">
                 <span>Campaign Name *</span>
                 <input
@@ -4138,7 +4130,7 @@ export default function PremiumDashboardShell({
                       className="premium-campaign-tag"
                       onClick={() => removeCampaignTag(tag)}
                     >
-                      {tag} <i>×</i>
+                      {tag} <i>├ù</i>
                     </button>
                   ))}
                   <input
@@ -4229,22 +4221,20 @@ export default function PremiumDashboardShell({
 
             </div>
 
-            <div className="wf-footer">
-              <div className="wf-footer-left">
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={() => {
-                    setShowCampaignPopup(false);
-                    setShowOverviewPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-              </div>
+            <div className="premium-campaign-actions">
               <button
                 type="button"
-                className={`wf-btn-primary${hasCampaignRequiredFields ? '' : ' is-disabled'}`}
+                className="ghost subtle"
+                onClick={() => {
+                  setShowCampaignPopup(false);
+                  setShowOverviewPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className={`premium-campaign-next${hasCampaignRequiredFields ? '' : ' is-disabled'}`}
                 onClick={handleCampaignContinue}
               >
                 {hasCampaignRequiredFields ? 'Continue' : 'Complete required details first'}
@@ -4254,7 +4244,7 @@ export default function PremiumDashboardShell({
               <p className="premium-campaign-hint premium-campaign-hint-warning">
                 {campaignMissingFields.map((field) => (
                   <span key={field} className="premium-campaign-warning-item">
-                    • {field}
+                    ΓÇó {field}
                   </span>
                 ))}
               </p>
@@ -4269,17 +4259,26 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showSelectDraftPopup,
-        <div className="wf-backdrop" onClick={() => setShowSelectDraftPopup(false)}>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowSelectDraftPopup(false)}>
           <div
-            className="premium-calendar-modal wf-modal premium-select-draft-modal"
-            style={popupStyleFor('selectDraft')}
+            className="premium-calendar-modal premium-select-draft-modal"
+            style={{
+              ...popupStyleFor('selectDraft'),
+              minHeight: 'min(86vh, 860px)',
+              background: 'transparent'
+            }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="wf-header">
-              <span className="wf-header-badge">4</span>
-              <h3 className="wf-header-title">Step 4: Select Draft</h3>
-              <small className="wf-header-step">Step 4 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowSelectDraftPopup(false)}>×</button>
+            <div className="premium-select-draft-head">
+              <div>
+                <span className="premium-popup-step-badge">4</span>
+                <h3>Select Draft</h3>
+                <p>{effectiveCampaignName ? `Campaign: ${effectiveCampaignName}` : 'Campaign: Not named yet'}</p>
+                <small className="premium-select-draft-stepcopy">Step 4 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowSelectDraftPopup(false)}>
+                ├ù
+              </button>
             </div>
 
             <div className="premium-select-draft-tabs" style={{ background: 'transparent' }}>
@@ -4304,7 +4303,7 @@ export default function PremiumDashboardShell({
             </div>
 
             {selectDraftTab === 'my-drafts' ? (
-              <div className="wf-body premium-select-draft-library premium-select-draft-library-types">
+              <div className="premium-select-draft-library premium-select-draft-library-types">
                 <div className="premium-select-draft-list">
                   <div className="premium-select-draft-type-page-head">
                     <strong>Previously Used Drafts</strong>
@@ -4431,7 +4430,7 @@ export default function PremiumDashboardShell({
                 </aside>
               </div>
             ) : (
-              <div className="wf-body premium-select-draft-create">
+              <div className="premium-select-draft-create">
                 <div className="premium-select-draft-create-top">
                   <label className="premium-template-field">
                     <span>Draft Type</span>
@@ -4460,7 +4459,7 @@ export default function PremiumDashboardShell({
                     disabled={draftFileReading}
                     onClick={() => draftFileInputRef.current?.click()}
                   >
-                    <span className="premium-clientlist-uploadicon">＋</span>
+                    <span className="premium-clientlist-uploadicon">∩╝ï</span>
                     <strong>{draftFileReading ? 'Reading uploaded file...' : 'Upload Word, PDF, or TXT file'}</strong>
                     <small>{draftFileReading ? `Extracting text from ${draftUploadedFileName}` : (draftUploadedFileName || 'Supported formats: DOCX, PDF, TXT')}</small>
                   </button>
@@ -4513,7 +4512,7 @@ export default function PremiumDashboardShell({
                           <button key={draft.id} type="button" onClick={() => loadDraftIntoEditor(draft)}>
                             <strong>{draft.title}</strong>
                             <span>{draft.subject}</span>
-                            <small>{[draft.campaignName || 'No campaign', draft.sector || 'No sector', draft.city || 'No city'].join(' · ')}</small>
+                            <small>{[draft.campaignName || 'No campaign', draft.sector || 'No sector', draft.city || 'No city'].join(' ┬╖ ')}</small>
                           </button>
                         ))
                       ) : (
@@ -4525,32 +4524,30 @@ export default function PremiumDashboardShell({
               </div>
             )}
 
-            <div className="wf-footer">
-              <div className="wf-footer-left">
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={() => {
-                    setShowSelectDraftPopup(false);
-                    setShowCampaignPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-                {selectDraftTab === 'create' ? (
-                  <button
-                    type="button"
-                    className="wf-btn-secondary"
-                    onClick={handleSaveDraft}
-                    disabled={draftSaving}
-                  >
-                    {draftSaving ? 'Saving...' : 'Save Draft'}
-                  </button>
-                ) : null}
-              </div>
+            <div className="premium-popup-primary-row">
               <button
                 type="button"
-                className={`wf-btn-primary${hasDraftRequiredFields ? '' : ' is-disabled'}`}
+                className="ghost subtle"
+                onClick={() => {
+                  setShowSelectDraftPopup(false);
+                  setShowCampaignPopup(true);
+                }}
+              >
+                Back
+              </button>
+              {selectDraftTab === 'create' ? (
+                <button
+                  type="button"
+                  className="ghost subtle"
+                  onClick={handleSaveDraft}
+                  disabled={draftSaving}
+                >
+                  {draftSaving ? 'Saving...' : 'Save Draft'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={`premium-template-next${hasDraftRequiredFields ? '' : ' is-disabled'}`}
                 onClick={async () => {
                   if (!hasDraftRequiredFields) {
                     setShowDraftContinueWarning(true);
@@ -4581,7 +4578,7 @@ export default function PremiumDashboardShell({
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowScheduleSuccessPopup(false)}>
           <div className="premium-calendar-modal premium-schedule-success-modal" onClick={(event) => event.stopPropagation()}>
             <div className="premium-schedule-success-head">
-              <span className="premium-popup-step-badge">✓</span>
+              <span className="premium-popup-step-badge">Γ£ô</span>
               <div>
                 <h3>Campaign Scheduled Successfully</h3>
                 <p>Your campaign has been scheduled.</p>
@@ -4630,16 +4627,24 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showTestEmailPopup,
-        <div className="wf-backdrop" onClick={() => setShowTestEmailPopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-test-email-modal" style={popupStyleFor('testEmail')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">6</span>
-              <h3 className="wf-header-title">Step 6: Test Email</h3>
-              <small className="wf-header-step">Step 6 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowTestEmailPopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowTestEmailPopup(false)}>
+          <div className="premium-calendar-modal premium-test-email-modal" style={popupStyleFor('testEmail')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-test-email-head">
+              <div>
+                <span className="premium-popup-step-badge">6</span>
+                <div className="premium-test-email-title">
+                  <h3>Test Email</h3>
+                  <span>Optional</span>
+                </div>
+                <p>Send a test email to preview how it will look in inbox.</p>
+                <small className="premium-test-email-stepcopy">Step 6 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowTestEmailPopup(false)}>
+                ├ù
+              </button>
             </div>
 
-            <div className="wf-body premium-test-email-body">
+            <div className="premium-test-email-body">
               <section className="premium-test-email-preview">
                 <div className="premium-test-email-preview-top">
                   <div>
@@ -4654,7 +4659,7 @@ export default function PremiumDashboardShell({
                       onClick={() => setTestPreviewMode('desktop')}
                       title="Desktop Preview"
                     >
-                      🖥
+                      ≡ƒûÑ
                     </button>
                     <button
                       type="button"
@@ -4662,7 +4667,7 @@ export default function PremiumDashboardShell({
                       onClick={() => setTestPreviewMode('tablet')}
                       title="Tablet Preview"
                     >
-                      ▭
+                      Γû¡
                     </button>
                     <button
                       type="button"
@@ -4670,7 +4675,7 @@ export default function PremiumDashboardShell({
                       onClick={() => setTestPreviewMode('mobile')}
                       title="Mobile Preview"
                     >
-                      📱
+                      ≡ƒô▒
                     </button>
                   </div>
                 </div>
@@ -4726,7 +4731,7 @@ export default function PremiumDashboardShell({
 
               {testEmailSent ? (
                 <div className="premium-test-email-success">
-                  <span>✔</span>
+                  <span>Γ£ö</span>
                   <p>Test email sent successfully! Check your inbox.</p>
                 </div>
               ) : null}
@@ -4741,22 +4746,20 @@ export default function PremiumDashboardShell({
               </label>
             </div>
 
-            <div className="wf-footer">
-              <div className="wf-footer-left">
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={() => {
-                    setShowTestEmailPopup(false);
-                    setShowDraftSummaryPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-              </div>
+            <div className="premium-popup-primary-row">
               <button
                 type="button"
-                className="wf-btn-primary"
+                className="ghost subtle"
+                onClick={() => {
+                  setShowTestEmailPopup(false);
+                  setShowDraftSummaryPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="premium-template-next"
                 onClick={async () => {
                   setWorkflowPosition((current) => Math.max(current, 7));
                   setShowTestEmailPopup(false);
@@ -4772,16 +4775,19 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showDraftSummaryPopup,
-        <div className="wf-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
-            <div className="wf-header">
-              <span className="wf-header-badge">5</span>
-              <h3 className="wf-header-title">Step 5: Draft Summary</h3>
-              <small className="wf-header-step">Step 5 of 7</small>
-              <button type="button" className="wf-header-close" onClick={() => setShowDraftSummaryPopup(false)}>×</button>
+        <div className="premium-calendar-modal-backdrop" onClick={() => setShowDraftSummaryPopup(false)}>
+          <div className="premium-calendar-modal premium-template-modal" style={popupStyleFor('draftSummary')} onClick={(event) => event.stopPropagation()}>
+            <div className="premium-template-head">
+              <div>
+                <span className="premium-popup-step-badge">5</span>
+                <h3>Summary</h3>
+                <p>Write your subject and message, then save it as a reusable draft.</p>
+                <small className="premium-template-stepcopy">Step 5 of 7</small>
+              </div>
+              <button type="button" className="ghost subtle" onClick={() => setShowDraftSummaryPopup(false)}>├ù</button>
             </div>
 
-            <div className="wf-body premium-template-body">
+            <div className="premium-template-body">
               <label className="premium-template-field">
                 <span>Subject</span>
                 <input
@@ -4839,30 +4845,28 @@ export default function PremiumDashboardShell({
               </section>
 
             </div>
-            <div className="wf-footer">
-              <div className="wf-footer-left">
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={() => {
-                    setShowDraftSummaryPopup(false);
-                    setShowSelectDraftPopup(true);
-                  }}
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  className="wf-btn-secondary"
-                  onClick={handleSaveDraft}
-                  disabled={draftSaving}
-                >
-                  {draftSaving ? 'Saving...' : 'Save Draft'}
-                </button>
-              </div>
+            <div className="premium-template-actions">
               <button
                 type="button"
-                className="wf-btn-primary"
+                className="ghost subtle"
+                onClick={() => {
+                  setShowDraftSummaryPopup(false);
+                  setShowSelectDraftPopup(true);
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="ghost subtle"
+                onClick={handleSaveDraft}
+                disabled={draftSaving}
+              >
+                {draftSaving ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                type="button"
+                className="premium-template-next"
                 onClick={async () => {
                   const hasSummaryRequiredFields =
                     Boolean(String(effectiveDraftSubject || '').trim()) &&

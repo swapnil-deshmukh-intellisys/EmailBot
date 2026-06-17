@@ -1,0 +1,1113 @@
+diff --git a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+index d19d9b2..bd7adc9 100644
+--- a/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
++++ b/dashboard-next/app/dashboard/components/PremiumDashboardShell.jsx
+@@ -519,77 +519,77 @@ export default function PremiumDashboardShell({
+     Germany: ['Europe/Berlin'],
+     UAE: ['Asia/Dubai']
+   };
+-    const scheduleCountryKey =
++  const scheduleCountryKey =
+     Object.keys(scheduleCountries).find((country) => country.toLowerCase() === String(scheduledCountry || '').toLowerCase()) ||
+     'India';
+-    const [targetMode, setTargetMode] = useState('daily');
+-    const [customTargetStart, setCustomTargetStart] = useState('');
+-    const [customTargetEnd, setCustomTargetEnd] = useState('');
+-    const targetDailyCount = 300;
+-    const targetWindow = useMemo(() => {
+-      const today = new Date();
+-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+-      const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+-      const startOfWeek = new Date(startOfToday);
+-      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+-      const endOfWeek = new Date(startOfWeek);
+-      endOfWeek.setDate(endOfWeek.getDate() + 6);
+-      endOfWeek.setHours(23, 59, 59, 999);
+-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+-      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+-      const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
+-      const startOfQuarter = new Date(today.getFullYear(), quarterStartMonth, 1);
+-      const endOfQuarter = new Date(today.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+-      if (targetMode === 'weekly') return { label: 'This week', start: startOfWeek, end: endOfWeek, days: 7 };
+-      if (targetMode === 'monthly') return { label: 'This month', start: startOfMonth, end: endOfMonth, days: 30 };
+-      if (targetMode === 'quarterly') return { label: 'This quarter', start: startOfQuarter, end: endOfQuarter, days: 90 };
+-      if (targetMode === 'custom') {
+-        const start = customTargetStart ? new Date(`${customTargetStart}T00:00:00`) : startOfToday;
+-        const end = customTargetEnd ? new Date(`${customTargetEnd}T23:59:59.999`) : endOfToday;
+-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+-          return { label: 'Custom range', start: startOfToday, end: endOfToday, days: 1 };
+-        }
+-        const dayDiff = Math.max(1, Math.round((end - start) / 86400000) + 1);
+-        return { label: 'Custom range', start, end, days: dayDiff };
++  const [targetMode, setTargetMode] = useState('daily');
++  const [customTargetStart, setCustomTargetStart] = useState('');
++  const [customTargetEnd, setCustomTargetEnd] = useState('');
++  const targetDailyCount = 300;
++  const targetWindow = useMemo(() => {
++    const today = new Date();
++    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
++    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
++    const startOfWeek = new Date(startOfToday);
++    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
++    const endOfWeek = new Date(startOfWeek);
++    endOfWeek.setDate(endOfWeek.getDate() + 6);
++    endOfWeek.setHours(23, 59, 59, 999);
++    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
++    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
++    const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
++    const startOfQuarter = new Date(today.getFullYear(), quarterStartMonth, 1);
++    const endOfQuarter = new Date(today.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
++    if (targetMode === 'weekly') return { label: 'This week', start: startOfWeek, end: endOfWeek, days: 7 };
++    if (targetMode === 'monthly') return { label: 'This month', start: startOfMonth, end: endOfMonth, days: 30 };
++    if (targetMode === 'quarterly') return { label: 'This quarter', start: startOfQuarter, end: endOfQuarter, days: 90 };
++    if (targetMode === 'custom') {
++      const start = customTargetStart ? new Date(`${customTargetStart}T00:00:00`) : startOfToday;
++      const end = customTargetEnd ? new Date(`${customTargetEnd}T23:59:59.999`) : endOfToday;
++      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
++        return { label: 'Custom range', start: startOfToday, end: endOfToday, days: 1 };
+       }
+-      return { label: 'Today', start: startOfToday, end: endOfToday, days: 1 };
+-    }, [customTargetEnd, customTargetStart, targetMode]);
+-    const targetLimit = targetDailyCount * targetWindow.days;
+-    const targetWindowLabel = targetWindow.label;
+-    const targetSentCount = useMemo(() => {
+-      return (dailyMailCounts || []).reduce((total, item) => {
+-        const itemDate = parseEventDate(item?.date);
+-        const count = Math.max(0, Number(item?.count || item?.sent || item?.value || 0));
+-        if (!itemDate) return total;
+-        if (itemDate >= targetWindow.start && itemDate <= targetWindow.end) return total + count;
+-        return total;
+-      }, 0);
+-    }, [dailyMailCounts, targetWindow.end, targetWindow.start]);
+-    const targetPercent = targetLimit ? Math.min(100, Math.round((targetSentCount / targetLimit) * 100)) : 0;
+-    const targetAchieved = targetLimit > 0 && targetSentCount >= targetLimit;
+-    const targetRemaining = Math.max(0, targetLimit - targetSentCount);
+-      const targetResetText = 'Resets daily';
+-    const [targetApprovalStatusState, setTargetApprovalStatusState] = useState(String(targetApprovalStatus || 'approved'));
+-    useEffect(() => {
+-      setTargetApprovalStatusState(String(targetApprovalStatus || 'approved'));
+-    }, [targetApprovalStatus]);
+-    const targetApprovalLabel =
+-      targetApprovalStatusState === 'approved'
+-        ? 'Approved by team lead'
+-        : targetApprovalStatusState === 'pending'
+-          ? 'Pending team lead approval'
+-          : targetApprovalStatusState === 'rejected'
+-            ? 'Rejected by team lead'
+-            : 'Approval required';
+-    const targetStatusTone =
+-      targetApprovalStatusState === 'approved'
+-        ? 'done'
+-        : targetApprovalStatusState === 'pending'
+-          ? 'pending'
+-          : targetApprovalStatusState === 'rejected'
+-            ? 'failed'
+-            : 'pending';
+-    const targetPeriodValue = String(targetMode || 'daily');
++      const dayDiff = Math.max(1, Math.round((end - start) / 86400000) + 1);
++      return { label: 'Custom range', start, end, days: dayDiff };
++    }
++    return { label: 'Today', start: startOfToday, end: endOfToday, days: 1 };
++  }, [customTargetEnd, customTargetStart, targetMode]);
++  const targetLimit = targetDailyCount * targetWindow.days;
++  const targetWindowLabel = targetWindow.label;
++  const targetSentCount = useMemo(() => {
++    return (dailyMailCounts || []).reduce((total, item) => {
++      const itemDate = parseEventDate(item?.date);
++      const count = Math.max(0, Number(item?.count || item?.sent || item?.value || 0));
++      if (!itemDate) return total;
++      if (itemDate >= targetWindow.start && itemDate <= targetWindow.end) return total + count;
++      return total;
++    }, 0);
++  }, [dailyMailCounts, targetWindow.end, targetWindow.start]);
++  const targetPercent = targetLimit ? Math.min(100, Math.round((targetSentCount / targetLimit) * 100)) : 0;
++  const targetAchieved = targetLimit > 0 && targetSentCount >= targetLimit;
++  const targetRemaining = Math.max(0, targetLimit - targetSentCount);
++  const targetResetText = 'Resets daily';
++  const [targetApprovalStatusState, setTargetApprovalStatusState] = useState(String(targetApprovalStatus || 'approved'));
++  useEffect(() => {
++    setTargetApprovalStatusState(String(targetApprovalStatus || 'approved'));
++  }, [targetApprovalStatus]);
++  const targetApprovalLabel =
++    targetApprovalStatusState === 'approved'
++      ? 'Approved by team lead'
++      : targetApprovalStatusState === 'pending'
++        ? 'Pending team lead approval'
++        : targetApprovalStatusState === 'rejected'
++          ? 'Rejected by team lead'
++          : 'Approval required';
++  const targetStatusTone =
++    targetApprovalStatusState === 'approved'
++      ? 'done'
++      : targetApprovalStatusState === 'pending'
++        ? 'pending'
++        : targetApprovalStatusState === 'rejected'
++          ? 'failed'
++          : 'pending';
++  const targetPeriodValue = String(targetMode || 'daily');
+   const formatInboxName = (value, fallback = 'Mail') => {
+     const text = String(value || '').trim();
+     if (!text) return fallback;
+@@ -820,6 +820,12 @@ export default function PremiumDashboardShell({
+   const [selectedOverviewColumns, setSelectedOverviewColumns] = useState([]);
+   const [mappingCollapsed, setMappingCollapsed] = useState(false);
+   const [showClientListSelectionNote, setShowClientListSelectionNote] = useState(false);
++  useEffect(() => {
++    if (showClientListSelectionNote) {
++      const timer = setTimeout(() => setShowClientListSelectionNote(false), 4000);
++      return () => clearTimeout(timer);
++    }
++  }, [showClientListSelectionNote]);
+   const [showCampaignNotice, setShowCampaignNotice] = useState(false);
+   const [showProceedWithoutListNote, setShowProceedWithoutListNote] = useState(false);
+   const hasShownProceedWithoutListNoteRef = useRef(false);
+@@ -1049,13 +1055,13 @@ export default function PremiumDashboardShell({
+     if (centeredKeys.has(key)) {
+       const sizeMap = {
+         notifications: { width: 'min(92vw, 560px)', maxHeight: 'min(78vh, 480px)' },
+-        clientList: { width: 'min(92vw, 860px)', maxHeight: 'min(82vh, 760px)' },
+-        overview: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+-        campaign: { width: 'min(90vw, 900px)', maxHeight: 'min(84vh, 820px)' },
+-        selectDraft: { width: 'min(94vw, 980px)', maxHeight: 'min(86vh, 860px)' },
+-        testEmail: { width: '90vw', maxHeight: '90vh' },
+-        draftSummary: { width: 'min(94vw, 1040px)', maxHeight: '90vh' },
+-        schedule: { width: 'min(90vw, 860px)', maxHeight: 'min(82vh, 760px)' },
++        clientList: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        overview: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        campaign: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        selectDraft: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        testEmail: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        draftSummary: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
++        schedule: { width: 'min(90vw, 820px)', maxHeight: 'min(86vh, 720px)' },
+         calendar: { width: 'min(92vw, 620px)', maxHeight: 'min(82vh, 680px)' },
+         day: { width: 'min(92vw, 560px)', maxHeight: 'min(82vh, 680px)' },
+         timeline: { width: 'min(90vw, 740px)', maxHeight: 'min(78vh, 680px)' },
+@@ -1118,14 +1124,14 @@ export default function PremiumDashboardShell({
+   };
+   const normalizedClientLists = lists.length
+     ? lists.map((item) => ({
+-        id: item._id,
+-        title: item.name || 'Saved list',
+-        meta: formatListMeta(item),
+-        uploadedAt: item?.uploadedAt || item?.createdAt || item?.updatedAt || null,
+-        sourceFile: item?.sourceFile || item?.fileName || item?.name || '',
+-        leadCount: Number(item?.leadCount || 0),
+-        kind: String(item?.kind || 'uploaded').trim()
+-      }))
++      id: item._id,
++      title: item.name || 'Saved list',
++      meta: formatListMeta(item),
++      uploadedAt: item?.uploadedAt || item?.createdAt || item?.updatedAt || null,
++      sourceFile: item?.sourceFile || item?.fileName || item?.name || '',
++      leadCount: Number(item?.leadCount || 0),
++      kind: String(item?.kind || 'uploaded').trim()
++    }))
+     : [];
+   const isCustomClientList = (item) => ['custom', 'selected_client_sheet', 'custom_client_list'].includes(String(item?.kind || '').trim());
+   const effectiveUploadedLists = normalizedClientLists.length
+@@ -1136,29 +1142,29 @@ export default function PremiumDashboardShell({
+     : customLists;
+   const effectiveSavedDrafts = draftOptions.length
+     ? draftOptions.map((draft) => ({
+-        id: draft._id || draft.id,
+-        title: draft.title,
+-        subject: draft.subject,
+-        body: draft.bodyHtml || draft.html || draft.body || draft.message || draft.content || '',
+-        bodyHtml: draft.bodyHtml || draft.html || draft.body || '',
+-        bodyText: draft.bodyText || '',
+-        html: draft.html || draft.bodyHtml || draft.body || '',
+-        sector: draft.sector || '',
+-        city: draft.city || '',
+-        project: draft.project || draft.projectName || '',
+-        campaignName: draft.campaignName || draft.campaign || '',
+-        category: inferDraftTypeFromDraft(draft),
+-        draftType: inferDraftTypeFromDraft(draft),
+-        savedDate: draft.updatedAt || draft.createdAt
+-          ? new Date(draft.updatedAt || draft.createdAt).toLocaleDateString()
+-          : 'No saved date',
+-        savedTime: draft.updatedAt || draft.createdAt
+-          ? new Date(draft.updatedAt || draft.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+-          : 'No saved time',
+-        updated: draft.updatedAt || draft.createdAt
+-          ? new Date(draft.updatedAt || draft.createdAt).toLocaleString()
+-          : 'Saved draft'
+-      }))
++      id: draft._id || draft.id,
++      title: draft.title,
++      subject: draft.subject,
++      body: draft.bodyHtml || draft.html || draft.body || draft.message || draft.content || '',
++      bodyHtml: draft.bodyHtml || draft.html || draft.body || '',
++      bodyText: draft.bodyText || '',
++      html: draft.html || draft.bodyHtml || draft.body || '',
++      sector: draft.sector || '',
++      city: draft.city || '',
++      project: draft.project || draft.projectName || '',
++      campaignName: draft.campaignName || draft.campaign || '',
++      category: inferDraftTypeFromDraft(draft),
++      draftType: inferDraftTypeFromDraft(draft),
++      savedDate: draft.updatedAt || draft.createdAt
++        ? new Date(draft.updatedAt || draft.createdAt).toLocaleDateString()
++        : 'No saved date',
++      savedTime: draft.updatedAt || draft.createdAt
++        ? new Date(draft.updatedAt || draft.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
++        : 'No saved time',
++      updated: draft.updatedAt || draft.createdAt
++        ? new Date(draft.updatedAt || draft.createdAt).toLocaleString()
++        : 'Saved draft'
++    }))
+     : savedDrafts;
+   const builtInDraftTemplates = useMemo(
+     () => draftTypeItems.map((item) => getTemplateForDraftType(item.value)).filter(Boolean),
+@@ -2194,8 +2200,12 @@ export default function PremiumDashboardShell({
+         ? Boolean(selectedUploadedList)
+         : Boolean(selectedCustomList);
+   const hasPickedUploadFile = Boolean(String(selectedUploadFileName || clientListName || '').trim());
+-  const clientListActionReady = canContinueClientList || clientListUploading;
+   const displayedClientListName = selectedListName || selectedUploadFileName || clientListName || 'No file selected yet';
++  const uploadBoxFileName = selectedUploadFileName || (clientListTab === 'upload' ? clientListName : '') || '';
++  const uploadBoxFileType = uploadBoxFileName.includes('.')
++    ? uploadBoxFileName.split('.').pop().toUpperCase()
++    : 'Sheet';
++  const uploadedListDisplayCount = effectiveUploadedLists.length;
+ 
+   const handleClientListNext = async () => {
+     if (clientListUploading) {
+@@ -2209,9 +2219,9 @@ export default function PremiumDashboardShell({
+         ? (selectedListId || uploadedListId)
+         : clientListTab === 'uploaded'
+           ? selectedUploadedList
+-        : clientListTab === 'custom'
+-          ? selectedCustomList
+-          : '';
++          : clientListTab === 'custom'
++            ? selectedCustomList
++            : '';
+ 
+     if (!selectedList) {
+       setShowClientListSelectionNote(true);
+@@ -2271,24 +2281,24 @@ export default function PremiumDashboardShell({
+     setShowCampaignPopup(true);
+   };
+   const hasOverviewData = overviewRows.length > 0;
+-    const campaignMissingFields = [
+-      !String(effectiveCampaignName || '').trim() ? 'Campaign Name is empty' : null,
+-      !String(effectiveCampaignSender || '').trim() ? 'Sender is empty' : null
+-    ].filter(Boolean);
+-    const hasCampaignRequiredFields = campaignMissingFields.length === 0;
+-    const draftMissingFields = [
+-      !String(effectiveDraftSubject || '').trim() ? 'Subject is empty' : null,
+-      !String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim() ? 'Message is empty' : null,
+-      !String(selectedDraftType || '').trim() ? 'Draft type is not selected' : null
+-    ].filter(Boolean);
+-    const hasSavedDraftSelected = Boolean(activeDraftId || selectedDraftId);
+-    const hasCreateDraftReady = draftMissingFields.length === 0;
+-    const hasDraftRequiredFields = selectDraftTab === 'create' ? hasCreateDraftReady : (hasSavedDraftSelected || hasCreateDraftReady);
+-    const draftContinueHint = selectDraftTab === 'create'
+-      ? `Please fill: ${draftMissingFields.join(', ')}`
+-      : hasSavedDraftSelected
+-        ? ''
+-        : 'Select required draft first.';
++  const campaignMissingFields = [
++    !String(effectiveCampaignName || '').trim() ? 'Campaign Name is empty' : null,
++    !String(effectiveCampaignSender || '').trim() ? 'Sender is empty' : null
++  ].filter(Boolean);
++  const hasCampaignRequiredFields = campaignMissingFields.length === 0;
++  const draftMissingFields = [
++    !String(effectiveDraftSubject || '').trim() ? 'Subject is empty' : null,
++    !String(effectiveDraftMessage || '').replace(/<[^>]*>/g, '').trim() ? 'Message is empty' : null,
++    !String(selectedDraftType || '').trim() ? 'Draft type is not selected' : null
++  ].filter(Boolean);
++  const hasSavedDraftSelected = Boolean(activeDraftId || selectedDraftId);
++  const hasCreateDraftReady = draftMissingFields.length === 0;
++  const hasDraftRequiredFields = selectDraftTab === 'create' ? hasCreateDraftReady : (hasSavedDraftSelected || hasCreateDraftReady);
++  const draftContinueHint = selectDraftTab === 'create'
++    ? `Please fill: ${draftMissingFields.join(', ')}`
++    : hasSavedDraftSelected
++      ? ''
++      : 'Select required draft first.';
+   useEffect(() => {
+     if (showDraftContinueWarning && hasDraftRequiredFields) {
+       setShowDraftContinueWarning(false);
+@@ -2808,117 +2818,117 @@ export default function PremiumDashboardShell({
+ 
+   return (
+     <>
+-    <div className="page-body">
+-      <StatStrip stats={reportMetricCards} />
+-
+-      <Workflow
+-        workflowSteps={workflowSteps}
+-        activeWorkflowStep={activeWorkflowStep}
+-        handleWorkflowAction={handleWorkflowAction}
+-        selectedDraftType={selectedDraftType}
+-        onSelectedDraftTypeChange={onSelectedDraftTypeChange}
+-        workflowShellRef={workflowShellRef}
+-      />
+-
+-      <MainPanels
+-        targetMode={targetMode}
+-        setTargetMode={setTargetMode}
+-        customTargetStart={customTargetStart}
+-        setCustomTargetStart={setCustomTargetStart}
+-        customTargetEnd={customTargetEnd}
+-        setCustomTargetEnd={setCustomTargetEnd}
+-        targetLimit={targetLimit}
+-        targetSentCount={targetSentCount}
+-        targetRemaining={targetRemaining}
+-        targetPercent={targetPercent}
+-        targetWindowLabel={targetWindowLabel}
+-        targetAchieved={targetAchieved}
+-        targetResetText={targetResetText}
+-        targetStatusTone={targetStatusTone}
+-        targetApprovalLabel={targetApprovalLabel}
+-        targetApprovalReviewedAt={targetApprovalReviewedAt}
+-        targetApprovalRequestNote={targetApprovalRequestNote}
+-        targetPeriodValue={targetPeriodValue}
+-        targetDailyCount={targetDailyCount}
+-        setTargetApprovalStatusState={setTargetApprovalStatusState}
+-        onShowMessage={onShowMessage}
+-        monthLabel={monthLabel}
+-        setCalendarCursor={setCalendarCursor}
+-        calendarViewMode={calendarViewMode}
+-        weekdayLabels={weekdayLabels}
+-        calendarCells={calendarCells}
+-        allCalendarEvents={allCalendarEvents}
+-        sameDay={sameDay}
+-        getCalendarEventTone={getCalendarEventTone}
+-        selectedDate={selectedDate}
+-        setSelectedDate={setSelectedDate}
+-        openAnchoredPopup={openAnchoredPopup}
+-        setShowDayPopup={setShowDayPopup}
+-        setShowCalendarPopup={setShowCalendarPopup}
+-        calendarLoading={calendarLoading}
+-        selectedEvents={selectedEvents}
+-        openEventForm={openEventForm}
+-        todayCalendarEvents={todayCalendarEvents}
+-        upcomingTaskCount={upcomingTaskCount}
+-        upcomingCampaignCount={upcomingCampaignCount}
+-        upcomingMeetingCount={upcomingMeetingCount}
+-        upcomingCalendarEvents={upcomingCalendarEvents}
+-        today={today}
+-        setShowNotificationsPopup={setShowNotificationsPopup}
+-        notificationCards={notificationCards}
+-        openInboxMail={openInboxMail}
+-        noteTopic={noteTopic}
+-        setNoteTopic={setNoteTopic}
+-        noteTag={noteTag}
+-        setNoteTag={setNoteTag}
+-        noteDraft={noteDraft}
+-        setNoteDraft={setNoteDraft}
+-        setShowNotesPopup={setShowNotesPopup}
+-        addQuickNote={addQuickNote}
+-        broadcastPerformanceRef={broadcastPerformanceRef}
+-        onRefreshCampaigns={onRefreshCampaigns}
+-        campaignRefreshing={campaignRefreshing}
+-        selectedRows={selectedRows}
+-        handleSelectionSummaryClick={handleSelectionSummaryClick}
+-        tagFilterRef={tagFilterRef}
+-        openTagFilterMenu={openTagFilterMenu}
+-        showTagFilterMenu={showTagFilterMenu}
+-        selectedTagFilterLabel={selectedTagFilterLabel}
+-        tableSearch={tableSearch}
+-        setTableSearch={setTableSearch}
+-        handleActionCenterClick={handleActionCenterClick}
+-        paginatedCampaigns={paginatedCampaigns}
+-        openActionMenu={openActionMenu}
+-        setOpenActionMenu={setOpenActionMenu}
+-        resumeCampaignDraft={resumeCampaignDraft}
+-        handleViewCampaign={handleViewCampaign}
+-        toggleRowSelection={toggleRowSelection}
+-        actionMenuRef={actionMenuRef}
+-        handleEditTagsClick={handleEditTagsClick}
+-        onPauseCampaign={onPauseCampaign}
+-        onStopCampaign={onStopCampaign}
+-        onResumeCampaign={onResumeCampaign}
+-        handleDeleteCampaignClick={handleDeleteCampaignClick}
+-        toggleAllRows={toggleAllRows}
+-        currentTablePage={currentTablePage}
+-        setCurrentTablePage={setCurrentTablePage}
+-        totalTablePages={totalTablePages}
+-      />
+-
+-      <BottomGrid
+-        inlineTimelineCards={inlineTimelineCards}
+-        timelineDateLabel={timelineDateLabel}
+-        timelineCompletionMap={timelineCompletionMap}
+-        setTimelineCompletionMap={setTimelineCompletionMap}
+-        onTimelineTaskStatesChange={onTimelineTaskStatesChange}
+-        setSelectedTimelineTask={setSelectedTimelineTask}
+-        setShowTimelinePopup={setShowTimelinePopup}
+-        workspaceOverviewItems={workspaceOverviewItems}
+-        openAnchoredPopup={openAnchoredPopup}
+-        setShowLogsPopup={setShowLogsPopup}
+-        onShowMessage={onShowMessage}
+-      />
+-    </div>
++      <div className="page-body">
++        <StatStrip stats={reportMetricCards} />
++
++        <Workflow
++          workflowSteps={workflowSteps}
++          activeWorkflowStep={activeWorkflowStep}
++          handleWorkflowAction={handleWorkflowAction}
++          selectedDraftType={selectedDraftType}
++          onSelectedDraftTypeChange={onSelectedDraftTypeChange}
++          workflowShellRef={workflowShellRef}
++        />
++
++        <MainPanels
++          targetMode={targetMode}
++          setTargetMode={setTargetMode}
++          customTargetStart={customTargetStart}
++          setCustomTargetStart={setCustomTargetStart}
++          customTargetEnd={customTargetEnd}
++          setCustomTargetEnd={setCustomTargetEnd}
++          targetLimit={targetLimit}
++          targetSentCount={targetSentCount}
++          targetRemaining={targetRemaining}
++          targetPercent={targetPercent}
++          targetWindowLabel={targetWindowLabel}
++          targetAchieved={targetAchieved}
++          targetResetText={targetResetText}
++          targetStatusTone={targetStatusTone}
++          targetApprovalLabel={targetApprovalLabel}
++          targetApprovalReviewedAt={targetApprovalReviewedAt}
++          targetApprovalRequestNote={targetApprovalRequestNote}
++          targetPeriodValue={targetPeriodValue}
++          targetDailyCount={targetDailyCount}
++          setTargetApprovalStatusState={setTargetApprovalStatusState}
++          onShowMessage={onShowMessage}
++          monthLabel={monthLabel}
++          setCalendarCursor={setCalendarCursor}
++          calendarViewMode={calendarViewMode}
++          weekdayLabels={weekdayLabels}
++          calendarCells={calendarCells}
++          allCalendarEvents={allCalendarEvents}
++          sameDay={sameDay}
++          getCalendarEventTone={getCalendarEventTone}
++          selectedDate={selectedDate}
++          setSelectedDate={setSelectedDate}
++          openAnchoredPopup={openAnchoredPopup}
++          setShowDayPopup={setShowDayPopup}
++          setShowCalendarPopup={setShowCalendarPopup}
++          calendarLoading={calendarLoading}
++          selectedEvents={selectedEvents}
++          openEventForm={openEventForm}
++          todayCalendarEvents={todayCalendarEvents}
++          upcomingTaskCount={upcomingTaskCount}
++          upcomingCampaignCount={upcomingCampaignCount}
++          upcomingMeetingCount={upcomingMeetingCount}
++          upcomingCalendarEvents={upcomingCalendarEvents}
++          today={today}
++          setShowNotificationsPopup={setShowNotificationsPopup}
++          notificationCards={notificationCards}
++          openInboxMail={openInboxMail}
++          noteTopic={noteTopic}
++          setNoteTopic={setNoteTopic}
++          noteTag={noteTag}
++          setNoteTag={setNoteTag}
++          noteDraft={noteDraft}
++          setNoteDraft={setNoteDraft}
++          setShowNotesPopup={setShowNotesPopup}
++          addQuickNote={addQuickNote}
++          broadcastPerformanceRef={broadcastPerformanceRef}
++          onRefreshCampaigns={onRefreshCampaigns}
++          campaignRefreshing={campaignRefreshing}
++          selectedRows={selectedRows}
++          handleSelectionSummaryClick={handleSelectionSummaryClick}
++          tagFilterRef={tagFilterRef}
++          openTagFilterMenu={openTagFilterMenu}
++          showTagFilterMenu={showTagFilterMenu}
++          selectedTagFilterLabel={selectedTagFilterLabel}
++          tableSearch={tableSearch}
++          setTableSearch={setTableSearch}
++          handleActionCenterClick={handleActionCenterClick}
++          paginatedCampaigns={paginatedCampaigns}
++          openActionMenu={openActionMenu}
++          setOpenActionMenu={setOpenActionMenu}
++          resumeCampaignDraft={resumeCampaignDraft}
++          handleViewCampaign={handleViewCampaign}
++          toggleRowSelection={toggleRowSelection}
++          actionMenuRef={actionMenuRef}
++          handleEditTagsClick={handleEditTagsClick}
++          onPauseCampaign={onPauseCampaign}
++          onStopCampaign={onStopCampaign}
++          onResumeCampaign={onResumeCampaign}
++          handleDeleteCampaignClick={handleDeleteCampaignClick}
++          toggleAllRows={toggleAllRows}
++          currentTablePage={currentTablePage}
++          setCurrentTablePage={setCurrentTablePage}
++          totalTablePages={totalTablePages}
++        />
++
++        <BottomGrid
++          inlineTimelineCards={inlineTimelineCards}
++          timelineDateLabel={timelineDateLabel}
++          timelineCompletionMap={timelineCompletionMap}
++          setTimelineCompletionMap={setTimelineCompletionMap}
++          onTimelineTaskStatesChange={onTimelineTaskStatesChange}
++          setSelectedTimelineTask={setSelectedTimelineTask}
++          setShowTimelinePopup={setShowTimelinePopup}
++          workspaceOverviewItems={workspaceOverviewItems}
++          openAnchoredPopup={openAnchoredPopup}
++          setShowLogsPopup={setShowLogsPopup}
++          onShowMessage={onShowMessage}
++        />
++      </div>
+ 
+       {renderPortalPopup(
+         showTagFilterMenu,
+@@ -3245,13 +3255,13 @@ export default function PremiumDashboardShell({
+               <button type="button" className="ghost subtle" onClick={() => setShowTimelineAddPopup(false)}>×</button>
+             </div>
+             <div className="premium-timeline-add-form">
+-                <input
+-                  type="text"
+-                  ref={timelineTaskTitleRef}
+-                  value={timelineTaskDraft.title}
+-                  onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, title: event.target.value }))}
+-                  placeholder="Task title"
+-                />
++              <input
++                type="text"
++                ref={timelineTaskTitleRef}
++                value={timelineTaskDraft.title}
++                onChange={(event) => setTimelineTaskDraft((current) => ({ ...current, title: event.target.value }))}
++                placeholder="Task title"
++              />
+               <div className="premium-timeline-add-grid">
+                 <input
+                   type="date"
+@@ -3265,23 +3275,23 @@ export default function PremiumDashboardShell({
+                 />
+               </div>
+               <div className="premium-timeline-add-grid">
+-                  <select
+-                    value={timelineTaskDraft.type}
+-                    onChange={(event) => {
+-                      const nextType = event.target.value;
+-                      const defaults = buildTimelineDraftDefaults(nextType, timelineTaskDraft.time);
+-                      setTimelineTaskDraft((current) => ({
+-                        ...current,
+-                        type: nextType,
+-                        title: defaults.title,
+-                        text: defaults.text
+-                      }));
+-                    }}
+-                  >
+-                    <option value="Reminder">Reminder</option>
+-                    <option value="Meeting">Meeting</option>
+-                    <option value="Appointment">Appointment</option>
+-                  </select>
++                <select
++                  value={timelineTaskDraft.type}
++                  onChange={(event) => {
++                    const nextType = event.target.value;
++                    const defaults = buildTimelineDraftDefaults(nextType, timelineTaskDraft.time);
++                    setTimelineTaskDraft((current) => ({
++                      ...current,
++                      type: nextType,
++                      title: defaults.title,
++                      text: defaults.text
++                    }));
++                  }}
++                >
++                  <option value="Reminder">Reminder</option>
++                  <option value="Meeting">Meeting</option>
++                  <option value="Appointment">Appointment</option>
++                </select>
+                 <input
+                   type="text"
+                   value={timelineTaskDraft.text}
+@@ -3331,282 +3341,142 @@ export default function PremiumDashboardShell({
+ 
+       {renderPortalPopup(
+         showLogsPopup,
+-          <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
+-            <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
+-              <div className="section-header">
+-                <h3>System Monitor</h3>
+-                <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>×</button>
+-              </div>
+-              <div className="premium-calendar-modal-list">
+-                {Object.entries(logPopupGroups).map(([label, items]) => (
+-                  <div key={label} className="premium-timeline-group">
+-                    <div className="premium-timeline-divider">
+-                      <span>{label}</span>
+-                      <small>{items.length} item{items.length === 1 ? '' : 's'}</small>
+-                    </div>
+-                    <div className="premium-calendar-modal-section">
+-                      {items.map((log, index) => (
+-                        <LogItem key={`${label}-${log.time}-${index}`} item={log} detailed />
+-                      ))}
+-                    </div>
++        <div className="premium-calendar-modal-backdrop" onClick={() => setShowLogsPopup(false)}>
++          <div className="premium-calendar-modal" style={popupStyleFor('logs')} onClick={(event) => event.stopPropagation()}>
++            <div className="section-header">
++              <h3>System Monitor</h3>
++              <button type="button" className="ghost subtle" onClick={() => setShowLogsPopup(false)}>×</button>
++            </div>
++            <div className="premium-calendar-modal-list">
++              {Object.entries(logPopupGroups).map(([label, items]) => (
++                <div key={label} className="premium-timeline-group">
++                  <div className="premium-timeline-divider">
++                    <span>{label}</span>
++                    <small>{items.length} item{items.length === 1 ? '' : 's'}</small>
+                   </div>
+-                ))}
+-              </div>
++                  <div className="premium-calendar-modal-section">
++                    {items.map((log, index) => (
++                      <LogItem key={`${label}-${log.time}-${index}`} item={log} detailed />
++                    ))}
++                  </div>
++                </div>
++              ))}
+             </div>
+           </div>
+-        )}
++        </div>
++      )}
+ 
+       {renderPortalPopup(
+         showClientListPopup,
+         <div className="premium-calendar-modal-backdrop" onClick={() => setShowClientListPopup(false)}>
+-          <div className={`premium-calendar-modal premium-clientlist-modal ${clientListTab === 'upload' ? 'premium-clientlist-modal-fit' : 'premium-clientlist-modal-narrow'}`} style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
++          <div className="premium-calendar-modal premium-clientlist-modal premium-clientlist-modal-fit" style={popupStyleFor('clientList')} onClick={(event) => event.stopPropagation()}>
+             <div className="premium-clientlist-head premium-review-head">
+               <div>
+                 <span className="premium-popup-step-badge">1</span>
+-                <h3>Upload List</h3>
++                <h3>Step 1: Upload List</h3>
+                 <p>Upload a new list or select from your existing lists.</p>
+                 <small className="premium-clientlist-stepcopy">Step 1 of 7</small>
+               </div>
+               <button type="button" className="ghost subtle" onClick={() => setShowClientListPopup(false)}>×</button>
+             </div>
+ 
+-            <div className="premium-clientlist-tabs">
+-              <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
+-                Customize List
+-              </button>
+-              <button type="button" className={clientListTab === 'upload' ? 'active' : ''} onClick={() => setClientListTab('upload')}>
+-                Upload Sheet
+-              </button>
+-            </div>
++            <div className="premium-clientlist-body" style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto', paddingBottom: '24px' }}>
+ 
+-            {clientListTab === 'upload' ? (
+-              <div className="premium-clientlist-body premium-clientlist-split">
+-                <section className="premium-clientlist-pane">
+-                  <div className="premium-clientlist-section-copy">
+-                    <strong>Upload Sheet</strong>
+-                    <p>Choose one sheet, name it, then continue to the review step.</p>
+-                  </div>
+-                  <input
+-                    type="file"
+-                    accept=".xlsx,.csv"
+-                    onChange={handlePremiumShellUpload}
+-                    style={{ display: 'none' }}
+-                    id="premium-shell-upload-input"
+-                  />
+-                  <label className="premium-clientlist-uploadbox" htmlFor="premium-shell-upload-input">
+-                    <div className="premium-clientlist-uploadicon">+</div>
+-                    <strong>Upload sheet</strong>
+-                    <span>Click to browse CSV or XLSX</span>
+-                    <small>Max file size: 10MB</small>
+-                    {selectedListName || selectedUploadFileName || clientListName ? (
+-                      <small style={{ marginTop: 6, color: 'var(--success)', fontWeight: 700 }}>
+-                        Selected file: {selectedListName || selectedUploadFileName || clientListName}
+-                      </small>
+-                    ) : null}
+-                    {clientListUploading ? (
+-                      <small style={{ color: 'var(--accent)', fontWeight: 700 }}>
+-                        Uploading file...
+-                      </small>
+-                    ) : null}
+-                  </label>
+-                  <label className="premium-clientlist-field">
+-                    <span>List Name</span>
+-                    <input
+-                      type="text"
+-                      value={clientListName}
+-                      onChange={(event) => setClientListName(event.target.value)}
+-                      placeholder="Enter list name"
+-                    />
+-                  </label>
+-                </section>
+-                <section className="premium-clientlist-pane">
+-                  <div className="premium-clientlist-section-copy">
+-                    <strong>Uploaded Files</strong>
+-                    <p>All uploaded sheets are available here.</p>
+-                  </div>
+-                  <div className="premium-clientlist-list">
+-                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+-                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+-                        <input
+-                          type="radio"
+-                          name="uploadedListFromUpload"
+-                          checked={selectedUploadedList === item.id}
+-                          onChange={() => {
+-                            setSelectedUploadedList(item.id);
+-                            onSelectList?.(item.id);
+-                          }}
+-                        />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
+-                            <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Sheet</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                • Uploaded {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                          </div>
+-                        </div>
+-                      </label>
+-                    )) : (
+-                      <div className="premium-clientlist-empty">
+-                        <strong>No uploaded files yet.</strong>
+-                        <p>Upload a sheet first, and it will appear here for everyone in this workflow.</p>
+-                      </div>
+-                    )}
+-                  </div>
+-                </section>
++              {/* Upload Sheet */}
++              <div style={{ textAlign: 'center' }}>
++                <strong>Upload Sheet</strong>
+               </div>
+-            ) : null}
+-
+-            {clientListTab === 'uploaded' ? (
+-              <div className="premium-clientlist-body">
+-                <section className="premium-clientlist-pane">
+-                  <div className="premium-clientlist-section-copy">
+-                    <strong>Uploaded Files</strong>
+-                    <p>Choose any sheet you&apos;ve already uploaded.</p>
+-                  </div>
+-                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
+-                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+-                      <label key={item.id} className={`premium-clientlist-item ${selectedUploadedList === item.id ? 'selected' : ''}`}>
+-                        <input
+-                          type="radio"
+-                          name="uploadedList"
+-                          checked={selectedUploadedList === item.id}
+-                          onChange={() => {
+-                            setSelectedUploadedList(item.id);
+-                            onSelectList?.(item.id);
+-                          }}
+-                        />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
+-                            <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Sheet</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                • Uploaded {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                          </div>
+-                        </div>
+-                      </label>
+-                    )) : (
+-                      <div className="premium-clientlist-empty">
+-                        <strong>No uploaded lists yet.</strong>
+-                        <p>Upload a file first, and the file name, date, time, and contact count will appear here.</p>
+-                      </div>
+-                    )}
++              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
++                <input
++                  type="file"
++                  accept=".xlsx,.csv"
++                  onChange={(event) => {
++                    setClientListTab('upload');
++                    handlePremiumShellUpload(event);
++                  }}
++                  id="premium-shell-upload-input-dual"
++                />
++                {uploadBoxFileName && (
++                  <div className="premium-clientlist-upload-file" style={{ border: '1px solid var(--border-light, #e2e8f0)', padding: '16px', borderRadius: '8px', textAlign: 'center', minWidth: '200px' }}>
++                    <strong>{uploadBoxFileName}</strong>
++                    <br />
++                    <span style={{ fontSize: '12px', color: 'var(--text-2, #64748b)' }}>{uploadBoxFileType} file</span>
++                    <br />
++                    <small style={{ color: 'var(--brand-primary, #2563eb)' }}>{clientListUploading ? 'Uploading...' : (selectedListId || uploadedListId) ? 'Uploaded' : 'Selected'}</small>
+                   </div>
+-                </section>
++                )}
+               </div>
+-            ) : null}
+ 
+-            {clientListTab === 'custom' ? (
+-              <div className="premium-clientlist-body">
+-                <section className="premium-clientlist-pane">
+-                  <div className="premium-clientlist-section-copy">
+-                    <strong>Customize List</strong>
+-                    <p>Use a client list created in your workspace.</p>
+-                  </div>
+-                  <div className="premium-clientlist-list" style={{ maxHeight: '360px' }}>
+-                    {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
+-                      <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+-                        <input
+-                          type="radio"
+-                          name="customList"
+-                          checked={selectedCustomList === item.id}
+-                          onChange={() => {
+-                            setSelectedCustomList(item.id);
+-                            onSelectList?.(item.id);
+-                          }}
+-                        />
+-                        <div className="premium-clientlist-item-content">
+-                          <div className="premium-clientlist-item-title">
+-                            <strong>{item.title}</strong>
+-                            <span className="premium-clientlist-kind-badge">Custom</span>
+-                          </div>
+-                          <div className="premium-clientlist-item-meta">
+-                            <span className="premium-clientlist-meta-count">
+-                              <strong>{item.leadCount || 0}</strong> contacts
+-                            </span>
+-                            {item.uploadedAt && (
+-                              <span className="premium-clientlist-meta-date">
+-                                • Saved {(() => {
+-                                  const d = new Date(item.uploadedAt);
+-                                  return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+-                                    month: 'short',
+-                                    day: 'numeric',
+-                                    year: 'numeric'
+-                                  }) + ', ' + d.toLocaleTimeString(undefined, {
+-                                    hour: '2-digit',
+-                                    minute: '2-digit'
+-                                  });
+-                                })()}
+-                              </span>
+-                            )}
+-                            {item.sourceFile && item.sourceFile !== item.title && (
+-                              <span className="premium-clientlist-meta-file">
+-                                • File: {item.sourceFile}
+-                              </span>
+-                            )}
+-                          </div>
+-                        </div>
+-                      </label>
+-                    )) : (
+-                      <div className="premium-clientlist-empty">
+-                        <strong>No saved client lists yet.</strong>
+-                        <p>Your stored files will show up here with their details and contact count.</p>
++              {/* Customize List */}
++              <div style={{ textAlign: 'center' }}>
++                <strong>Customize List</strong>
++              </div>
++              {effectiveCustomLists.length ? (
++                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
++                  {effectiveCustomLists.map((item) => (
++                    <label key={item.id} className={`premium-clientlist-item ${selectedCustomList === item.id ? 'selected' : ''}`} style={{ border: '1px solid var(--border-light, #e2e8f0)', padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
++                      <input
++                        type="radio"
++                        name="customListDual"
++                        checked={selectedCustomList === item.id}
++                        onChange={() => {
++                          setClientListTab('custom');
++                          setSelectedCustomList(item.id);
++                          setSelectedUploadedList('');
++                          onSelectList?.(item.id);
++                        }}
++                      />
++                      <div className="premium-clientlist-item-content" style={{ display: 'flex', flexDirection: 'column' }}>
++                        <strong>{item.title}</strong>
++                        <span style={{ fontSize: '12px', color: 'var(--text-2, #64748b)' }}>{item.leadCount || 0} contacts</span>
+                       </div>
+-                    )}
+-                  </div>
+-                </section>
++                    </label>
++                  ))}
++                </div>
++              ) : null}
++
++              {/* Already Uploaded Sheets */}
++              <div style={{ textAlign: 'center' }}>
++                <strong>Already Uploaded Sheets ({uploadedListDisplayCount})</strong>
+               </div>
+-            ) : null}
++              {effectiveUploadedLists.length ? (
++                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
++                  {effectiveUploadedLists.map((item) => (
++                    <label key={item.id} className={`premium-clientlist-uploaded-item ${selectedUploadedList === item.id || selectedListId === item.id ? 'selected' : ''}`} style={{ border: '1px solid var(--border-light, #e2e8f0)', padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
++                      <input
++                        type="radio"
++                        name="uploadedListDual"
++                        checked={selectedUploadedList === item.id || selectedListId === item.id}
++                        onChange={() => {
++                          setClientListTab('uploaded');
++                          setSelectedUploadedList(item.id);
++                          setSelectedCustomList('');
++                          onSelectList?.(item.id);
++                        }}
++                      />
++                      <span>{item.title}</span>
++                      <small style={{ color: 'var(--text-2, #64748b)', fontSize: '12px' }}>({item.leadCount || 0} contacts)</small>
++                    </label>
++                  ))}
++                </div>
++              ) : null}
++
++              {showClientListSelectionNote ? (
++                <p className="premium-review-inline-note premium-review-inline-note-warning" style={{ textAlign: 'center' }}>
++                  No file selected or uploaded yet. Please select a list first, then continue.
++                </p>
++              ) : null}
+ 
+-            <div className="premium-clientlist-actions">
+               <button
+                 type="button"
+-                className={`premium-template-next${clientListActionReady ? '' : ' is-disabled'}`}
++                className={`premium-template-next${canContinueClientList && !clientListUploading ? '' : ' is-disabled'}`}
++                disabled={!canContinueClientList || clientListUploading}
+                 onClick={handleClientListNext}
++                style={{ width: '100%', padding: '14px', fontSize: '16px', fontWeight: 'bold', marginTop: 'auto', background: 'var(--brand-primary, #2563eb)', color: '#fff', border: 'none', borderRadius: '8px', cursor: (!canContinueClientList || clientListUploading) ? 'not-allowed' : 'pointer', opacity: (!canContinueClientList || clientListUploading) ? 0.6 : 1 }}
+               >
+                 {clientListUploading ? 'Uploading...' : canContinueClientList ? 'Continue' : 'Select required list first'}
+               </button>
+             </div>
+-            {showClientListSelectionNote ? (
+-              <p className="premium-review-inline-note premium-review-inline-note-warning">
+-                No file selected or uploaded yet. Please select a list first, then continue.
+-              </p>
+-            ) : null}
+           </div>
+         </div>
+       )}
+@@ -3988,55 +3858,55 @@ export default function PremiumDashboardShell({
+               </div>
+ 
+               {sendMode === 'scheduled' ? (
+-              <>
+-              <div className="premium-schedule-grid premium-schedule-grid-2">
+-                  <label className="premium-schedule-field">
+-                    <span>Scheduled date</span>
+-                    <input
+-                      type="date"
+-                      value={scheduledDateValue}
+-                      onChange={(event) => setScheduledDateValue(event.target.value)}
+-                    />
+-                  </label>
+-                  <label className="premium-schedule-field">
+-                    <span>Scheduled time</span>
+-                    <input
+-                      type="time"
+-                      value={scheduledTimeValue}
+-                      onChange={(event) => setScheduledTimeValue(event.target.value)}
+-                    />
+-                  </label>
+-                </div>
++                <>
++                  <div className="premium-schedule-grid premium-schedule-grid-2">
++                    <label className="premium-schedule-field">
++                      <span>Scheduled date</span>
++                      <input
++                        type="date"
++                        value={scheduledDateValue}
++                        onChange={(event) => setScheduledDateValue(event.target.value)}
++                      />
++                    </label>
++                    <label className="premium-schedule-field">
++                      <span>Scheduled time</span>
++                      <input
++                        type="time"
++                        value={scheduledTimeValue}
++                        onChange={(event) => setScheduledTimeValue(event.target.value)}
++                      />
++                    </label>
++                  </div>
+ 
+-              <div className="premium-schedule-grid premium-schedule-grid-2">
+-                <label className="premium-schedule-field">
+-                  <span>Country</span>
+-                  <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
+-                    {Object.keys(scheduleCountries).map((country) => (
+-                      <option key={country} value={country}>{country}</option>
+-                    ))}
+-                  </select>
+-                </label>
+-                <label className="premium-schedule-field">
+-                  <span>Time zone</span>
+-                  <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
+-                    {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
+-                      <option key={timezone} value={timezone}>{timezone}</option>
+-                    ))}
+-                  </select>
+-                </label>
+-              </div>
+-              <div className="premium-schedule-inline-actions">
+-                <button
+-                  type="button"
+-                  className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+-                  aria-disabled={!canAttemptScheduleAction}
+-                  onClick={handleScheduleSave}
+-                >
+-                  {scheduleSaveLabel}
+-                </button>
+-              </div>
+-              </>
++                  <div className="premium-schedule-grid premium-schedule-grid-2">
++                    <label className="premium-schedule-field">
++                      <span>Country</span>
++                      <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
++                        {Object.keys(scheduleCountries).map((country) => (
++                          <option key={country} value={country}>{country}</option>
++                        ))}
++                      </select>
++                    </label>
++                    <label className="premium-schedule-field">
++                      <span>Time zone</span>
++                      <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
++                        {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
++                          <option key={timezone} value={timezone}>{timezone}</option>
++                        ))}
++                      </select>
++                    </label>
++                  </div>
++                  <div className="premium-schedule-inline-actions">
++                    <button
++                      type="button"
++                      className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
++                      aria-disabled={!canAttemptScheduleAction}
++                      onClick={handleScheduleSave}
++                    >
++                      {scheduleSaveLabel}
++                    </button>
++                  </div>
++                </>
+               ) : null}
+ 
+               {showScheduleContinueWarning && !hasScheduleRequiredFields ? (
