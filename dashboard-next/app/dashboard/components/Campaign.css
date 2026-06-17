@@ -155,6 +155,25 @@
   align-items: start !important;
 }
 
+.premium-campaign-grid-main > .premium-campaign-field {
+  margin-bottom: 0 !important;
+}
+
+.premium-campaign-grid-main .premium-campaign-field > span {
+  min-height: 14px !important;
+  line-height: 14px !important;
+}
+
+.premium-campaign-grid-main .premium-campaign-field select,
+.premium-campaign-grid-main .premium-campaign-sender-empty {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+.premium-campaign-sender-field {
+  align-self: start !important;
+}
+
 .premium-campaign-name-field,
 .premium-campaign-tags-field,
 .premium-campaign-description-field {

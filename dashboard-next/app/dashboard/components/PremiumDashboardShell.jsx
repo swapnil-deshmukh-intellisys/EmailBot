@@ -2056,7 +2056,7 @@ export default function PremiumDashboardShell({
     [columnMappings]
   );
   const overviewGridTemplate = useMemo(
-    () => `48px 56px repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(150px, 1fr))`,
+    () => `repeat(${Math.max(1, activeOverviewColumns.length)}, minmax(132px, 1fr))`,
     [activeOverviewColumns.length]
   );
   const emailMapping = useMemo(
@@ -2099,11 +2099,12 @@ export default function PremiumDashboardShell({
       const emailValue = String(row?.[emailMapping?.sheetColumn] || '').trim();
       return emailValue && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
     }).length;
+    const validEmailPercent = overviewRows.length ? Math.round((validEmails / overviewRows.length) * 100) : 0;
     return [
       { label: 'File Name', value: selectedClientListSummary.title || 'clients_april.xlsx' },
       { label: 'Total Records', value: String(overviewRows.length) },
       { label: 'Columns Detected', value: String(columnMappings.length) },
-      { label: 'Valid Emails', value: String(validEmails) },
+      { label: 'Valid Email', value: `${validEmails} (${validEmailPercent}%)` },
       { label: 'Missing Values', value: String(missingValueCount) }
     ];
   }, [columnMappings.length, emailMapping, missingValueCount, overviewRows, selectedClientListSummary.title]);
@@ -2183,6 +2184,23 @@ export default function PremiumDashboardShell({
     );
     setOverviewRows((current) => current.map((row) => ({ ...row, [nextName]: '' })));
     onPreviewAddColumn?.(nextName);
+  };
+
+  const renameOverviewColumn = (currentName) => {
+    const nextName = window.prompt('Rename column', currentName);
+    if (!nextName || !nextName.trim() || nextName.trim() === currentName) return;
+    const normalizedName = nextName.trim();
+    setColumnMappings((current) =>
+      current.map((entry) => entry.sheetColumn === currentName ? { ...entry, sheetColumn: normalizedName } : entry)
+    );
+    setOverviewRows((current) =>
+      current.map((row) => {
+        const updated = { ...row, [normalizedName]: row?.[currentName] ?? '' };
+        delete updated[currentName];
+        return updated;
+      })
+    );
+    onPreviewRenameColumn?.(currentName, normalizedName);
   };
 
   useEffect(() => {
@@ -3375,6 +3393,151 @@ export default function PremiumDashboardShell({
               <button type="button" className="wf-header-close" onClick={() => setShowClientListPopup(false)}>×</button>
             </div>
 
+            <div className="wf-body pr-uploadlist-body pr-uploadlist-split pr-uploadlist-always">
+              <section className="pr-uploadlist-pane">
+                <div className="pr-uploadlist-section-copy">
+                  <strong>Customize List</strong>
+                  <p>Select a saved client list from your workspace.</p>
+                </div>
+                <div className="pr-uploadlist-list">
+                  {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
+                    <label key={item.id} className={`pr-uploadlist-item ${selectedCustomList === item.id ? 'selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="customListFresh"
+                        checked={selectedCustomList === item.id}
+                        onChange={() => {
+                          setClientListTab('custom');
+                          setSelectedCustomList(item.id);
+                          setSelectedUploadedList('');
+                          onSelectList?.(item.id);
+                        }}
+                      />
+                      <div className="pr-uploadlist-item-content">
+                        <div className="pr-uploadlist-item-title">
+                          <strong>{item.title}</strong>
+                          <span className="pr-uploadlist-kind-badge">Custom</span>
+                        </div>
+                        <div className="pr-uploadlist-item-meta">
+                          <span><strong>{item.leadCount || 0}</strong> contacts</span>
+                          {item.uploadedAt ? (
+                            <span>
+                              Saved {(() => {
+                                const d = new Date(item.uploadedAt);
+                                return isNaN(d.getTime()) ? 'recently' : d.toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                });
+                              })()}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </label>
+                  )) : (
+                    <div className="pr-uploadlist-empty">
+                      <strong>No saved client lists yet.</strong>
+                      <p>Your saved lists will appear here.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="pr-uploadlist-pane">
+                <div className="pr-uploadlist-section-copy">
+                  <strong>Upload Sheet</strong>
+                  <p>Upload a CSV or Excel sheet for this campaign.</p>
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  onChange={(event) => {
+                    setClientListTab('upload');
+                    handlePremiumShellUpload(event);
+                  }}
+                  style={{ display: 'none' }}
+                  id="premium-shell-upload-input-fresh"
+                />
+                <label className="pr-uploadlist-uploadbox" htmlFor="premium-shell-upload-input-fresh">
+                  {clientListUploading ? (
+                    <>
+                      <div className="pr-uploadlist-spinner"></div>
+                      <div className="pr-uploadlist-uploadbox-text">
+                        <strong>Uploading...</strong>
+                        <span>Please wait while we process your sheet.</span>
+                      </div>
+                    </>
+                  ) : (selectedListName || selectedUploadFileName || clientListName) ? (
+                    (() => {
+                      const fileName = selectedListName || selectedUploadFileName || clientListName;
+                      const fileExt = String(fileName).split('.').pop()?.toUpperCase() || 'FILE';
+                      return (
+                        <>
+                          <div className="pr-uploadlist-uploadicon success">✓</div>
+                          <div className="pr-uploadlist-uploadbox-text">
+                            <div className="pr-uploadlist-fileinfo-row">
+                              <strong className="pr-uploadlist-filename">{fileName}</strong>
+                              <span className="pr-uploadlist-filetype-badge">{fileExt}</span>
+                            </div>
+                            <div className="pr-uploadlist-status-row">
+                              <span className="pr-uploadlist-status-dot"></span>
+                              <span className="pr-uploadlist-status-text">Ready to import</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <>
+                      <div className="pr-uploadlist-uploadicon">+</div>
+                      <div className="pr-uploadlist-uploadbox-text">
+                        <strong>Upload Excel or CSV</strong>
+                        <span>Click to browse your sheet.</span>
+                      </div>
+                    </>
+                  )}
+                </label>
+
+                <div className="pr-uploadlist-uploaded-box">
+                  <div className="pr-uploadlist-uploaded-headline">
+                    <strong>Uploaded Lists ({effectiveUploadedLists.length})</strong>
+                    <label htmlFor="premium-shell-upload-input-fresh">Change</label>
+                  </div>
+                  <div className="pr-uploadlist-list pr-uploadlist-uploaded-scroll">
+                    {effectiveUploadedLists.length ? effectiveUploadedLists.map((item) => (
+                      <label key={item.id} className={`pr-uploadlist-item compact ${selectedUploadedList === item.id || selectedListId === item.id ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="uploadedListFresh"
+                          checked={selectedUploadedList === item.id || selectedListId === item.id}
+                          onChange={() => {
+                            setClientListTab('uploaded');
+                            setSelectedUploadedList(item.id);
+                            setSelectedCustomList('');
+                            onSelectList?.(item.id);
+                          }}
+                        />
+                        <div className="pr-uploadlist-item-content">
+                          <div className="pr-uploadlist-item-title">
+                            <strong>{item.title}</strong>
+                            <span className="pr-uploadlist-kind-badge">Sheet</span>
+                          </div>
+                          <div className="pr-uploadlist-item-meta">
+                            <span><strong>{item.leadCount || 0}</strong> contacts</span>
+                          </div>
+                        </div>
+                      </label>
+                    )) : (
+                      <div className="pr-uploadlist-empty compact">
+                        <p>No uploaded lists yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+
             <div className="pr-uploadlist-tabs">
               <div className="pr-uploadlist-tabs-container">
                 <button type="button" className={clientListTab === 'custom' ? 'active' : ''} onClick={() => setClientListTab('custom')}>
@@ -3645,8 +3808,10 @@ export default function PremiumDashboardShell({
                 </p>
               ) : null}
               <div className="premium-review-summary">
+                <h4>File Summary</h4>
                 {summaryStats.map((item) => (
                   <article key={item.label} className={`premium-review-stat ${item.label === 'Missing Values' ? 'alert' : ''}`}>
+                    <span className="premium-review-stat-icon" aria-hidden="true"></span>
                     <span>{item.label}</span>
                     <strong>{item.value}</strong>
                   </article>
@@ -3742,7 +3907,7 @@ export default function PremiumDashboardShell({
                 </div>
 
                 <div className="premium-review-tablewrap">
-                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
+                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `84px 48px 56px ${overviewGridTemplate}` }}>
                     <span>Row</span>
                     <span className="premium-review-select-cell">
                       <input
@@ -3754,26 +3919,13 @@ export default function PremiumDashboardShell({
                     </span>
                     <span>#</span>
                     {activeOverviewColumns.map((item) => (
-                      <span key={`head-${item.sheetColumn}`} className="premium-review-head-cell">
-                        <input
-                          value={item.sheetColumn}
-                          onChange={(event) => {
-                            const nextName = event.target.value;
-                            if (!nextName.trim()) return;
-                            setColumnMappings((current) =>
-                              current.map((entry) => entry.sheetColumn === item.sheetColumn ? { ...entry, sheetColumn: nextName } : entry)
-                            );
-                            setOverviewRows((current) =>
-                              current.map((row) => {
-                                const updated = { ...row, [nextName]: row?.[item.sheetColumn] ?? '' };
-                                delete updated[item.sheetColumn];
-                                return updated;
-                              })
-                            );
-                            onPreviewRenameColumn?.(item.sheetColumn, nextName);
-                          }}
-                          aria-label={`Rename ${item.sheetColumn}`}
-                        />
+                      <span
+                        key={`head-${item.sheetColumn}`}
+                        className="premium-review-head-cell"
+                        onDoubleClick={() => renameOverviewColumn(item.sheetColumn)}
+                        title="Double-click to rename"
+                      >
+                        {item.sheetColumn}
                       </span>
                     ))}
                   </div>
@@ -3781,7 +3933,7 @@ export default function PremiumDashboardShell({
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
-                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `84px ${overviewGridTemplate}` }}>
+                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `84px 48px 56px ${overviewGridTemplate}` }}>
                           <span className="premium-review-row-action-cell">
                             <button type="button" className="ghost subtle" onClick={() => addOverviewRow(row.id)}>
                               + Row
@@ -4179,15 +4331,6 @@ export default function PremiumDashboardShell({
               </label>
 
               <div className="premium-campaign-grid premium-campaign-grid-main">
-                <label className="premium-campaign-field">
-                  <span>Campaign Goal</span>
-                  <select value={campaignGoal} onChange={(event) => setCampaignGoal(event.target.value)}>
-                    <option>Lead Generation</option>
-                    <option>Product Demo</option>
-                    <option>Brand Awareness</option>
-                    <option>Follow-up</option>
-                  </select>
-                </label>
                 <label className="premium-campaign-field">
                   <span>Project</span>
                   <select
