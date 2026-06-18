@@ -4787,8 +4787,6 @@ export default function PremiumDashboardShell({
                 <div className="premium-test-email-preview-top">
                   <div>
                     <strong>Subject: {effectiveDraftSubject || 'No draft subject yet'}</strong>
-                    <p>Recipient Test Email: {testEmailTo || testEmailAddress || 'Enter test recipient'}</p>
-                    <p>Sender Account: {selectedAccountLabel || 'Select Mail ID'}</p>
                   </div>
                   <div className="premium-test-email-device-toggle">
                     <button
@@ -4874,14 +4872,6 @@ export default function PremiumDashboardShell({
                 </div>
               ) : null}
 
-              <label className="premium-test-email-check">
-                <input
-                  type="checkbox"
-                  checked={includeTracking}
-                  onChange={() => setIncludeTracking((current) => !current)}
-                />
-                <span>Include tracking?</span>
-              </label>
             </div>
 
             <div className="wf-footer">
@@ -4897,6 +4887,14 @@ export default function PremiumDashboardShell({
                   Back
                 </button>
               </div>
+              <label className="premium-test-email-check premium-test-email-footer-track">
+                <input
+                  type="checkbox"
+                  checked={includeTracking}
+                  onChange={() => setIncludeTracking((current) => !current)}
+                />
+                <span>Include tracking?</span>
+              </label>
               <button
                 type="button"
                 className="wf-btn-primary"

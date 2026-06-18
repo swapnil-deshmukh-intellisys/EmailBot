@@ -22796,7 +22796,7 @@ b {
 
 body .premium-test-email-modal .premium-test-email-body {
   display: grid !important;
-  grid-template-rows: minmax(0, 1fr) auto auto auto !important;
+  grid-template-rows: minmax(0, 1fr) auto auto !important;
   gap: 12px !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -22824,6 +22824,12 @@ body .premium-test-email-modal .premium-test-email-sendrow {
 
 body .premium-test-email-modal .premium-test-email-field {
   gap: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
 }
 
 body .premium-test-email-modal .premium-test-email-field span {
@@ -22834,9 +22840,16 @@ body .premium-test-email-modal .premium-test-email-field input {
   min-height: 42px !important;
   border: 1px solid #dbe3ef !important;
   border-radius: 12px !important;
-  background: transparent !important;
+  outline: none !important;
+  background: #ffffff !important;
   box-shadow: none !important;
   padding: 0 14px !important;
+}
+
+body .premium-test-email-modal .premium-test-email-field input:focus,
+body .premium-test-email-modal .premium-test-email-field input:focus-visible {
+  border-color: #4f46e5 !important;
+  outline: none !important;
 }
 
 body .premium-test-email-modal .premium-test-email-field input::placeholder {
@@ -33763,6 +33776,59 @@ body .premium-test-email-modal .premium-test-email-message {
   height: 100% !important;
   max-height: none !important;
   overflow-y: auto !important;
+}
+
+@media (min-width: 901px) {
+  body .premium-test-email-modal {
+    height: min(90vh, 760px) !important;
+    max-height: min(90vh, 760px) !important;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    overflow: hidden !important;
+  }
+
+  body .premium-test-email-modal .premium-test-email-body {
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto auto !important;
+  }
+
+  body .premium-test-email-modal .premium-test-email-preview {
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  body .premium-test-email-modal .premium-test-email-preview-top {
+    align-items: center !important;
+    padding: 10px 14px !important;
+  }
+
+  body .premium-test-email-modal .premium-test-email-device-toggle {
+    display: none !important;
+  }
+
+  body .premium-test-email-modal .wf-footer {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  body .premium-test-email-modal .wf-footer-left {
+    justify-self: start !important;
+  }
+
+  body .premium-test-email-modal .premium-test-email-footer-track {
+    justify-self: center !important;
+  }
+
+  body .premium-test-email-modal .wf-footer > .wf-btn-primary {
+    justify-self: end !important;
+  }
 }
 
 body .premium-template-modal .premium-draft-full-preview,
