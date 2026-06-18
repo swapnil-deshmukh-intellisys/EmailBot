@@ -95,35 +95,60 @@
 
 .premium-campaign-tag-suggestions {
   position: absolute !important;
-  left: 0 !important;
-  right: 0 !important;
-  top: calc(100% + 6px) !important;
+  left: 8px !important;
+  right: auto !important;
+  top: calc(100% + 5px) !important;
+  width: min(340px, calc(100% - 16px)) !important;
   z-index: 50 !important;
   display: grid !important;
-  gap: 4px !important;
-  max-height: 190px !important;
+  gap: 2px !important;
+  max-height: 154px !important;
   overflow-y: auto !important;
-  padding: 6px !important;
-  border-radius: 12px !important;
-  border: 1px solid rgba(219, 227, 240, 0.96) !important;
-  background: #ffffff !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  padding: 5px !important;
+  border-radius: 10px !important;
+  border: 1px solid #dbe3f0 !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 14px 30px -12px rgba(15, 23, 42, 0.32) !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 transparent !important;
+}
+
+.premium-campaign-tag-suggestion-group {
+  display: grid !important;
+  gap: 3px !important;
+}
+
+.premium-campaign-tag-suggestion-group + .premium-campaign-tag-suggestion-group {
+  margin-top: 3px !important;
+  padding-top: 5px !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+.premium-campaign-tag-suggestion-heading {
+  position: sticky !important;
+  top: -6px !important;
+  z-index: 1 !important;
+  padding: 5px 8px 3px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: #6366f1 !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
 }
 
 .premium-campaign-tag-suggestions button {
   width: 100% !important;
-  min-height: 34px !important;
-  display: grid !important;
-  grid-template-columns: 80px minmax(0, 1fr) !important;
+  min-height: 29px !important;
+  display: block !important;
   align-items: center !important;
-  gap: 8px !important;
-  padding: 6px 10px !important;
+  padding: 5px 9px !important;
   border: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 7px !important;
   background: transparent !important;
   color: #334155 !important;
   font: inherit !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   cursor: pointer !important;
   text-align: left !important;
 }
@@ -140,8 +165,13 @@
   font-weight: 600 !important;
 }
 
-.premium-campaign-tag-suggestions button:hover {
-  background: #eef2ff !important;
+.premium-campaign-tag-suggestions button:hover,
+.premium-campaign-tag-suggestions button.is-active {
+  background: linear-gradient(90deg, #eef2ff, #f8fafc) !important;
+  color: #4f46e5 !important;
+}
+
+.premium-campaign-tag-suggestions button.is-active strong {
   color: #4f46e5 !important;
 }
 

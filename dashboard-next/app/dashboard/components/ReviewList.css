@@ -1269,9 +1269,8 @@
   min-height: 40px !important;
 }
 
-.premium-review-modal .premium-review-row-action-cell,
 .premium-review-modal .premium-review-select-cell,
-.premium-review-modal .premium-review-table-row > span:nth-child(3) {
+.premium-review-modal .premium-review-table-row > span:nth-child(2) {
   flex: 0 0 auto !important;
   justify-content: center !important;
   overflow: hidden !important;

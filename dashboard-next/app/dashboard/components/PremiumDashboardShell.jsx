@@ -31,6 +31,34 @@ const MAX_SCHEDULE_DELAY_MINUTES = 1440;
 const MAX_SCHEDULE_DELAY_HOURS = 24;
 const MAX_SCHEDULE_DELAY_SECONDS = 86400;
 const DEFAULT_WORKFLOW_STEP_COUNT = 7;
+const MAGAZINE_SECTORS = [
+  'Advertising and Marketing', 'Aerospace and Defense', 'Agriculture and Agritech', 'Architecture and Design',
+  'Artificial Intelligence', 'Automotive and Mobility', 'Banking and Financial Services', 'Beauty and Cosmetics',
+  'Biotechnology', 'Blockchain and Web3', 'Business and Entrepreneurship', 'Climate and Sustainability',
+  'Construction and Infrastructure', 'Consumer Goods', 'Cybersecurity', 'Data and Analytics', 'Education and EdTech',
+  'Energy and Utilities', 'Engineering', 'Entertainment and Media', 'Fashion and Apparel', 'FinTech',
+  'Food and Beverage', 'Gaming and Esports', 'Government and Public Sector', 'Healthcare and HealthTech',
+  'Hospitality', 'Human Resources and Future of Work', 'Industrial Manufacturing', 'Insurance and InsurTech',
+  'Internet and E-commerce', 'Investment and Venture Capital', 'Legal and LegalTech', 'Logistics and Supply Chain',
+  'Luxury and Lifestyle', 'Manufacturing', 'Mining and Metals', 'Nonprofit and Social Impact',
+  'Pharmaceuticals and Life Sciences', 'Professional Services', 'Publishing and Journalism', 'Real Estate and PropTech',
+  'Retail', 'Robotics and Automation', 'Science and Research', 'Sports and Fitness', 'Startups and Innovation',
+  'Technology and Software', 'Telecommunications', 'Tourism and Travel', 'Transportation', 'Women in Leadership'
+];
+const COUNTRY_CODES = (
+  'AF AL DZ AD AO AG AR AM AU AT AZ BS BH BD BB BY BE BZ BJ BT BO BA BW BR BN BG BF BI CV KH CM CA CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MG MW MY MV ML MT MH MR MU MX FM MD MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG MK NO OM PK PW PA PG PY PE PH PL PT QA RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA SS ES LK SD SR SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TV UG UA AE GB US UY UZ VU VA VE VN YE ZM ZW'
+).split(' ');
+
+function getCountryNames() {
+  try {
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    return COUNTRY_CODES.map((code) => displayNames.of(code)).filter(Boolean);
+  } catch {
+    return ['Australia', 'Canada', 'Germany', 'India', 'United Arab Emirates', 'United Kingdom', 'United States'];
+  }
+}
+
+const CAMPAIGN_COUNTRIES = getCountryNames();
 
 function getSequentialActiveWorkflowStep(stepCompletionChecks = [], totalSteps = DEFAULT_WORKFLOW_STEP_COUNT) {
   const safeTotal = Math.max(1, Number(totalSteps) || DEFAULT_WORKFLOW_STEP_COUNT);
@@ -843,6 +871,10 @@ export default function PremiumDashboardShell({
   const [campaignName, setCampaignName] = useState('');
   const [campaignTags, setCampaignTags] = useState([]);
   const [campaignTagDraft, setCampaignTagDraft] = useState('');
+  const [showCampaignTagSuggestions, setShowCampaignTagSuggestions] = useState(false);
+  const [activeCampaignTagSuggestion, setActiveCampaignTagSuggestion] = useState(-1);
+  const campaignTagsRef = useRef(null);
+  const campaignTagSuggestionsRef = useRef(null);
   const [campaignDescription, setCampaignDescription] = useState('');
   const [campaignGoal, setCampaignGoal] = useState('Lead Generation');
   const [campaignProjectFilter, setCampaignProjectFilter] = useState('');
@@ -2725,8 +2757,14 @@ export default function PremiumDashboardShell({
     );
   };
   const campaignTagSuggestions = useMemo(() => {
-    const query = String(campaignTagDraft || '').trim().toLowerCase();
-    if (!query) return [];
+    const normalizeSearchText = (value = '') => String(value || '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    const query = normalizeSearchText(campaignTagDraft);
+    const queryParts = query.split(/\s+/).filter(Boolean);
+    if (!queryParts.length) return [];
 
     const allowedFields = ['Sector', 'Country'];
     const rows = overviewRows.length ? overviewRows : previewRows;
@@ -2767,27 +2805,53 @@ export default function PremiumDashboardShell({
 
     const suggestions = [];
     const seen = new Set();
-    const addSuggestion = (label, value) => {
+    const addSuggestion = (label, value, aliases = []) => {
       const cleanValue = String(value || '').trim();
-      if (!cleanValue || !cleanValue.toLowerCase().includes(query)) return false;
-      if (blockedUiSuggestionValues.has(cleanValue.toLowerCase())) return false;
+      const searchableValue = normalizeSearchText([cleanValue, ...aliases].join(' '));
+      if (!cleanValue || !queryParts.every((part) => searchableValue.includes(part))) return;
+      if (blockedUiSuggestionValues.has(cleanValue.toLowerCase())) return;
       const key = `${label}:${cleanValue}`.toLowerCase();
-      if (seen.has(key) || selectedTags.has(cleanValue.toLowerCase())) return false;
+      if (seen.has(key) || selectedTags.has(cleanValue.toLowerCase())) return;
       seen.add(key);
       suggestions.push({ label, value: cleanValue });
-      return suggestions.length >= 10;
     };
 
     for (const row of rows) {
       for (const label of allowedFields) {
-        if (addSuggestion(label, readFieldValue(row, label))) return suggestions;
+        addSuggestion(label, readFieldValue(row, label));
       }
     }
-    for (const country of Object.keys(scheduleCountries)) {
-      if (addSuggestion('Country', country)) return suggestions;
+    for (const sector of MAGAZINE_SECTORS) {
+      addSuggestion('Sector', sector);
     }
-    return suggestions;
-  }, [campaignTagDraft, campaignTags, columnMappings, overviewRows, previewRows, scheduleCountries]);
+    for (const [index, country] of CAMPAIGN_COUNTRIES.entries()) {
+      addSuggestion('Country', country, [COUNTRY_CODES[index]]);
+    }
+    return suggestions.sort((left, right) => {
+      const labelOrder = { Sector: 0, Country: 1 };
+      if (left.label !== right.label) return labelOrder[left.label] - labelOrder[right.label];
+      const leftStarts = normalizeSearchText(left.value).startsWith(query);
+      const rightStarts = normalizeSearchText(right.value).startsWith(query);
+      if (leftStarts !== rightStarts) return leftStarts ? -1 : 1;
+      return left.value.localeCompare(right.value);
+    });
+  }, [campaignTagDraft, campaignTags, columnMappings, overviewRows, previewRows]);
+  useEffect(() => {
+    if (activeCampaignTagSuggestion < 0) return;
+    campaignTagSuggestionsRef.current
+      ?.querySelector(`[data-suggestion-index="${activeCampaignTagSuggestion}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [activeCampaignTagSuggestion, campaignTagSuggestions.length]);
+  useEffect(() => {
+    const closeCampaignTagSuggestions = (event) => {
+      if (!campaignTagsRef.current?.contains(event.target)) {
+        setShowCampaignTagSuggestions(false);
+        setActiveCampaignTagSuggestion(-1);
+      }
+    };
+    document.addEventListener('mousedown', closeCampaignTagSuggestions);
+    return () => document.removeEventListener('mousedown', closeCampaignTagSuggestions);
+  }, []);
   const removeCampaignTag = (tagToRemove) => {
     setCampaignTags((current) => current.filter((tag) => tag !== tagToRemove));
   };
@@ -2798,6 +2862,8 @@ export default function PremiumDashboardShell({
       setCampaignTags((current) => [...current, nextTag]);
     }
     setCampaignTagDraft('');
+    setShowCampaignTagSuggestions(false);
+    setActiveCampaignTagSuggestion(-1);
   };
   const importDraftToEditor = () => {
     const html = String(draftViewerText || '')
@@ -3397,7 +3463,6 @@ export default function PremiumDashboardShell({
               <section className="pr-uploadlist-pane">
                 <div className="pr-uploadlist-section-copy">
                   <strong>Customize List</strong>
-                  <p>Select a saved client list from your workspace.</p>
                 </div>
                 <div className="pr-uploadlist-list">
                   {effectiveCustomLists.length ? effectiveCustomLists.map((item) => (
@@ -3447,7 +3512,6 @@ export default function PremiumDashboardShell({
               <section className="pr-uploadlist-pane">
                 <div className="pr-uploadlist-section-copy">
                   <strong>Upload Sheet</strong>
-                  <p>Upload a CSV or Excel sheet for this campaign.</p>
                 </div>
                 <input
                   type="file"
@@ -3907,8 +3971,7 @@ export default function PremiumDashboardShell({
                 </div>
 
                 <div className="premium-review-tablewrap">
-                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `84px 48px 56px ${overviewGridTemplate}` }}>
-                    <span>Row</span>
+                  <div className="premium-review-table premium-review-table-head" style={{ gridTemplateColumns: `48px 56px ${overviewGridTemplate}` }}>
                     <span className="premium-review-select-cell">
                       <input
                         type="checkbox"
@@ -3933,12 +3996,7 @@ export default function PremiumDashboardShell({
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
-                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `84px 48px 56px ${overviewGridTemplate}` }}>
-                          <span className="premium-review-row-action-cell">
-                            <button type="button" className="ghost subtle" onClick={() => addOverviewRow(row.id)}>
-                              + Row
-                            </button>
-                          </span>
+                        <div key={row.id} className="premium-review-table premium-review-table-row" style={{ gridTemplateColumns: `48px 56px ${overviewGridTemplate}` }}>
                           <span className="premium-review-select-cell">
                             <input
                               type="checkbox"
@@ -4282,7 +4340,7 @@ export default function PremiumDashboardShell({
 
               <div className="premium-campaign-field premium-campaign-tags-field">
                 <span>Tags</span>
-                <div className="premium-campaign-tags">
+                <div className="premium-campaign-tags" ref={campaignTagsRef}>
                   {campaignTags.map((tag) => (
                     <button
                       key={tag}
@@ -4296,27 +4354,87 @@ export default function PremiumDashboardShell({
                   <input
                     type="text"
                     value={campaignTagDraft}
-                    onChange={(event) => setCampaignTagDraft(event.target.value)}
+                    onChange={(event) => {
+                      setCampaignTagDraft(event.target.value);
+                      setShowCampaignTagSuggestions(Boolean(event.target.value.trim()));
+                      setActiveCampaignTagSuggestion(-1);
+                    }}
+                    onFocus={() => setShowCampaignTagSuggestions(Boolean(campaignTagDraft.trim()))}
                     onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown' && campaignTagSuggestions.length) {
+                        event.preventDefault();
+                        setShowCampaignTagSuggestions(true);
+                        setActiveCampaignTagSuggestion((current) =>
+                          current >= campaignTagSuggestions.length - 1 ? 0 : current + 1
+                        );
+                        return;
+                      }
+                      if (event.key === 'ArrowUp' && campaignTagSuggestions.length) {
+                        event.preventDefault();
+                        setShowCampaignTagSuggestions(true);
+                        setActiveCampaignTagSuggestion((current) =>
+                          current <= 0 ? campaignTagSuggestions.length - 1 : current - 1
+                        );
+                        return;
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        setShowCampaignTagSuggestions(false);
+                        setActiveCampaignTagSuggestion(-1);
+                        return;
+                      }
                       if (event.key === 'Enter') {
                         event.preventDefault();
-                        addCampaignTag();
+                        const selectedSuggestion = campaignTagSuggestions[activeCampaignTagSuggestion];
+                        addCampaignTag(selectedSuggestion?.value || campaignTagDraft);
                       }
                     }}
-                    placeholder="+ Add tag..."
+                    placeholder="Search sector or country..."
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={showCampaignTagSuggestions && Boolean(campaignTagSuggestions.length)}
+                    aria-controls="campaign-tag-suggestions"
+                    aria-activedescendant={
+                      activeCampaignTagSuggestion >= 0
+                        ? `campaign-tag-suggestion-${activeCampaignTagSuggestion}`
+                        : undefined
+                    }
                   />
-                  {campaignTagSuggestions.length ? (
-                    <div className="premium-campaign-tag-suggestions">
-                      {campaignTagSuggestions.map((suggestion) => (
-                        <button
-                          key={`${suggestion.label}-${suggestion.value}`}
-                          type="button"
-                          onClick={() => addCampaignTag(suggestion.value)}
-                        >
-                          <span>{suggestion.label}</span>
-                          <strong>{suggestion.value}</strong>
-                        </button>
-                      ))}
+                  {showCampaignTagSuggestions && campaignTagSuggestions.length ? (
+                    <div
+                      id="campaign-tag-suggestions"
+                      ref={campaignTagSuggestionsRef}
+                      className="premium-campaign-tag-suggestions"
+                      role="listbox"
+                    >
+                      {['Sector', 'Country'].map((label) => {
+                        const groupedSuggestions = campaignTagSuggestions
+                          .map((suggestion, index) => ({ ...suggestion, index }))
+                          .filter((suggestion) => suggestion.label === label);
+                        if (!groupedSuggestions.length) return null;
+                        return (
+                          <div className="premium-campaign-tag-suggestion-group" key={label}>
+                            <div className="premium-campaign-tag-suggestion-heading">
+                              {label === 'Sector' ? 'Magazine sectors' : 'Countries'}
+                            </div>
+                            {groupedSuggestions.map((suggestion) => (
+                              <button
+                                id={`campaign-tag-suggestion-${suggestion.index}`}
+                                key={`${suggestion.label}-${suggestion.value}`}
+                                type="button"
+                                role="option"
+                                aria-selected={activeCampaignTagSuggestion === suggestion.index}
+                                data-suggestion-index={suggestion.index}
+                                className={activeCampaignTagSuggestion === suggestion.index ? 'is-active' : ''}
+                                onMouseEnter={() => setActiveCampaignTagSuggestion(suggestion.index)}
+                                onClick={() => addCampaignTag(suggestion.value)}
+                              >
+                                <strong>{suggestion.value}</strong>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -4401,11 +4519,7 @@ export default function PremiumDashboardShell({
                   </span>
                 ))}
               </p>
-            ) : (
-              <p className="premium-campaign-hint">
-                Saving the campaign keeps your setup ready. Mail sending begins only when you click <strong>START</strong> on the final step.
-              </p>
-            )}
+            ) : null}
           </div>
         </div>
       )}

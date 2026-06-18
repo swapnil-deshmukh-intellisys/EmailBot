@@ -470,7 +470,7 @@
 }
 
 .pr-uploadlist-always .pr-uploadlist-section-copy strong {
-  font-size: 18px !important;
+  font-size: 16px !important;
   line-height: 1.2 !important;
 }
 
@@ -530,23 +530,38 @@
 }
 
 .pr-uploadlist-always .pr-uploadlist-uploadbox {
-  min-height: 118px !important;
-  padding: 16px 18px !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  min-height: 78px !important;
+  padding: 10px 14px !important;
+  gap: 8px !important;
+  text-align: left !important;
   border-width: 2px !important;
 }
 
+.pr-uploadlist-always .pr-uploadlist-uploadbox-text {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+.pr-uploadlist-always .pr-uploadlist-fileinfo-row,
+.pr-uploadlist-always .pr-uploadlist-status-row {
+  justify-content: flex-start !important;
+}
+
 .pr-uploadlist-always .pr-uploadlist-uploadicon {
-  width: 44px !important;
-  height: 44px !important;
+  width: 34px !important;
+  height: 34px !important;
+  font-size: 16px !important;
 }
 
 .pr-uploadlist-always .pr-uploadlist-uploadicon.success {
-  width: 48px !important;
-  height: 48px !important;
+  width: 36px !important;
+  height: 36px !important;
   background: #dcfce7 !important;
   border-color: #bbf7d0 !important;
   color: #059669 !important;
-  font-size: 24px !important;
+  font-size: 18px !important;
 }
 
 .pr-uploadlist-always .pr-uploadlist-fileinfo-row {
@@ -566,11 +581,59 @@
 }
 
 .pr-uploadlist-uploaded-box {
-  max-height: 160px !important;
+  max-height: none !important;
+  min-height: 104px !important;
+  flex: 1 1 0 !important;
 }
 
 .pr-uploadlist-uploaded-scroll {
+  min-height: 64px !important;
+  max-height: 118px !important;
   overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #eef2f7 !important;
+  -ms-overflow-style: auto !important;
+  padding-right: 6px !important;
+}
+
+.pr-uploadlist-always .pr-uploadlist-uploaded-scroll .pr-uploadlist-item.compact {
+  width: calc(100% - 2px) !important;
+  min-height: 58px !important;
+  padding: 8px 10px !important;
+  gap: 10px !important;
+}
+
+.pr-uploadlist-always .pr-uploadlist-uploaded-scroll .pr-uploadlist-item-title strong {
+  font-size: 13px !important;
+}
+
+.pr-uploadlist-always .pr-uploadlist-uploaded-scroll .pr-uploadlist-kind-badge {
+  padding: 2px 6px !important;
+  font-size: 8px !important;
+}
+
+.pr-uploadlist-always .pr-uploadlist-uploaded-scroll .pr-uploadlist-item-meta {
+  font-size: 11px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 8px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll::-webkit-scrollbar-track {
+  background: #eef2f7 !important;
+  border-radius: 999px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+  border: 2px solid #eef2f7 !important;
+  border-radius: 999px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
 }
 
 /* Match upload-list selection radios to the cleaner saved-draft selector. */
