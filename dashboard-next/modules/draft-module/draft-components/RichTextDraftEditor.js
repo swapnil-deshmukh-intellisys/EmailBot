@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { Selection, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
@@ -51,9 +52,7 @@ function ToolbarButton({ active = false, disabled = false, children, title, onCl
     event.stopPropagation();
     if (disabled) return;
     onSaveSelection?.();
-    window.setTimeout(() => {
-      onClick?.();
-    }, 0);
+    onClick?.();
   };
 
   return (
@@ -104,6 +103,14 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   const domRangeRef = useRef(null);
   const [, setToolbarVersion] = useState(0);
   const [toolbarExpanded, setToolbarExpanded] = useState(false);
+  const showExtendedToolbar = !collapsibleToolbar || toolbarExpanded;
+
+  const commitChange = (next) => {
+    if (!onChange) return;
+    flushSync(() => {
+      onChange(next);
+    });
+  };
 
   const rememberSelection = (selection) => {
     if (!selection) return;
@@ -187,7 +194,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
       const next = sanitizeEditorHtml(activeEditor.getHTML());
       lastEmittedValueRef.current = next;
       lastLocalEditAtRef.current = Date.now();
-      onChange(next);
+      commitChange(next);
     }
   });
 
@@ -336,7 +343,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
     const next = sanitizeEditorHtml(editor.getHTML());
     lastEmittedValueRef.current = next;
     lastLocalEditAtRef.current = Date.now();
-    onChange(next);
+    commitChange(next);
   };
 
   const runCommand = (callback, options = {}) => {
@@ -492,7 +499,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
       const original = initialContentRef.current || '';
       editor.commands.setContent(original);
       lastEmittedValueRef.current = original;
-      onChange(original);
+      commitChange(original);
     }
   };
 
@@ -525,7 +532,9 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
     Table: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>,
     Line: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>,
     Clear: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l4.3 4.3c1 1 1 2.5 0 3.4L10.8 21z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>,
-    Revert: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    Revert: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
+    TextColor: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M6 19 12 5l6 14"/><path d="M8.2 14h7.6"/></svg>,
+    HighlightColor: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 4 4"/><path d="M4 20h6l8-8-4-4-8 8Z"/></svg>
   };
 
   const getSwatchStyle = (color, isActive, isTransparent) => {
@@ -555,7 +564,8 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
   return (
     <div className="wysiwyg-wrap tiptap-editor-wrap">
       <div className={`wysiwyg-toolbar row tiptap-toolbar${collapsibleToolbar ? ' is-collapsible' : ''}${toolbarExpanded ? ' is-expanded' : ''}`}>
-        
+        <div className="wysiwyg-toolbar-main">
+
         {/* Paragraph & Headings Select dropdown */}
         <select
           className="select wysiwyg-select"
@@ -576,20 +586,6 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
           <option value="h2">Heading 2</option>
           <option value="h3">Heading 3</option>
         </select>
-
-        {/* Paragraph & Headings Buttons */}
-        <ToolbarButton title="Paragraph" active={editor.isActive('paragraph')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <span style={{ fontWeight: 800, fontSize: '12px' }}>P</span>
-        </ToolbarButton>
-        <ToolbarButton title="Heading 1" active={editor.isActive('heading', { level: 1 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 1 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₁</span>
-        </ToolbarButton>
-        <ToolbarButton title="Heading 2" active={editor.isActive('heading', { level: 2 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 2 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₂</span>
-        </ToolbarButton>
-        <ToolbarButton title="Heading 3" active={editor.isActive('heading', { level: 3 })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHeading({ level: 3 }).run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <span style={{ fontWeight: 'bold', fontSize: '12px' }}>H₃</span>
-        </ToolbarButton>
 
         {/* Font Select */}
         <select
@@ -644,167 +640,173 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         <ToolbarButton title="Strike" active={editor.isActive('strike')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('strike'), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
           <Icons.Strike />
         </ToolbarButton>
-        <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('superscript', null, ['subscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <Icons.Superscript />
-        </ToolbarButton>
-        <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('subscript', null, ['superscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <Icons.Subscript />
-        </ToolbarButton>
-
-        {/* Alignment */}
-        <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run(), { preferTextSelection: true, preserveSelection: true })}>
-          <Icons.Left />
-        </ToolbarButton>
-        <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run(), { preferTextSelection: true, preserveSelection: true })}>
-          <Icons.Center />
-        </ToolbarButton>
-        <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run(), { preferTextSelection: true, preserveSelection: true })}>
-          <Icons.Right />
-        </ToolbarButton>
-        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run(), { preferTextSelection: true, preserveSelection: true })}>
-          <Icons.Justify />
-        </ToolbarButton>
-
-        {/* Lists */}
         <ToolbarButton title="Bullet List" active={editor.isActive('bulletList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleBulletList().run())}>
           <Icons.List />
         </ToolbarButton>
-        <ToolbarButton title="Number List" active={editor.isActive('orderedList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleOrderedList().run())}>
-          <Icons.NumList />
-        </ToolbarButton>
-        <ToolbarButton title="Checklist" active={editor.isActive('taskList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleTaskList().run())}>
-          <Icons.Check />
-        </ToolbarButton>
-
-        {/* Media & Objects */}
         <ToolbarButton title="Link" active={editor.isActive('link')} onSaveSelection={saveSelection} onClick={setLink}>
           <Icons.Link />
         </ToolbarButton>
-        <ToolbarButton title="Image" onSaveSelection={saveSelection} onClick={addImage}>
-          <Icons.Image />
-        </ToolbarButton>
-        <ToolbarButton title="Table" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}>
-          <Icons.Table />
-        </ToolbarButton>
-        <ToolbarButton title="Horizontal line" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHorizontalRule().run())}>
-          <Icons.Line />
-        </ToolbarButton>
 
         {/* Dynamic Color A Button with Underline */}
-        <label className={`wysiwyg-color-control${textStyle.color ? ' is-active' : ''}`} title="Text color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>A</span>
-            <div style={{ width: '13px', height: '3px', background: activeTextColor, marginTop: '1px', borderRadius: '1px' }} />
-          </div>
+        <label className={`wysiwyg-color-control text${textStyle.color ? ' is-active' : ''}`} title="Text color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer' }}>
+          <span className="wysiwyg-color-symbol">
+            <Icons.TextColor />
+          </span>
+          <span className="wysiwyg-color-dot" style={{ background: activeTextColor }} />
           <input type="color" value={activeTextColor} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyTextColor(event.target.value)} onChange={(event) => applyTextColor(event.target.value)} aria-label="Choose text color" />
         </label>
 
         {/* Dynamic Color HL Button with Highlighter and Underline */}
-        <label className={`wysiwyg-color-control${activeHighlightColor ? ' is-active' : ''}`} title="Highlight color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', height: '30px', padding: '4px 8px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>HL</span>
-            <div style={{ width: '13px', height: '3px', background: activeHighlightColor || '#fef3c7', marginTop: '1px', borderRadius: '1px' }} />
-          </div>
+        <label className={`wysiwyg-color-control highlight${activeHighlightColor ? ' is-active' : ''}`} title="Highlight color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer' }}>
+          <span className="wysiwyg-color-symbol">
+            <Icons.HighlightColor />
+          </span>
+          <span className="wysiwyg-color-dot" style={{ background: activeHighlightColor || '#fef3c7' }} />
           <input type="color" value={activeHighlightColor || '#fef3c7'} onMouseDown={saveSelection} onFocus={saveSelection} onInput={(event) => applyHighlightColor(event.target.value)} onChange={(event) => applyHighlightColor(event.target.value)} aria-label="Choose highlight color" />
         </label>
 
-        {/* Color swatches with active checkmarks */}
-        {COLOR_SWATCHES.map((color) => {
-          const isActive = textStyle.color === color;
-          return (
+        {showExtendedToolbar ? (
+          <>
+            <ToolbarButton title="Superscript" active={editor.isActive('superscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('superscript', null, ['subscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+              <Icons.Superscript />
+            </ToolbarButton>
+            <ToolbarButton title="Subscript" active={editor.isActive('subscript')} onSaveSelection={saveSelection} onClick={() => runCommand(() => toggleSelectionMark('subscript', null, ['superscript']), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+              <Icons.Subscript />
+            </ToolbarButton>
+
+            {/* Alignment */}
+            <ToolbarButton title="Left" active={editor.isActive({ textAlign: 'left' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('left').run(), { preferTextSelection: true, preserveSelection: true })}>
+              <Icons.Left />
+            </ToolbarButton>
+            <ToolbarButton title="Center" active={editor.isActive({ textAlign: 'center' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('center').run(), { preferTextSelection: true, preserveSelection: true })}>
+              <Icons.Center />
+            </ToolbarButton>
+            <ToolbarButton title="Right" active={editor.isActive({ textAlign: 'right' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('right').run(), { preferTextSelection: true, preserveSelection: true })}>
+              <Icons.Right />
+            </ToolbarButton>
+            <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setTextAlign('justify').run(), { preferTextSelection: true, preserveSelection: true })}>
+              <Icons.Justify />
+            </ToolbarButton>
+
+            {/* Lists */}
+            <ToolbarButton title="Number List" active={editor.isActive('orderedList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleOrderedList().run())}>
+              <Icons.NumList />
+            </ToolbarButton>
+            <ToolbarButton title="Checklist" active={editor.isActive('taskList')} onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.toggleTaskList().run())}>
+              <Icons.Check />
+            </ToolbarButton>
+
+            {/* Media & Objects */}
+            <ToolbarButton title="Image" onSaveSelection={saveSelection} onClick={addImage}>
+              <Icons.Image />
+            </ToolbarButton>
+            <ToolbarButton title="Table" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}>
+              <Icons.Table />
+            </ToolbarButton>
+            <ToolbarButton title="Horizontal line" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.setHorizontalRule().run())}>
+              <Icons.Line />
+            </ToolbarButton>
+
+            {/* Color swatches with active checkmarks */}
+            {COLOR_SWATCHES.map((color) => {
+              const isActive = textStyle.color === color;
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  className={`wysiwyg-swatch${isActive ? ' is-active' : ''}`}
+                  style={getSwatchStyle(color, isActive, false)}
+                  title={`Text ${color}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    saveSelection();
+                    applyTextColor(color);
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  {isActive && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Highlight swatches with active checkmarks and checkerboard/slash transparent option */}
+            {HIGHLIGHT_SWATCHES.map((color) => {
+              const isTransparent = color === 'transparent';
+              const isActive = isTransparent ? !activeHighlightColor : activeHighlightColor === color;
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  className={`wysiwyg-swatch highlight${isActive ? ' is-active' : ''}${isTransparent ? ' is-transparent' : ''}`}
+                  style={getSwatchStyle(color, isActive, isTransparent)}
+                  title={isTransparent ? 'No Highlight' : `Highlight ${color}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    saveSelection();
+                    applyHighlightColor(color);
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  {isTransparent && (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                      <line x1="22" y1="2" x2="2" y2="22" />
+                    </svg>
+                  )}
+                  {isActive && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={isTransparent || color === '#fef3c7' ? '#111827' : 'white'} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Clear Formatting button */}
+            <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
+              <Icons.Clear />
+            </ToolbarButton>
+
+            {/* Revert Changes button */}
+            <ToolbarButton title="Revert to original draft" onSaveSelection={saveSelection} onClick={handleRevertChanges}>
+              <Icons.Revert />
+            </ToolbarButton>
+          </>
+        ) : null}
+        </div>
+
+        {collapsibleToolbar ? (
+          <div className="wysiwyg-toolbar-toggle-row">
             <button
-              key={color}
               type="button"
-              className={`wysiwyg-swatch${isActive ? ' is-active' : ''}`}
-              style={getSwatchStyle(color, isActive, false)}
-              title={`Text ${color}`}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                saveSelection();
-                applyTextColor(color);
-              }}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
+              className="wysiwyg-toolbar-toggle"
+              onClick={() => setToolbarExpanded((current) => !current)}
             >
-              {isActive && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
+              {toolbarExpanded ? 'Show less' : 'Show more'}
             </button>
-          );
-        })}
-
-        {/* Highlight swatches with active checkmarks and checkerboard/slash transparent option */}
-        {HIGHLIGHT_SWATCHES.map((color) => {
-          const isTransparent = color === 'transparent';
-          const isActive = isTransparent ? !activeHighlightColor : activeHighlightColor === color;
-          return (
-            <button
-              key={color}
-              type="button"
-              className={`wysiwyg-swatch highlight${isActive ? ' is-active' : ''}${isTransparent ? ' is-transparent' : ''}`}
-              style={getSwatchStyle(color, isActive, isTransparent)}
-              title={isTransparent ? 'No Highlight' : `Highlight ${color}`}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                saveSelection();
-                applyHighlightColor(color);
-              }}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-            >
-              {isTransparent && (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                  <line x1="22" y1="2" x2="2" y2="22" />
-                </svg>
-              )}
-              {isActive && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={isTransparent || color === '#fef3c7' ? '#111827' : 'white'} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </button>
-          );
-        })}
-
-        {/* Clear Formatting button */}
-        <ToolbarButton title="Clear formatting" onSaveSelection={saveSelection} onClick={() => runCommand((chain) => chain.unsetAllMarks().clearNodes().setParagraph().run(), { preferTextSelection: true, expandEmptySelectionToBlock: true, preserveSelection: true })}>
-          <Icons.Clear />
-        </ToolbarButton>
-
-        {/* Revert Changes button */}
-        <ToolbarButton title="Revert to original draft" onSaveSelection={saveSelection} onClick={handleRevertChanges}>
-          <Icons.Revert />
-        </ToolbarButton>
+          </div>
+        ) : null}
 
       </div>
-
-      {collapsibleToolbar ? (
-        <div className="wysiwyg-toolbar-toggle-row">
-          <button
-            type="button"
-            className="wysiwyg-toolbar-toggle"
-            onClick={() => setToolbarExpanded((current) => !current)}
-          >
-            {toolbarExpanded ? 'Show less' : 'Show more'}
-          </button>
-        </div>
-      ) : null}
 
       <EditorContent editor={editor} className="wysiwyg-editor tiptap-editor" />
     </div>

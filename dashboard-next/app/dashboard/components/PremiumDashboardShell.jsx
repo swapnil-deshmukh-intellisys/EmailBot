@@ -4154,6 +4154,7 @@ export default function PremiumDashboardShell({
                     checked={sendMode === 'send_now'}
                     onChange={() => setSendMode('send_now')}
                   />
+                  <i className="ti ti-send" aria-hidden="true" />
                   <span>Send now</span>
                 </label>
                 <label className={sendMode === 'scheduled' ? 'active' : ''}>
@@ -4163,53 +4164,64 @@ export default function PremiumDashboardShell({
                     checked={sendMode === 'scheduled'}
                     onChange={() => setSendMode('scheduled')}
                   />
+                  <i className="ti ti-clock" aria-hidden="true" />
                   <span>Send at scheduled time</span>
                 </label>
               </div>
 
-              <div className="premium-schedule-grid premium-schedule-grid-3">
-                <label className="premium-schedule-field">
-                  <span>Batch size</span>
-                  <input type="number" min="1" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
-                </label>
-                <label className="premium-schedule-field">
-                  <span>Delay interval (minutes)</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={delayInputLimit}
-                    value={displayedDelayInterval}
-                    onChange={(event) => {
-                      const nextUnit = userFacingDurationUnit === 'hours' ? 'hours' : 'minutes';
-                      const nextValue = normalizeDelayInputValue(event.target.value, nextUnit);
-                      setDurationUnit(nextUnit);
-                      onDelaySecondsChange?.(nextValue);
-                    }}
-                    onBlur={(event) => {
-                      const nextValue = normalizeDelayInputValue(event.target.value, userFacingDurationUnit) || '1';
-                      onDelaySecondsChange?.(nextValue);
-                    }}
-                  />
-                </label>
-                <label className="premium-schedule-field">
-                  <span>Duration unit</span>
-                  <select
-                    value={userFacingDurationUnit}
-                    onChange={(event) => {
-                      const nextUnit = event.target.value;
-                      setDurationUnit(nextUnit);
-                      onDelaySecondsChange?.(normalizeDelayInputValue(delaySeconds, nextUnit) || '1');
-                    }}
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                  </select>
-                </label>
+              <div className="premium-schedule-section">
+                <div className="premium-schedule-section-head">
+                  <i className="ti ti-adjustments-horizontal" aria-hidden="true" />
+                  <span>Delivery settings</span>
+                </div>
+                <div className="premium-schedule-grid premium-schedule-grid-3">
+                  <label className="premium-schedule-field">
+                    <span>Batch size</span>
+                    <input type="number" min="1" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>Delay interval</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={delayInputLimit}
+                      value={displayedDelayInterval}
+                      onChange={(event) => {
+                        const nextUnit = userFacingDurationUnit === 'hours' ? 'hours' : 'minutes';
+                        const nextValue = normalizeDelayInputValue(event.target.value, nextUnit);
+                        setDurationUnit(nextUnit);
+                        onDelaySecondsChange?.(nextValue);
+                      }}
+                      onBlur={(event) => {
+                        const nextValue = normalizeDelayInputValue(event.target.value, userFacingDurationUnit) || '1';
+                        onDelaySecondsChange?.(nextValue);
+                      }}
+                    />
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>Duration unit</span>
+                    <select
+                      value={userFacingDurationUnit}
+                      onChange={(event) => {
+                        const nextUnit = event.target.value;
+                        setDurationUnit(nextUnit);
+                        onDelaySecondsChange?.(normalizeDelayInputValue(delaySeconds, nextUnit) || '1');
+                      }}
+                    >
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                    </select>
+                  </label>
+                </div>
               </div>
 
               {sendMode === 'scheduled' ? (
-              <>
-              <div className="premium-schedule-grid premium-schedule-grid-2">
+              <div className="premium-schedule-section premium-schedule-section-timing">
+                <div className="premium-schedule-section-head">
+                  <i className="ti ti-calendar-time" aria-hidden="true" />
+                  <span>Schedule details</span>
+                </div>
+                <div className="premium-schedule-grid premium-schedule-grid-2">
                   <label className="premium-schedule-field">
                     <span>Scheduled date</span>
                     <input
@@ -4228,35 +4240,36 @@ export default function PremiumDashboardShell({
                   </label>
                 </div>
 
-              <div className="premium-schedule-grid premium-schedule-grid-2">
-                <label className="premium-schedule-field">
-                  <span>Country</span>
-                  <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
-                    {Object.keys(scheduleCountries).map((country) => (
-                      <option key={country} value={country}>{country}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="premium-schedule-field">
-                  <span>Time zone</span>
-                  <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
-                    {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
-                      <option key={timezone} value={timezone}>{timezone}</option>
-                    ))}
-                  </select>
-                </label>
+                <div className="premium-schedule-grid premium-schedule-grid-2">
+                  <label className="premium-schedule-field">
+                    <span>Country</span>
+                    <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
+                      {Object.keys(scheduleCountries).map((country) => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>Time zone</span>
+                    <select value={scheduleTimezone} onChange={(event) => setScheduleTimezone(event.target.value)}>
+                      {(scheduleCountries[scheduleCountryKey] || scheduleCountries.India).map((timezone) => (
+                        <option key={timezone} value={timezone}>{timezone}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="premium-schedule-inline-actions">
+                  <button
+                    type="button"
+                    className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+                    aria-disabled={!canAttemptScheduleAction}
+                    onClick={handleScheduleSave}
+                  >
+                    <i className="ti ti-device-floppy" aria-hidden="true" />
+                    {scheduleSaveLabel}
+                  </button>
+                </div>
               </div>
-              <div className="premium-schedule-inline-actions">
-                <button
-                  type="button"
-                  className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
-                  aria-disabled={!canAttemptScheduleAction}
-                  onClick={handleScheduleSave}
-                >
-                  {scheduleSaveLabel}
-                </button>
-              </div>
-              </>
               ) : null}
 
               {showScheduleContinueWarning && !hasScheduleRequiredFields ? (
@@ -4649,10 +4662,6 @@ export default function PremiumDashboardShell({
                   )}
                 </div>
                 <aside className="premium-select-draft-preview">
-                  <div className="premium-select-draft-preview-head">
-                    <strong>Selected Draft Preview</strong>
-                    <small>{selectedPreviewDraft?.title || 'Choose a draft to preview it here'}</small>
-                  </div>
                   <div className="premium-select-draft-preview-body">
                     {selectedDraftPreviewSubject || selectedDraftPreviewBody ? (
                       <>
@@ -4672,19 +4681,6 @@ export default function PremiumDashboardShell({
                       </div>
                     )}
                   </div>
-                  {selectedPreviewDraft ? (
-                    <button
-                      type="button"
-                      className="ghost subtle premium-select-draft-edit-selected"
-                      onClick={() => {
-                        loadDraftIntoEditor(selectedPreviewDraft);
-                        setSelectDraftTab('create');
-                        setDraftTypeLibraryOpen(false);
-                      }}
-                    >
-                      Edit in Create Draft
-                    </button>
-                  ) : null}
                 </aside>
               </div>
             ) : (
