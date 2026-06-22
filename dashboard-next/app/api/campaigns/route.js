@@ -90,7 +90,7 @@ function buildProjectFilter(project = '') {
 }
 
 function shouldUseDemoData() {
-  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+  return false;
 }
 
 function jsonError({ status = 400, code = 'CAMPAIGN_REQUEST_FAILED', message = 'Campaign request failed.' }) {

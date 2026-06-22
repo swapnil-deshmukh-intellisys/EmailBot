@@ -89,6 +89,15 @@ function isRowRangeInputValid(value = '') {
   return Number(match[1]) <= Number(match[2]);
 }
 
+function parseRowRangeInput(value = '') {
+  const match = String(value || '').trim().match(/^\[?\s*(\d+)\s*-\s*(\d+)\s*\]?$/);
+  if (!match) return { start: '', end: '' };
+  return {
+    start: String(Math.max(1, Number(match[1]) || 1)),
+    end: String(Math.max(1, Number(match[2]) || 1))
+  };
+}
+
 function getTemplateForDraftType(value = '') {
   const draftType = normalizeDraftType(value);
   const templateKey = draftType === 'followup' ? 'follow_up' : draftType;
@@ -532,6 +541,7 @@ export default function PremiumDashboardShell({
   onApplyManualScheduledSlot,
   onSaveSchedule,
   onStartCampaign,
+  onCampaignStartSuccess,
   onOpenReportRangePopup,
   onApplyReportRange,
   onPauseCampaign,
@@ -544,7 +554,8 @@ export default function PremiumDashboardShell({
   targetApprovalRequestedAt = null,
   targetApprovalReviewedAt = null,
   targetApprovalReviewer = '',
-  targetApprovalRequestNote = ''
+  targetApprovalRequestNote = '',
+  onViewCampaignDetail
 }) {
   const router = useRouter();
   const scheduleCountries = {
@@ -2016,6 +2027,10 @@ export default function PremiumDashboardShell({
   };
 
   const handleViewCampaign = (campaign) => {
+    if (onViewCampaignDetail) {
+      onViewCampaignDetail(campaign.id || campaign._id);
+      return;
+    }
     const isActive = activeCampaign && String(activeCampaign._id || activeCampaign.id) === String(campaign.id);
     setTableSearch(campaign.name || '');
     setSelectedTagFilters([]);
@@ -2362,6 +2377,36 @@ export default function PremiumDashboardShell({
     rawDisplayedDelayInterval,
     userFacingDurationUnit
   );
+  const normalizedRowRange = rowLimitMode === 'custom' ? String(rowRange || '').trim() : '';
+  const parsedRowRange = parseRowRangeInput(normalizedRowRange);
+  const rowRangeStartValue = parsedRowRange.start || '1';
+  const rowRangeEndValue = parsedRowRange.end || rowRangeStartValue;
+  useEffect(() => {
+    setRowLimitMode(String(rowRange || '').trim() ? 'custom' : 'all');
+  }, [rowRange]);
+  const handleRowLimitModeChange = (value) => {
+    const nextMode = value === 'custom' ? 'custom' : 'all';
+    setRowLimitMode(nextMode);
+    if (nextMode === 'all') {
+      onRowRangeChange?.('');
+      return;
+    }
+    if (!String(rowRange || '').trim()) {
+      onRowRangeChange?.('1-1');
+    }
+  };
+  const handleRowRangePartChange = (part, value) => {
+    const nextNumber = Math.max(1, Math.floor(Number(value) || 1));
+    const currentStart = Math.max(1, Math.floor(Number(rowRangeStartValue) || 1));
+    const currentEnd = Math.max(1, Math.floor(Number(rowRangeEndValue) || currentStart));
+    let nextStart = part === 'start' ? nextNumber : currentStart;
+    let nextEnd = part === 'end' ? nextNumber : currentEnd;
+    if (nextStart > nextEnd) {
+      if (part === 'start') nextEnd = nextStart;
+      else nextStart = nextEnd;
+    }
+    onRowRangeChange?.(`${nextStart}-${nextEnd}`);
+  };
   const scheduleDraftPayload = useMemo(() => {
     const normalizedMode = sendMode === 'scheduled' ? 'scheduled' : 'send_now';
     const normalizedUnit = normalizeDurationUnit(durationUnit === 'seconds' ? 'minutes' : durationUnit);
@@ -2380,6 +2425,7 @@ export default function PremiumDashboardShell({
     return {
       scheduleMode: normalizedMode,
       batchSize: numericBatchSize,
+      rowRange: normalizedRowRange,
       delayInterval: numericDelayInterval,
       durationUnit: normalizedUnit,
       scheduledDate: normalizedScheduledDate,
@@ -2403,6 +2449,7 @@ export default function PremiumDashboardShell({
     campaignTracking.replies,
     delaySeconds,
     durationUnit,
+    normalizedRowRange,
     scheduleTimezone,
     scheduledCountry,
     scheduledDateValue,
@@ -2412,6 +2459,8 @@ export default function PremiumDashboardShell({
   const scheduleMissingFields = [
     !String(batchSize || '').trim() ? 'Batch size is empty' : null,
     Number(batchSize) < 1 ? 'Batch size must be at least 1' : null,
+    rowLimitMode === 'custom' && !normalizedRowRange ? 'Sheet row range is empty' : null,
+    normalizedRowRange && !isRowRangeInputValid(normalizedRowRange) ? 'Sheet row range must use format like 10-20' : null,
     !String(delaySeconds || '').trim() ? 'Delay interval is empty' : null,
     Number(delaySeconds) < 1 ? 'Delay interval must be at least 1' : null,
     Number(rawDisplayedDelayInterval) > delayInputLimit ? `Delay interval cannot be more than ${delayInputLimit} ${userFacingDurationUnit}` : null,
@@ -2533,6 +2582,23 @@ export default function PremiumDashboardShell({
       onShowMessage?.(message, 'error');
     }
   };
+  const resetWorkflowAfterCampaignStart = () => {
+    setWorkflowPosition(1);
+    setShowSchedulePopup(false);
+    setShowScheduleSuccessPopup(false);
+    setShowScheduleContinueWarning(false);
+    setScheduleInlineNotice(null);
+    setShowCampaignNotice(false);
+    setShowClientListPopup(false);
+    setShowOverviewPopup(false);
+    setShowCampaignPopup(false);
+    setShowSelectDraftPopup(false);
+    setShowDraftSummaryPopup(false);
+    setShowTestEmailPopup(false);
+    setSelectedDraftId('');
+    setTestEmailSent(false);
+    setTestEmailError('');
+  };
   const handleScheduleStart = async () => {
     setScheduleInlineNotice(null);
     const validationError = getScheduleValidationError();
@@ -2579,21 +2645,14 @@ export default function PremiumDashboardShell({
 
       const details = buildScheduleSuccessDetails(result);
       setScheduleSuccessDetails(details);
-      setWorkflowPosition((current) => Math.max(current, workflowStepCount + 1));
-      setShowScheduleSuccessPopup(false);
-      setScheduleInlineNotice({
-        tone: 'success',
-        message: scheduleDraftPayload.scheduleMode === 'scheduled'
-          ? `Campaign Scheduled Successfully. Campaign: ${details.campaignName}. Scheduled Time: ${details.scheduledFor}. Recipients: ${details.recipients}.`
-          : `Campaign started successfully. Campaign: ${details.campaignName}. Recipients: ${details.recipients}.`
-      });
+      resetWorkflowAfterCampaignStart();
+      onCampaignStartSuccess?.(result);
       onShowMessage?.(
         scheduleDraftPayload.scheduleMode === 'scheduled'
           ? `Campaign Scheduled Successfully - Your campaign has been scheduled. Campaign: ${details.campaignName}. Scheduled Time: ${details.scheduledFor}. Recipients: ${details.recipients}.`
           : `Campaign started successfully. Campaign: ${details.campaignName}. Recipients: ${details.recipients}.`,
         'success'
       );
-      scrollToBroadcastPerformance();
     } catch (error) {
       const message = error?.message || 'Failed to schedule campaign.';
       setScheduleInlineNotice({ tone: 'error', message });
@@ -2686,6 +2745,7 @@ export default function PremiumDashboardShell({
       onDraftBodyChange?.(String(campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body || ''));
     }
     onBatchSizeChange?.(String(campaign.options?.batchSize || '1'));
+    onRowRangeChange?.(String(campaign.options?.rowRange || ''));
     onDelaySecondsChange?.(String(campaign.options?.delayInterval ?? campaign.options?.delaySeconds ?? '60'));
     setDurationUnit(normalizeDurationUnit(campaign.options?.durationUnit || 'seconds'));
     setCampaignTracking({
@@ -4191,6 +4251,33 @@ export default function PremiumDashboardShell({
                   <label className="premium-schedule-field">
                     <span>Batch size</span>
                     <input type="number" min="1" value={batchSize} onChange={(event) => onBatchSizeChange?.(event.target.value)} />
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>Send rows</span>
+                    <select value={rowLimitMode} onChange={(event) => handleRowLimitModeChange(event.target.value)}>
+                      <option value="all">All rows</option>
+                      <option value="custom">Select range</option>
+                    </select>
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>From row</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={rowRangeStartValue}
+                      disabled={rowLimitMode !== 'custom'}
+                      onChange={(event) => handleRowRangePartChange('start', event.target.value)}
+                    />
+                  </label>
+                  <label className="premium-schedule-field">
+                    <span>To row</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={rowRangeEndValue}
+                      disabled={rowLimitMode !== 'custom'}
+                      onChange={(event) => handleRowRangePartChange('end', event.target.value)}
+                    />
                   </label>
                   <label className="premium-schedule-field">
                     <span>Delay interval</span>

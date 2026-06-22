@@ -17,7 +17,7 @@ const NO_STORE_HEADERS = {
 };
 
 function shouldUseDemoData() {
-  return String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true';
+  return false;
 }
 
 function normalizeDate(value) {

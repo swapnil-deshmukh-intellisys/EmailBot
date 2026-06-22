@@ -245,7 +245,7 @@ export function deriveCompletedCampaignStep(campaign = {}, recipientLogs = []) {
   }, 0);
   const workflowStep = Math.floor(Number(campaign.workflowStep || 0) || 0);
   const typeStep = DRAFT_TYPE_TO_STEP[normalizeCampaignDraftType(campaign.draftType || campaign.type || '')] || 0;
-  const historyStep = Math.max(completedFromSummary, completedFromLogs);
+  const historyStep = Math.min(typeStep || 5, Math.max(completedFromSummary, completedFromLogs));
   const fallbackStep = typeStep || workflowStep || 1;
   return Math.max(1, Math.min(5, historyStep || fallbackStep));
 }

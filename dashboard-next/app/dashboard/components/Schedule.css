@@ -52,6 +52,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
 }
 
+.premium-schedule-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
 .premium-schedule-grid-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
@@ -83,6 +87,39 @@
   cursor: not-allowed !important;
   background: #f1f5f9 !important;
   color: #64748b !important;
+}
+
+.premium-schedule-field input:disabled {
+  cursor: not-allowed !important;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+.premium-schedule-field input[aria-invalid='true'] {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.premium-schedule-range-inputs {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 10px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.premium-schedule-range-inputs input {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 5px !important;
+  text-align: center !important;
+}
+
+.premium-schedule-range-inputs b {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
 }
 
 /* Inline Actions & notices */
@@ -202,6 +239,7 @@
 }
 
 @media (max-width: 768px) {
+  .premium-schedule-grid-4,
   .premium-schedule-grid-3,
   .premium-schedule-grid-2 {
     grid-template-columns: 1fr !important;
@@ -211,6 +249,7 @@
     grid-template-columns: 1fr !important;
     padding: 16px !important;
   }
+
 }
 
 /* Step 7: polish send-mode choices into cleaner cards with smaller radios. */

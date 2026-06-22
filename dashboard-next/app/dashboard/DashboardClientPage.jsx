@@ -31,6 +31,7 @@ import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 import { buildEmailHtml } from '../../components/email/EmailRenderingSystem';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
+import CampaignDetailsDrawer from '@/modules/campaign-module/campaign-components/CampaignDetailsDrawer';
 // import ScriptManager from "../dashboard/ScriptManager";
 
 const DashboardStats = dynamic(() => import('@/modules/analytics-module/analytics-components/DashboardStatsOverview'));
@@ -493,6 +494,7 @@ export default function DashboardPage() {
   const [previewPage, setPreviewPage] = useState(1);
   const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
   const [preferredActiveCampaignId, setPreferredActiveCampaignId] = useState('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [toast, setToast] = useState(null);
   const isReplyModeCampaignType = REPLY_MODE_DRAFT_TYPES.has(String(selectedDraft || '').toLowerCase());
   const fileInputRef = useRef(null);
@@ -737,6 +739,7 @@ export default function DashboardPage() {
     setManualScheduledSlot(String(config.normalizedSlot || config.scheduledTime || ''));
     setDurationUnit(normalizeDurationUnit(config.durationUnit || 'seconds'));
     setBatchSize(String(config.batchSize || '1'));
+    setRowRange(String(config.rowRange || ''));
     setDelaySeconds(String(config.delayInterval || '1'));
     setScheduledStartLabel(String(config.label || ''));
   };
@@ -2717,11 +2720,36 @@ const handleDeleteDraft = async (draft) => {
   const createCampaign = async ({
     skipReload = false,
     autoStart = false,
-    workflowStep = 3,
-    workflowStepLabel = 'Campaign',
+    workflowStep = null,
+    workflowStepLabel = null,
     tracking = { enabled: false, opens: false, clicks: false, replies: false },
     scheduleConfig = null
   } = {}) => {
+    const DRAFT_TYPE_TO_STEP = {
+      cover_story: 1,
+      initial_outreach: 1,
+      reminder: 2,
+      followup: 3,
+      follow_up: 3,
+      open_followup: 3,
+      updated_cost: 4,
+      final_cost: 5,
+      final_followup: 5
+    };
+    const STEP_LABELS = {
+      1: 'Cover Story',
+      2: 'Reminder',
+      3: 'Follow Up',
+      4: 'Updated Cost',
+      5: 'Final Call'
+    };
+
+    const targetDraft = String(selectedDraft || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const computedStep = DRAFT_TYPE_TO_STEP[targetDraft] || 1;
+    const computedLabel = STEP_LABELS[computedStep] || 'Cover Story';
+
+    const finalWorkflowStep = workflowStep !== null && workflowStep !== undefined ? workflowStep : computedStep;
+    const finalWorkflowStepLabel = workflowStepLabel !== null && workflowStepLabel !== undefined ? workflowStepLabel : computedLabel;
     if (!selectedAccount) {
       notify('Select Sender before creating a campaign.', 'info');
       return null;
@@ -2781,8 +2809,8 @@ const handleDeleteDraft = async (draft) => {
         batchSize: String(batchSize || ''),
         delaySeconds: String(delaySeconds || ''),
         scheduleConfig: JSON.stringify(scheduleConfig || {}),
-        workflowStep: String(workflowStep || ''),
-        workflowStepLabel: String(workflowStepLabel || ''),
+        workflowStep: String(finalWorkflowStep || ''),
+        workflowStepLabel: String(finalWorkflowStepLabel || ''),
         tracking: JSON.stringify({
           enabled: Boolean(tracking?.enabled),
           opens: Boolean(tracking?.opens),
@@ -2817,8 +2845,8 @@ const handleDeleteDraft = async (draft) => {
         listId: selectedListId,
         senderAccountId: selectedAccount || null,
         senderFrom: selectedSenderEmail,
-        workflowStep,
-        workflowStepLabel,
+        workflowStep: finalWorkflowStep,
+        workflowStepLabel: finalWorkflowStepLabel,
         scheduleMode: effectiveSchedule.scheduleMode
       });
       const data = await safeFetchJson('/api/campaigns', {
@@ -2861,8 +2889,8 @@ const handleDeleteDraft = async (draft) => {
             replies: Boolean(tracking?.replies),
             abTesting: Boolean(tracking?.abTesting)
           },
-          workflowStep,
-          workflowStepLabel
+          workflowStep: finalWorkflowStep,
+          workflowStepLabel: finalWorkflowStepLabel
         })
       });
       const createdCampaign = data.campaign || null;
@@ -3297,6 +3325,55 @@ const normalizeSelectedListEmails = async () => {
       notify(e.message || 'Failed to start campaign', 'error');
       void refreshCampaignData({ source: 'start-campaign-error' });
       return { ok: false, error: e.message || 'Failed to start campaign', code: e.code || '', status: e.status || 0 };
+    }
+  };
+
+  const resetCampaignWorkflowDraft = () => {
+    setPendingCampaignId('');
+    setNextProcessCampaignId('');
+    setNextProcessStep(0);
+    lastCampaignCreateSignatureRef.current = '';
+    lastCreatedCampaignIdRef.current = '';
+    lastAutoAppliedDraftTypeRef.current = '';
+
+    setSelectedListId('');
+    setSelectedUploadedFileIds([]);
+    setPreview([]);
+    setPreviewColumns([]);
+    setPreviewDirty(false);
+    setPreviewPage(1);
+    setPreviewStyle(DEFAULT_SHEET_STYLE);
+    setShowUploadPreview(false);
+
+    setCampaignName('');
+    setSelectedTemplateId('');
+    setSelectedDraft('');
+    setActiveSavedDraftId(null);
+    setDraftSubject('');
+    setDraftBody('');
+    setTestEmailTo('');
+    setShowDraftEditor(false);
+    setShowBlankWordPad(false);
+    setBlankWordPad('');
+    setShowDraftEditingSection(false);
+    setChangeInDraftValue('');
+
+    setScheduleMode('send_now');
+    setScheduledDateValue('');
+    setScheduledTimeValue('');
+    setScheduledSlot('');
+    setManualScheduledSlot('');
+    setScheduledStartLabel('');
+    setScheduleTimezone('Asia/Kolkata');
+    setDurationUnit('seconds');
+    setBatchSize('1');
+    setRowRange('');
+    setDelaySeconds(60);
+
+    try {
+      window.localStorage.removeItem(DASHBOARD_DRAFT_STATE_KEY);
+    } catch {
+      // Reset still works when browser storage is unavailable.
     }
   };
 
@@ -5761,6 +5838,7 @@ const normalizeSelectedListEmails = async () => {
         onApplyManualScheduledSlot={applyPremiumShellScheduledTime}
         onSaveSchedule={saveCampaignSchedule}
         onStartCampaign={createAndStartCampaign}
+        onCampaignStartSuccess={resetCampaignWorkflowDraft}
         onPauseCampaign={pauseCampaign}
         onResumeCampaign={resumeCampaign}
         onStopCampaign={stopCampaign}
@@ -5772,7 +5850,16 @@ const normalizeSelectedListEmails = async () => {
           targetApprovalReviewedAt={profileCredits.targetApprovalReviewedAt}
           targetApprovalReviewer={profileCredits.targetApprovalReviewer}
           targetApprovalRequestNote={profileCredits.targetApprovalRequestNote}
+          onViewCampaignDetail={setSelectedCampaignId}
         />
+
+      {selectedCampaignId ? (
+        <CampaignDetailsDrawer
+          campaignId={selectedCampaignId}
+          onClose={() => setSelectedCampaignId('')}
+          onActionCompleted={() => refreshCampaignData({ source: 'detail-action' })}
+        />
+      ) : null}
 
       {showSidebarBlankView ? (
         <section className="grid" id="summary-panel">

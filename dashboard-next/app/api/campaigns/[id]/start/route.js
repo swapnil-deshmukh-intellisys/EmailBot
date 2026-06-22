@@ -91,6 +91,7 @@ function applyStartSchedulePayload(campaign, body = {}) {
       body.scheduledDate ||
       body.scheduledTime ||
       body.batchSize ||
+      body.rowRange ||
       body.delayInterval ||
       body.options
     );
@@ -116,6 +117,15 @@ function applyStartSchedulePayload(campaign, body = {}) {
     };
   }
   const batchSize = Math.max(1, Math.floor(Number(body?.batchSize ?? body?.options?.batchSize ?? campaign.options?.batchSize ?? 1) || 1));
+  const rowRange = String(body?.rowRange ?? body?.options?.rowRange ?? campaign.options?.rowRange ?? '').trim();
+  const rowRangeMatch = rowRange.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (rowRange && (!rowRangeMatch || Number(rowRangeMatch[1]) < 1 || Number(rowRangeMatch[1]) > Number(rowRangeMatch[2]))) {
+    return {
+      ok: false,
+      code: 'INVALID_ROW_RANGE',
+      message: 'Sheet row range must use format like 10-20.'
+    };
+  }
   const delaySeconds = Math.max(
     MIN_CAMPAIGN_SEND_GAP_SECONDS,
     convertDelayIntervalToSeconds(delayIntervalInput, durationUnit)
@@ -179,6 +189,7 @@ function applyStartSchedulePayload(campaign, body = {}) {
   };
   campaign.options = campaign.options || {};
   campaign.options.batchSize = batchSize;
+  campaign.options.rowRange = rowRange;
   campaign.options.delayInterval = delayInterval;
   campaign.options.durationUnit = durationUnit;
   campaign.options.delaySeconds = delaySeconds;

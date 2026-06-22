@@ -82,6 +82,17 @@ export async function POST(req, { params }) {
       });
     }
     const batchSize = Math.max(1, Math.floor(Number(body?.batchSize ?? body?.options?.batchSize ?? 1) || 1));
+    const rowRange = String(body?.rowRange ?? body?.options?.rowRange ?? '').trim();
+    const rowRangeMatch = rowRange.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rowRange && (!rowRangeMatch || Number(rowRangeMatch[1]) < 1 || Number(rowRangeMatch[1]) > Number(rowRangeMatch[2]))) {
+      return jsonError({
+        status: 400,
+        code: 'INVALID_ROW_RANGE',
+        message: 'Sheet row range must use format like 10-20.',
+        campaignId,
+        userEmail
+      });
+    }
     const delaySeconds = Math.max(
       MIN_CAMPAIGN_SEND_GAP_SECONDS,
       convertDelayIntervalToSeconds(delayIntervalInput, durationUnit)
@@ -180,6 +191,7 @@ export async function POST(req, { params }) {
           workerLockedAt: null,
           workerHeartbeatAt: null,
           'options.batchSize': batchSize,
+          'options.rowRange': rowRange,
           'options.delayInterval': delayInterval,
           'options.durationUnit': durationUnit,
           'options.delaySeconds': delaySeconds,

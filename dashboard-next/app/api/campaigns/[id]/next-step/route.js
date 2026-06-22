@@ -166,9 +166,12 @@ export async function POST(req, { params }) {
       },
       { $group: { _id: '$campaignId', completedStep: { $max: '$completedStep' } } }
     ]);
-    const currentStepFromHistory = Math.floor(Number(completedStepSummary?.[0]?.completedStep || 0) || 0);
+    const currentStepFromHistoryRaw = Math.floor(Number(completedStepSummary?.[0]?.completedStep || 0) || 0);
     const currentStepFromWorkflow = Math.floor(Number(campaign.workflowStep || 0) || 0);
     const currentStepFromType = DRAFT_TYPE_TO_STEP[normalizeDraftType(campaign.draftType || campaign.type || '')] || 0;
+    const currentStepFromHistory = currentStepFromType > 0 
+      ? Math.min(currentStepFromType, currentStepFromHistoryRaw) 
+      : currentStepFromHistoryRaw;
     const currentStep = Math.max(1, Math.min(5, currentStepFromHistory || currentStepFromType || currentStepFromWorkflow || 1));
     const requestedStep = Number(body?.step || 0);
     const requestedType = normalizeDraftType(body?.draftType || body?.type || '');

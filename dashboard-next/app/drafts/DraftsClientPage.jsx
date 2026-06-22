@@ -453,7 +453,9 @@ export default function DraftsPage() {
                   <label className="draft-workspace-title-field"><span>Project</span><select value={draftProject} onChange={e => setDraftProject(e.target.value)}>{PROJECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
                 </div>
                 <div className="draft-body-label">Draft Body</div>
-                <RichTextEditor value={editorHtml} onChange={setEditorHtml} placeholder="Paste or write your draft here..." />
+                <div className="premium-summary-message-editor">
+                  <RichTextEditor value={editorHtml} onChange={setEditorHtml} placeholder="Paste or write your draft here..." />
+                </div>
                 <div className="draft-workspace-savebar">
                   <div><strong>{editingDraftId ? 'Editing saved draft' : 'Ready to create draft'}</strong>{saveMessage && <p>{saveMessage}</p>}</div>
                   <Button onClick={handleSaveDraft} disabled={savingDraft}>{savingDraft ? 'Saving...' : editingDraftId ? 'Update Draft' : 'Save Draft'}</Button>

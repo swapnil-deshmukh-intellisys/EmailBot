@@ -147,7 +147,9 @@ export default function DraftDetailClientPage({ draftId }) {
                 </label>
               </div>
               <div className="draft-body-label">Draft Body</div>
-              <RichTextEditor value={editorHtml} onChange={setEditorHtml} placeholder="Paste or write your draft here..." />
+              <div className="premium-summary-message-editor">
+                <RichTextEditor value={editorHtml} onChange={setEditorHtml} placeholder="Paste or write your draft here..." />
+              </div>
               {message ? <p className="client-data-custom-note">{message}</p> : null}
             </section>
           </div>

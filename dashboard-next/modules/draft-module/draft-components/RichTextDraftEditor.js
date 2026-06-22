@@ -648,7 +648,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         </ToolbarButton>
 
         {/* Dynamic Color A Button with Underline */}
-        <label className={`wysiwyg-color-control text${textStyle.color ? ' is-active' : ''}`} title="Text color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer' }}>
+        <label className={`wysiwyg-color-control text${textStyle.color ? ' is-active' : ''}`} title={`Text color ${activeTextColor}`} onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', '--editor-picked-color': activeTextColor }}>
           <span className="wysiwyg-color-symbol">
             <Icons.TextColor />
           </span>
@@ -657,7 +657,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
         </label>
 
         {/* Dynamic Color HL Button with Highlighter and Underline */}
-        <label className={`wysiwyg-color-control highlight${activeHighlightColor ? ' is-active' : ''}`} title="Highlight color" onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer' }}>
+        <label className={`wysiwyg-color-control highlight${activeHighlightColor ? ' is-active' : ''}`} title={`Highlight color ${activeHighlightColor || '#fef3c7'}`} onPointerDown={saveSelection} onMouseDown={(event) => event.stopPropagation()} style={{ cursor: 'pointer', '--editor-picked-color': activeHighlightColor || '#fef3c7' }}>
           <span className="wysiwyg-color-symbol">
             <Icons.HighlightColor />
           </span>
