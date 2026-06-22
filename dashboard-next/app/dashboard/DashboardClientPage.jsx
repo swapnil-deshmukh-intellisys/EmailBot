@@ -864,7 +864,19 @@ export default function DashboardPage() {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(DASHBOARD_DRAFT_STATE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        const settings = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
+        if (settings.defaultSendMode === 'scheduled' || settings.defaultSendMode === 'send_now') {
+          setScheduleMode(settings.defaultSendMode);
+        }
+        if (Number(settings.defaultBatchSize) >= 1) {
+          setBatchSize(String(Math.floor(Number(settings.defaultBatchSize))));
+        }
+        if (settings.rememberLastProject) {
+          setProject(String(window.localStorage.getItem('mailpilot:last-project') || ''));
+        }
+        return;
+      }
       const saved = JSON.parse(raw);
       if (saved && typeof saved === 'object') {
         setCampaignName(String(saved.campaignName || ''));
@@ -891,6 +903,18 @@ export default function DashboardPage() {
       // Ignore bad saved dashboard state and continue with defaults.
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !project) return;
+    try {
+      const settings = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
+      if (settings.rememberLastProject) {
+        window.localStorage.setItem('mailpilot:last-project', project);
+      }
+    } catch {
+      // Project selection still works when browser storage is unavailable.
+    }
+  }, [project]);
 
   useEffect(() => {
     if (!selectedAccount) {

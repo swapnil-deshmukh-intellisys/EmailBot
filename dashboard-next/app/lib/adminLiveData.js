@@ -28,10 +28,10 @@ export async function getAdminLiveData() {
   await connectDB();
 
   const [campaigns, leadLists, senderAccounts, oauthAccounts] = await Promise.all([
-    Campaign.find({}).sort({ createdAt: -1 }).lean(),
-    LeadList.find({}).sort({ updatedAt: -1, createdAt: -1 }).lean(),
-    SenderAccount.find({}).sort({ createdAt: -1 }).lean(),
-    GraphOAuthAccount.find({}).sort({ createdAt: -1 }).lean()
+    Campaign.find({}).sort({ createdAt: -1 }).allowDiskUse(true).lean(),
+    LeadList.find({}).lean(),
+    SenderAccount.find({}).sort({ createdAt: -1 }).allowDiskUse(true).lean(),
+    GraphOAuthAccount.find({}).sort({ createdAt: -1 }).allowDiskUse(true).lean()
   ]);
 
   const userMap = new Map();

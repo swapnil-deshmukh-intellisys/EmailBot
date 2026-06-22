@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
+import { useTheme } from '@/shared-components/layout-components/ThemeProvider';
 
 const PROFILE_SECTIONS = ['profile', 'overview', 'settings', 'notifications', 'billing', 'security'];
 
@@ -55,6 +56,7 @@ function formatDateTime(value) {
 }
 
 export default function UserProfilePage({ initialSection = 'profile' }) {
+  const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState({ email: '', role: '', displayName: '', avatarName: '', avatarDataUrl: '', planName: 'Basic', notificationPrefs: {} });
   const [creditSummary, setCreditSummary] = useState({ totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
   const [creditTransactions, setCreditTransactions] = useState([]);
@@ -87,6 +89,14 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
   const [activeSection, setActiveSection] = useState(normalizeProfileSection(initialSection));
   const [selectedConnectedAccount, setSelectedConnectedAccount] = useState(null);
   const [showCreditHistory, setShowCreditHistory] = useState(false);
+  const [workspaceSettings, setWorkspaceSettings] = useState({
+    density: 'comfortable',
+    reducedMotion: false,
+    defaultSendMode: 'scheduled',
+    defaultBatchSize: 25,
+    confirmBeforeStart: true,
+    rememberLastProject: true
+  });
 
   const profileDisplayName = profile.displayName || displayNameFromEmail(profile.email);
   const profileInitials = initialsFromName(profileDisplayName);
@@ -216,6 +226,53 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
   useEffect(() => {
     setActiveSection(normalizeProfileSection(initialSection));
   }, [initialSection]);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
+      setWorkspaceSettings((current) => ({ ...current, ...stored }));
+    } catch {
+      // Keep safe defaults when browser storage is unavailable or malformed.
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('ui-density-compact', workspaceSettings.density === 'compact');
+    root.classList.toggle('ui-reduced-motion', Boolean(workspaceSettings.reducedMotion));
+  }, [workspaceSettings.density, workspaceSettings.reducedMotion]);
+
+  const updateWorkspaceSetting = (key, value) => {
+    setWorkspaceSettings((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveWorkspaceSettings = () => {
+    try {
+      window.localStorage.setItem('mailpilot:workspace-settings', JSON.stringify(workspaceSettings));
+      setMessage('Workspace settings saved.');
+    } catch {
+      setMessage('Settings could not be saved in this browser.');
+    }
+  };
+
+  const resetWorkspaceSettings = () => {
+    const defaults = {
+      density: 'comfortable',
+      reducedMotion: false,
+      defaultSendMode: 'scheduled',
+      defaultBatchSize: 25,
+      confirmBeforeStart: true,
+      rememberLastProject: true
+    };
+    setWorkspaceSettings(defaults);
+    setTheme('light');
+    try {
+      window.localStorage.removeItem('mailpilot:workspace-settings');
+    } catch {
+      // The visible defaults still apply if storage is unavailable.
+    }
+    setMessage('Workspace settings reset to defaults.');
+  };
 
   const toggleNotificationPref = async (key) => {
     setProfileNotificationPrefs((current) => {
@@ -580,12 +637,112 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
           ) : null}
 
           {activeSection === 'settings' ? (
-          <article id="settings" className={`dashboard-profile-card ${activeSection === 'settings' ? 'tone-settings' : ''}`}>
-            <strong>Settings</strong>
-            <p>Manage account preferences, theme, language, and workspace defaults.</p>
-            <div className="dashboard-profile-action-row">
-              <button type="button" className="ghost" onClick={() => setMessage('Theme and language controls are ready to wire up here.')}>
-                Open Settings
+          <article id="settings" className={`dashboard-profile-card dashboard-settings-card ${activeSection === 'settings' ? 'tone-settings' : ''}`}>
+            <div className="dashboard-settings-head">
+              <div>
+                <span className="dashboard-settings-kicker">Workspace preferences</span>
+                <strong>Settings</strong>
+              </div>
+              <span className="dashboard-settings-status"><i className="ti ti-cloud-check" aria-hidden="true" /> Local workspace</span>
+            </div>
+
+            <section className="dashboard-settings-section">
+              <div className="dashboard-settings-section-head">
+                <i className="ti ti-palette" aria-hidden="true" />
+                <div><strong>Appearance</strong><small>Choose how the dashboard looks and feels.</small></div>
+              </div>
+              <div className="dashboard-settings-choice-grid dashboard-settings-theme-grid">
+                {[
+                  { value: 'light', label: 'Light', icon: 'ti-sun' },
+                  { value: 'dark', label: 'Dark', icon: 'ti-moon' },
+                  { value: 'colorful', label: 'Colorful', icon: 'ti-color-swatch' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`dashboard-settings-choice${theme === option.value ? ' active' : ''}`}
+                    onClick={() => setTheme(option.value)}
+                  >
+                    <i className={`ti ${option.icon}`} aria-hidden="true" />
+                    <span>{option.label}</span>
+                    {theme === option.value ? <i className="ti ti-check" aria-hidden="true" /> : null}
+                  </button>
+                ))}
+              </div>
+              <div className="dashboard-settings-row">
+                <div><strong>Interface density</strong><small>Compact shows more content; comfortable adds breathing room.</small></div>
+                <div className="dashboard-settings-segmented">
+                  {['comfortable', 'compact'].map((density) => (
+                    <button
+                      key={density}
+                      type="button"
+                      className={workspaceSettings.density === density ? 'active' : ''}
+                      onClick={() => updateWorkspaceSetting('density', density)}
+                    >
+                      {density === 'comfortable' ? 'Comfortable' : 'Compact'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="dashboard-settings-toggle-row">
+                <span><strong>Reduce motion</strong><small>Minimize animated movement throughout the dashboard.</small></span>
+                <input
+                  type="checkbox"
+                  checked={workspaceSettings.reducedMotion}
+                  onChange={(event) => updateWorkspaceSetting('reducedMotion', event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <section className="dashboard-settings-section">
+              <div className="dashboard-settings-section-head">
+                <i className="ti ti-send" aria-hidden="true" />
+                <div><strong>Campaign defaults</strong><small>Preselect sensible values when creating a campaign.</small></div>
+              </div>
+              <div className="dashboard-settings-form-grid">
+                <label>
+                  <span>Default send mode</span>
+                  <select value={workspaceSettings.defaultSendMode} onChange={(event) => updateWorkspaceSetting('defaultSendMode', event.target.value)}>
+                    <option value="scheduled">Schedule for later</option>
+                    <option value="send_now">Send now</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Default batch size</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={workspaceSettings.defaultBatchSize}
+                    onChange={(event) => updateWorkspaceSetting('defaultBatchSize', Math.max(1, Number(event.target.value || 1)))}
+                  />
+                </label>
+              </div>
+              <label className="dashboard-settings-toggle-row">
+                <span><strong>Confirm before campaign start</strong><small>Keep a final confirmation step before mail sending begins.</small></span>
+                <input
+                  type="checkbox"
+                  checked={workspaceSettings.confirmBeforeStart}
+                  onChange={(event) => updateWorkspaceSetting('confirmBeforeStart', event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+              <label className="dashboard-settings-toggle-row">
+                <span><strong>Remember last project</strong><small>Use your most recently selected project in new workflows.</small></span>
+                <input
+                  type="checkbox"
+                  checked={workspaceSettings.rememberLastProject}
+                  onChange={(event) => updateWorkspaceSetting('rememberLastProject', event.target.checked)}
+                />
+                <i aria-hidden="true" />
+              </label>
+            </section>
+
+            <div className="dashboard-settings-actions">
+              <button type="button" className="ghost subtle" onClick={resetWorkspaceSettings}>Reset defaults</button>
+              <button type="button" className="ghost dashboard-settings-save" onClick={saveWorkspaceSettings}>
+                <i className="ti ti-device-floppy" aria-hidden="true" /> Save settings
               </button>
             </div>
           </article>

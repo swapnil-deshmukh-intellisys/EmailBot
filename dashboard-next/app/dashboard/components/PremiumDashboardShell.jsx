@@ -2544,6 +2544,19 @@ export default function PremiumDashboardShell({
     }
 
     try {
+      const settings = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
+      if (settings.confirmBeforeStart !== false) {
+        const action = scheduleDraftPayload.scheduleMode === 'scheduled' ? 'schedule this campaign' : 'start sending this campaign now';
+        if (!window.confirm(`Are you sure you want to ${action}?`)) {
+          setScheduleInlineNotice({ tone: 'info', message: 'Campaign start cancelled.' });
+          return;
+        }
+      }
+    } catch {
+      // Continue with the normal start flow when browser storage is unavailable.
+    }
+
+    try {
       setScheduleInlineNotice({
         tone: 'info',
         message: scheduleDraftPayload.scheduleMode === 'scheduled'
