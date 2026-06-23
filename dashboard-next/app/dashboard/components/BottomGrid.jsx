@@ -50,19 +50,19 @@ export default function BottomGrid({
         <section className="panel activity-timeline-card">
           <div className="activity-header">
             <div>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 2 }}>Activity Timeline</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div className="activity-eyebrow">Activity Timeline</div>
+              <div className="activity-title-row">
                 <span className="activity-count">{inlineTimelineCards.length}</span>
-                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-1)' }}>campaign activities</span>
+                <span>campaign activities</span>
               </div>
             </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div className="activity-header-actions">
               <button type="button" className="section-link" onClick={() => setShowTimelinePopup(true)}>
-                See All <i className="ti ti-arrow-right" style={{ fontSize: 12 }}></i>
+                See All <i className="ti ti-arrow-right"></i>
               </button>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 12 }}>
+          <div className="activity-desc">
             Running, pending, paused, completed, failed, and draft campaign actions.
           </div>
 
@@ -102,10 +102,10 @@ export default function BottomGrid({
         </section>
 
         <section className="panel workspace-overview-card">
-          <div className="section-header" style={{ marginBottom: 14 }}>
+          <div className="section-header workspace-overview-head">
             <span className="section-title">Workspace Overview</span>
             <button type="button" className="section-link" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-              See All <i className="ti ti-arrow-right" style={{ fontSize: 12 }}></i>
+              See All <i className="ti ti-arrow-right"></i>
             </button>
           </div>
           <div className="ws-stats">
@@ -116,23 +116,6 @@ export default function BottomGrid({
                 <div className="ws-stat-sub">{item.detail}</div>
               </article>
             ))}
-          </div>
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14, marginTop: 2 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)', marginBottom: 10 }}>Quick Actions</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button type="button" className="btn-ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                <i className="ti ti-upload" aria-hidden="true" /> Upload List
-              </button>
-              <button type="button" className="btn-ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                <i className="ti ti-speakerphone" aria-hidden="true" /> New Campaign
-              </button>
-              <button type="button" className="btn-ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                <i className="ti ti-file-plus" aria-hidden="true" /> New Draft
-              </button>
-              <button type="button" className="btn-ghost" onClick={(event) => openAnchoredPopup('logs', setShowLogsPopup)(event)}>
-                <i className="ti ti-chart-bar" aria-hidden="true" /> View Report
-              </button>
-            </div>
           </div>
         </section>
       </div>

@@ -11,6 +11,7 @@ const EMPTY_FORM = {
   project: '',
   priority: 'Medium',
   dueDate: '',
+  dueTime: '09:00',
   status: 'Pending',
   notes: ''
 };
@@ -49,6 +50,20 @@ function formatDate(value) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function taskDueDateTime(task = {}) {
+  if (!task.dueDate) return null;
+  const dateText = dateInputValue(task.dueDate);
+  const date = new Date(`${dateText}T${task.dueTime || '23:59'}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatTime(value) {
+  if (!value) return 'Any time';
+  const [hour, minute] = String(value).split(':').map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return value;
+  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
 function formatDateTime(value) {
   if (!value) return 'Not available';
   const date = new Date(value);
@@ -58,7 +73,8 @@ function formatDateTime(value) {
 
 function isOverdue(task = {}) {
   if (task.status === 'Completed' || !task.dueDate) return false;
-  return new Date(task.dueDate).getTime() < startOfDay().getTime();
+  const dueAt = taskDueDateTime(task);
+  return Boolean(dueAt && dueAt.getTime() < Date.now());
 }
 
 function normalizeTask(task = {}) {
@@ -70,6 +86,7 @@ function normalizeTask(task = {}) {
     status: task.status === 'Overdue' || isOverdue(task) ? 'Overdue' : STATUSES.includes(task.status) ? task.status : 'Pending',
     project: task.project || task.projectName || '',
     dueDate: task.dueDate || '',
+    dueTime: task.dueTime || '',
     notes: task.notes || '',
     description: task.description || '',
     attachments: Array.isArray(task.attachments) ? task.attachments : []
@@ -97,6 +114,7 @@ function TaskCard({ task, onClick }) {
       <div className="sales-work-meta">
         <em className={`priority-pill ${task.priority.toLowerCase()}`}>{task.priority}</em>
         <em>{formatDate(task.dueDate)}</em>
+        <em><i className="ti ti-clock" /> {formatTime(task.dueTime)}</em>
         <em>{task.status}</em>
       </div>
     </button>
@@ -147,7 +165,7 @@ export default function SalesActionCenter({ onShowMessage }) {
       const aDone = a.status === 'Completed' ? 1 : 0;
       const bDone = b.status === 'Completed' ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
-      return new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
+      return (taskDueDateTime(a)?.getTime() || 0) - (taskDueDateTime(b)?.getTime() || 0);
     });
     return showAll ? sorted : sorted.slice(0, 4);
   }, [showAll, tasks]);
@@ -161,12 +179,13 @@ export default function SalesActionCenter({ onShowMessage }) {
         project: task.project || '',
         priority: task.priority || 'Medium',
         dueDate: dateInputValue(task.dueDate),
+        dueTime: task.dueTime || '09:00',
         status: task.status === 'Overdue' ? 'Pending' : task.status || 'Pending',
         notes: task.notes || ''
       });
     } else {
       setEditingId('');
-      setForm({ ...EMPTY_FORM, dueDate: todayInputValue() });
+      setForm({ ...EMPTY_FORM, dueDate: todayInputValue(), dueTime: '09:00' });
     }
     setFormOpen(true);
   };
@@ -175,7 +194,7 @@ export default function SalesActionCenter({ onShowMessage }) {
     if (saving && !force) return;
     setFormOpen(false);
     setEditingId('');
-    setForm({ ...EMPTY_FORM, dueDate: todayInputValue() });
+    setForm({ ...EMPTY_FORM, dueDate: todayInputValue(), dueTime: '09:00' });
   };
 
   const saveTask = async (event) => {
@@ -270,8 +289,8 @@ export default function SalesActionCenter({ onShowMessage }) {
         <div className="sales-action-block">
           <div className="todo-widget-headline">
             <strong>Tasks</strong>
-            <button type="button" onClick={() => setShowAll((current) => !current)}>
-              {showAll ? 'Show Less' : 'View All Tasks'}
+            <button type="button" onClick={() => setShowAll(true)}>
+              View All Tasks
             </button>
           </div>
           <div className="sales-priority-list">
@@ -294,7 +313,7 @@ export default function SalesActionCenter({ onShowMessage }) {
             <article><span>Description</span><p>{detailsTask.description || 'No description added.'}</p></article>
             <article><span>Assigned By</span><p>{detailsTask.assignedBy || detailsTask.createdBy || 'Self'}</p></article>
             <article><span>Created Date</span><p>{formatDateTime(detailsTask.createdAt)}</p></article>
-            <article><span>Due Date</span><p>{formatDate(detailsTask.dueDate)}</p></article>
+            <article><span>Due Date & Time</span><p>{formatDate(detailsTask.dueDate)} · {formatTime(detailsTask.dueTime)}</p></article>
             <article><span>Priority</span><p>{detailsTask.priority}</p></article>
             <article><span>Status</span><p>{detailsTask.status}</p></article>
             <article><span>Project</span><p>{detailsTask.project || 'No project'}</p></article>
@@ -314,7 +333,7 @@ export default function SalesActionCenter({ onShowMessage }) {
 
       {formOpen ? (
         <div className="sales-work-modal-backdrop" onClick={() => closeForm()}>
-          <form className="sales-work-modal" onSubmit={saveTask} onClick={(event) => event.stopPropagation()}>
+          <form className="sales-work-modal todo-task-modal" onSubmit={saveTask} onClick={(event) => event.stopPropagation()}>
             <div className="sales-work-modal-head">
               <strong>{editingId ? 'Edit Task' : 'Add Task'}</strong>
               <button type="button" onClick={() => closeForm()}>Close</button>
@@ -342,6 +361,10 @@ export default function SalesActionCenter({ onShowMessage }) {
               <input type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
             </label>
             <label>
+              <span>Due Time</span>
+              <input type="time" value={form.dueTime} onChange={(event) => setForm((current) => ({ ...current, dueTime: event.target.value }))} />
+            </label>
+            <label>
               <span>Status</span>
               <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
                 {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -356,6 +379,32 @@ export default function SalesActionCenter({ onShowMessage }) {
               <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Task'}</button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {showAll ? (
+        <div className="sales-work-modal-backdrop productivity-backdrop" onClick={() => setShowAll(false)}>
+          <div className="sales-work-modal task-history-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="sales-work-modal-head">
+              <div>
+                <strong>All Tasks</strong>
+                <small>{visibleTasks.length} tasks arranged by due date and time</small>
+              </div>
+              <button type="button" onClick={() => setShowAll(false)}>Close</button>
+            </div>
+            <div className="task-history-list wide">
+              {visibleTasks.length ? visibleTasks.map((task, index) => (
+                <div className="task-history-row" key={`history-${task.id}`} style={{ '--item-index': index }}>
+                  <span className={`task-history-dot priority-${task.priority.toLowerCase()}`} />
+                  <button type="button" onClick={() => { setShowAll(false); setDetailsTask(task); }}>
+                    <strong>{task.title}</strong>
+                    <small>{task.project || 'No project'} · {formatDate(task.dueDate)} at {formatTime(task.dueTime)}</small>
+                  </button>
+                  <em className={`task-history-status ${task.status.toLowerCase().replace(/\s+/g, '-')}`}>{task.status}</em>
+                </div>
+              )) : <p className="sales-empty-state">No tasks available.</p>}
+            </div>
+          </div>
         </div>
       ) : null}
     </section>

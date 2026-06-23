@@ -98,6 +98,7 @@ export default function MainPanels({
   setNoteDraft,
   setShowNotesPopup,
   addQuickNote,
+  quickNotes = [],
 
   // Broadcast Table Props
   broadcastPerformanceRef,
@@ -274,7 +275,13 @@ export default function MainPanels({
 
         {/* Write Note Panel */}
         <section className="panel dashboard-note-card">
-          <div className="section-title" style={{ marginBottom: 10 }}>Write Note</div>
+          <div className="dashboard-note-head">
+            <div>
+              <span className="section-title">Write Note</span>
+              <small>Capture ideas and reminders</small>
+            </div>
+            <span className="note-count-badge">{quickNotes.length}</span>
+          </div>
           <div className="dashboard-note-body">
             <div className="note-row">
               <input
@@ -298,8 +305,18 @@ export default function MainPanels({
               onChange={(event) => setNoteDraft(event.target.value)}
               placeholder="Write a quick note..."
             />
+            {quickNotes.length ? (
+              <div className="note-recent-list">
+                {quickNotes.slice(0, 2).map((note, index) => (
+                  <button type="button" key={`recent-note-${note.id}`} onClick={() => setShowNotesPopup(true)} style={{ '--item-index': index }}>
+                    <span>{note.topic || 'General'}</span>
+                    <p>{note.text}</p>
+                    <small>{new Date(note.createdAt || note.time).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="note-footer">
-              <span className="note-fields-count">{[noteTopic, noteTag, noteDraft].map((value) => value.trim()).filter(Boolean).length} fields filled</span>
               <div className="note-btns">
                 <button type="button" className="btn-ghost" onClick={() => setShowNotesPopup(true)}>
                   Show Notes

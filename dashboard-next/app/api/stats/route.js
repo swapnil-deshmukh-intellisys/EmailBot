@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
+import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
@@ -48,6 +49,57 @@ function shouldCountCampaignStats(campaign) {
   if (!status || status === 'draft') return false;
   const total = Number(campaign?.stats?.total || 0);
   return total > 0 || ['scheduled', 'queued', 'running', 'paused', 'completed', 'failed', 'stopped'].includes(status);
+}
+
+async function loadRecipientLogStats(campaignIds = []) {
+  if (!campaignIds.length) return new Map();
+  const rows = await CampaignRecipientLog.aggregate([
+    { $match: { campaignId: { $in: campaignIds } } },
+    { $addFields: { normalizedStatus: { $toLower: { $ifNull: ['$status', 'pending'] } } } },
+    {
+      $group: {
+        _id: '$campaignId',
+        total: { $sum: 1 },
+        sent: {
+          $sum: {
+            $cond: [
+              {
+                $or: [
+                  { $in: ['$normalizedStatus', ['sent', 'opened', 'replied', 'auto reply']] },
+                  {
+                    $and: [
+                      { $gt: [{ $ifNull: ['$sentCount', 0] }, 0] },
+                      { $not: [{ $in: ['$normalizedStatus', ['failed', 'bounced', 'spam']] }] }
+                    ]
+                  }
+                ]
+              },
+              1,
+              0
+            ]
+          }
+        },
+        bounced: { $sum: { $cond: [{ $eq: ['$normalizedStatus', 'bounced'] }, 1, 0] } },
+        spam: { $sum: { $cond: [{ $eq: ['$normalizedStatus', 'spam'] }, 1, 0] } },
+        failed: { $sum: { $cond: [{ $eq: ['$normalizedStatus', 'failed'] }, 1, 0] } },
+        pending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $not: [{ $in: ['$normalizedStatus', ['sent', 'opened', 'replied', 'auto reply', 'failed', 'bounced', 'spam']] }] },
+                  { $eq: [{ $ifNull: ['$sentCount', 0] }, 0] }
+                ]
+              },
+              1,
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+  return new Map(rows.map((row) => [String(row._id), row]));
 }
 
 function normalizeProject(value = '') {
@@ -339,8 +391,20 @@ export async function GET(req) {
       shouldIncludeCampaignInWindow(campaign, selectedDayStart, selectedDayEnd)
     ));
 
+    const recipientStatsByCampaign = await loadRecipientLogStats(campaignSummaries.map((campaign) => campaign._id));
     for (const campaign of campaignSummaries) {
-      total += Math.max(0, Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0));
+      const recipientStats = recipientStatsByCampaign.get(String(campaign._id));
+      const campaignTotal = Math.max(0, Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0));
+      if (recipientStats?.total > 0 && Number(recipientStats.total) >= campaignTotal) {
+        total += Math.max(0, Number(recipientStats.total || 0));
+        sent += Math.max(0, Number(recipientStats.sent || 0));
+        pending += Math.max(0, Number(recipientStats.pending || 0));
+        failed += Math.max(0, Number(recipientStats.failed || 0));
+        bounced += Math.max(0, Number(recipientStats.bounced || 0));
+        spam += Math.max(0, Number(recipientStats.spam || 0));
+        continue;
+      }
+      total += campaignTotal;
       sent += Math.max(0, Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0));
       pending += Math.max(0, Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? 0));
       failed += Math.max(0, Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0));

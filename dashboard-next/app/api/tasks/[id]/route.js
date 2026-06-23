@@ -64,6 +64,7 @@ function serializeTask(task = {}) {
     status: isOverdue(plain) ? 'Overdue' : plain.status,
     project: plain.projectName || plain.project || '',
     dueDate: plain.dueDate || null,
+    dueTime: plain.dueTime || '',
     notes: plain.notes || '',
     attachments: Array.isArray(plain.attachments) ? plain.attachments : [],
     createdBy: plain.createdBy || plain.assignedByName || plain.assignedByEmail || 'Self',
@@ -92,6 +93,7 @@ function normalizePatch(body = {}) {
     if (!dueDate) throw new Error('Valid due date is required.');
     patch.dueDate = dueDate;
   }
+  if (Object.prototype.hasOwnProperty.call(body, 'dueTime')) patch.dueTime = String(body.dueTime || '').trim();
   if (Object.prototype.hasOwnProperty.call(body, 'project') || Object.prototype.hasOwnProperty.call(body, 'projectName')) {
     patch.projectName = String(body.project || body.projectName || '').trim();
   }

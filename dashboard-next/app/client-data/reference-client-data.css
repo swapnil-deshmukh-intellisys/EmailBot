@@ -825,8 +825,8 @@ html body main.dashboard-shell .client-data-page .client-data-reference-table th
   top: 0 !important;
   z-index: 3 !important;
   padding: 10px 14px !important;
-  border: 0 !important;
-  border-bottom: 1px solid var(--cd-border-subtle) !important;
+  border: 1px solid var(--cd-border) !important;
+  border-bottom: 2px solid var(--cd-border) !important;
   background: var(--cd-surface-2) !important;
   background-image: none !important;
   color: var(--cd-text-3) !important;
@@ -903,7 +903,7 @@ html body main.dashboard-shell .client-data-page .client-data-reference-table td
   display: table-cell !important;
   height: 45px !important;
   padding: 12px 14px !important;
-  border: 0 !important;
+  border: 1px solid var(--cd-border-subtle) !important;
   border-bottom: 1px solid var(--cd-border-subtle) !important;
   background: var(--cd-surface) !important;
   background-image: none !important;

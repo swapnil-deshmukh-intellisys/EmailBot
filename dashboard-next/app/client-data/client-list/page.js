@@ -781,6 +781,7 @@ export default function ClientListPage() {
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
   const [activeSourceSheetId, setActiveSourceSheetId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState('100');
   const [rowEdits, setRowEdits] = useState({});
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [creatingRow, setCreatingRow] = useState(false);
@@ -916,6 +917,8 @@ export default function ClientListPage() {
         block: 'start'
       });
     }, 250);
+    return () => clearTimeout(timer);
+  }, [activeSection]);
 
   useEffect(() => {
     const onDocClick = (event) => {
@@ -1204,15 +1207,21 @@ export default function ClientListPage() {
     [appliedFilters]
   );
 
+  const pageSizeNumeric = useMemo(() => {
+    if (pageSize === 'all') return filteredClientRows.length || 100;
+    return parseInt(pageSize, 10) || 100;
+  }, [pageSize, filteredClientRows.length]);
+
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredClientRows.length / CLIENT_ROWS_PER_PAGE)),
-    [filteredClientRows.length]
+    () => Math.max(1, Math.ceil(filteredClientRows.length / pageSizeNumeric)),
+    [filteredClientRows.length, pageSizeNumeric]
   );
 
   const paginatedClientRows = useMemo(() => {
-    const start = (currentPage - 1) * CLIENT_ROWS_PER_PAGE;
-    return filteredClientRows.slice(start, start + CLIENT_ROWS_PER_PAGE);
-  }, [currentPage, filteredClientRows]);
+    if (pageSize === 'all') return filteredClientRows;
+    const start = (currentPage - 1) * pageSizeNumeric;
+    return filteredClientRows.slice(start, start + pageSizeNumeric);
+  }, [currentPage, filteredClientRows, pageSizeNumeric, pageSize]);
 
   const contactedCount = useMemo(
     () => filteredClientRows.filter((row) => Boolean(row.mailSentAt)).length,
@@ -2413,6 +2422,163 @@ export default function ClientListPage() {
     }
   };
 
+  const renderPaginationRow = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    const startRow = (currentPage - 1) * pageSizeNumeric + 1;
+    const endRow = Math.min(filteredClientRows.length, currentPage * pageSizeNumeric);
+
+    return (
+      <div className="client-data-pagination-row pagination-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '10px 20px', background: 'var(--cd-surface, #f8fafc)', borderBottom: '1px solid var(--cd-border-subtle, #e2e8f0)' }}>
+        <div className="pagination-info" style={{ fontSize: '13px', color: 'var(--cd-text-3, #64748b)' }}>
+          {filteredClientRows.length > 0 ? (
+            <span>Showing <strong>{startRow}</strong>-<strong>{endRow}</strong> of <strong>{filteredClientRows.length}</strong> clients</span>
+          ) : (
+            <span>Showing 0 clients</span>
+          )}
+        </div>
+        
+        {pageSize !== 'all' && totalPages > 1 && (
+          <div className="pagination-nav-buttons" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Button
+              type="button"
+              className="page-btn"
+              variant="ghost"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage <= 1}
+              title="First Page"
+              style={{ padding: '0 6px', minWidth: '28px', height: '28px' }}
+            >
+              <i className="ti ti-chevrons-left" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              className="page-btn"
+              variant="ghost"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage <= 1}
+              style={{ minWidth: '28px', height: '28px' }}
+            >
+              <i className="ti ti-chevron-left" aria-hidden="true" /> Previous
+            </Button>
+            
+            {startPage > 1 && (
+              <>
+                <Button
+                  type="button"
+                  className={`page-btn ${currentPage === 1 ? 'active-page' : ''}`}
+                  variant={currentPage === 1 ? 'secondary' : 'ghost'}
+                  onClick={() => setCurrentPage(1)}
+                  style={currentPage === 1 ? { background: 'var(--cd-accent, #4f46e5)', color: '#fff', fontWeight: 'bold', minWidth: '28px', height: '28px' } : { minWidth: '28px', height: '28px' }}
+                >
+                  1
+                </Button>
+                {startPage > 2 && <span style={{ color: 'var(--cd-text-3, #64748b)', padding: '0 4px', fontSize: '12px' }}>...</span>}
+              </>
+            )}
+
+            {pages.map((p) => (
+              <Button
+                key={p}
+                type="button"
+                className={`page-btn ${currentPage === p ? 'active-page' : ''}`}
+                variant={currentPage === p ? 'secondary' : 'ghost'}
+                onClick={() => setCurrentPage(p)}
+                style={currentPage === p ? { background: 'var(--cd-accent, #4f46e5)', color: '#fff', fontWeight: 'bold', minWidth: '28px', height: '28px' } : { minWidth: '28px', height: '28px' }}
+              >
+                {p}
+              </Button>
+            ))}
+
+            {endPage < totalPages && (
+              <>
+                {endPage < totalPages - 1 && <span style={{ color: 'var(--cd-text-3, #64748b)', padding: '0 4px', fontSize: '12px' }}>...</span>}
+                <Button
+                  type="button"
+                  className={`page-btn ${currentPage === totalPages ? 'active-page' : ''}`}
+                  variant={currentPage === totalPages ? 'secondary' : 'ghost'}
+                  onClick={() => setCurrentPage(totalPages)}
+                  style={currentPage === totalPages ? { background: 'var(--cd-accent, #4f46e5)', color: '#fff', fontWeight: 'bold', minWidth: '28px', height: '28px' } : { minWidth: '28px', height: '28px' }}
+                >
+                  {totalPages}
+                </Button>
+              </>
+            )}
+
+            <Button
+              type="button"
+              className="page-btn"
+              variant="ghost"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage >= totalPages}
+              style={{ minWidth: '28px', height: '28px' }}
+            >
+              Next <i className="ti ti-chevron-right" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              className="page-btn"
+              variant="ghost"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage >= totalPages}
+              title="Last Page"
+              style={{ padding: '0 6px', minWidth: '28px', height: '28px' }}
+            >
+              <i className="ti ti-chevrons-right" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+
+        <div className="pagination-page-size-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+          <span style={{ color: 'var(--cd-text-3, #64748b)' }}>Rows per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const val = e.target.value;
+              setPageSize(val);
+              setCurrentPage(1);
+            }}
+            className="input"
+            style={{
+              padding: '2px 8px',
+              borderRadius: '6px',
+              border: '1px solid var(--cd-border-subtle, #e2e8f0)',
+              background: 'var(--cd-surface-2, #f1f5f9)',
+              color: 'var(--cd-text, #0f172a)',
+              fontSize: '12px',
+              outline: 'none',
+              cursor: 'pointer',
+              width: 'auto',
+              height: 'auto'
+            }}
+          >
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+            <option value="all">All</option>
+          </select>
+          {pageSize === 'all' && filteredClientRows.length > 500 && (
+            <span style={{ color: '#ef4444', fontSize: '11px', fontWeight: '600' }} className="all-rows-warning">
+              ⚠️ Rendering {filteredClientRows.length} rows may cause lag
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <AppLayout topbarProps={UNIFIED_NAVBAR_TOPBAR_PROPS}>
       {toast ? (
@@ -2766,15 +2932,7 @@ export default function ClientListPage() {
                         </Button>
                       </div>
                     </div>
-                    <div className="client-data-pagination-row pagination-row">
-                      <Button type="button" className="page-btn" variant="ghost" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage <= 1}>
-                        <i className="ti ti-chevron-left" aria-hidden="true" /> Previous
-                      </Button>
-                      <span className="ui-card-description page-info">Page {currentPage} of {totalPages}</span>
-                      <Button type="button" className="page-btn" variant="ghost" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>
-                        Next <i className="ti ti-chevron-right" aria-hidden="true" />
-                      </Button>
-                    </div>
+                    {renderPaginationRow()}
                     <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet client-data-reference-table-wrap">
                       <table className="client-data-reference-table data-table">
                         <thead>
@@ -2831,7 +2989,7 @@ export default function ClientListPage() {
                                     aria-label={`Select ${row.name}`}
                                   />
                                 </td>
-                                <td className="client-row-number">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</td>
+                                <td className="client-row-number">{(currentPage - 1) * pageSizeNumeric + rowIndex + 1}</td>
                                 {REFERENCE_TABLE_COLUMNS.map(({ field }) => {
                                   const rawValue = rowEdits[row.id]?.[field] ?? row[field] ?? '';
                                   const value = rawValue === '-' ? '' : rawValue;
@@ -2888,6 +3046,7 @@ export default function ClientListPage() {
                         </tbody>
                       </table>
                     </div>
+                    {renderPaginationRow()}
                     <div className="client-data-directory-legend legend">
                       <div className="legend-item">
                         <span className="legend-dot repeated" aria-hidden="true" />

@@ -42,6 +42,7 @@ async function getProfile(identifier, role) {
     targetApprovalRequestNote: '',
     timelineTasks: {},
     timelineCustomTasks: [],
+    quickNotes: [],
     notificationPrefs: {
       campaignUpdates: true,
       replyAlerts: true,
@@ -102,6 +103,15 @@ export async function PATCH(req) {
         type: String(task?.type || 'Reminder').trim() || 'Reminder',
         status: String(task?.status || 'pending').trim() || 'pending',
         done: Boolean(task?.done)
+      }));
+    }
+    if (Array.isArray(body.quickNotes)) {
+      update.quickNotes = body.quickNotes.slice(0, 200).map((note, index) => ({
+        id: String(note?.id || `note-${Date.now()}-${index}`),
+        topic: String(note?.topic || 'General').trim() || 'General',
+        tag: String(note?.tag || 'Note').trim() || 'Note',
+        text: String(note?.text || '').trim(),
+        createdAt: note?.createdAt ? new Date(note.createdAt) : new Date()
       }));
     }
     if (body.notificationPrefs && typeof body.notificationPrefs === 'object') {

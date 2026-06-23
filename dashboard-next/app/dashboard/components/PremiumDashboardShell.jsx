@@ -24,6 +24,7 @@ import './Campaign.css';
 import './Draft.css';
 import './DraftDummy.css';
 import './TestEmail.css';
+import './DashboardProductivity.css';
 import './Schedule.css';
 
 
@@ -239,13 +240,22 @@ function NotificationItem({ item, onClick }) {
 }
 
 function QuickNoteItem({ item }) {
+  const timestamp = item.createdAt
+    ? new Date(item.createdAt).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : item.time;
   return (
     <div className="premium-note-item">
       <div className="premium-note-item-head">
         <div className="premium-avatar premium-note-avatar">{item.avatar || 'QN'}</div>
         <div>
           <strong>{item.name}</strong>
-          <small>{item.time}</small>
+          <small><i className="ti ti-clock" /> {timestamp}</small>
         </div>
       </div>
       <div className="premium-note-item-meta">
@@ -1927,7 +1937,28 @@ export default function PremiumDashboardShell({
     setSelectedCustomList(selectedListId);
   }, [selectedListId]);
 
-  const addQuickNote = () => {
+  useEffect(() => {
+    let active = true;
+    fetch('/api/profile', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active || !Array.isArray(data?.profile?.quickNotes)) return;
+        setQuickNotes(
+          [...data.profile.quickNotes]
+            .map((note) => ({
+              ...note,
+              avatar: 'QN',
+              name: note.topic || 'Quick Note',
+              time: note.createdAt || ''
+            }))
+            .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        );
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const addQuickNote = async () => {
     const reminder = noteDraft.trim();
     const topic = noteTopic.trim();
     const tag = noteTag.trim();
@@ -1935,23 +1966,41 @@ export default function PremiumDashboardShell({
       onShowMessage?.('Add a topic, tag, or reminder before saving it.', 'info');
       return;
     }
-    const today = new Date().toLocaleDateString('en-GB');
-    setQuickNotes((current) => [
-      {
-        id: `note-local-${Date.now()}`,
-        avatar: 'QN',
-        name: topic || 'Quick Note',
-        time: today,
-        text: reminder || 'No reminder text added.',
-        topic: topic || 'General',
-        tag: tag || 'Note'
-      },
-      ...current
-    ]);
+    const createdAt = new Date().toISOString();
+    const nextNote = {
+      id: `note-${Date.now()}`,
+      avatar: 'QN',
+      name: topic || 'Quick Note',
+      time: createdAt,
+      createdAt,
+      text: reminder || 'No reminder text added.',
+      topic: topic || 'General',
+      tag: tag || 'Note'
+    };
+    const nextNotes = [nextNote, ...quickNotes].slice(0, 200);
+    setQuickNotes(nextNotes);
     setNoteDraft('');
     setNoteTopic('');
     setNoteTag('');
     onShowMessage?.('Note saved to your dashboard.', 'success');
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quickNotes: nextNotes.map(({ id, topic: savedTopic, tag: savedTag, text, createdAt: savedAt }) => ({
+            id,
+            topic: savedTopic,
+            tag: savedTag,
+            text,
+            createdAt: savedAt
+          }))
+        })
+      });
+      if (!response.ok) throw new Error('Failed to persist note.');
+    } catch {
+      onShowMessage?.('Note is visible now, but could not be saved permanently.', 'error');
+    }
   };
 
   const toggleRowSelection = (id) => {
@@ -3061,6 +3110,7 @@ export default function PremiumDashboardShell({
         setNoteDraft={setNoteDraft}
         setShowNotesPopup={setShowNotesPopup}
         addQuickNote={addQuickNote}
+        quickNotes={quickNotes}
         broadcastPerformanceRef={broadcastPerformanceRef}
         onRefreshCampaigns={onRefreshCampaigns}
         campaignRefreshing={campaignRefreshing}
@@ -3341,7 +3391,7 @@ export default function PremiumDashboardShell({
       {renderPortalPopup(
         showNotesPopup,
         <div className="premium-calendar-modal-backdrop" onClick={() => setShowNotesPopup(false)}>
-          <div className="premium-calendar-modal" style={popupStyleFor('notes')} onClick={(event) => event.stopPropagation()}>
+          <div className="premium-calendar-modal premium-quick-notes-modal" style={popupStyleFor('notes')} onClick={(event) => event.stopPropagation()}>
             <div className="section-header">
               <div>
                 <span className="premium-section-kicker">Notes</span>
@@ -3349,7 +3399,7 @@ export default function PremiumDashboardShell({
               </div>
               <button type="button" className="ghost subtle" onClick={() => setShowNotesPopup(false)}>×</button>
             </div>
-            <div className="premium-calendar-modal-list">
+            <div className="premium-calendar-modal-list premium-notes-history">
               {quickNotes.length ? (
                 quickNotes.map((item) => (
                   <QuickNoteItem key={`${item.id}-popup`} item={item} />

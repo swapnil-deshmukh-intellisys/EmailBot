@@ -222,6 +222,21 @@
     display: flex; align-items: center; gap: 9px;
     padding: 6px 4px;
   }
+
+  .dashboard-sidebar-account-block {
+    flex: 0 0 auto;
+    display: grid;
+    gap: 0;
+    margin-top: auto;
+  }
+
+  .dashboard-sidebar-account-block > .dashboard-upgrade-card {
+    margin-top: 0 !important;
+  }
+
+  .dashboard-sidebar-account-block > .reference-sidebar-user {
+    margin-top: 0 !important;
+  }
   .user-avatar {
     width: 28px; height: 28px; border-radius: 50%;
     background: var(--indigo-500);

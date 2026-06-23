@@ -65,6 +65,18 @@ const UserProfileSchema = new mongoose.Schema(
       ],
       default: []
     },
+    quickNotes: {
+      type: [
+        {
+          id: { type: String, default: '' },
+          topic: { type: String, default: 'General' },
+          tag: { type: String, default: 'Note' },
+          text: { type: String, default: '' },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
     passwordHash: { type: String, default: '' },
     mustChangePassword: { type: Boolean, default: false },
     isFirstLogin: { type: Boolean, default: true },

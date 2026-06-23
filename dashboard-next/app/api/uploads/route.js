@@ -64,6 +64,21 @@ function normalizeEmail(raw) {
   return value.toLowerCase();
 }
 
+function getRowValue(obj, keys) {
+  const normalizedObj = {};
+  for (const [k, v] of Object.entries(obj)) {
+    normalizedObj[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = v;
+  }
+  for (const key of keys) {
+    const searchKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (searchKey in normalizedObj) {
+      const val = String(normalizedObj[searchKey] ?? '').trim();
+      if (val) return val;
+    }
+  }
+  return '';
+}
+
 function normalizeRow(row) {
   const obj = {};
   for (const [key, value] of Object.entries(row)) {
@@ -72,12 +87,20 @@ function normalizeRow(row) {
     obj[cleanKey] = value;
   }
 
-  const email = normalizeEmail(obj.Email || obj.email || '');
+  const email = normalizeEmail(getRowValue(obj, ['Email', 'email', 'Email Address', 'emailAddress', 'email_address']));
 
   return {
-    Name: obj.Name || obj.name || '',
+    Name: getRowValue(obj, ['Name', 'name', 'First Name', 'firstName', 'Client Name', 'clientName', 'client_name', 'client name']),
+    Surname: getRowValue(obj, ['Surname', 'surname', 'Last Name', 'lastName', 'last name', 'last_name']),
     Email: email,
-    Company: obj.Company || obj.company || '',
+    Company: getRowValue(obj, ['Company', 'company', 'Company Name', 'companyName', 'company_name', 'company name']),
+    companyName: getRowValue(obj, ['Company', 'company', 'Company Name', 'companyName', 'company_name', 'company name']),
+    Designation: getRowValue(obj, ['Designation', 'designation', 'Title', 'title', 'Job Title', 'jobTitle', 'job title', 'job_title']),
+    Phone: getRowValue(obj, ['Phone', 'phone', 'Telephone', 'telephone', 'mobile', 'Mobile', 'Mobile Number', 'Phone Number']),
+    linkedinUrl: getRowValue(obj, ['linkedinUrl', 'linkedin', 'LinkedIn', 'Linkedin URL', 'linkedin_url', 'linkedin url']),
+    Domain: getRowValue(obj, ['Domain', 'domain']),
+    Sector: getRowValue(obj, ['Sector', 'sector', 'Industry', 'industry']),
+    Country: getRowValue(obj, ['Country', 'country']),
     data: obj,
     status: 'Pending'
   };

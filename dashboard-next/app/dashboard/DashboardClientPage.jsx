@@ -1589,7 +1589,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Total emails',
       value: Number(stats?.total || 0),
       percent: 100,
-      meta: 'All emails',
+      meta: 'Tracked emails',
       tone: 'total',
       color: '#f59e0b',
       icon: 'â—‰'
@@ -1598,7 +1598,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Delivered',
       value: Number(stats?.sent || 0),
       percent: completionRate,
-      meta: 'Delivered',
+      meta: `${completionRate}% sent`,
       tone: 'sent',
       color: '#4f46e5',
       icon: 'âœ“'
@@ -1607,7 +1607,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Waiting to send',
       value: Number(stats?.pending || 0),
       percent: Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100),
-      meta: 'Waiting to send',
+      meta: `${Math.round((Number(stats?.pending || 0) / safeTrackedMails) * 100)}% pending`,
       tone: 'pending',
       color: '#3b82f6',
       icon: 'â—”'
@@ -1616,7 +1616,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Failed',
       value: Number(stats?.failed || 0),
       percent: Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100),
-      meta: 'Failed',
+      meta: `${Math.round((Number(stats?.failed || 0) / safeTrackedMails) * 100)}% failed`,
       tone: 'failed',
       color: '#ef4444',
       icon: 'âœ–'
@@ -1625,7 +1625,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Bounced',
       value: Number(stats?.bounced || 0),
       percent: Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100),
-      meta: 'Bounced',
+      meta: `${Math.round((Number(stats?.bounced || 0) / safeTrackedMails) * 100)}% bounced`,
       tone: 'bounced',
       color: '#14b8a6',
       icon: 'â†º'
@@ -1634,7 +1634,7 @@ const handleDeleteDraft = async (draft) => {
       title: 'Spam',
       value: Number(stats?.spam || 0),
       percent: Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100),
-      meta: 'Spam',
+      meta: `${Math.round((Number(stats?.spam || 0) / safeTrackedMails) * 100)}% spam`,
       tone: 'spam',
       color: '#fb7185',
       icon: '!'
@@ -2708,15 +2708,20 @@ const handleDeleteDraft = async (draft) => {
   }, [historyCampaigns.length]);
 
 
+  const hasLiveCampaignRef = useRef(false);
   useEffect(() => {
-    const hasLiveCampaign = campaigns.some((campaign) => LIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || campaign?.displayStatus || '')));
-    const refreshMs = hasLiveCampaign ? 7000 : 90000;
+    hasLiveCampaignRef.current = campaigns.some((campaign) =>
+      LIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || campaign?.displayStatus || ''))
+    );
+  }, [campaigns]);
+
+  useEffect(() => {
     const id = setInterval(() => {
-      void refreshCampaignData({ source: hasLiveCampaign ? 'live-poll' : 'idle-poll' });
-    }, refreshMs);
+      const source = hasLiveCampaignRef.current ? 'live-poll' : 'idle-poll';
+      void refreshCampaignData({ source });
+    }, 7000);
     return () => clearInterval(id);
   }, [
-    campaigns,
     showAllUserActivity,
     project,
     selectedAccount,
@@ -4172,7 +4177,7 @@ const normalizeSelectedListEmails = async () => {
 
         body main.dashboard-shell .plan-card.dashboard-upgrade-card {
           flex: 0 0 auto !important;
-          margin: 0 18px 54px !important;
+          margin: 0 18px 8px !important;
           width: auto !important;
           max-width: none !important;
           min-height: 96px !important;
@@ -4681,6 +4686,7 @@ const normalizeSelectedListEmails = async () => {
         html body main.dashboard-shell .plan-card.dashboard-upgrade-card {
           margin-top: 0 !important;
           margin-right: 0 !important;
+          margin-bottom: 8px !important;
           margin-left: 0 !important;
         }
 
@@ -5276,6 +5282,7 @@ const normalizeSelectedListEmails = async () => {
               <div className="nav-section-label reference-nav-label">Campaigns</div>
               {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
             </nav>
+            <div className="dashboard-sidebar-account-block">
             <div
               className={`plan-card dashboard-upgrade-card dashboard-subscription-card usage-${profileCredits.warningLevel || 'healthy'}`}
               role="button"
@@ -5320,6 +5327,7 @@ const normalizeSelectedListEmails = async () => {
                 <button type="button" className="icon-btn user-icon-btn" onClick={() => router.push('/dashboard/user/profile/settings')} aria-label="Settings"><i className="ti ti-settings" /></button>
                 <button type="button" className="icon-btn user-icon-btn" onClick={logout} aria-label="Log out"><i className="ti ti-logout" /></button>
               </div>
+            </div>
             </div>
           </div>
         </div>
