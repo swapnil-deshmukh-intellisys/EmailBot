@@ -591,6 +591,33 @@ export async function POST(req) {
 
     });
 
+    const storedCampaignProject = String(project || '').trim();
+    const storedCampaignSender = String(senderFrom || senderAccount?.from || '').trim().toLowerCase();
+    const campaignSnapshot = {
+      campaignId: String(campaign._id || ''),
+      name: String(campaign.name || name || '').trim(),
+      status: String(campaign.status || 'Draft'),
+      date: campaign.createdAt || new Date(),
+      scheduledAt: campaign.scheduledAt || null,
+      senderId: storedCampaignSender,
+      project: storedCampaignProject
+    };
+    const listMetadataUpdate = {
+      $push: { 'dataCenterMeta.campaignHistory': campaignSnapshot },
+      $set: {
+        'dataCenterMeta.campaignName': campaignSnapshot.name,
+        'dataCenterMeta.campaignStatus': campaignSnapshot.status,
+        'dataCenterMeta.campaignDate': campaignSnapshot.date,
+        'dataCenterMeta.senderId': campaignSnapshot.senderId,
+        'dataCenterMeta.campaignProject': campaignSnapshot.project
+      }
+    };
+    if (storedCampaignProject) {
+      listMetadataUpdate.$set.project = storedCampaignProject.toLowerCase();
+      listMetadataUpdate.$set.projectName = storedCampaignProject.toUpperCase();
+    }
+    await LeadList.updateOne({ _id: listId, userEmail }, listMetadataUpdate);
+
     console.info('[campaign_queued]', {
       campaignId: String(campaign._id || ''),
       userEmail,

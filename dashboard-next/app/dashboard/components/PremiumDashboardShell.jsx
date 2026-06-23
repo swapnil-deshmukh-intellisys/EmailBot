@@ -495,6 +495,7 @@ export default function PremiumDashboardShell({
   selectedListName = '',
   previewRows = [],
   previewColumns = [],
+  previewLoading = false,
   onPreviewCellChange,
   onPreviewAddRow,
   onPreviewAddColumn,
@@ -1691,7 +1692,14 @@ export default function PremiumDashboardShell({
   }, [selectedTagFilters, tableSearch]);
 
   useEffect(() => {
-    if (!previewRows.length) return;
+    if (!previewRows.length) {
+      if (!previewColumns.length && !reviewLocalColumns.length) {
+        setColumnMappings([]);
+        setOverviewRows([]);
+        setSelectedOverviewRowIds([]);
+      }
+      return;
+    }
     const columns = previewColumns.length
       ? previewColumns
       : Array.from(new Set(previewRows.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
@@ -2292,6 +2300,14 @@ export default function PremiumDashboardShell({
       return;
     }
     setShowClientListSelectionNote(false);
+    setOverviewRows([]);
+    setColumnMappings([]);
+    setSelectedOverviewRowIds([]);
+    setSelectedOverviewColumns([]);
+    setReviewLocalColumns([]);
+    setOverviewSearch('');
+    setOverviewFilter('all');
+    setEditingCell(null);
     onSelectList?.(selectedList);
     setWorkflowPosition((current) => Math.max(current, 2));
     setShowClientListPopup(false);
@@ -2309,7 +2325,13 @@ export default function PremiumDashboardShell({
     setShowOverviewPopup(true);
     onShowMessage?.('Proceeding without a client list. You can continue exploring the workflow and choose a list later.', 'info');
   };
+  const hasOverviewData = overviewRows.length > 0;
+  const reviewDataLoading = Boolean(previewLoading && !hasOverviewData);
   const handleOverviewConfirm = () => {
+    if (reviewDataLoading) {
+      onShowMessage?.('Selected list data is still loading. Please wait a moment.', 'info');
+      return;
+    }
     if (!overviewRows.length) {
       if (!hasShownOverviewWarningRef.current) {
         hasShownOverviewWarningRef.current = true;
@@ -2343,7 +2365,6 @@ export default function PremiumDashboardShell({
     setShowOverviewPopup(false);
     setShowCampaignPopup(true);
   };
-  const hasOverviewData = overviewRows.length > 0;
     const campaignMissingFields = [
       !String(effectiveCampaignName || '').trim() ? 'Campaign Name is empty' : null,
       !String(effectiveCampaignSender || '').trim() ? 'Sender is empty' : null
@@ -3944,6 +3965,11 @@ export default function PremiumDashboardShell({
                   Proceeding without a client list. You can continue exploring the workflow and choose a list later.
                 </p>
               ) : null}
+              {reviewDataLoading ? (
+                <p className="premium-review-inline-note">
+                  Loading selected uploaded list data...
+                </p>
+              ) : null}
               <div className="premium-review-summary">
                 <h4>File Summary</h4>
                 {summaryStats.map((item) => (
@@ -4066,6 +4092,11 @@ export default function PremiumDashboardShell({
                     ))}
                   </div>
                   <div className="premium-review-table-body">
+                    {!filteredOverviewRows.length ? (
+                      <div className="premium-review-empty-row">
+                        {reviewDataLoading ? 'Loading selected list rows...' : 'No rows to show yet.'}
+                      </div>
+                    ) : null}
                     {filteredOverviewRows.map((row, index) => {
                       const issues = rowIssues[row.id] || [];
                       return (
@@ -4190,17 +4221,17 @@ export default function PremiumDashboardShell({
                   Re-upload
                 </button>
               </div>
-              {showOverviewNotice && !hasOverviewData ? (
+              {showOverviewNotice && !hasOverviewData && !reviewDataLoading ? (
                 <div className="premium-review-inline-note">
                   No data yet. Please select or upload a client list before continuing.
                 </div>
               ) : null}
               <button
                 type="button"
-                className={`wf-btn-primary${hasOverviewData ? '' : ' is-disabled'}`}
+                className={`wf-btn-primary${hasOverviewData && !reviewDataLoading ? '' : ' is-disabled'}`}
                 onClick={handleOverviewConfirm}
               >
-                {hasOverviewData ? 'Continue' : 'Select required file first'}
+                {reviewDataLoading ? 'Loading list...' : hasOverviewData ? 'Continue' : 'Select required file first'}
               </button>
             </div>
           </div>

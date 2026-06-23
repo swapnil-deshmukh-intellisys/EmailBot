@@ -31,6 +31,7 @@ const LeadSchema = new mongoose.Schema(
       cc: { type: [String], default: [] },
       references: { type: [String], default: [] },
       lastCampaignType: { type: String, default: '' },
+      campaignName: { type: String, default: '' },
       updatedAt: { type: Date, default: null }
     }
   },

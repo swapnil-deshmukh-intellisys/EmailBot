@@ -5,6 +5,16 @@ import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { hasMeaningfulLeadData } from '@/core-lib/client-data-config/UploadSheetValidation';
 import { activeListFilter } from '@/app/api/client-data/_retention';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store'
+};
+
 function normalizeEmail(raw) {
   let value = String(raw || '').trim();
   const mdMailto = value.match(/\]\(mailto:([^)]+)\)/i);
@@ -17,6 +27,85 @@ function normalizeEmail(raw) {
   return value.toLowerCase();
 }
 
+const REVIEW_FIELD_CANDIDATES = [
+  ['Name', ['Name', 'name', 'First Name', 'firstName']],
+  ['Surname', ['Surname', 'surname', 'Last Name', 'lastName']],
+  ['Designation', ['Designation', 'designation', 'Title', 'title']],
+  ['Company', ['Company', 'company', 'CMP Name', 'cmpName', 'Company Name', 'companyName']],
+  ['Company Name', ['Company Name', 'companyName', 'CMP Name', 'cmpName', 'Company', 'company']],
+  ['Email', ['Email', 'email']],
+  ['Phone', ['Phone', 'phone', 'Mobile', 'mobile']],
+  ['Domain', ['Domain', 'domain', 'Website', 'website']],
+  ['Sector', ['Sector', 'sector', 'Industry', 'industry']],
+  ['Country', ['Country', 'country']],
+  ['List Added Date', ['List Added Date', 'listAddedDate', 'Added Date', 'Date', 'Upload Date']],
+  ['Source', ['Source', 'source']],
+  ['Lead Type', ['Lead Type', 'LeadType', 'leadType']],
+  ['Sourcer', ['Sourcer', 'sourcer']],
+  ['User ID', ['User ID', 'UserId', 'userId']],
+  ['Project Approach', ['Project Approach', 'ProjectApproach', 'projectApproach']],
+  ['Sender ID', ['Sender ID', 'SenderId', 'senderId']]
+];
+
+const INTERNAL_LEAD_KEYS = new Set([
+  '_id',
+  'id',
+  'data',
+  'status',
+  'dedupe',
+  'createdAt',
+  'updatedAt',
+  'sentAt',
+  'openedAt',
+  'clickedAt',
+  'repliedAt',
+  'failedAt',
+  'messageId',
+  'campaignId',
+  'lastError',
+  'error',
+  'attempts'
+]);
+
+function firstPresent(source = {}, data = {}, keys = []) {
+  for (const key of keys) {
+    const value = source?.[key] ?? data?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return value;
+  }
+  return '';
+}
+
+function normalizeLeadForReview(lead = {}, columns = []) {
+  const source = lead && typeof lead === 'object' ? lead : {};
+  const data = source.data && typeof source.data === 'object' && !Array.isArray(source.data) ? source.data : {};
+  const reviewData = { ...data };
+
+  columns.forEach((column) => {
+    const key = String(column || '').trim();
+    if (!key || String(reviewData[key] ?? '').trim()) return;
+    const value = source?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) reviewData[key] = value;
+  });
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (INTERNAL_LEAD_KEYS.has(key) || String(reviewData[key] ?? '').trim()) return;
+    if (value !== undefined && value !== null && typeof value !== 'object' && String(value).trim()) {
+      reviewData[key] = value;
+    }
+  });
+
+  REVIEW_FIELD_CANDIDATES.forEach(([target, keys]) => {
+    if (String(reviewData[target] ?? '').trim()) return;
+    const value = firstPresent(source, data, keys);
+    if (value !== '') reviewData[target] = value;
+  });
+
+  return {
+    ...source,
+    data: reviewData
+  };
+}
+
 export async function GET(req, { params }) {
   try {
     const auth = await requireAuth(req);
@@ -25,8 +114,12 @@ export async function GET(req, { params }) {
     const query = activeListFilter(buildAuthOwnerFilter(auth, { _id: params.id }));
     const list = await LeadList.findOne(query).lean();
     if (!list) {
-      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+      return NextResponse.json({ error: 'List not found' }, { status: 404, headers: NO_STORE_HEADERS });
     }
+
+    const leads = Array.isArray(list.leads)
+      ? list.leads.filter(hasMeaningfulLeadData).map((lead) => normalizeLeadForReview(lead, list.columns || []))
+      : [];
 
     return NextResponse.json({
       _id: String(list._id),
@@ -37,8 +130,8 @@ export async function GET(req, { params }) {
       createdAt: list.createdAt || null,
       columns: list.columns || [],
       sheetStyle: list.sheetStyle || {},
-      leads: Array.isArray(list.leads) ? list.leads.filter(hasMeaningfulLeadData) : []
-    });
+      leads
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     if (String(process.env.DEV_DEMO_DATA || '').trim().toLowerCase() === 'true' && String(params?.id || '') === 'demo-list-1') {
       return NextResponse.json({
@@ -52,9 +145,9 @@ export async function GET(req, { params }) {
           { Name: 'Jane Smith', Email: 'jane@example.com', Company: 'Globex', status: 'Pending', data: { Name: 'Jane Smith', Email: 'jane@example.com', Company: 'Globex' } }
         ],
         error: error.message || 'Failed to load list'
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
-    return NextResponse.json({ error: error.message || 'Failed to load list' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to load list' }, { status: 500, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -66,7 +159,7 @@ export async function PATCH(req, { params }) {
   const query = activeListFilter(buildAuthOwnerFilter(auth, { _id: params.id }));
   const list = await LeadList.findOne(query);
   if (!list) {
-    return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    return NextResponse.json({ error: 'List not found' }, { status: 404, headers: NO_STORE_HEADERS });
   }
 
   const body = await req.json();
@@ -80,11 +173,11 @@ export async function PATCH(req, { params }) {
   if (!rows && nextName) {
     list.name = nextName;
     await list.save();
-    return NextResponse.json({ ok: true, name: list.name });
+    return NextResponse.json({ ok: true, name: list.name }, { headers: NO_STORE_HEADERS });
   }
 
   if (!rows) {
-    return NextResponse.json({ error: 'rows are required (or provide a sheet name to rename)' }, { status: 400 });
+    return NextResponse.json({ error: 'rows are required (or provide a sheet name to rename)' }, { status: 400, headers: NO_STORE_HEADERS });
   }
 
   if (nextName) {
@@ -133,7 +226,7 @@ export async function PATCH(req, { params }) {
 
   await list.save();
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
 }
 
 export async function DELETE(req, { params }) {
@@ -153,8 +246,8 @@ export async function DELETE(req, { params }) {
     { new: true }
   );
   if (!deleted) {
-    return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    return NextResponse.json({ error: 'List not found' }, { status: 404, headers: NO_STORE_HEADERS });
   }
 
-  return NextResponse.json({ ok: true, deletedId: String(params.id) });
+  return NextResponse.json({ ok: true, deletedId: String(params.id) }, { headers: NO_STORE_HEADERS });
 }

@@ -25,6 +25,28 @@ import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Placeholder from '@tiptap/extension-placeholder';
 
+const EditorFontFamily = FontFamily.extend({
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontFamily: {
+            default: null,
+            parseHTML: (element) => element.style.fontFamily || null,
+            renderHTML: (attributes) => {
+              if (!attributes.fontFamily) return {};
+              return {
+                style: `font-family: ${attributes.fontFamily} !important`
+              };
+            }
+          }
+        }
+      }
+    ];
+  }
+});
+
 const FONT_FAMILIES = [
   { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
   { label: 'Inter', value: 'Inter, Arial, sans-serif' },
@@ -140,7 +162,7 @@ export default function RichTextEditor({ value, onChange, placeholder, normalize
     TextStyle,
     Color,
     BackgroundColor,
-    FontFamily,
+    EditorFontFamily,
     FontSize,
     Underline,
     Superscript,

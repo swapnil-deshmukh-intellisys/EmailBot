@@ -793,7 +793,7 @@ html body main.dashboard-shell .client-data-page .client-data-reference-table-wr
 html body main.dashboard-shell .client-data-page .client-data-reference-table {
   display: table !important;
   width: max-content !important;
-  min-width: 1920px !important;
+  min-width: 2320px !important;
   border-collapse: collapse !important;
   border-spacing: 0 !important;
   table-layout: auto !important;
@@ -971,6 +971,20 @@ html body main.dashboard-shell .client-data-page .client-data-reference-table .c
 html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.name-cell {
   color: var(--cd-text-1) !important;
   font-weight: 500 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell::placeholder {
+  color: var(--cd-text-3) !important;
+  opacity: .78 !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-history-cell {
+  display: block !important;
+  max-width: 260px !important;
+  overflow: hidden !important;
+  color: var(--cd-text-2) !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell:hover {

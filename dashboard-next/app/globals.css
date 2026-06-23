@@ -26893,6 +26893,19 @@ html.theme-dark .dashboard-profile-table-row:hover {
   overflow: auto;
 }
 
+.premium-review-empty-row {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  padding: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 10px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .premium-review-head-cell {
   display: flex !important;
   align-items: center;
@@ -41152,4 +41165,175 @@ html body main.dashboard-shell .campaigns-modern-page ::-webkit-scrollbar-thumb 
 .draft-workspace-pane .premium-summary-message-editor .wysiwyg-toolbar-toggle:hover {
   background: #f8fafc !important;
   border-color: #c7d2fe !important;
+}
+
+/* === Client Directory: Campaign Info Columns & Stats Bar === */
+
+/* Campaign stats pill bar in directory header */
+.client-campaign-stats-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  margin-bottom: 2px;
+}
+
+.camp-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.camp-stat-sent     { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.camp-stat-pending  { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
+.camp-stat-failed   { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.camp-stat-bounced  { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+.camp-stat-spam     { background: #fae8ff; color: #86198f; border-color: #f5d0fe; }
+.camp-stat-verified { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.camp-stat-missing  { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+
+/* Column group row (two-row thead) */
+.client-data-reference-table .col-group-row th {
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.client-data-reference-table .col-group-spacer {
+  background: transparent;
+}
+
+.client-data-reference-table .col-group-label {
+  text-align: center;
+}
+
+.client-data-reference-table .col-group-client {
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--text-secondary, #64748b);
+}
+
+.client-data-reference-table .col-group-campaign {
+  background: rgba(79, 70, 229, 0.06);
+  color: #4338ca;
+  border-left: 2px solid rgba(79, 70, 229, 0.2);
+}
+
+/* Campaign column header cells */
+.client-data-reference-table .campaign-col-header {
+  background: rgba(79, 70, 229, 0.05);
+  color: #4338ca;
+  border-left: none;
+  position: relative;
+}
+
+.client-data-reference-table .campaign-col-header:first-of-type {
+  border-left: 2px solid rgba(79, 70, 229, 0.18);
+}
+
+/* Campaign info cells in the table body */
+.client-data-reference-table .campaign-info-cell {
+  background: rgba(79, 70, 229, 0.025);
+  border-left: none;
+}
+
+.client-data-reference-table .campaign-info-cell:first-of-type {
+  border-left: 2px solid rgba(79, 70, 229, 0.12);
+}
+
+/* Date/time cells inside campaign section */
+.campaign-date-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-primary, #1e293b);
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+   DirectoryExcelGrid — spreadsheet container classes
+   Most styling is via inline styles; these provide the
+   structural baseline for named class names used in the JSX.
+   ============================================================ */
+
+.directory-excel-grid {
+  width: 100%;
+  margin-bottom: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.excel-grid-container {
+  user-select: none;
+}
+
+.excel-grid-container:focus {
+  outline: none;
+}
+
+.excel-grid-head {
+  font-weight: 700;
+}
+
+.excel-header-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.excel-header-cell.campaign-col-header {
+  background: #e0f2fe !important;
+  color: #075985 !important;
+}
+
+.excel-grid-row {
+  transition: background 0.07s;
+}
+
+.excel-grid-row:hover {
+  filter: brightness(0.97);
+}
+
+.excel-grid-status-bar {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   SheetDetailsPanel card
+   ============================================================ */
+
+.sheet-details-panel-card {
+  border: 1px solid var(--border-soft, #e2e8f0);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  background: var(--panel-bg, #fff);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.sheet-details-panel-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+}
+
+.sheet-details-content-grid {
+  padding: 14px 16px;
+}
+
+/* Dark mode overrides */
+html[data-theme='dark'] .sheet-details-panel-card,
+html.theme-dark .sheet-details-panel-card {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: rgba(15, 23, 42, 0.85);
 }

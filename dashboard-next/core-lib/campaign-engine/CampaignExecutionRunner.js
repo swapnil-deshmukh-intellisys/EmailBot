@@ -454,6 +454,7 @@ async function persistLeadProgress(listId, idx, lead) {
         [`leads.${idx}.thread.cc`]: Array.isArray(thread.cc) ? thread.cc : [],
         [`leads.${idx}.thread.references`]: Array.isArray(thread.references) ? thread.references : [],
         [`leads.${idx}.thread.lastCampaignType`]: String(thread.lastCampaignType || ''),
+        [`leads.${idx}.thread.campaignName`]: String(thread.campaignName || ''),
         [`leads.${idx}.thread.updatedAt`]: thread.updatedAt || null
       }
     }
@@ -1284,8 +1285,16 @@ export async function startCampaignRunner(campaignId, options = {}) {
           lead.failedAt = null;
           lead.sendingStartedAt = null;
           if (sendResult?.thread) {
-            lead.thread = sendResult.thread;
+            lead.thread = {
+              ...sendResult.thread,
+              campaignName: String(campaign.name || '')
+            };
             await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
+          } else {
+            lead.thread = {
+              ...(lead.thread || {}),
+              campaignName: String(campaign.name || '')
+            };
           }
           campaign.stats.sent += 1;
           syncCampaignProgressCounters(campaign);

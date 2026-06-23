@@ -337,6 +337,80 @@ const DEFAULT_SHEET_STYLE = {
 const DASHBOARD_DRAFT_STATE_KEY = 'dashboard:draft-state:v1';
 const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 
+const REVIEW_FIELD_CANDIDATES = [
+  ['Name', ['Name', 'name', 'First Name', 'firstName']],
+  ['Surname', ['Surname', 'surname', 'Last Name', 'lastName']],
+  ['Designation', ['Designation', 'designation', 'Title', 'title']],
+  ['Company', ['Company', 'company', 'CMP Name', 'cmpName', 'Company Name', 'companyName']],
+  ['Company Name', ['Company Name', 'companyName', 'CMP Name', 'cmpName', 'Company', 'company']],
+  ['Email', ['Email', 'email']],
+  ['Phone', ['Phone', 'phone', 'Mobile', 'mobile']],
+  ['Domain', ['Domain', 'domain', 'Website', 'website']],
+  ['Sector', ['Sector', 'sector', 'Industry', 'industry']],
+  ['Country', ['Country', 'country']],
+  ['List Added Date', ['List Added Date', 'listAddedDate', 'Added Date', 'Date', 'Upload Date']],
+  ['Source', ['Source', 'source']],
+  ['Lead Type', ['Lead Type', 'LeadType', 'leadType']],
+  ['Sourcer', ['Sourcer', 'sourcer']],
+  ['User ID', ['User ID', 'UserId', 'userId']],
+  ['Project Approach', ['Project Approach', 'ProjectApproach', 'projectApproach']],
+  ['Sender ID', ['Sender ID', 'SenderId', 'senderId']]
+];
+
+const INTERNAL_LEAD_KEYS = new Set([
+  '_id',
+  'id',
+  'data',
+  'status',
+  'dedupe',
+  'createdAt',
+  'updatedAt',
+  'sentAt',
+  'openedAt',
+  'clickedAt',
+  'repliedAt',
+  'failedAt',
+  'messageId',
+  'campaignId',
+  'lastError',
+  'error',
+  'attempts'
+]);
+
+function firstPresentValue(source = {}, data = {}, keys = []) {
+  for (const key of keys) {
+    const value = source?.[key] ?? data?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return value;
+  }
+  return '';
+}
+
+function normalizeLeadPreviewRow(lead = {}) {
+  const source = lead && typeof lead === 'object' ? lead : {};
+  const data = source.data && typeof source.data === 'object' && !Array.isArray(source.data) ? source.data : {};
+  const row = { ...data };
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (INTERNAL_LEAD_KEYS.has(key) || String(row[key] ?? '').trim()) return;
+    if (value !== undefined && value !== null && typeof value !== 'object' && String(value).trim()) {
+      row[key] = value;
+    }
+  });
+
+  REVIEW_FIELD_CANDIDATES.forEach(([target, keys]) => {
+    if (String(row[target] ?? '').trim()) return;
+    const value = firstPresentValue(source, data, keys);
+    if (value !== '') row[target] = value;
+  });
+
+  return row;
+}
+
+function derivePreviewColumns(columns = [], rows = []) {
+  const fromRows = Array.from(new Set(rows.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
+  return columns?.length ? Array.from(new Set([...columns, ...fromRows])) : fromRows;
+}
+
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -367,6 +441,8 @@ export default function DashboardPage() {
   const [preview, setPreview] = useState([]);
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
+  const [selectedListReloadKey, setSelectedListReloadKey] = useState(0);
+  const [selectedListLoading, setSelectedListLoading] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignName, setCampaignName] = useState('');
   const [delaySeconds, setDelaySeconds] = useState(60);
@@ -850,10 +926,8 @@ export default function DashboardPage() {
       const fileId = selectedDraftUploadedFileIds[0];
       const data = await safeFetchJson(`/api/lists/${fileId}`);
       const leads = data.leads || [];
-      const columns = data.columns?.length
-        ? data.columns
-        : Array.from(new Set(leads.flatMap((lead) => Object.keys(lead?.data || {})).filter(Boolean)));
-      const rows = leads.map((lead) => lead.data || {});
+      const rows = leads.map(normalizeLeadPreviewRow).filter((row) => Object.keys(row || {}).length);
+      const columns = derivePreviewColumns(data.columns || [], rows);
       setBlankWordPad(buildWordPadTableHtml(columns, rows));
       setShowBlankWordPad(true);
       setShowDraftUploadedFilesDropdown(false);
@@ -1382,6 +1456,7 @@ const handleDeleteDraft = async (draft) => {
     const exists = lists.some((list) => String(list?._id) === requestedListId);
     if (exists) {
       setSelectedListId(requestedListId);
+      setSelectedListReloadKey((current) => current + 1);
     }
   }, [lists, selectedListId]);
 
@@ -2653,6 +2728,8 @@ const handleDeleteDraft = async (draft) => {
   ]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadListPreview = async () => {
       if (!selectedListId) {
         setPreview([]);
@@ -2660,31 +2737,51 @@ const handleDeleteDraft = async (draft) => {
         setPreviewDirty(false);
         setPreviewPage(1);
         setPreviewStyle(DEFAULT_SHEET_STYLE);
+        setSelectedListLoading(false);
         return;
       }
 
+      setSelectedListLoading(true);
+      setPreview([]);
+      setPreviewColumns([]);
+      setPreviewDirty(false);
+      setPreviewPage(1);
+
       try {
         const data = await safeFetchJson(`/api/lists/${selectedListId}`);
+        if (cancelled) return;
         const leads = data.leads || [];
-        const columns = data.columns?.length
-          ? data.columns
-          : Array.from(
-              new Set(
-                leads.flatMap((lead) => Object.keys(lead?.data || {})).filter(Boolean)
-              )
-            );
+        const rows = leads.map(normalizeLeadPreviewRow).filter((row) => Object.keys(row || {}).length);
+        const columns = derivePreviewColumns(data.columns || [], rows);
         setPreviewColumns(columns);
-        setPreview(leads.map((lead) => lead.data || {}));
+        setPreview(rows);
         setPreviewPage(1);
         setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(data.sheetStyle || {}) });
         setPreviewDirty(false);
       } catch (e) {
+        if (cancelled) return;
         console.error('Failed to load list preview', e);
+        setPreview([]);
+        setPreviewColumns([]);
+        setPreviewDirty(false);
+        setPreviewPage(1);
+        notify(e.message || 'Selected uploaded list data could not be loaded.', 'error');
+      } finally {
+        if (!cancelled) setSelectedListLoading(false);
       }
     };
 
     loadListPreview();
-  }, [selectedListId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedListId, selectedListReloadKey]);
+
+  const selectWorkflowList = (listId = '') => {
+    const nextListId = String(listId || '').trim();
+    setSelectedListId(nextListId);
+    setSelectedListReloadKey((current) => current + 1);
+  };
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -2706,7 +2803,7 @@ const handleDeleteDraft = async (draft) => {
       setPreviewPage(1);
       setPreviewStyle({ ...DEFAULT_SHEET_STYLE, ...(uploadData.sheetStyle || {}) });
       setPreviewDirty(false);
-      setSelectedListId(uploadData.listId);
+      selectWorkflowList(uploadData.listId);
       await loadAll();
       notify(`File uploaded successfully. ${uploadData.validRows ?? uploadData.count} valid rows ready.`, 'success');
       return { ok: true, ...uploadData };
@@ -5779,6 +5876,7 @@ const normalizeSelectedListEmails = async () => {
         selectedListName={selectedListName}
         previewRows={preview}
         previewColumns={previewColumns}
+        previewLoading={selectedListLoading}
         onPreviewCellChange={updatePreviewCell}
         onPreviewAddRow={addPreviewRow}
         onPreviewAddColumn={addPreviewColumn}
@@ -5788,7 +5886,7 @@ const normalizeSelectedListEmails = async () => {
         onPreviewSave={savePreviewEdits}
         previewDirty={previewDirty}
         onUploadFile={onUpload}
-        onSelectList={setSelectedListId}
+        onSelectList={selectWorkflowList}
         draftOptions={savedDrafts}
         activeDraftId={activeSavedDraftId || ''}
         onSelectSavedDraft={handleSavedDraftSelectById}
@@ -5988,7 +6086,7 @@ const normalizeSelectedListEmails = async () => {
                                     }
                                   }}
                                 />
-                                <span onClick={() => setSelectedListId(list._id)} style={{ flex: 1 }}>
+                                <span onClick={() => selectWorkflowList(list._id)} style={{ flex: 1 }}>
                                   {list.name}
                                 </span>
                               </label>

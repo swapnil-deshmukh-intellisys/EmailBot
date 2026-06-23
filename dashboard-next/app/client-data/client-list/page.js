@@ -8,6 +8,8 @@ import Button from '@/app/components/ui/Button';
 import ClientDataSectionNav from '@/app/client-data/components/ClientDataSectionNav';
 import UploadSheetWorkflow from '@/app/client-data/components/UploadSheetWorkflow';
 import ExcelGrid from '@/app/client-data/components/ExcelGrid';
+import DirectoryExcelGrid from '@/app/client-data/components/DirectoryExcelGrid';
+import SheetDetailsPanel from '@/app/client-data/components/SheetDetailsPanel';
 import { UNIFIED_NAVBAR_TOPBAR_PROPS } from '@/shared-components/layout-components/UnifiedNavbarConfig';
 
 const TABLE_COLUMNS = [
@@ -65,8 +67,73 @@ const EMPTY_FILTERS = {
   country: '',
   name: '',
   designation: '',
-  freshLead: ''
+  freshLead: '',
+  mailStatus: ''
 };
+
+const MAIL_STATUS_BADGE = {
+  Sent: { bg: '#dcfce7', color: '#166534', border: '#bbf7d0' },
+  Pending: { bg: '#fef9c3', color: '#854d0e', border: '#fef08a' },
+  Failed: { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' },
+  Bounced: { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' },
+  Spam: { bg: '#fae8ff', color: '#86198f', border: '#f5d0fe' },
+  'Missing Email': { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
+  Verified: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' }
+};
+
+function MailStatusBadge({ status }) {
+  const s = String(status || 'Pending');
+  const style = MAIL_STATUS_BADGE[s] || MAIL_STATUS_BADGE.Pending;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '2px 9px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        lineHeight: 1.5,
+        letterSpacing: '0.01em',
+        background: style.bg,
+        color: style.color,
+        border: `1px solid ${style.border}`,
+        whiteSpace: 'nowrap'
+      }}
+    >
+      {s}
+    </span>
+  );
+}
+
+function CampaignNameChip({ name }) {
+  if (!name || name === '-' || name === 'Not available') {
+    return <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 12 }}>—</span>;
+  }
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        maxWidth: 180,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        padding: '2px 8px',
+        borderRadius: 6,
+        fontSize: 11,
+        fontWeight: 600,
+        background: 'rgba(79,70,229,0.08)',
+        color: '#4338ca',
+        border: '1px solid rgba(79,70,229,0.18)',
+        verticalAlign: 'middle'
+      }}
+      title={name}
+    >
+      {name}
+    </span>
+  );
+}
 
 const ALL_COUNTRIES = [
   'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
@@ -185,7 +252,11 @@ function buildRowSearchBlob(row = {}) {
     row.sourcer,
     row.userId,
     row.projectApproach,
-    row.senderId
+    row.senderId,
+    row.campaignName,
+    row.mailStatus,
+    row.mailSentDate,
+    row.mailSentTime
   ]
     .map((value) => normalizeText(value).toLowerCase())
     .join(' ');
@@ -552,7 +623,11 @@ const REFERENCE_TABLE_COLUMNS = [
   { field: 'sourcer', label: 'Sourcer' },
   { field: 'userId', label: 'User ID' },
   { field: 'projectApproach', label: 'Project Approach' },
-  { field: 'senderId', label: 'Sender ID' }
+  { field: 'senderId', label: 'Sender ID' },
+  { field: 'campaignName', label: 'Campaign Name' },
+  { field: 'mailStatus', label: 'Mail Status' },
+  { field: 'mailSentDate', label: 'Mail Sent Date' },
+  { field: 'mailSentTime', label: 'Mail Sent Time' }
 ];
 const CLIENT_ROWS_PER_PAGE = 100;
 
@@ -604,7 +679,8 @@ const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
       || localFilters.country !== initialFilters.country
       || localFilters.name !== initialFilters.name
       || localFilters.designation !== initialFilters.designation
-      || localFilters.freshLead !== initialFilters.freshLead;
+      || localFilters.freshLead !== initialFilters.freshLead
+      || localFilters.mailStatus !== initialFilters.mailStatus;
   }, [initialFilters, localFilters, searchInput]);
 
   const onEnterApply = useCallback((event) => {
@@ -654,6 +730,19 @@ const ClientDirectoryFilters = memo(function ClientDirectoryFilters({
             <option value="">All leads</option>
             <option value="fresh">Fresh leads</option>
             <option value="contacted">Contacted leads</option>
+          </select>
+        </label>
+        <label className="client-data-filter-field">
+          <span className="field-label">Mail Status</span>
+          <select className="input filter-select" value={localFilters.mailStatus} onChange={(event) => updateField('mailStatus', event.target.value)}>
+            <option value="">All statuses</option>
+            <option value="Sent">Sent</option>
+            <option value="Pending">Pending</option>
+            <option value="Failed">Failed</option>
+            <option value="Bounced">Bounced</option>
+            <option value="Spam">Spam</option>
+            <option value="Missing Email">Missing Email</option>
+            <option value="Verified">Verified</option>
           </select>
         </label>
         <Button type="button" className="client-data-filter-apply" variant="secondary" onClick={applyNow} disabled={!hasLocalChanges || isApplyingFilters}>
@@ -724,8 +813,11 @@ export default function ClientListPage() {
   const [historyClients, setHistoryClients] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
   const toastTimeoutRef = useRef(null);
   const cellRefs = useRef({});
+  const editUndoStackRef = useRef([]);
+  const editRedoStackRef = useRef([]);
   const createdSheetsPickerRef = useRef(null);
   const clientListRef = useRef(null);
   const activeSection = activeTab;
@@ -825,6 +917,73 @@ export default function ClientListPage() {
       });
     }, 250);
 
+  useEffect(() => {
+    const onDocClick = (event) => {
+      if (!showCreatedSheetsPicker) return;
+      if (!createdSheetsPickerRef.current) return;
+      if (!createdSheetsPickerRef.current.contains(event.target)) {
+        setShowCreatedSheetsPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => window.removeEventListener('mousedown', onDocClick);
+  }, [showCreatedSheetsPicker]);
+
+  useEffect(() => () => {
+    if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
+    if (workspaceSaveTimerRef.current) window.clearTimeout(workspaceSaveTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadWorkspace = async () => {
+      try {
+        const response = await fetch('/api/client-data/paste-workspace', { cache: 'no-store' });
+        const data = await response.json();
+        if (!active) return;
+        if (data?.ok && Array.isArray(data.rows) && data.rows.length > 0) {
+          setPasteRows(data.rows);
+        } else {
+          setPasteRows(createEmptyPasteRows(6));
+        }
+      } catch {
+        if (active) setPasteRows(createEmptyPasteRows(6));
+      } finally {
+        if (active) setWorkspaceLoaded(true);
+      }
+    };
+    loadWorkspace();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLoaded) return;
+    if (workspaceSaveTimerRef.current) window.clearTimeout(workspaceSaveTimerRef.current);
+    workspaceSaveTimerRef.current = window.setTimeout(async () => {
+      const filled = pasteRows.filter((row) => hasVisibleClientData(row) && !row._sourceRowId);
+      try {
+        setWorkspaceSaving(true);
+        await fetch('/api/client-data/paste-workspace', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: filled })
+        });
+      } catch { /* silent */ } finally {
+        setWorkspaceSaving(false);
+      }
+    }, 1500);
+  }, [pasteRows, workspaceLoaded]);
+
+  useEffect(() => {
+    if (activeSection !== 'client-list') return undefined;
+
+    const timer = setTimeout(() => {
+      clientListRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 250);
+
     return () => clearTimeout(timer);
   }, [activeSection]);
 
@@ -841,15 +1000,59 @@ export default function ClientListPage() {
           return;
         }
         const endpoint = activeTab === 'client-list' ? '/api/client-data/list' : '/api/client-data/custom-lists';
-        const response = await fetch(endpoint, { cache: 'no-store' });
-        const data = await response.json();
-        if (!response.ok || data?.ok === false) {
+        const [resList, resExtracted, resCampaigns] = await Promise.all([
+          fetch(endpoint, { cache: 'no-store' }),
+          fetch('/api/client-data/extracted', { cache: 'no-store' }).catch(() => null),
+          fetch('/api/campaigns?limit=200', { cache: 'no-store' }).catch(() => null)
+        ]);
+
+        const data = await resList.json();
+        
+        let extractedLists = [];
+        if (resExtracted) {
+          const extData = await resExtracted.json().catch(() => null);
+          if (extData?.ok) {
+            extractedLists = extData.lists || [];
+          }
+        }
+
+        if (resCampaigns) {
+          const campData = await resCampaigns.json().catch(() => null);
+          if (campData?.ok || campData?.success) {
+            setCampaigns(campData.campaigns || campData.data || []);
+          }
+        }
+
+        if (!resList.ok || data?.ok === false) {
           throw new Error(data?.error || 'Failed to load client lists');
         }
 
         if (!active) return;
-        setLists(Array.isArray(data?.lists) ? data.lists : []);
-        setClientRowsData(activeTab === 'client-list' && Array.isArray(data?.rows) ? data.rows : []);
+
+        const enrichedLists = (data.lists || []).map((list) => {
+          const ext = extractedLists.find((el) => String(el._id) === String(list._id));
+          return {
+            ...list,
+            metadata: ext?.metadata || ext?.dataCenterMeta || list.metadata || null,
+            project: ext?.project || list.project || '',
+            projectName: ext?.projectName || list.projectName || '',
+            createdBy: ext?.createdBy || list.createdBy || '',
+            description: ext?.description || list.description || '',
+            campaignPurpose: ext?.campaignPurpose || list.campaignPurpose || '',
+            tags: ext?.tags || list.tags || []
+          };
+        });
+
+        setLists(enrichedLists);
+        setClientRowsData(
+          activeTab === 'client-list' && Array.isArray(data?.rows)
+            ? data.rows.map((row) => ({
+                ...row,
+                mailSentDate: row.mailSentAt ? formatDateOnly(row.mailSentAt) : '',
+                mailSentTime: row.mailSentAt ? formatTimeOnly(row.mailSentAt) : ''
+              }))
+            : []
+        );
         setError('');
       } catch (err) {
         if (!active) return;
@@ -968,6 +1171,7 @@ export default function ClientListPage() {
       const countryFilter = normalizeText(appliedFilters.country).toLowerCase();
       const nameFilter = normalizeText(appliedFilters.name).toLowerCase();
       const designationFilter = normalizeText(appliedFilters.designation).toLowerCase();
+      const mailStatusFilter = normalizeText(appliedFilters.mailStatus).toLowerCase();
 
       return rowsWithEdits.filter((row) => {
         if (searchFilter && !row._searchBlob.includes(searchFilter)) return false;
@@ -978,11 +1182,22 @@ export default function ClientListPage() {
         if (designationFilter && !row._designation.includes(designationFilter)) return false;
         if (appliedFilters.freshLead === 'fresh' && !row.freshLead) return false;
         if (appliedFilters.freshLead === 'contacted' && row.freshLead) return false;
+        if (mailStatusFilter && normalizeText(row.mailStatus).toLowerCase() !== mailStatusFilter) return false;
         return true;
       });
     },
     [rowsWithEdits, appliedFilters]
   );
+
+  const campaignStats = useMemo(() => {
+    const stats = { Sent: 0, Pending: 0, Failed: 0, Bounced: 0, Spam: 0, Verified: 0, 'Missing Email': 0 };
+    for (const row of filteredClientRows) {
+      const s = String(row.mailStatus || 'Pending');
+      if (s in stats) stats[s] += 1;
+      else stats.Pending += 1;
+    }
+    return stats;
+  }, [filteredClientRows]);
 
   const hasAppliedFilters = useMemo(
     () => Object.values(appliedFilters).some(Boolean),
@@ -1000,7 +1215,7 @@ export default function ClientListPage() {
   }, [currentPage, filteredClientRows]);
 
   const contactedCount = useMemo(
-    () => filteredClientRows.filter((row) => row.campaignMailDate !== '-').length,
+    () => filteredClientRows.filter((row) => Boolean(row.mailSentAt)).length,
     [filteredClientRows]
   );
 
@@ -1499,8 +1714,39 @@ export default function ClientListPage() {
     setSelectionError('');
   };
 
+  const updateDirectoryEdits = (updater) => {
+    setRowEdits((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      if (JSON.stringify(next) === JSON.stringify(current)) return current;
+      editUndoStackRef.current.push(current);
+      if (editUndoStackRef.current.length > 50) editUndoStackRef.current.shift();
+      editRedoStackRef.current = [];
+      return next;
+    });
+  };
+
+  const undoDirectoryEdit = () => {
+    const previous = editUndoStackRef.current.pop();
+    if (!previous) return;
+    setRowEdits((current) => {
+      editRedoStackRef.current.push(current);
+      return previous;
+    });
+    showToast('info', 'Last table edit undone.');
+  };
+
+  const redoDirectoryEdit = () => {
+    const next = editRedoStackRef.current.pop();
+    if (!next) return;
+    setRowEdits((current) => {
+      editUndoStackRef.current.push(current);
+      return next;
+    });
+    showToast('info', 'Table edit restored.');
+  };
+
   const handleRowFieldChange = (rowId, field, value) => {
-    setRowEdits((current) => ({
+    updateDirectoryEdits((current) => ({
       ...current,
       [rowId]: {
         ...(current[rowId] || {}),
@@ -1519,12 +1765,77 @@ export default function ClientListPage() {
     setActiveCell({ rowId, field });
   };
 
+  const copyDirectoryCells = async (rowIndex, fieldIndex, cut = false) => {
+    const currentRow = paginatedClientRows[rowIndex];
+    if (!currentRow) return;
+    const selectedRowsForCopy = selectedClientIds.length
+      ? paginatedClientRows.filter((row) => selectedClientIds.includes(row.id))
+      : [currentRow];
+    const fields = selectedClientIds.length
+      ? REFERENCE_TABLE_COLUMNS.map((column) => column.field)
+      : [GRID_EDITABLE_FIELDS[fieldIndex]];
+    const text = selectedRowsForCopy
+      .map((row) => fields.map((field) => {
+        const value = rowEdits[row.id]?.[field] ?? row[field] ?? '';
+        return value === '-' ? '' : String(value);
+      }).join('\t'))
+      .join('\n');
+
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable');
+      await navigator.clipboard.writeText(text);
+      if (cut) {
+        updateDirectoryEdits((current) => {
+          const next = { ...current };
+          selectedRowsForCopy.forEach((row) => {
+            const patch = { ...(next[row.id] || {}) };
+            fields.forEach((field) => {
+              if (EDITABLE_ROW_FIELDS.includes(field)) patch[field] = '';
+            });
+            next[row.id] = patch;
+          });
+          return next;
+        });
+      }
+      showToast('success', cut ? 'Cells cut to clipboard.' : 'Cells copied to clipboard.');
+    } catch (error) {
+      showToast('error', error.message || 'Unable to access clipboard.');
+    }
+  };
+
   const handleGridCellKeyDown = (event, rowIndex, fieldIndex) => {
     if (!paginatedClientRows.length) return;
     const maxRow = paginatedClientRows.length - 1;
     const maxCol = GRID_EDITABLE_FIELDS.length - 1;
+    const key = event.key.toLowerCase();
 
-    if (event.ctrlKey && event.key.toLowerCase() === 'a') {
+    if ((event.ctrlKey || event.metaKey) && key === 'c') {
+      event.preventDefault();
+      void copyDirectoryCells(rowIndex, fieldIndex, false);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'x') {
+      event.preventDefault();
+      void copyDirectoryCells(rowIndex, fieldIndex, true);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) redoDirectoryEdit();
+      else undoDirectoryEdit();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'y') {
+      event.preventDefault();
+      redoDirectoryEdit();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 's') {
+      event.preventDefault();
+      void handleSaveDirectoryEdits();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'a') {
       event.preventDefault();
       toggleSelectAllVisible();
       showToast('info', 'Directory selection toggled.');
@@ -1567,6 +1878,23 @@ export default function ClientListPage() {
       }
       return;
     }
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      const currentRow = paginatedClientRows[rowIndex];
+      const field = GRID_EDITABLE_FIELDS[fieldIndex];
+      if (currentRow && field) handleRowFieldChange(currentRow.id, field, '');
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusGridCell(paginatedClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[0]);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusGridCell(paginatedClientRows[rowIndex].id, GRID_EDITABLE_FIELDS[maxCol]);
+      return;
+    }
 
     if (event.key === 'ArrowRight' || event.key === 'Tab') {
       event.preventDefault();
@@ -1605,7 +1933,7 @@ export default function ClientListPage() {
     if (!rows.length) return;
 
     const overflowRows = [];
-    setRowEdits((current) => {
+    updateDirectoryEdits((current) => {
       const next = { ...current };
       rows.forEach((pastedRow, rowOffset) => {
         const targetRowIndex = startRowIndex + rowOffset;
@@ -1690,6 +2018,8 @@ export default function ClientListPage() {
       }
 
       setRowEdits({});
+      editUndoStackRef.current = [];
+      editRedoStackRef.current = [];
       setSelectionMessage('Client Directory updates saved successfully.');
       setRefreshNonce((value) => value + 1);
     } catch (err) {
@@ -1702,6 +2032,8 @@ export default function ClientListPage() {
 
   const handleCancelDirectoryEdits = () => {
     setRowEdits({});
+    editUndoStackRef.current = [];
+    editRedoStackRef.current = [];
     setSelectionError('');
     setSelectionMessage('Pending changes discarded.');
   };
@@ -2264,6 +2596,15 @@ export default function ClientListPage() {
                       <span className="dir-meta-item"><span className="dir-meta-dot" aria-hidden="true" /> {repeatedClientCount} repeated</span>
                       <span className="dir-meta-item"><i className="ti ti-mail-check" aria-hidden="true" /> {contactedCount} contacted</span>
                     </div>
+                    <div className="client-campaign-stats-bar">
+                      {campaignStats.Sent > 0 && <span className="camp-stat camp-stat-sent"><i className="ti ti-circle-check" aria-hidden="true" /> {campaignStats.Sent} Sent</span>}
+                      {campaignStats.Pending > 0 && <span className="camp-stat camp-stat-pending"><i className="ti ti-clock" aria-hidden="true" /> {campaignStats.Pending} Pending</span>}
+                      {campaignStats.Failed > 0 && <span className="camp-stat camp-stat-failed"><i className="ti ti-circle-x" aria-hidden="true" /> {campaignStats.Failed} Failed</span>}
+                      {campaignStats.Bounced > 0 && <span className="camp-stat camp-stat-bounced"><i className="ti ti-arrow-back" aria-hidden="true" /> {campaignStats.Bounced} Bounced</span>}
+                      {campaignStats.Spam > 0 && <span className="camp-stat camp-stat-spam"><i className="ti ti-alert-triangle" aria-hidden="true" /> {campaignStats.Spam} Spam</span>}
+                      {campaignStats.Verified > 0 && <span className="camp-stat camp-stat-verified"><i className="ti ti-shield-check" aria-hidden="true" /> {campaignStats.Verified} Verified</span>}
+                      {campaignStats['Missing Email'] > 0 && <span className="camp-stat camp-stat-missing"><i className="ti ti-mail-off" aria-hidden="true" /> {campaignStats['Missing Email']} Missing Email</span>}
+                    </div>
                     {repeatedClientCount ? (
                       <div className="client-directory-duplicate-summary warning-banner">
                         <i className="ti ti-alert-triangle" aria-hidden="true" />
@@ -2437,6 +2778,11 @@ export default function ClientListPage() {
                     <div className="client-data-table client-data-table-scroll client-data-table-desktop client-directory-table client-directory-excel-sheet client-data-reference-table-wrap">
                       <table className="client-data-reference-table data-table">
                         <thead>
+                          <tr className="col-group-row">
+                            <th colSpan={2} className="col-group-spacer" />
+                            <th colSpan={14} className="col-group-label col-group-client">Client Information</th>
+                            <th colSpan={4} className="col-group-label col-group-campaign">📧 Campaign Info</th>
+                          </tr>
                           <tr>
                             <th>
                               <input
@@ -2448,7 +2794,12 @@ export default function ClientListPage() {
                             </th>
                             <th>#</th>
                             {REFERENCE_TABLE_COLUMNS.map((column) => (
-                              <th key={column.field}>{column.label}</th>
+                              <th
+                                key={column.field}
+                                className={['campaignName','mailStatus','mailSentDate','mailSentTime'].includes(column.field) ? 'campaign-col-header' : ''}
+                              >
+                                {column.label}
+                              </th>
                             ))}
                           </tr>
                         </thead>
@@ -2481,28 +2832,53 @@ export default function ClientListPage() {
                                   />
                                 </td>
                                 <td className="client-row-number">{(currentPage - 1) * CLIENT_ROWS_PER_PAGE + rowIndex + 1}</td>
-                                {REFERENCE_TABLE_COLUMNS.map(({ field }, fieldIndex) => {
-                                  const value = rowEdits[row.id]?.[field] ?? (row[field] === '-' ? '' : row[field]);
+                                {REFERENCE_TABLE_COLUMNS.map(({ field }) => {
+                                  const rawValue = rowEdits[row.id]?.[field] ?? row[field] ?? '';
+                                  const value = rawValue === '-' ? '' : rawValue;
                                   const isEdited = typeof rowEdits[row.id]?.[field] === 'string';
                                   const emailHasIssue = field === 'email' && Boolean(rowEmailIssues[row.id]);
                                   const hasDuplicateEmail = field === 'email' && rowHasDuplicateEmail;
+                                  const isEditable = EDITABLE_ROW_FIELDS.includes(field);
+                                  const displayValue = value === 0 ? '0' : String(value || '').trim() || 'Not available';
+                                  const isCampaignCol = ['campaignName','mailStatus','mailSentDate','mailSentTime'].includes(field);
                                   return (
-                                    <td key={`${row.id}-${field}`} className="client-list-sheet-cell-wrap">
-                                      <input
-                                        ref={(node) => {
-                                          cellRefs.current[`${row.id}:${field}`] = node;
-                                        }}
-                                        type={field === 'listAddedDate' ? 'date' : 'text'}
-                                        className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
-                                        value={value}
-                                        readOnly={!EDITABLE_ROW_FIELDS.includes(field)}
-                                        onFocus={() => setActiveCell({ rowId: row.id, field })}
-                                        onClick={() => setActiveCell({ rowId: row.id, field })}
-                                        onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
-                                        onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, fieldIndex)}
-                                        onPaste={(event) => handleGridPaste(event, rowIndex, fieldIndex)}
-                                        aria-label={`${field} row ${rowIndex + 1}`}
-                                      />
+                                    <td key={`${row.id}-${field}`} className={`client-list-sheet-cell-wrap${isCampaignCol ? ' campaign-info-cell' : ''}`}>
+                                      {isEditable ? (
+                                        <input
+                                          ref={(node) => {
+                                            cellRefs.current[`${row.id}:${field}`] = node;
+                                          }}
+                                          type={field === 'listAddedDate' ? 'date' : 'text'}
+                                          className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                          value={value}
+                                          placeholder="Not provided"
+                                          onFocus={() => setActiveCell({ rowId: row.id, field })}
+                                          onClick={() => setActiveCell({ rowId: row.id, field })}
+                                          onChange={(event) => handleRowFieldChange(row.id, field, event.target.value || '')}
+                                          onKeyDown={(event) => handleGridCellKeyDown(event, rowIndex, GRID_EDITABLE_FIELDS.indexOf(field))}
+                                          onPaste={(event) => handleGridPaste(event, rowIndex, GRID_EDITABLE_FIELDS.indexOf(field))}
+                                          aria-label={`${field} row ${rowIndex + 1}`}
+                                        />
+                                      ) : field === 'mailStatus' ? (
+                                        <MailStatusBadge status={value || 'Pending'} />
+                                      ) : field === 'campaignName' ? (
+                                        <CampaignNameChip name={value} />
+                                      ) : field === 'mailSentDate' ? (
+                                        <span className="client-list-history-cell campaign-date-cell" title={displayValue}>
+                                          {value ? <><i className="ti ti-calendar" aria-hidden="true" style={{ marginRight: 4 }} />{value}</> : <span style={{ color: 'var(--text-muted,#94a3b8)' }}>—</span>}
+                                        </span>
+                                      ) : field === 'mailSentTime' ? (
+                                        <span className="client-list-history-cell campaign-date-cell" title={displayValue}>
+                                          {value ? <><i className="ti ti-clock" aria-hidden="true" style={{ marginRight: 4 }} />{value}</> : <span style={{ color: 'var(--text-muted,#94a3b8)' }}>—</span>}
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className="client-list-history-cell"
+                                          title={displayValue}
+                                        >
+                                          {displayValue}
+                                        </span>
+                                      )}
                                     </td>
                                   );
                                 })}
@@ -2553,7 +2929,7 @@ export default function ClientListPage() {
                           </label>
                           <div className="client-data-mobile-head">
                             <strong>{row.name} {row.surname !== '-' ? row.surname : ''}</strong>
-                            <Badge variant={badgeToneMap[row.status] || 'default'}>{row.status}</Badge>
+                            <Badge variant={badgeToneMap[row.mailStatus] || 'default'}>{row.mailStatus}</Badge>
                           </div>
                           <div className="client-data-mobile-grid">
                             <div><span>CMP Name</span><strong>{row.cmpName}</strong></div>
@@ -2568,6 +2944,10 @@ export default function ClientListPage() {
                             <div><span>User ID</span><strong>{row.userId}</strong></div>
                             <div><span>Project Approach</span><strong>{row.projectApproach}</strong></div>
                             <div><span>Sender ID</span><strong>{row.senderId}</strong></div>
+                            <div><span>Campaign Name</span><strong>{row.campaignName || '-'}</strong></div>
+                            <div><span>Mail Status</span><strong>{row.mailStatus || 'Pending'}</strong></div>
+                            <div><span>Mail Sent Date</span><strong>{row.mailSentDate || '-'}</strong></div>
+                            <div><span>Mail Sent Time</span><strong>{row.mailSentTime || '-'}</strong></div>
                           </div>
                         </article>
                       )) : null}
