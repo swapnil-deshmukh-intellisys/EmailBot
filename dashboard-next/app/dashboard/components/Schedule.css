@@ -56,6 +56,10 @@
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
 }
 
+.premium-schedule-grid-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+}
+
 .premium-schedule-grid-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
@@ -239,6 +243,7 @@
 }
 
 @media (max-width: 768px) {
+  .premium-schedule-grid-6,
   .premium-schedule-grid-4,
   .premium-schedule-grid-3,
   .premium-schedule-grid-2 {
@@ -386,4 +391,44 @@
   .premium-schedule-modal .premium-schedule-mode {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* Schedule mode choices stay completely flat in every interaction state. */
+.premium-schedule-modal .premium-schedule-mode label,
+.premium-schedule-modal .premium-schedule-mode label.active,
+.premium-schedule-modal .premium-schedule-mode label:focus,
+.premium-schedule-modal .premium-schedule-mode label:focus-within,
+.premium-schedule-modal .premium-schedule-mode label *,
+.premium-schedule-modal .premium-schedule-mode input[type="radio"],
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:hover,
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:checked,
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:focus,
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:focus-visible {
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+
+.premium-schedule-modal .premium-schedule-mode label:hover {
+  border-color: #dbe3ef !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+}
+
+.premium-schedule-modal .premium-schedule-mode label.active:hover {
+  border-color: #6366f1 !important;
+  background: #f5f7ff !important;
+  color: #4338ca !important;
+}
+
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:hover {
+  border-color: #cbd5e1 !important;
+}
+
+.premium-schedule-modal .premium-schedule-mode input[type="radio"]:checked:hover {
+  border-color: #4f46e5 !important;
 }

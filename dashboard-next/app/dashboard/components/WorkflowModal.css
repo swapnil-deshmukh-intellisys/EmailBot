@@ -52,6 +52,11 @@
   z-index: 140 !important;
 }
 
+.wf-modal:not(.premium-select-draft-modal) {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 /* Header Section */
 .wf-header {
   position: relative !important;
@@ -64,6 +69,12 @@
   border-bottom: 1px solid #f1f5f9 !important;
   background: #ffffff !important;
   flex-shrink: 0 !important;
+}
+
+.wf-modal:not(.premium-select-draft-modal) > .wf-header {
+  max-height: 72px !important;
+  flex: 0 0 72px !important;
+  box-sizing: border-box !important;
 }
 
 .wf-header-title {
@@ -136,6 +147,10 @@
   min-height: 0 !important;
 }
 
+.wf-modal:not(.premium-select-draft-modal) > .wf-body {
+  box-sizing: border-box !important;
+}
+
 /* Hide scrollbar on modal body and internal lists */
 .wf-body::-webkit-scrollbar,
 .wf-modal ::-webkit-scrollbar,
@@ -168,6 +183,14 @@
   border-top: 1px solid #f1f5f9 !important;
   background: #ffffff !important;
   flex-shrink: 0 !important;
+}
+
+.wf-modal:not(.premium-select-draft-modal) > .wf-footer {
+  height: 70px !important;
+  min-height: 70px !important;
+  max-height: 70px !important;
+  flex: 0 0 70px !important;
+  box-sizing: border-box !important;
 }
 
 .wf-footer-left {
@@ -354,4 +377,38 @@
   .wf-footer button {
     width: 100% !important;
   }
+}
+
+/* Ensure tabs do not shrink in workflow modal */
+.pr-uploadlist-tabs {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Fixed absolute warnings rendering outside the footer container */
+.premium-campaign-hint.premium-campaign-hint-warning {
+  position: absolute !important;
+  bottom: 82px !important;
+  left: 24px !important;
+  right: 24px !important;
+  z-index: 100 !important;
+  margin: 0 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ==========================================================================
+   SCHEDULE MODAL — Height auto-fit override
+   Allows the modal to shrink/grow to content so no scrollbar appears on
+   "Send at scheduled time". Capped at 92vh for safety.
+   ========================================================================== */
+.premium-schedule-modal {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: min(92vh, 820px) !important;
+}
+
+/* Keep workflow content flat: only the popup container may cast a shadow. */
+.wf-modal * {
+  box-shadow: none !important;
 }

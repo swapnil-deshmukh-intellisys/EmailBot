@@ -1260,10 +1260,12 @@ export default function PremiumDashboardShell({
     }, {});
   }, [draftTypeItems, effectiveDraftLibrary]);
   const selectedSavedDraft = useMemo(() => {
-    const currentDraftId = activeDraftId || selectedDraftId;
+    const currentDraftId = selectedDraftId || activeDraftId;
     if (!currentDraftId) return null;
-    return filteredSavedDrafts.find((draft) => draft.id === currentDraftId) || null;
-  }, [activeDraftId, filteredSavedDrafts, selectedDraftId]);
+    return effectiveDraftLibrary.find(
+      (draft) => String(draft.id || '') === String(currentDraftId)
+    ) || null;
+  }, [activeDraftId, effectiveDraftLibrary, selectedDraftId]);
   const selectedDraftTypeLabel = selectedDraftType ? draftTypeLabel(selectedDraftType) : 'Choose Draft Type';
   const templateDraftForSelectedType = useMemo(() => {
     if (!selectedDraftType || filteredSavedDrafts.length) return null;
@@ -1754,17 +1756,20 @@ export default function PremiumDashboardShell({
       setSelectedDraftId('');
       return;
     }
-    const currentDraftId = activeDraftId || selectedDraftId;
-    const hasVisibleSelection = filteredSavedDrafts.some((draft) => draft.id === currentDraftId);
+    const currentDraftId = selectedDraftId || activeDraftId;
+    const hasVisibleSelection = filteredSavedDrafts.some(
+      (draft) => String(draft.id || '') === String(currentDraftId || '')
+    );
     if (!hasVisibleSelection) {
       setSelectedDraftId(filteredSavedDrafts[0].id);
     }
   }, [activeDraftId, filteredSavedDrafts, selectDraftTab, selectedDraftId]);
 
   useEffect(() => {
-    if (activeDraftId) return;
     if (!selectedDraftId) return;
-    const selected = effectiveDraftLibrary.find((draft) => draft.id === selectedDraftId);
+    const selected = effectiveDraftLibrary.find(
+      (draft) => String(draft.id || '') === String(selectedDraftId)
+    );
     if (!selected) return;
     const selectedType = normalizeDraftType(selected.draftType || selected.category || selectedDraftType);
     onSelectedDraftTypeChange?.(selectedType);
@@ -4291,7 +4296,7 @@ export default function PremiumDashboardShell({
       {renderPortalPopup(
         showSchedulePopup,
         <div className="wf-backdrop" onClick={() => setShowSchedulePopup(false)}>
-          <div className="premium-calendar-modal wf-modal premium-schedule-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
+          <div className={`premium-calendar-modal wf-modal premium-schedule-modal${sendMode === 'scheduled' ? ' is-scheduled-mode' : ''}`} style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
             <div className="wf-header">
               <span className="wf-header-badge">7</span>
               <h3 className="wf-header-title">Step 7: Schedule</h3>
@@ -4419,9 +4424,6 @@ export default function PremiumDashboardShell({
                       onChange={(event) => setScheduledTimeValue(event.target.value)}
                     />
                   </label>
-                </div>
-
-                <div className="premium-schedule-grid premium-schedule-grid-2">
                   <label className="premium-schedule-field">
                     <span>Country</span>
                     <select value={scheduledCountry} onChange={(event) => onScheduledCountryChange?.(event.target.value)}>
@@ -4780,11 +4782,16 @@ export default function PremiumDashboardShell({
                   </div>
                   {filteredSavedDrafts.length ? (
                     filteredSavedDrafts.map((draft) => (
-                      <label key={draft.id} className={`premium-select-draft-item ${activeDraftId === draft.id || selectedDraftId === draft.id ? 'selected' : ''}`}>
+                      <label
+                        key={draft.id}
+                        className={`premium-select-draft-item ${
+                          String(selectedDraftId || activeDraftId || '') === String(draft.id || '') ? 'selected' : ''
+                        }`}
+                      >
                         <input
                           type="radio"
                           name="savedDraft"
-                          checked={activeDraftId === draft.id || selectedDraftId === draft.id}
+                          checked={String(selectedDraftId || activeDraftId || '') === String(draft.id || '')}
                           onChange={() => {
                             const draftId = String(draft.id || '');
                             const draftType = normalizeDraftType(draft.draftType || draft.category || selectedDraftType);
