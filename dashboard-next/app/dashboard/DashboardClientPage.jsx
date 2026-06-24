@@ -584,6 +584,7 @@ export default function DashboardPage() {
   const topbarProfilePhotoInputRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const loadAllRef = useRef(null);
+  const liveDataRequestRef = useRef(false);
   const campaignCreateLockRef = useRef(false);
   const lastCampaignCreateSignatureRef = useRef('');
   const lastCreatedCampaignIdRef = useRef('');
@@ -2516,12 +2517,15 @@ const handleDeleteDraft = async (draft) => {
   };
 
   const refreshCampaignData = async ({ silent = true, source = 'manual' } = {}) => {
+    if (liveDataRequestRef.current) return;
+    liveDataRequestRef.current = true;
     try {
       setCampaignRefreshing(true);
       console.debug('[campaign:refetch]', { source, silent, at: new Date().toISOString() });
       await loadLiveData();
     } finally {
       setCampaignRefreshing(false);
+      liveDataRequestRef.current = false;
     }
   };
 
@@ -2709,19 +2713,22 @@ const handleDeleteDraft = async (draft) => {
 
 
   const hasLiveCampaignRef = useRef(false);
+  const hasLiveCampaign = campaigns.some((campaign) =>
+    LIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || campaign?.displayStatus || ''))
+  );
   useEffect(() => {
-    hasLiveCampaignRef.current = campaigns.some((campaign) =>
-      LIVE_CAMPAIGN_STATUSES.has(String(campaign?.status || campaign?.displayStatus || ''))
-    );
-  }, [campaigns]);
+    hasLiveCampaignRef.current = hasLiveCampaign;
+  }, [hasLiveCampaign]);
 
   useEffect(() => {
+    const pollIntervalMs = hasLiveCampaign ? 15000 : 60000;
     const id = setInterval(() => {
       const source = hasLiveCampaignRef.current ? 'live-poll' : 'idle-poll';
       void refreshCampaignData({ source });
-    }, 7000);
+    }, pollIntervalMs);
     return () => clearInterval(id);
   }, [
+    hasLiveCampaign,
     showAllUserActivity,
     project,
     selectedAccount,

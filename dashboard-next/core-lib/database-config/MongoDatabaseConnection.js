@@ -12,9 +12,13 @@ global.__warmupSchedulerInitPromise = warmupSchedulerInitPromise;
 function shouldAutoStartCampaignScheduler() {
   if (process.env.VERCEL) return false;
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
-  if (configured === 'true') return true;
-  if (configured === 'false') return false;
-  return true;
+  return configured === 'true';
+}
+
+function shouldAutoStartWarmupScheduler() {
+  if (process.env.VERCEL) return false;
+  const configured = String(process.env.ENABLE_IN_APP_WARMUP_SCHEDULER || '').trim().toLowerCase();
+  return configured === 'true';
 }
 
 async function ensureSchedulerInitialized() {
@@ -35,6 +39,9 @@ async function ensureSchedulerInitialized() {
 }
 
 async function ensureWarmupSchedulerInitialized() {
+  if (!shouldAutoStartWarmupScheduler()) {
+    return;
+  }
   if (warmupSchedulerInitPromise) {
     await warmupSchedulerInitPromise;
     return;

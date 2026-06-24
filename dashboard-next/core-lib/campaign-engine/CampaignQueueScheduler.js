@@ -24,9 +24,7 @@ const QUEUE_ITEM_STALE_MS = Math.max(5 * 60 * 1000, Number(process.env.CAMPAIGN_
 export function isInAppCampaignSchedulerEnabled() {
   if (process.env.VERCEL) return false;
   const configured = String(process.env.ENABLE_IN_APP_CAMPAIGN_SCHEDULER || '').trim().toLowerCase();
-  if (configured === 'true') return true;
-  if (configured === 'false') return false;
-  return true;
+  return configured === 'true';
 }
 
 async function recoverStaleCampaigns(now = new Date()) {

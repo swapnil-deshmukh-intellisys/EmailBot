@@ -5,7 +5,6 @@ import LeadList from '@/models/LeadList';
 import Campaign from '@/models/Campaign';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
-import { processWarmupAutoReplies } from '@/lib/warmupAutoReply';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -291,10 +290,7 @@ export async function GET(req) {
   try {
     const auth = await requireAuth(req);
     if (auth.errorResponse) return auth.errorResponse;
-    const userEmail = String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '').toLowerCase();
-
     await connectDB();
-    void processWarmupAutoReplies(userEmail).catch(() => {});
 
     const url = new URL(req.url);
     const selectedDate = String(url.searchParams.get('date') || '').trim();
@@ -391,7 +387,10 @@ export async function GET(req) {
       shouldIncludeCampaignInWindow(campaign, selectedDayStart, selectedDayEnd)
     ));
 
-    const recipientStatsByCampaign = await loadRecipientLogStats(campaignSummaries.map((campaign) => campaign._id));
+    const [recipientStatsByCampaign, listStats] = await Promise.all([
+      loadRecipientLogStats(campaignSummaries.map((campaign) => campaign._id)),
+      loadListStats({ ownerQuery, requestedProject, selectedDayEnd, tenDaysAgo })
+    ]);
     for (const campaign of campaignSummaries) {
       const recipientStats = recipientStatsByCampaign.get(String(campaign._id));
       const campaignTotal = Math.max(0, Number(campaign?.totalRecipients ?? campaign?.stats?.total ?? 0));
@@ -412,7 +411,6 @@ export async function GET(req) {
       spam += Math.max(0, Number(campaign?.stats?.spam || 0));
     }
 
-    const listStats = await loadListStats({ ownerQuery, requestedProject, selectedDayEnd, tenDaysAgo });
     totalUploaded = listStats.totalUploaded;
     let normalizedLists = listStats.normalizedLists;
     if (requestedProject && scopedListProjectFallbackIds?.size) {

@@ -8,8 +8,9 @@ const deploymentVersion = String(process.env.DEPLOYMENT_VERSION || '').trim();
 const nextConfig = {
   output: 'standalone',
   webpack: (config, { dev }) => {
-    if (dev) {
-      // Dev filesystem cache can keep stale server chunks after route edits on Windows.
+    if (dev && String(process.env.DISABLE_NEXT_WEBPACK_CACHE || '').trim().toLowerCase() === 'true') {
+      // Emergency escape hatch for stale Windows chunks. Keep caching enabled
+      // normally; this dashboard is too large to recompile from scratch.
       config.cache = false;
     }
     return config;
