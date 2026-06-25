@@ -58,6 +58,7 @@ const ACTION_LABELS = {
 const LIVE_CAMPAIGN_STATUSES = new Set(['running', 'queued', 'scheduled']);
 const DASHBOARD_RESUME_CAMPAIGN_KEY = 'dashboard:resume-campaign-draft:v1';
 const CAMPAIGN_PAGE_SIZE = 10;
+const EMPTY_REPLY_PREFILL = { mode: '', recipientEmail: '', recipientLogId: '' };
 const CAMPAIGN_STEP_TYPES = {
   1: { type: 'cover_story', label: 'Cover Story', actionLabel: 'Send Cover Story' },
   2: { type: 'reminder', label: 'Reminder', actionLabel: 'Send Reminder' },
@@ -361,6 +362,11 @@ function CampaignRowActionMenu({ campaign, actionLoadingKey, onAction, onToggleV
     onToggleView(campaign._id);
   };
 
+  const handleReply = (mode) => {
+    closeMenu();
+    onToggleView(campaign._id, { mode });
+  };
+
   const handleAction = (selectedCampaign, action) => {
     closeMenu();
     onAction(selectedCampaign, action);
@@ -374,6 +380,12 @@ function CampaignRowActionMenu({ campaign, actionLoadingKey, onAction, onToggleV
       <div className="campaign-row-action-menu">
         <Button size="sm" variant="secondary" onClick={handleView}>
           View
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => handleReply('reply')}>
+          Reply
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => handleReply('reply_all')}>
+          Reply All
         </Button>
         <ActionButton action="next-step" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
         <ActionButton action="start" campaign={campaign} loadingKey={actionLoadingKey} onAction={handleAction} />
@@ -527,12 +539,26 @@ export default function CampaignsPage() {
   const [sortOrder, setSortOrder] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [replyPrefill, setReplyPrefill] = useState(EMPTY_REPLY_PREFILL);
   const [actionLoadingKey, setActionLoadingKey] = useState('');
   const activeSection = 'campaign-list';
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    const params = new URLSearchParams(window.location.search || '');
+    const campaignId = String(params.get('campaignId') || '').trim();
+    if (!campaignId) return;
+    setSelectedCampaignId(campaignId);
+    setReplyPrefill({
+      mode: String(params.get('replyMode') || '').trim(),
+      recipientEmail: String(params.get('recipientEmail') || '').trim(),
+      recipientLogId: String(params.get('recipientLogId') || '').trim()
+    });
+  }, [isMounted]);
 
   useEffect(() => {
     if (!isMounted) return undefined;
@@ -699,9 +725,27 @@ export default function CampaignsPage() {
     }
   }, [loadCampaigns]);
 
-  const openCampaignDetails = useCallback((campaignId) => {
+  const openCampaignDetails = useCallback((campaignId, replyTarget = null) => {
     setSelectedCampaignId(campaignId);
+    if (replyTarget) {
+      setReplyPrefill({
+        mode: String(replyTarget.mode || '').trim(),
+        recipientEmail: String(replyTarget.recipientEmail || '').trim(),
+        recipientLogId: String(replyTarget.recipientLogId || '').trim()
+      });
+      return;
+    }
+    setReplyPrefill(EMPTY_REPLY_PREFILL);
   }, []);
+
+  const closeCampaignDetails = useCallback(() => {
+    const hadPrefill = Boolean(replyPrefill.mode || replyPrefill.recipientEmail || replyPrefill.recipientLogId);
+    setSelectedCampaignId('');
+    setReplyPrefill(EMPTY_REPLY_PREFILL);
+    if (hadPrefill) {
+      router.replace('/campaigns', { scroll: false });
+    }
+  }, [replyPrefill, router]);
 
   const handleBackToPreviousPage = useCallback(() => {
     router.back();
@@ -922,7 +966,10 @@ export default function CampaignsPage() {
         {selectedCampaignId ? (
           <CampaignDetailsDrawer
             campaignId={selectedCampaignId}
-            onClose={() => setSelectedCampaignId('')}
+            initialReplyMode={replyPrefill.mode}
+            initialRecipientEmail={replyPrefill.recipientEmail}
+            initialRecipientLogId={replyPrefill.recipientLogId}
+            onClose={closeCampaignDetails}
             onActionCompleted={() => loadCampaigns({ silent: true })}
           />
         ) : null}

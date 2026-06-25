@@ -28,7 +28,8 @@
 .premium-select-draft-modal,
 .premium-template-modal,
 .premium-test-email-modal,
-.premium-schedule-modal {
+.premium-schedule-modal,
+.premium-schedule-success-modal {
   width: min(90vw, 780px) !important;
   max-width: min(90vw, 780px) !important;
   height: min(90vh, 760px) !important;
@@ -349,7 +350,8 @@
   .premium-select-draft-modal,
   .premium-template-modal,
   .premium-test-email-modal,
-  .premium-schedule-modal {
+  .premium-schedule-modal,
+  .premium-schedule-success-modal {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;
     height: calc(100dvh - 36px) !important;

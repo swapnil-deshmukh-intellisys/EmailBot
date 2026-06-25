@@ -8,6 +8,7 @@ import UserProfile from '../../database-models/UserProfile.js';
 import CreditTransaction from '../../database-models/CreditTransaction.js';
 import UserSubscription from '../../database-models/UserSubscription.js';
 import CampaignRecipientLog from '../../database-models/CampaignRecipientLog.js';
+import CampaignSentEmail from '../../database-models/CampaignSentEmail.js';
 import { getAvailableAccounts, sendEmailForLead } from '../mail-engine/GraphAndSmtpMailSender.js';
 import { resolveSenderAccountById } from '../mail-engine/SenderAccountResolver.js';
 import { USER_ACCOUNT_STATUSES } from '../auth-config/AuthSessionService.js';
@@ -53,17 +54,23 @@ async function getStoredThreadForLead(lead, account, userEmail = '') {
   if (!doc) return null;
   return {
     messageId: doc.messageId || '',
+    internetMessageId: doc.internetMessageId || '',
+    conversationId: doc.conversationId || '',
+    threadId: doc.threadId || '',
+    inReplyTo: doc.inReplyTo || '',
+    originalSubject: doc.originalSubject || '',
     subject: doc.subject || '',
     recipientEmail,
     to: Array.isArray(doc.to) ? doc.to : [],
     cc: Array.isArray(doc.cc) ? doc.cc : [],
+    bcc: Array.isArray(doc.bcc) ? doc.bcc : [],
     references: Array.isArray(doc.references) ? doc.references : [],
     lastCampaignType: doc.lastCampaignType || '',
     updatedAt: doc.updatedAt || null
   };
 }
 
-async function upsertStoredThreadForLead(lead, account, thread, campaignType = '', userEmail = '') {
+async function upsertStoredThreadForLead(lead, account, thread, campaignType = '', userEmail = '', campaign = null) {
   if (!String(thread?.messageId || '').trim()) return;
   const recipientEmail = normalizeRecipientEmail(lead?.Email || lead?.email || thread?.recipientEmail || '');
   if (!recipientEmail) return;
@@ -73,12 +80,24 @@ async function upsertStoredThreadForLead(lead, account, thread, campaignType = '
     {
       $set: {
         userEmail,
+        userId: campaign?.userId || null,
         recipientEmail,
         senderKey,
         messageId: String(thread?.messageId || ''),
+        internetMessageId: String(thread?.internetMessageId || ''),
+        conversationId: String(thread?.conversationId || ''),
+        threadId: String(thread?.threadId || thread?.conversationId || ''),
+        inReplyTo: String(thread?.inReplyTo || ''),
+        originalSubject: String(thread?.originalSubject || thread?.subject || ''),
         subject: String(thread?.subject || ''),
         to: Array.isArray(thread?.to) ? thread.to : [],
         cc: Array.isArray(thread?.cc) ? thread.cc : [],
+        bcc: Array.isArray(thread?.bcc) ? thread.bcc : [],
+        senderId: String(campaign?.senderAccountId || account?.id || ''),
+        campaignId: campaign?._id || null,
+        draftId: campaign?.draftId || null,
+        project: String(campaign?.projectName || campaign?.project || campaign?.projectId || ''),
+        sentAt: thread?.sentAt || new Date(),
         references: Array.isArray(thread?.references) ? thread.references : [],
         provider: String(account?.provider || 'smtp'),
         lastCampaignType: String(campaignType || ''),
@@ -488,6 +507,7 @@ async function upsertRecipientLogForLead({ campaign, lead, idx, status = 'Pendin
     messageId: sendResult?.messageId || stepLogs[stepIndex]?.messageId || '',
     internetMessageId: sendResult?.internetMessageId || stepLogs[stepIndex]?.internetMessageId || '',
     conversationId: sendResult?.conversationId || stepLogs[stepIndex]?.conversationId || '',
+    subject: sendResult?.subject || stepLogs[stepIndex]?.subject || '',
     failureReason: failureReason || stepLogs[stepIndex]?.failureReason || '',
     provider: provider || stepLogs[stepIndex]?.provider || ''
   };
@@ -1287,9 +1307,10 @@ export async function startCampaignRunner(campaignId, options = {}) {
           if (sendResult?.thread) {
             lead.thread = {
               ...sendResult.thread,
+              sentAt: lead.sentAt,
               campaignName: String(campaign.name || '')
             };
-            await upsertStoredThreadForLead(lead, account, sendResult.thread, campaignType, campaign.userEmail || '');
+            await upsertStoredThreadForLead(lead, account, lead.thread, campaignType, campaign.userEmail || '', campaign);
           } else {
             lead.thread = {
               ...(lead.thread || {}),
@@ -1300,7 +1321,7 @@ export async function startCampaignRunner(campaignId, options = {}) {
           syncCampaignProgressCounters(campaign);
           campaign.lastActivityAt = new Date();
           await markRecipientClaimStatus(campaign._id, recipientEmail, 'Sent', { sentAt: lead.sentAt });
-          await upsertRecipientLogForLead({
+          const recipientLogDoc = await upsertRecipientLogForLead({
             campaign,
             lead,
             idx,
@@ -1309,6 +1330,31 @@ export async function startCampaignRunner(campaignId, options = {}) {
             trackingId,
             sendResult,
             provider: account.provider || ''
+          });
+          await CampaignSentEmail.create({
+            userId: campaign.userId || null,
+            userEmail: campaign.userEmail || '',
+            campaignId: campaign._id,
+            draftId: campaign.draftId || null,
+            recipientLogId: recipientLogDoc?._id || null,
+            recipientEmail,
+            senderId: campaign.senderAccountId || account.id || '',
+            senderEmail: account.from || account.user || campaign.senderFrom || '',
+            provider: account.provider || 'smtp',
+            project: campaign.projectName || campaign.project || campaign.projectId || '',
+            messageId: sendResult?.messageId || '',
+            internetMessageId: sendResult?.internetMessageId || sendResult?.messageId || '',
+            conversationId: sendResult?.conversationId || '',
+            inReplyTo: replyContext?.internetMessageId || replyContext?.messageId || '',
+            references: Array.isArray(sendResult?.thread?.references) ? sendResult.thread.references : [],
+            originalSubject: replyContext?.subject || sendResult?.thread?.originalSubject || sendResult?.subject || selectedTemplate?.subject || '',
+            subject: sendResult?.subject || selectedTemplate?.subject || '',
+            bodyHtml: sendResult?.bodyHtml || '',
+            bodyText: sendResult?.bodyText || '',
+            status: 'sent',
+            sentAt: lead.sentAt
+          }).catch((error) => {
+            console.warn('[campaign_sent_email_metadata_failed]', { campaignId: String(campaign._id || ''), recipientEmail, error: error.message || String(error) });
           });
           appendLog(
             campaign,

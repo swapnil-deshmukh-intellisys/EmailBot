@@ -571,6 +571,7 @@ export default function DashboardPage() {
   const [previewStyle, setPreviewStyle] = useState(DEFAULT_SHEET_STYLE);
   const [preferredActiveCampaignId, setPreferredActiveCampaignId] = useState('');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const [campaignReplyPrefill, setCampaignReplyPrefill] = useState({ mode: '', recipientEmail: '', recipientLogId: '' });
   const [toast, setToast] = useState(null);
   const isReplyModeCampaignType = REPLY_MODE_DRAFT_TYPES.has(String(selectedDraft || '').toLowerCase());
   const fileInputRef = useRef(null);
@@ -2721,7 +2722,7 @@ const handleDeleteDraft = async (draft) => {
   }, [hasLiveCampaign]);
 
   useEffect(() => {
-    const pollIntervalMs = hasLiveCampaign ? 15000 : 60000;
+    const pollIntervalMs = hasLiveCampaign ? 30000 : 120000;
     const id = setInterval(() => {
       const source = hasLiveCampaignRef.current ? 'live-poll' : 'idle-poll';
       void refreshCampaignData({ source });
@@ -5963,13 +5964,26 @@ const normalizeSelectedListEmails = async () => {
           targetApprovalReviewedAt={profileCredits.targetApprovalReviewedAt}
           targetApprovalReviewer={profileCredits.targetApprovalReviewer}
           targetApprovalRequestNote={profileCredits.targetApprovalRequestNote}
-          onViewCampaignDetail={setSelectedCampaignId}
+          onViewCampaignDetail={(campaignId, replyTarget = null) => {
+            setSelectedCampaignId(campaignId);
+            setCampaignReplyPrefill({
+              mode: String(replyTarget?.mode || '').trim(),
+              recipientEmail: String(replyTarget?.recipientEmail || '').trim(),
+              recipientLogId: String(replyTarget?.recipientLogId || '').trim()
+            });
+          }}
         />
 
       {selectedCampaignId ? (
         <CampaignDetailsDrawer
           campaignId={selectedCampaignId}
-          onClose={() => setSelectedCampaignId('')}
+          initialReplyMode={campaignReplyPrefill.mode}
+          initialRecipientEmail={campaignReplyPrefill.recipientEmail}
+          initialRecipientLogId={campaignReplyPrefill.recipientLogId}
+          onClose={() => {
+            setSelectedCampaignId('');
+            setCampaignReplyPrefill({ mode: '', recipientEmail: '', recipientLogId: '' });
+          }}
           onActionCompleted={() => refreshCampaignData({ source: 'detail-action' })}
         />
       ) : null}

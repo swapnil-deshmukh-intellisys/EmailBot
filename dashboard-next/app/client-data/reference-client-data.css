@@ -987,6 +987,29 @@ html body main.dashboard-shell .client-data-page .client-data-reference-table .c
   white-space: nowrap !important;
 }
 
+html body main.dashboard-shell .client-data-page .client-data-reference-table th.directory-column-selected,
+html body main.dashboard-shell .client-data-page .client-data-reference-table tr.directory-row-selected td.client-row-number,
+html body main.dashboard-shell .client-data-page .client-data-reference-table td.directory-cell-selected {
+  background: #eef2ff !important;
+  background-image: none !important;
+  box-shadow: inset 0 0 0 1px rgba(79, 91, 213, .22) !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(n+3),
+html body main.dashboard-shell .client-data-page .client-data-reference-table .directory-row-selector {
+  cursor: cell !important;
+  user-select: none !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .directory-row-selector:hover,
+html body main.dashboard-shell .client-data-page .client-data-reference-table th:nth-child(n+3):hover {
+  background: #f1f5ff !important;
+}
+
+html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell.selected {
+  background: #eef2ff !important;
+  background-image: none !important;
+}
 html body main.dashboard-shell .client-data-page .client-data-reference-table .client-list-sheet-cell:hover {
   background: transparent !important;
   background-image: none !important;

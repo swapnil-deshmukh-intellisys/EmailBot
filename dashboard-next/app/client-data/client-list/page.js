@@ -786,6 +786,9 @@ export default function ClientListPage() {
   const [savingDirectory, setSavingDirectory] = useState(false);
   const [creatingRow, setCreatingRow] = useState(false);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
+  const [directorySelectedCells, setDirectorySelectedCells] = useState(new Set());
+  const [directorySelectionAnchor, setDirectorySelectionAnchor] = useState(null);
+  const [isSelectingDirectoryCells, setIsSelectingDirectoryCells] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [selectedCells, setSelectedCells] = useState(new Set());
   const [clipboardData, setClipboardData] = useState(null);
@@ -1229,6 +1232,12 @@ export default function ClientListPage() {
   );
 
   const visibleClientIds = useMemo(() => paginatedClientRows.map((row) => row.id), [paginatedClientRows]);
+  useEffect(() => {
+    if (!isSelectingDirectoryCells) return undefined;
+    const stopSelecting = () => setIsSelectingDirectoryCells(false);
+    window.addEventListener('mouseup', stopSelecting);
+    return () => window.removeEventListener('mouseup', stopSelecting);
+  }, [isSelectingDirectoryCells]);
   const selectedCount = selectedClientIds.length;
   const allVisibleSelected = visibleClientIds.length > 0 && visibleClientIds.every((id) => selectedClientIds.includes(id));
   const editedRowIds = useMemo(() => Object.keys(rowEdits), [rowEdits]);
@@ -1774,44 +1783,189 @@ export default function ClientListPage() {
     setActiveCell({ rowId, field });
   };
 
+  const getDirectoryCellKey = (rowId, field) => `${rowId}:${field}`;
+
+  const getDirectoryFieldIndex = (field) => REFERENCE_TABLE_COLUMNS.findIndex((column) => column.field === field);
+
+  const getDirectoryCellValue = (row, field) => {
+    const value = rowEdits[row.id]?.[field] ?? row[field] ?? '';
+    return value === '-' ? '' : String(value);
+  };
+
+  const getDirectorySelectionEntries = () => {
+    const entries = [];
+    directorySelectedCells.forEach((key) => {
+      const separatorIndex = key.lastIndexOf(':');
+      if (separatorIndex < 0) return;
+      const rowId = key.slice(0, separatorIndex);
+      const field = key.slice(separatorIndex + 1);
+      const rowIndex = paginatedClientRows.findIndex((row) => String(row.id) === rowId);
+      const fieldIndex = getDirectoryFieldIndex(field);
+      if (rowIndex >= 0 && fieldIndex >= 0) entries.push({ rowId, field, rowIndex, fieldIndex });
+    });
+    return entries;
+  };
+
+  const selectDirectoryCellRange = (start, end) => {
+    if (!start || !end || !paginatedClientRows.length) return;
+    const startCol = getDirectoryFieldIndex(start.field);
+    const endCol = getDirectoryFieldIndex(end.field);
+    if (startCol < 0 || endCol < 0) return;
+    const minRow = Math.max(0, Math.min(start.rowIndex, end.rowIndex));
+    const maxRow = Math.min(paginatedClientRows.length - 1, Math.max(start.rowIndex, end.rowIndex));
+    const minCol = Math.min(startCol, endCol);
+    const maxCol = Math.max(startCol, endCol);
+    const nextSelection = new Set();
+    for (let currentRowIndex = minRow; currentRowIndex <= maxRow; currentRowIndex += 1) {
+      const row = paginatedClientRows[currentRowIndex];
+      if (!row) continue;
+      for (let colIndex = minCol; colIndex <= maxCol; colIndex += 1) {
+        const field = REFERENCE_TABLE_COLUMNS[colIndex]?.field;
+        if (field) nextSelection.add(getDirectoryCellKey(row.id, field));
+      }
+    }
+    setDirectorySelectedCells(nextSelection);
+  };
+
+  const selectDirectoryRow = (rowIndex) => {
+    const row = paginatedClientRows[rowIndex];
+    if (!row) return;
+    const nextSelection = new Set(REFERENCE_TABLE_COLUMNS.map((column) => getDirectoryCellKey(row.id, column.field)));
+    setDirectorySelectionAnchor({ rowIndex, field: REFERENCE_TABLE_COLUMNS[0]?.field || 'name' });
+    setDirectorySelectedCells(nextSelection);
+    focusGridCell(row.id, GRID_EDITABLE_FIELDS[0]);
+  };
+
+  const selectDirectoryColumn = (field) => {
+    const fieldIndex = getDirectoryFieldIndex(field);
+    if (fieldIndex < 0) return;
+    const nextSelection = new Set(paginatedClientRows.map((row) => getDirectoryCellKey(row.id, field)));
+    setDirectorySelectionAnchor({ rowIndex: 0, field });
+    setDirectorySelectedCells(nextSelection);
+    const firstRow = paginatedClientRows[0];
+    if (firstRow) focusGridCell(firstRow.id, EDITABLE_ROW_FIELDS.includes(field) ? field : GRID_EDITABLE_FIELDS[0]);
+  };
+
+  const selectAllDirectoryCells = () => {
+    const nextSelection = new Set();
+    paginatedClientRows.forEach((row) => {
+      REFERENCE_TABLE_COLUMNS.forEach((column) => nextSelection.add(getDirectoryCellKey(row.id, column.field)));
+    });
+    setDirectorySelectionAnchor({ rowIndex: 0, field: REFERENCE_TABLE_COLUMNS[0]?.field || 'name' });
+    setDirectorySelectedCells(nextSelection);
+  };
+
+  const clearDirectorySelectedCells = (fallbackRowIndex, fallbackFieldIndex) => {
+    const selectedEntries = getDirectorySelectionEntries();
+    const fallbackField = GRID_EDITABLE_FIELDS[fallbackFieldIndex];
+    const entries = selectedEntries.length
+      ? selectedEntries
+      : [{ rowIndex: fallbackRowIndex, fieldIndex: getDirectoryFieldIndex(fallbackField), field: fallbackField }];
+    const editableEntries = entries.filter((entry) => EDITABLE_ROW_FIELDS.includes(entry.field));
+    if (!editableEntries.length) {
+      showToast('info', 'Only editable client information cells can be cleared.');
+      return;
+    }
+    updateDirectoryEdits((current) => {
+      const next = { ...current };
+      editableEntries.forEach(({ rowIndex, field }) => {
+        const row = paginatedClientRows[rowIndex];
+        if (!row) return;
+        next[row.id] = { ...(next[row.id] || {}), [field]: '' };
+      });
+      return next;
+    });
+    showToast('success', `${editableEntries.length} cell${editableEntries.length === 1 ? '' : 's'} cleared.`);
+  };
+
+  const handleDirectoryCellMouseDown = (event, rowIndex, field) => {
+    const row = paginatedClientRows[rowIndex];
+    if (!row) return;
+    const point = { rowIndex, field };
+    if (event.shiftKey && directorySelectionAnchor) {
+      selectDirectoryCellRange(directorySelectionAnchor, point);
+    } else {
+      setDirectorySelectionAnchor(point);
+      setDirectorySelectedCells(new Set([getDirectoryCellKey(row.id, field)]));
+      setIsSelectingDirectoryCells(true);
+    }
+    if (!EDITABLE_ROW_FIELDS.includes(field)) focusGridCell(row.id, GRID_EDITABLE_FIELDS[0]);
+  };
+
+  const handleDirectoryCellMouseEnter = (rowIndex, field) => {
+    if (!isSelectingDirectoryCells || !directorySelectionAnchor) return;
+    selectDirectoryCellRange(directorySelectionAnchor, { rowIndex, field });
+  };
   const copyDirectoryCells = async (rowIndex, fieldIndex, cut = false) => {
     const currentRow = paginatedClientRows[rowIndex];
     if (!currentRow) return;
-    const selectedRowsForCopy = selectedClientIds.length
-      ? paginatedClientRows.filter((row) => selectedClientIds.includes(row.id))
-      : [currentRow];
-    const fields = selectedClientIds.length
-      ? REFERENCE_TABLE_COLUMNS.map((column) => column.field)
-      : [GRID_EDITABLE_FIELDS[fieldIndex]];
-    const text = selectedRowsForCopy
-      .map((row) => fields.map((field) => {
-        const value = rowEdits[row.id]?.[field] ?? row[field] ?? '';
-        return value === '-' ? '' : String(value);
-      }).join('\t'))
-      .join('\n');
+
+    const selectedEntries = getDirectorySelectionEntries();
+    let text = '';
+    let clearEntries = [];
+
+    if (selectedEntries.length) {
+      let minRow = Infinity;
+      let maxRow = -Infinity;
+      let minCol = Infinity;
+      let maxCol = -Infinity;
+      selectedEntries.forEach(({ rowIndex: selectedRowIndex, fieldIndex: selectedFieldIndex }) => {
+        minRow = Math.min(minRow, selectedRowIndex);
+        maxRow = Math.max(maxRow, selectedRowIndex);
+        minCol = Math.min(minCol, selectedFieldIndex);
+        maxCol = Math.max(maxCol, selectedFieldIndex);
+      });
+
+      const selectedKeys = new Set(selectedEntries.map(({ rowId, field }) => getDirectoryCellKey(rowId, field)));
+      const lines = [];
+      for (let currentRowIndex = minRow; currentRowIndex <= maxRow; currentRowIndex += 1) {
+        const row = paginatedClientRows[currentRowIndex];
+        if (!row) continue;
+        const values = [];
+        for (let colIndex = minCol; colIndex <= maxCol; colIndex += 1) {
+          const field = REFERENCE_TABLE_COLUMNS[colIndex]?.field;
+          values.push(field && selectedKeys.has(getDirectoryCellKey(row.id, field)) ? getDirectoryCellValue(row, field) : '');
+        }
+        lines.push(values.join('\t'));
+      }
+      text = lines.join('\n');
+      clearEntries = selectedEntries;
+    } else {
+      const selectedRowsForCopy = selectedClientIds.length
+        ? paginatedClientRows.filter((row) => selectedClientIds.includes(row.id))
+        : [currentRow];
+      const fields = selectedClientIds.length
+        ? REFERENCE_TABLE_COLUMNS.map((column) => column.field)
+        : [GRID_EDITABLE_FIELDS[fieldIndex]];
+      text = selectedRowsForCopy
+        .map((row) => fields.map((field) => getDirectoryCellValue(row, field)).join('\t'))
+        .join('\n');
+      clearEntries = selectedRowsForCopy.flatMap((row) => fields.map((field) => ({
+        rowIndex: paginatedClientRows.findIndex((item) => item.id === row.id),
+        field
+      })));
+    }
 
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable');
       await navigator.clipboard.writeText(text);
       if (cut) {
+        const editableEntries = clearEntries.filter((entry) => EDITABLE_ROW_FIELDS.includes(entry.field));
         updateDirectoryEdits((current) => {
           const next = { ...current };
-          selectedRowsForCopy.forEach((row) => {
-            const patch = { ...(next[row.id] || {}) };
-            fields.forEach((field) => {
-              if (EDITABLE_ROW_FIELDS.includes(field)) patch[field] = '';
-            });
-            next[row.id] = patch;
+          editableEntries.forEach(({ rowIndex: selectedRowIndex, field }) => {
+            const row = paginatedClientRows[selectedRowIndex];
+            if (!row) return;
+            next[row.id] = { ...(next[row.id] || {}), [field]: '' };
           });
           return next;
         });
       }
-      showToast('success', cut ? 'Cells cut to clipboard.' : 'Cells copied to clipboard.');
+      showToast('success', cut ? 'Selected cells cut to clipboard.' : 'Selected cells copied to clipboard.');
     } catch (error) {
       showToast('error', error.message || 'Unable to access clipboard.');
     }
   };
-
   const handleGridCellKeyDown = (event, rowIndex, fieldIndex) => {
     if (!paginatedClientRows.length) return;
     const maxRow = paginatedClientRows.length - 1;
@@ -1846,8 +2000,8 @@ export default function ClientListPage() {
     }
     if ((event.ctrlKey || event.metaKey) && key === 'a') {
       event.preventDefault();
-      toggleSelectAllVisible();
-      showToast('info', 'Directory selection toggled.');
+      selectAllDirectoryCells();
+      showToast('info', 'Visible table cells selected.');
       return;
     }
     if (event.ctrlKey && event.key === 'Delete') {
@@ -1887,11 +2041,9 @@ export default function ClientListPage() {
       }
       return;
     }
-    if (event.key === 'Delete') {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
-      const currentRow = paginatedClientRows[rowIndex];
-      const field = GRID_EDITABLE_FIELDS[fieldIndex];
-      if (currentRow && field) handleRowFieldChange(currentRow.id, field, '');
+      clearDirectorySelectedCells(rowIndex, fieldIndex);
       return;
     }
     if (event.key === 'Home') {
@@ -1934,6 +2086,19 @@ export default function ClientListPage() {
     if (!rawText || !rawText.trim()) return;
     event.preventDefault();
 
+    const selectedEditableEntries = getDirectorySelectionEntries()
+      .filter((entry) => EDITABLE_ROW_FIELDS.includes(entry.field));
+    if (selectedEditableEntries.length) {
+      const topLeft = selectedEditableEntries.reduce((best, entry) => {
+        const editableColIndex = GRID_EDITABLE_FIELDS.indexOf(entry.field);
+        const bestEditableColIndex = GRID_EDITABLE_FIELDS.indexOf(best.field);
+        if (entry.rowIndex < best.rowIndex) return entry;
+        if (entry.rowIndex === best.rowIndex && editableColIndex < bestEditableColIndex) return entry;
+        return best;
+      }, selectedEditableEntries[0]);
+      startRowIndex = topLeft.rowIndex;
+      startFieldIndex = GRID_EDITABLE_FIELDS.indexOf(topLeft.field);
+    }
     const rows = rawText
       .replace(/\r\n/g, '\n')
       .split('\n')
@@ -2420,6 +2585,19 @@ export default function ClientListPage() {
     } finally {
       setLoadingHistory(false);
     }
+  };
+
+  const openHistoryReply = (client, mode = 'reply') => {
+    const campaignId = String(client?.campaignId || '').trim();
+    const recipientEmail = String(client?.email || '').trim();
+    const recipientLogId = String(client?.recipientLogId || '').trim();
+    if (!campaignId || !recipientEmail) {
+      showToast('error', 'No sent campaign thread is available for this client yet.');
+      return;
+    }
+    const params = new URLSearchParams({ campaignId, recipientEmail, replyMode: mode });
+    if (recipientLogId) params.set('recipientLogId', recipientLogId);
+    router.push(`/campaigns?${params.toString()}`);
   };
 
   const renderPaginationRow = () => {
@@ -2954,7 +3132,9 @@ export default function ClientListPage() {
                             {REFERENCE_TABLE_COLUMNS.map((column) => (
                               <th
                                 key={column.field}
-                                className={['campaignName','mailStatus','mailSentDate','mailSentTime'].includes(column.field) ? 'campaign-col-header' : ''}
+                                className={`${['campaignName','mailStatus','mailSentDate','mailSentTime'].includes(column.field) ? 'campaign-col-header' : ''} ${directorySelectedCells.size && paginatedClientRows.every((tableRow) => directorySelectedCells.has(getDirectoryCellKey(tableRow.id, column.field))) ? 'directory-column-selected' : ''}`}
+                                onClick={() => selectDirectoryColumn(column.field)}
+                                title="Click to select this column"
                               >
                                 {column.label}
                               </th>
@@ -2979,8 +3159,9 @@ export default function ClientListPage() {
                           ) : null}
                           {!loading && !error ? paginatedClientRows.map((row, rowIndex) => {
                             const rowHasDuplicateEmail = duplicateEmailRowIds.has(row.id);
+                            const rowFullySelected = REFERENCE_TABLE_COLUMNS.every((column) => directorySelectedCells.has(getDirectoryCellKey(row.id, column.field)));
                             return (
-                              <tr key={row.id} className={rowHasDuplicateEmail ? 'repeated client-directory-duplicate-row' : ''}>
+                              <tr key={row.id} className={`${rowHasDuplicateEmail ? 'repeated client-directory-duplicate-row' : ''} ${rowFullySelected ? 'directory-row-selected' : ''}`.trim()}>
                                 <td>
                                   <input
                                     type="checkbox"
@@ -2989,7 +3170,7 @@ export default function ClientListPage() {
                                     aria-label={`Select ${row.name}`}
                                   />
                                 </td>
-                                <td className="client-row-number">{(currentPage - 1) * pageSizeNumeric + rowIndex + 1}</td>
+                                <td className="client-row-number directory-row-selector" onClick={() => selectDirectoryRow(rowIndex)} title="Click to select this row">{(currentPage - 1) * pageSizeNumeric + rowIndex + 1}</td>
                                 {REFERENCE_TABLE_COLUMNS.map(({ field }) => {
                                   const rawValue = rowEdits[row.id]?.[field] ?? row[field] ?? '';
                                   const value = rawValue === '-' ? '' : rawValue;
@@ -2999,15 +3180,22 @@ export default function ClientListPage() {
                                   const isEditable = EDITABLE_ROW_FIELDS.includes(field);
                                   const displayValue = value === 0 ? '0' : String(value || '').trim() || 'Not available';
                                   const isCampaignCol = ['campaignName','mailStatus','mailSentDate','mailSentTime'].includes(field);
+                                  const cellKey = getDirectoryCellKey(row.id, field);
+                                  const isDirectoryCellSelected = directorySelectedCells.has(cellKey);
                                   return (
-                                    <td key={`${row.id}-${field}`} className={`client-list-sheet-cell-wrap${isCampaignCol ? ' campaign-info-cell' : ''}`}>
+                                    <td
+                                      key={`${row.id}-${field}`}
+                                      className={`client-list-sheet-cell-wrap${isCampaignCol ? ' campaign-info-cell' : ''}${isDirectoryCellSelected ? ' directory-cell-selected' : ''}`}
+                                      onMouseDown={(event) => handleDirectoryCellMouseDown(event, rowIndex, field)}
+                                      onMouseEnter={() => handleDirectoryCellMouseEnter(rowIndex, field)}
+                                    >
                                       {isEditable ? (
                                         <input
                                           ref={(node) => {
                                             cellRefs.current[`${row.id}:${field}`] = node;
                                           }}
                                           type={field === 'listAddedDate' ? 'date' : 'text'}
-                                          className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
+                                          className={`client-list-sheet-cell ${field === 'name' ? 'name-cell' : ''} ${activeCell?.rowId === row.id && activeCell?.field === field ? 'active' : ''} ${isDirectoryCellSelected ? 'selected' : ''} ${isEdited ? 'edited' : ''} ${emailHasIssue || hasDuplicateEmail ? 'invalid' : ''}`}
                                           value={value}
                                           placeholder="Not provided"
                                           onFocus={() => setActiveCell({ rowId: row.id, field })}
@@ -3221,10 +3409,16 @@ export default function ClientListPage() {
                                 <span>{client.company}</span>
                                 <span>Sent {client.sentCount}</span>
                                 <span>Replies {client.replyCount}</span>
+                                {client.threadStatus ? <span>Thread {client.threadStatus}</span> : null}
+                                {client.lastFollowUpAt ? <span>Last follow-up {formatDateTime(client.lastFollowUpAt)}</span> : null}
                                 {client.responseReceived ? <span>Response: {client.replyType || 'received'}</span> : null}
                                 {client.followUpStopped ? <span>{client.followUpStopReason || 'Follow-up stopped'}</span> : null}
                               </div>
                               {client.replyPreview ? <p className="client-data-history-reply">{client.replyPreview}</p> : null}
+                              <div className="client-data-history-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                                <Button type="button" variant="secondary" size="sm" disabled={!client.campaignId || client.sentCount < 1} onClick={() => openHistoryReply(client, 'reply')}>Reply</Button>
+                                <Button type="button" variant="secondary" size="sm" disabled={!client.campaignId || client.sentCount < 1} onClick={() => openHistoryReply(client, 'reply_all')}>Reply All</Button>
+                              </div>
                               <div className="client-data-history-steps">
                                 {client.steps.map((step) => (
                                   <div key={`${client.email}-${step.stepNumber}`} className={`client-data-history-step client-data-history-step-${String(step.status || '').toLowerCase().replace(/\s+/g, '-')}`}>

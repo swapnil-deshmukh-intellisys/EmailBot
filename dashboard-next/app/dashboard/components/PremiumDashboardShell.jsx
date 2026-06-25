@@ -2088,9 +2088,9 @@ export default function PremiumDashboardShell({
     );
   };
 
-  const handleViewCampaign = (campaign) => {
+  const handleViewCampaign = (campaign, replyTarget = null) => {
     if (onViewCampaignDetail) {
-      onViewCampaignDetail(campaign.id || campaign._id);
+      onViewCampaignDetail(campaign.id || campaign._id, replyTarget);
       return;
     }
     const isActive = activeCampaign && String(activeCampaign._id || activeCampaign.id) === String(campaign.id);
@@ -4444,7 +4444,7 @@ export default function PremiumDashboardShell({
                 <div className="premium-schedule-inline-actions">
                   <button
                     type="button"
-                    className={`premium-schedule-next${canAttemptScheduleAction ? '' : ' is-disabled'}`}
+                    className={`wf-btn-secondary${canAttemptScheduleAction ? '' : ' is-disabled'}`}
                     aria-disabled={!canAttemptScheduleAction}
                     onClick={handleScheduleSave}
                   >
@@ -5019,50 +5019,59 @@ export default function PremiumDashboardShell({
 
       {renderPortalPopup(
         showScheduleSuccessPopup,
-        <div className="premium-calendar-modal-backdrop" onClick={() => setShowScheduleSuccessPopup(false)}>
-          <div className="premium-calendar-modal premium-schedule-success-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="premium-schedule-success-head">
-              <span className="premium-popup-step-badge">✓</span>
-              <div>
-                <h3>Campaign Scheduled Successfully</h3>
-                <p>Your campaign has been scheduled.</p>
+        <div className="wf-backdrop" onClick={() => setShowScheduleSuccessPopup(false)}>
+          <div className="premium-calendar-modal wf-modal premium-schedule-success-modal" style={popupStyleFor('schedule')} onClick={(event) => event.stopPropagation()}>
+            <div className="wf-header">
+              <span className="wf-header-badge">✓</span>
+              <h3 className="wf-header-title">Campaign Scheduled Successfully</h3>
+              <small className="wf-header-step">Your campaign has been scheduled</small>
+              <button type="button" className="wf-header-close" onClick={() => setShowScheduleSuccessPopup(false)}>×</button>
+            </div>
+
+            <div className="wf-body premium-schedule-success-body">
+              <div className="premium-schedule-success-grid">
+                <article>
+                  <span>Campaign Name</span>
+                  <strong>{scheduleSuccessDetails?.campaignName || campaignName || 'Campaign'}</strong>
+                </article>
+                <article>
+                  <span>Project</span>
+                  <strong>{scheduleSuccessDetails?.project || project || 'No project'}</strong>
+                </article>
+                <article>
+                  <span>Recipients</span>
+                  <strong>{Number(scheduleSuccessDetails?.recipients || 0).toLocaleString()}</strong>
+                </article>
+                <article>
+                  <span>Scheduled For</span>
+                  <strong>{scheduleSuccessDetails?.scheduledFor || 'Scheduled'}</strong>
+                </article>
+                <article>
+                  <span>Status</span>
+                  <strong>{scheduleSuccessDetails?.status || 'Scheduled'}</strong>
+                </article>
               </div>
             </div>
-            <div className="premium-schedule-success-grid">
-              <article>
-                <span>Campaign Name</span>
-                <strong>{scheduleSuccessDetails?.campaignName || campaignName || 'Campaign'}</strong>
-              </article>
-              <article>
-                <span>Project</span>
-                <strong>{scheduleSuccessDetails?.project || project || 'No project'}</strong>
-              </article>
-              <article>
-                <span>Recipients</span>
-                <strong>{Number(scheduleSuccessDetails?.recipients || 0).toLocaleString()}</strong>
-              </article>
-              <article>
-                <span>Scheduled For</span>
-                <strong>{scheduleSuccessDetails?.scheduledFor || 'Scheduled'}</strong>
-              </article>
-              <article>
-                <span>Status</span>
-                <strong>{scheduleSuccessDetails?.status || 'Scheduled'}</strong>
-              </article>
-            </div>
-            <div className="premium-schedule-success-actions">
+
+            <div className="wf-footer">
+              <div className="wf-footer-left">
+                <button
+                  type="button"
+                  className="wf-btn-secondary"
+                  onClick={() => setShowScheduleSuccessPopup(false)}
+                >
+                  Close
+                </button>
+              </div>
               <button
                 type="button"
-                className="premium-schedule-next"
+                className="wf-btn-primary"
                 onClick={() => {
                   setShowScheduleSuccessPopup(false);
                   router.push('/dashboard/broadcasts');
                 }}
               >
                 View Broadcasts
-              </button>
-              <button type="button" className="ghost subtle" onClick={() => setShowScheduleSuccessPopup(false)}>
-                Close
               </button>
             </div>
           </div>

@@ -465,7 +465,9 @@ export default function MainPanels({
                       </button>
                       {openActionMenu === campaign.id ? (
                         <div className="premium-row-action-menu" onClick={(event) => event.stopPropagation()}>
-                          <button type="button" onClick={(event) => { event.stopPropagation(); handleViewCampaign(campaign); }}>View</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign); }}>View</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign, { mode: 'reply' }); }}>Reply</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign, { mode: 'reply_all' }); }}>Reply All</button>
                           <button type="button" onClick={(event) => { event.stopPropagation(); handleEditTagsClick(campaign); }}>Edit Tags</button>
                           {normalizedStatus === 'draft' ? (
                             <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>
@@ -627,7 +629,9 @@ export default function MainPanels({
                     const canResumeCampaign = normalizedStatus === 'paused';
                     return (
                       <div className="premium-row-action-menu" onClick={(event) => event.stopPropagation()}>
-                        <button type="button" onClick={(event) => { event.stopPropagation(); handleViewCampaign(campaign); }}>View</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign); }}>View</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign, { mode: 'reply' }); }}>Reply</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); handleViewCampaign(campaign, { mode: 'reply_all' }); }}>Reply All</button>
                         <button type="button" onClick={(event) => { event.stopPropagation(); handleEditTagsClick(campaign); }}>Edit Tags</button>
                         {isDraftCampaign ? (
                           <button type="button" onClick={(event) => { event.stopPropagation(); setOpenActionMenu(null); resumeCampaignDraft(campaign); }}>

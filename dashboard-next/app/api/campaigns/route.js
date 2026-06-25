@@ -128,30 +128,56 @@ export async function GET(req) {
     if (andClauses.length) filters.$and = andClauses;
     const query = buildAuthOwnerFilter(auth, filters);
 
-    const [totalCount, countSourceCampaigns, rawCampaigns] = await Promise.all([
-      Campaign.countDocuments(query),
-      Campaign.find(query)
-        .select({
+    const countSourceCampaignsPromise = Campaign.aggregate([
+      { $match: query },
+      {
+        $project: {
           status: 1,
-          displayStatus: 1,
           workerStatus: 1,
           sentCount: 1,
           pendingCount: 1,
-          failedCount: 1,
-          stats: 1,
+          stats: {
+            sent: '$stats.sent',
+            pending: '$stats.pending',
+            total: '$stats.total'
+          },
           listId: 1,
           templateId: 1,
-          draftId: 1,
           senderAccountId: 1,
           senderFrom: 1,
-          'senderAccount.from': 1,
-          'senderAccount.user': 1,
-          'inlineTemplate.subject': 1,
-          'inlineTemplate.body': 1,
-          'inlineTemplate.bodyHtml': 1,
-          'inlineTemplate.bodyText': 1
-        })
-        .lean(),
+          senderAccount: {
+            from: '$senderAccount.from',
+            user: '$senderAccount.user'
+          },
+          inlineTemplate: {
+            subject: {
+              $cond: [
+                { $gt: [{ $strLenCP: { $toString: { $ifNull: ['$inlineTemplate.subject', ''] } } }, 0] },
+                'present',
+                ''
+              ]
+            },
+            body: {
+              $cond: [
+                {
+                  $or: [
+                    { $gt: [{ $strLenCP: { $toString: { $ifNull: ['$inlineTemplate.body', ''] } } }, 0] },
+                    { $gt: [{ $strLenCP: { $toString: { $ifNull: ['$inlineTemplate.bodyHtml', ''] } } }, 0] },
+                    { $gt: [{ $strLenCP: { $toString: { $ifNull: ['$inlineTemplate.bodyText', ''] } } }, 0] }
+                  ]
+                },
+                'present',
+                ''
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    const [totalCount, countSourceCampaigns, rawCampaigns] = await Promise.all([
+      Campaign.countDocuments(query),
+      countSourceCampaignsPromise,
       Campaign.find(query)
       .select({
         userId: 1,

@@ -159,6 +159,21 @@ export async function GET(req) {
       }
     });
 
+    // Build email → most recent log map (across all campaigns, not just by listId)
+    const logMapByEmail = {};
+    logs.forEach((log) => {
+      const emailKey = String(log.email || '').toLowerCase().trim();
+      if (!emailKey) return;
+      const existing = logMapByEmail[emailKey];
+      const logDate = log.lastSentAt || log.updatedAt || log.createdAt;
+      const existingDate = existing?.lastSentAt || existing?.updatedAt || existing?.createdAt;
+      // Keep the most recent log per email
+      if (!existing || (logDate && (!existingDate || new Date(logDate) > new Date(existingDate)))) {
+        logMapByEmail[emailKey] = log;
+      }
+    });
+
+    // Also keep a listId-scoped map for precise matching
     const logMapByEmailAndList = {};
     logs.forEach((log) => {
       const emailKey = String(log.email || '').toLowerCase().trim();
@@ -169,25 +184,20 @@ export async function GET(req) {
         if (!logMapByEmailAndList[emailKey]) {
           logMapByEmailAndList[emailKey] = {};
         }
-        logMapByEmailAndList[emailKey][listIdStr] = log;
+        const existing = logMapByEmailAndList[emailKey][listIdStr];
+        const logDate = log.lastSentAt || log.updatedAt || log.createdAt;
+        const existingDate = existing?.lastSentAt || existing?.updatedAt || existing?.createdAt;
+        if (!existing || (logDate && (!existingDate || new Date(logDate) > new Date(existingDate)))) {
+          logMapByEmailAndList[emailKey][listIdStr] = log;
+        }
       }
     });
 
-    // 2 Months ago threshold for filtering recent lists/leads
-    const twoMonthsAgo = new Date();
-    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
+    // Fetch ALL lists (no date filter) — show all uploaded sheets, latest first
     const lists = await LeadList.find({
       $and: [
         ownerQuery,
-        { kind: { $ne: 'paste_workspace' } },
-        {
-          $or: [
-            { createdAt: { $gte: twoMonthsAgo } },
-            { uploadedAt: { $gte: twoMonthsAgo } },
-            { uploadDate: { $gte: twoMonthsAgo } }
-          ]
-        }
+        { kind: { $ne: 'paste_workspace' } }
       ]
     })
       .select([
@@ -213,19 +223,22 @@ export async function GET(req) {
       const leads = Array.isArray(list.leads) ? list.leads : [];
       leads.forEach((lead, index) => {
         if (hasMeaningfulLeadData(lead)) {
-          const row = buildStoredClientRow(list, lead, index, campaignByListId, logMapByEmailAndList);
-          
-          // Verify listAddedDateRaw meets 2-month threshold too (if it exists)
-          const rowTime = row.listAddedDateRaw ? new Date(row.listAddedDateRaw).getTime() : 0;
-          if (rowTime >= twoMonthsAgo.getTime() || !row.listAddedDateRaw) {
-            rows.push(row);
-          }
+          const row = buildStoredClientRow(list, lead, index, campaignByListId, logMapByEmailAndList, logMapByEmail);
+          rows.push(row);
         }
       });
     });
 
-    // Sort final rows so latest listAddedDate is first
+    // Sort: rows with mail sent date first (most recent), then by list upload date (newest sheet first)
     rows.sort((a, b) => {
+      // If both have mail sent, sort by most recent sent date
+      if (a.mailSentAt && b.mailSentAt) {
+        return new Date(b.mailSentAt) - new Date(a.mailSentAt);
+      }
+      // Rows with mail sent come before unsent
+      if (a.mailSentAt && !b.mailSentAt) return -1;
+      if (!a.mailSentAt && b.mailSentAt) return 1;
+      // Both unsent: sort by list upload date (latest sheet first)
       const dateA = a.listAddedDateRaw ? new Date(a.listAddedDateRaw).getTime() : 0;
       const dateB = b.listAddedDateRaw ? new Date(b.listAddedDateRaw).getTime() : 0;
       return dateB - dateA;

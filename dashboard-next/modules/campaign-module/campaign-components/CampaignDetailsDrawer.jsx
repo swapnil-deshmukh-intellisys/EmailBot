@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '@/shared-components/ui-components/UiActionButton';
 import { apiFetchJson } from '@/app/lib/apiClient';
 
@@ -174,6 +174,13 @@ function isMailSent(step = {}) {
   return Boolean(step.sentAt) || ['sent', 'opened', 'replied', 'delivered', 'auto reply'].includes(status);
 }
 
+function recipientHasSentMail(row = {}) {
+  if (Number(row.sentCount || 0) > 0 || row.lastSentAt || row.messageId || row.internetMessageId || row.conversationId) {
+    return true;
+  }
+  return [1, 2, 3, 4, 5].some((step) => isMailSent(getStep(row, step)));
+}
+
 function isUnsentMailStep(step = {}) {
   return !isMailSent(step);
 }
@@ -184,6 +191,10 @@ function getMailStatusClass(step = {}) {
     return 'campaign-mail-cell campaign-mail-cell-red';
   }
   return 'campaign-mail-cell campaign-mail-cell-ok';
+}
+
+function normalizeEmail(value = '') {
+  return String(value || '').trim().toLowerCase();
 }
 
 function getStatusClassName(status = '') {
@@ -203,12 +214,17 @@ function getStatusClassName(status = '') {
   return '';
 }
 
-export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCompleted }) {
+export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '', initialRecipientEmail = '', initialRecipientLogId = '', onClose, onActionCompleted }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [compose, setCompose] = useState(null);
+  const [composeSending, setComposeSending] = useState(false);
+  const [composeError, setComposeError] = useState('');
+  const [previousExpanded, setPreviousExpanded] = useState(false);
+  const initialReplyHandledRef = useRef('');
 
   const loadDetail = useCallback(async ({ silent = false } = {}) => {
     if (!campaignId) return;
@@ -225,6 +241,10 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
       setRefreshing(false);
     }
   }, [campaignId]);
+
+  useEffect(() => {
+    initialReplyHandledRef.current = '';
+  }, [campaignId, initialReplyMode, initialRecipientEmail, initialRecipientLogId]);
 
   useEffect(() => {
     void loadDetail();
@@ -345,6 +365,89 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
   const campaign = detail?.summary || detail?.campaign || {};
   const recipients = detail?.recipients || [];
   const timeline = detail?.timeline || [];
+  const followUpSummary = recipients.reduce((summary, row) => {
+    summary.originalSent += Number(row.sentCount || 0) > 0 ? 1 : 0;
+    summary.reminderSent += Number(row.reminderSentCount || 0);
+    summary.replySent += Number(row.manualReplySentCount || 0);
+    summary.replyAllSent += Number(row.replyAllSentCount || 0);
+    const lastFollowUp = row.lastFollowUpAt ? new Date(row.lastFollowUpAt).getTime() : 0;
+    if (lastFollowUp && lastFollowUp > summary.lastFollowUpTime) summary.lastFollowUpTime = lastFollowUp;
+    return summary;
+  }, { originalSent: 0, reminderSent: 0, replySent: 0, replyAllSent: 0, lastFollowUpTime: 0 });
+
+  const openCompose = async (row, mode = 'reply') => {
+    setComposeError('');
+    setPreviousExpanded(false);
+    try {
+      const params = new URLSearchParams({ recipientLogId: String(row._id || ''), mode });
+      const data = await apiFetchJson(`/api/campaigns/${campaignId}/replies?${params.toString()}`);
+      const composeData = data.compose || {};
+      const modeLabel = mode === 'reply_all' ? 'Reply All' : 'Reply';
+      setCompose({
+        mode,
+        modeLabel,
+        recipientLogId: row._id,
+        recipientEmail: row.email || row.recipientEmail || '',
+        to: (composeData.to || [row.email || row.recipientEmail || '']).join(', '),
+        cc: mode === 'reply' ? '' : (composeData.cc || []).join(', '),
+        bcc: '',
+        subject: composeData.subject || `Re: ${composeData.originalSubject || campaign.name || ''}`,
+        html: '<p></p>',
+        previous: composeData.previous || {}
+      });
+    } catch (err) {
+      setComposeError(err.message || 'Unable to prepare reply.');
+    }
+  };
+
+  useEffect(() => {
+    if (!initialReplyMode || compose || !recipients.length) return;
+    const targetKey = [campaignId, initialReplyMode, initialRecipientLogId, initialRecipientEmail].join(':');
+    if (initialReplyHandledRef.current === targetKey) return;
+
+    const normalizedMode = initialReplyMode === 'reply_all' ? 'reply_all' : 'reply';
+    const normalizedInitialEmail = normalizeEmail(initialRecipientEmail);
+    const matchingRecipient = recipients.find((row) => String(row._id || '') === String(initialRecipientLogId || '').trim())
+      || recipients.find((row) => normalizedInitialEmail && normalizeEmail(row.email || row.recipientEmail || '') === normalizedInitialEmail)
+      || recipients.find((row) => recipientHasSentMail(row));
+
+    initialReplyHandledRef.current = targetKey;
+    if (!matchingRecipient) {
+      setComposeError('No sent recipient thread is available for this campaign yet.');
+      return;
+    }
+    void openCompose(matchingRecipient, normalizedMode);
+  }, [campaignId, compose, initialRecipientEmail, initialRecipientLogId, initialReplyMode, recipients]);
+
+  const submitCompose = async () => {
+    if (!compose) return;
+    setComposeSending(true);
+    setComposeError('');
+    setNotice('');
+    try {
+      const data = await apiFetchJson(`/api/campaigns/${campaignId}/replies`, {
+        method: 'POST',
+        body: JSON.stringify({
+          mode: compose.mode,
+          recipientLogId: compose.recipientLogId,
+          recipientEmail: compose.recipientEmail,
+          to: compose.to,
+          cc: compose.cc,
+          bcc: compose.bcc,
+          subject: compose.subject,
+          html: compose.html
+        })
+      });
+      setNotice(data.message || 'Reply sent.');
+      setCompose(null);
+      await loadDetail({ silent: true });
+      onActionCompleted?.();
+    } catch (err) {
+      setComposeError(err.message || 'Unable to send reply.');
+    } finally {
+      setComposeSending(false);
+    }
+  };
 
   return (
     <div className="dashboard-subscription-modal-backdrop campaign-detail-backdrop" onClick={onClose}>
@@ -378,6 +481,12 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
               <article><span>Positive replies</span><strong>{Number(campaign.positiveReplyCount || 0).toLocaleString()}</strong></article>
               <article><span>Negative replies</span><strong>{Number(campaign.negativeReplyCount || 0).toLocaleString()}</strong></article>
               <article><span>Follow-up stopped</span><strong>{Number(campaign.followUpStoppedCount || 0).toLocaleString()}</strong></article>
+              <article><span>Original Sent</span><strong>{followUpSummary.originalSent.toLocaleString()}</strong></article>
+              <article><span>Reminder Sent</span><strong>{followUpSummary.reminderSent.toLocaleString()}</strong></article>
+              <article><span>Reply Sent</span><strong>{followUpSummary.replySent.toLocaleString()}</strong></article>
+              <article><span>Reply All Sent</span><strong>{followUpSummary.replyAllSent.toLocaleString()}</strong></article>
+              <article><span>Last Follow-up Date</span><strong>{followUpSummary.lastFollowUpTime ? formatDateTime(followUpSummary.lastFollowUpTime) : '-'}</strong></article>
+              <article><span>Thread Status</span><strong>{followUpSummary.reminderSent || followUpSummary.replySent || followUpSummary.replyAllSent ? 'Follow-up active' : 'Original only'}</strong></article>
               <article><span>Created</span><strong>{formatDateTime(campaign.createdAt)}</strong></article>
               <article><span>Scheduled</span><strong>{formatDateTime(getScheduledDate(campaign))}</strong></article>
               <article><span>Started</span><strong>{formatDateTime(campaign.startedAt)}</strong></article>
@@ -438,12 +547,14 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
                     <th>Engagement</th>
                     <th>Failure Reason</th>
                     <th>Last Activity</th>
+                    <th>Thread Status</th>
+                    <th>Actions</th>
                     <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recipients.map((row) => {
-                    const hasAnySentMail = [1, 2, 3, 4, 5].some((step) => isMailSent(getStep(row, step)));
+                    const hasAnySentMail = recipientHasSentMail(row);
                     
                     let lastSentStep = 0;
                     for (let step = 5; step >= 1; step--) {
@@ -510,6 +621,13 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
                         </td>
                         <td>{row.failureReason || row.followUpStopReason || '-'}</td>
                         <td>{formatDateTime(row.lastActivityAt)}</td>
+                        <td>{row.threadStatus || (hasAnySentMail ? 'Original Sent' : '-')}</td>
+                        <td>
+                          <div className="campaign-thread-actions">
+                            <button type="button" className="campaign-thread-action" disabled={!hasAnySentMail} onClick={() => openCompose(row, 'reply')}>Reply</button>
+                            <button type="button" className="campaign-thread-action" disabled={!hasAnySentMail} onClick={() => openCompose(row, 'reply_all')}>Reply All</button>
+                          </div>
+                        </td>
                         <td>{row.notes || '-'}</td>
                       </tr>
                     );
@@ -519,6 +637,67 @@ export default function CampaignDetailsDrawer({ campaignId, onClose, onActionCom
               </div>
             </div>
           </>
+        ) : null}
+
+        {composeError && !compose ? <div className="campaign-alert campaign-alert-error">{composeError}</div> : null}
+        {compose ? (
+          <div className="campaign-compose-backdrop" onClick={() => setCompose(null)}>
+            <section className="campaign-compose-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+              <div className="campaign-compose-head">
+                <strong>{compose.modeLabel}</strong>
+                <button type="button" onClick={() => setCompose(null)} aria-label="Cancel reply">x</button>
+              </div>
+              {composeError ? <div className="campaign-alert campaign-alert-error">{composeError}</div> : null}
+              <label className="campaign-compose-field">
+                <span>To</span>
+                <input value={compose.to} onChange={(event) => setCompose((prev) => ({ ...prev, to: event.target.value }))} />
+              </label>
+              <label className="campaign-compose-field">
+                <span>CC</span>
+                <input value={compose.cc} onChange={(event) => setCompose((prev) => ({ ...prev, cc: event.target.value }))} />
+              </label>
+              <label className="campaign-compose-field">
+                <span>BCC</span>
+                <input value={compose.bcc} onChange={(event) => setCompose((prev) => ({ ...prev, bcc: event.target.value }))} />
+              </label>
+              <label className="campaign-compose-field">
+                <span>Subject</span>
+                <input value={compose.subject} onChange={(event) => setCompose((prev) => ({ ...prev, subject: event.target.value }))} />
+              </label>
+              <div className="campaign-compose-editor-wrap">
+                <span>Message</span>
+                <div
+                  className="campaign-compose-editor"
+                  contentEditable
+                  suppressContentEditableWarning
+                  dangerouslySetInnerHTML={{ __html: compose.html }}
+                  onInput={(event) => setCompose((prev) => ({ ...prev, html: event.currentTarget.innerHTML }))}
+                />
+              </div>
+              <div className="campaign-compose-previous">
+                <button type="button" onClick={() => setPreviousExpanded((value) => !value)}>
+                  {previousExpanded ? 'Hide previous email' : 'Show previous email'}
+                </button>
+                {previousExpanded ? (
+                  <div className="campaign-compose-previous-body">
+                    <strong>{compose.previous?.subject || compose.subject}</strong>
+                    <small>{formatDateTime(compose.previous?.sentAt)}</small>
+                    {compose.previous?.previewHtml ? (
+                      <div dangerouslySetInnerHTML={{ __html: compose.previous.previewHtml }} />
+                    ) : (
+                      <p>Previous message content is not stored for this email, but thread headers will be preserved when sending.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              <div className="campaign-compose-actions">
+                <Button variant="secondary" size="sm" onClick={() => setCompose(null)}>Cancel</Button>
+                <Button variant="primary" size="sm" loading={composeSending} onClick={submitCompose}>
+                  {compose.mode === 'reply_all' ? 'Send Reply All' : 'Send Reply'}
+                </Button>
+              </div>
+            </section>
+          </div>
         ) : null}
       </section>
     </div>

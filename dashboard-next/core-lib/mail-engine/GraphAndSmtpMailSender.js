@@ -8,6 +8,7 @@ import { buildEmailParts } from '../../components/email/EmailRenderingSystem.js'
 
 const MAX_SUBJECT_LENGTH = 200;
 const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
 function buildDefaultAccount() {
   return {
@@ -262,7 +263,7 @@ function getGraphTokenCacheKey(account = {}) {
   ].join('::');
 }
 
-async function getGraphAccessToken(account) {
+export async function getGraphAccessToken(account) {
   if (!isGraphAppOnlyEnabled()) {
     throw new Error('Graph app-only sending is disabled. Connect this mailbox with Microsoft OAuth instead.');
   }
@@ -368,9 +369,78 @@ function buildGraphPayload({ to, subject, body }) {
   };
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function normalizeGraphSentSubject(value = '') {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function normalizeGraphSentRecipient(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function graphJsonRequest(url, token) {
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json'
+    },
+    cache: 'no-store'
+  });
+
+  if (!resp.ok) {
+    return null;
+  }
+
+  return resp.json().catch(() => null);
+}
+
+async function resolveRecentGraphSentMessage({ token, userPath, subject, to, sentAfter = new Date() }) {
+  const normalizedSubject = normalizeGraphSentSubject(subject);
+  const normalizedRecipient = normalizeGraphSentRecipient(to);
+  const sentAfterMs = new Date(sentAfter).getTime() - 120000;
+  const url = `${GRAPH_BASE_URL}${userPath}/mailFolders/SentItems/messages?$top=15&$orderby=sentDateTime desc&$select=id,subject,internetMessageId,conversationId,sentDateTime,toRecipients`;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const data = await graphJsonRequest(url, token);
+    const messages = Array.isArray(data?.value) ? data.value : [];
+    const matched = messages.find((message) => {
+      const messageSubject = normalizeGraphSentSubject(message?.subject || '');
+      const messageSentAtMs = new Date(message?.sentDateTime || 0).getTime();
+      const messageRecipients = Array.isArray(message?.toRecipients)
+        ? message.toRecipients.map((item) => normalizeGraphSentRecipient(item?.emailAddress?.address || ''))
+        : [];
+      return (
+        messageSubject === normalizedSubject &&
+        messageSentAtMs >= sentAfterMs &&
+        messageRecipients.includes(normalizedRecipient)
+      );
+    });
+
+    if (matched) {
+      return {
+        messageId: String(matched.id || ''),
+        internetMessageId: String(matched.internetMessageId || ''),
+        conversationId: String(matched.conversationId || '')
+      };
+    }
+
+    if (attempt < 3) {
+      await wait(750 * (attempt + 1));
+    }
+  }
+
+  return {
+    messageId: '',
+    internetMessageId: '',
+    conversationId: ''
+  };
+}
+
 async function sendViaGraphApp({ account, to, subject, body }) {
   const token = await getGraphAccessToken(account);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(account.from)}/sendMail`;
+  const sentAfter = new Date();
   console.info('[graph_send_started]', {
     sender: account.from,
     recipient: to,
@@ -401,12 +471,25 @@ async function sendViaGraphApp({ account, to, subject, body }) {
     }
     throw new Error(errMsg);
   }
-  return { providerResponse: { status: resp.status, statusText: resp.statusText } };
+
+  const metadata = await resolveRecentGraphSentMessage({
+    token,
+    userPath: `/users/${encodeURIComponent(account.from)}`,
+    subject,
+    to,
+    sentAfter
+  });
+
+  return {
+    ...metadata,
+    providerResponse: { status: resp.status, statusText: resp.statusText }
+  };
 }
 
 async function sendViaGraphDelegated({ account, to, subject, body }) {
   const token = await getDelegatedAccessToken(account.oauthAccountId);
   const url = 'https://graph.microsoft.com/v1.0/me/sendMail';
+  const sentAfter = new Date();
   console.info('[graph_send_started]', {
     sender: account.from,
     recipient: to,
@@ -438,7 +521,19 @@ async function sendViaGraphDelegated({ account, to, subject, body }) {
     }
     throw new Error(errMsg);
   }
-  return { providerResponse: { status: resp.status, statusText: resp.statusText } };
+
+  const metadata = await resolveRecentGraphSentMessage({
+    token,
+    userPath: '/me',
+    subject,
+    to,
+    sentAfter
+  });
+
+  return {
+    ...metadata,
+    providerResponse: { status: resp.status, statusText: resp.statusText }
+  };
 }
 
 export async function verifyAccountConnection(account) {
@@ -490,6 +585,20 @@ function splitRecipients(value) {
 
 function dedupeRecipients(values = []) {
   return [...new Set(values.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function dedupeHeaderValues(values = []) {
+  const seen = new Set();
+  const output = [];
+  for (const value of values) {
+    const normalized = String(value || '').trim();
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(normalized);
+  }
+  return output;
 }
 
 function normalizeSubjectForReply(subject = '') {
@@ -548,7 +657,8 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   const normalizedType = String(campaignType || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
   const supportsReply = replyMode && ['reminder', 'follow_up', 'updated_cost', 'final_cost'].includes(normalizedType);
   const previousMessageId = String(replyContext?.messageId || '').trim();
-  const isReply = supportsReply && Boolean(previousMessageId);
+  const previousInternetMessageId = String(replyContext?.internetMessageId || '').trim();
+  const isReply = supportsReply && Boolean(previousMessageId || previousInternetMessageId);
 
   const previousTo = splitRecipients(replyContext?.to);
   const previousCc = splitRecipients(replyContext?.cc);
@@ -563,6 +673,8 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   }
 
   let sentMessageId = '';
+  let sentInternetMessageId = previousInternetMessageId;
+  let sentConversationId = String(replyContext?.conversationId || '').trim();
   let providerResponse = null;
 
   console.info('[email_html_built]', {
@@ -577,11 +689,23 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
   try {
     if (account.provider === 'graph_oauth') {
       const result = await sendViaGraphDelegated({ account, to, subject: finalSubject, body });
+      sentMessageId = result?.messageId || '';
+      sentInternetMessageId = result?.internetMessageId || previousInternetMessageId || '';
+      sentConversationId = result?.conversationId || sentConversationId || '';
       providerResponse = result?.providerResponse || null;
     } else if (account.provider === 'graph') {
       const result = await sendViaGraphApp({ account, to, subject: finalSubject, body });
+      sentMessageId = result?.messageId || '';
+      sentInternetMessageId = result?.internetMessageId || previousInternetMessageId || '';
+      sentConversationId = result?.conversationId || sentConversationId || '';
       providerResponse = result?.providerResponse || null;
     } else {
+      const references = isReply
+        ? dedupeHeaderValues([
+            ...(Array.isArray(replyContext?.references) ? replyContext.references : []),
+            previousInternetMessageId || previousMessageId
+          ])
+        : [];
       const result = await sendViaSmtpThreaded({
         account,
         to: toRecipients.join(', '),
@@ -589,10 +713,12 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
         subject: finalSubject,
         body,
         text: finalPlainText,
-        inReplyTo: isReply ? previousMessageId : undefined,
-        references: isReply ? [previousMessageId] : []
+        inReplyTo: isReply ? (previousInternetMessageId || previousMessageId) : undefined,
+        references
       });
       sentMessageId = result?.messageId || '';
+      sentInternetMessageId = result?.internetMessageId || sentInternetMessageId || '';
+      sentConversationId = result?.conversationId || sentConversationId || '';
       providerResponse = result || null;
     }
   } catch (error) {
@@ -614,19 +740,35 @@ export async function sendEmailForLead({ template, lead, account, campaignType =
     recipient: to,
     subject: finalSubject,
     messageId: sentMessageId,
+    internetMessageId: sentInternetMessageId,
+    conversationId: sentConversationId,
     providerResponse
   });
 
-  const references = dedupeRecipients([previousMessageId, ...(Array.isArray(replyContext?.references) ? replyContext.references : [])]);
+  const references = isReply
+    ? dedupeHeaderValues([
+        ...(Array.isArray(replyContext?.references) ? replyContext.references : []),
+        previousInternetMessageId || previousMessageId
+      ])
+    : [];
 
   return {
     to,
     subject: finalSubject,
     messageId: sentMessageId,
+    internetMessageId: sentInternetMessageId,
+    conversationId: sentConversationId,
+    bodyHtml: body,
+    bodyText: finalPlainText,
     providerResponse,
     isReply,
     thread: {
       messageId: sentMessageId || previousMessageId || '',
+      internetMessageId: sentInternetMessageId || previousInternetMessageId || '',
+      conversationId: sentConversationId || String(replyContext?.conversationId || '').trim(),
+      threadId: sentConversationId || String(replyContext?.conversationId || '').trim(),
+      inReplyTo: isReply ? (previousInternetMessageId || previousMessageId) : '',
+      originalSubject: sanitizeSubject(replyContext?.originalSubject || replyContext?.subject || subject),
       subject: finalSubject,
       recipientEmail: to,
       to: toRecipients,

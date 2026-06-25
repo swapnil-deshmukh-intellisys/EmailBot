@@ -211,10 +211,8 @@
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 16px !important;
-  padding: 24px !important;
-  background: #f8fafc !important;
-  flex: 1 1 auto !important;
-  overflow-y: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 .premium-schedule-success-grid article {
@@ -252,7 +250,7 @@
   
   .premium-schedule-success-grid {
     grid-template-columns: 1fr !important;
-    padding: 16px !important;
+    padding: 0 !important;
   }
 
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SIDEBAR_PRIMARY_ITEMS, SIDEBAR_WORKSPACE_ITEMS } from '@/app/dashboard/DashboardNavigationLayoutConfig';
 import { cn } from '@/app/lib/UiClassNameUtility';
@@ -21,6 +21,22 @@ const sidebarIconMap = {
   Report: 'ti-chart-line',
   Settings: 'ti-settings'
 };
+const sidebarSearchAliases = {
+  Dashboard: ['home', 'overview', 'summary', 'main dashboard'],
+  Leads: ['lead list', 'upload leads', 'contacts', 'prospects'],
+  'Draft & Templates': ['drafts', 'templates', 'email drafts', 'mail templates'],
+  Campaigns: ['campaign', 'broadcast', 'send mail', 'outreach'],
+  Clients: ['client data', 'client list', 'customers', 'stored data', 'upload sheet'],
+  Reports: ['report', 'analytics', 'stats', 'performance'],
+  Settings: ['profile', 'account', 'billing', 'security', 'password'],
+  Mailbox: ['inbox', 'mail inbox', 'email'],
+  'Sender Emails': ['senders', 'sender ids', 'mail ids', 'accounts'],
+  'Warm-Up': ['warmup', 'warm up', 'mail warmup']
+};
+
+function normalizeSearchValue(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+}
 
 function isActive(pathname, href) {
   if (!href) return false;
@@ -46,6 +62,51 @@ export function Sidebar({
   const [searchValue, setSearchValue] = useState('');
   const pathname = usePathname();
   const router = useRouter();
+  const searchQuery = normalizeSearchValue(searchValue);
+  const searchableItems = useMemo(() => {
+    const groups = [
+      { section: 'Main', items: primaryItems },
+      { section: 'Workspace', items: navItems }
+    ];
+    return groups.flatMap((group) => group.items.map((item) => {
+      const aliases = sidebarSearchAliases[item.label] || [];
+      const searchText = normalizeSearchValue([item.label, item.href, ...aliases].join(' '));
+      return { ...item, section: group.section, searchText };
+    }));
+  }, [primaryItems, navItems]);
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return [];
+    const parts = searchQuery.split(' ').filter(Boolean);
+    return searchableItems
+      .filter((item) => parts.every((part) => item.searchText.includes(part)))
+      .sort((left, right) => {
+        const leftLabel = normalizeSearchValue(left.label);
+        const rightLabel = normalizeSearchValue(right.label);
+        const leftStarts = leftLabel.startsWith(searchQuery) ? 0 : 1;
+        const rightStarts = rightLabel.startsWith(searchQuery) ? 0 : 1;
+        if (leftStarts !== rightStarts) return leftStarts - rightStarts;
+        return left.label.localeCompare(right.label);
+      })
+      .slice(0, 6);
+  }, [searchQuery, searchableItems]);
+
+  const openSearchResult = (item) => {
+    if (!item?.href) return;
+    setSearchValue('');
+    onMobileClose?.();
+    router.push(item.href);
+  };
+
+  const handleSearchKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openSearchResult(searchResults[0]);
+      return;
+    }
+    if (event.key === 'Escape') {
+      setSearchValue('');
+    }
+  };
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
@@ -82,13 +143,37 @@ export function Sidebar({
                 <i className="ti ti-search si-icon" aria-hidden="true" />
                 <input
                   className="search-input"
-                  type="text"
+                  type="search"
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
-                  aria-label="Search"
+                  onKeyDown={handleSearchKeyDown}
+                  aria-label="Search pages"
+                  aria-expanded={Boolean(searchQuery)}
+                  aria-controls="sidebar-search-results"
                   placeholder={searchPlaceholder}
                 />
               </div>
+              {searchQuery ? (
+                <div id="sidebar-search-results" className="sidebar-search-results" role="listbox">
+                  {searchResults.length ? searchResults.map((item) => (
+                    <button
+                      key={`${item.section}-${item.href || item.label}`}
+                      type="button"
+                      className="sidebar-search-result"
+                      onClick={() => openSearchResult(item)}
+                      role="option"
+                    >
+                      <i className={`ti ${sidebarIconClass(item.label)}`} aria-hidden="true" />
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.section}</small>
+                      </span>
+                    </button>
+                  )) : (
+                    <div className="sidebar-search-empty">No page found</div>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

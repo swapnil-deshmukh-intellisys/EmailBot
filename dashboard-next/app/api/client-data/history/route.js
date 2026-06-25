@@ -69,6 +69,7 @@ function logActivityTime(log = {}) {
 function formatCampaignHistory(log = {}) {
   return {
     id: String(log._id || ''),
+    recipientLogId: String(log._id || ''),
     campaignId: String(log.campaignId || ''),
     campaignName: log.campaignName || 'Campaign',
     projectName: log.projectName || '',
@@ -83,6 +84,11 @@ function formatCampaignHistory(log = {}) {
     replyPreview: log.replyPreview || '',
     followUpStopped: Boolean(log.followUpStopped || log.replyReceived),
     followUpStopReason: log.followUpStopReason || (log.replyReceived ? 'Client replied - follow-up stopped' : ''),
+    reminderSentCount: Number(log.reminderSentCount || 0),
+    manualReplySentCount: Number(log.manualReplySentCount || 0),
+    replyAllSentCount: Number(log.replyAllSentCount || 0),
+    lastFollowUpAt: log.lastFollowUpAt || null,
+    threadStatus: log.threadStatus || '',
     lastSentAt: log.lastSentAt || null,
     lastReplyAt: log.lastReplyAt || null,
     lastActivityAt: logActivityTime(log),
@@ -114,7 +120,7 @@ export async function GET(req) {
           { recipientEmail: { $in: emails } }
         ]
       }))
-        .select('campaignName projectName recipientEmail recipientName clientName email company designation status currentStep totalSteps sentCount failedCount skippedCount openCount replyCount lastSentAt lastReplyAt replyReceived replyType replyPreview followUpStopped followUpStopReason stepLogs lastActivityAt updatedAt')
+.select('campaignId campaignName projectName recipientEmail recipientName clientName email company designation status currentStep totalSteps sentCount failedCount skippedCount openCount replyCount lastSentAt lastReplyAt replyReceived replyType replyPreview followUpStopped followUpStopReason reminderSentCount manualReplySentCount replyAllSentCount lastFollowUpAt threadStatus stepLogs lastActivityAt updatedAt')
         .sort({ lastActivityAt: -1, updatedAt: -1 })
         .lean()
       : [];
@@ -152,8 +158,15 @@ export async function GET(req) {
         replyCount: Number(latest?.replyCount || 0),
         lastSentAt: latest?.lastSentAt || null,
         lastReplyAt: latest?.lastReplyAt || null,
+        campaignId: String(latest?.campaignId || ''),
+        recipientLogId: String(latest?._id || ''),
         campaignName: latest?.campaignName || '',
         projectName: latest?.projectName || '',
+        reminderSentCount: Number(latest?.reminderSentCount || 0),
+        manualReplySentCount: Number(latest?.manualReplySentCount || 0),
+        replyAllSentCount: Number(latest?.replyAllSentCount || 0),
+        lastFollowUpAt: latest?.lastFollowUpAt || null,
+        threadStatus: latest?.threadStatus || '',
         steps,
         campaignHistory,
         historyCount: clientLogs.length
