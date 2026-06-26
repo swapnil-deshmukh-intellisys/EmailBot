@@ -74,6 +74,27 @@ export async function GET(req, { params }) {
       ? await CampaignSentEmail.findOne({ campaignId: campaign._id, $or: sentEmailFilters }).sort({ sentAt: -1 }).lean()
       : null;
 
+    // Load original sender details and validate active status
+    const originalSenderId = sentEmail?.senderId || campaign.senderAccountId || '';
+    const originalSenderEmail = sentEmail?.senderEmail || campaign.senderFrom || '';
+    let senderActive = false;
+    let resolvedAccount = null;
+    
+    if (originalSenderId) {
+      resolvedAccount = await resolveSenderAccountById(originalSenderId, {
+        userEmail: campaign.userEmail || '',
+        project: campaign.project || campaign.projectId || '',
+        senderFrom: originalSenderEmail
+      });
+    }
+    
+    if (resolvedAccount) {
+      const status = String(resolvedAccount.status || '').trim().toLowerCase();
+      if (!resolvedAccount.status || ['connected', 'active', 'good', 'verified'].includes(status)) {
+        senderActive = true;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       compose: {
@@ -83,6 +104,13 @@ export async function GET(req, { params }) {
         bcc: [],
         subject: normalizeReplySubject(originalSubject),
         originalSubject,
+        senderId: originalSenderId,
+        senderEmail: originalSenderEmail,
+        senderActive,
+        project: sentEmail?.project || campaign.projectName || campaign.project || campaign.projectId || 'No project',
+        campaignName: campaign.name || '',
+        draftId: sentEmail?.draftId || campaign.draftId || '',
+        draftName: sentEmail?.draftName || campaign.draftType || 'Follow-up',
         previous: {
           subject: originalSubject,
           sentAt: step.sentAt || recipientLog.lastSentAt || null,
@@ -127,9 +155,10 @@ export async function POST(req, { params }) {
     const recipientLog = await CampaignRecipientLog.findOne(recipientQuery).lean();
     if (!recipientLog) return jsonError(404, 'RECIPIENT_NOT_FOUND', 'Recipient email history was not found.');
 
+    const requestSenderId = String(body.senderId || campaign.senderAccountId || '').trim();
     const senderFrom = String(campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user || '').trim().toLowerCase();
-    const account = campaign.senderAccountId
-      ? await resolveSenderAccountById(campaign.senderAccountId, { userEmail: campaign.userEmail || '', project: campaign.project || campaign.projectId || '', senderFrom })
+    const account = requestSenderId
+      ? await resolveSenderAccountById(requestSenderId, { userEmail: campaign.userEmail || '', project: campaign.project || campaign.projectId || '', senderFrom })
       : await resolveSenderAccountById(`graphapp:${senderFrom}`, { userEmail: campaign.userEmail || '', project: campaign.project || campaign.projectId || '', senderFrom });
     const fallbackAccount = account || (campaign.senderAccount?.provider ? { id: campaign.senderAccountId || '', ...campaign.senderAccount } : null);
     if (!fallbackAccount) return jsonError(400, 'MISSING_SENDER_ID', 'Sender account is missing or disconnected for this campaign.');

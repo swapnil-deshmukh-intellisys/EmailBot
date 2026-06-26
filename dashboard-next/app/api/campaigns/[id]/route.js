@@ -5,6 +5,7 @@ import Campaign from '@/models/Campaign';
 import { stopCampaignRunner } from '@/lib/campaignRunner';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import CampaignRecipientLog from '@/models/CampaignRecipientLog';
+import CampaignSentEmail from '@/models/CampaignSentEmail';
 import {
   buildTimeline,
   ensureRecipientLogsForCampaign,
@@ -66,9 +67,22 @@ export async function GET(req, { params }) {
       });
     }
 
-    const rawCampaign = campaign.toObject ? campaign.toObject() : campaign;
+const rawCampaign = campaign.toObject ? campaign.toObject() : campaign;
     const recipientLogs = await ensureRecipientLogsForCampaign(rawCampaign);
     const summary = serializeCampaignForList(rawCampaign, recipientLogs);
+
+    // Auto-resolve and enforce the original sender ID and project from the first sent email
+    const firstSent = await CampaignSentEmail.findOne({ campaignId: campaign._id, status: 'sent' }).sort({ sentAt: 1 }).lean();
+    if (firstSent) {
+      summary.senderAccountId = firstSent.senderId || summary.senderAccountId;
+      summary.senderFrom = firstSent.senderEmail || summary.senderFrom;
+      summary.project = firstSent.project || summary.project;
+      summary.projectId = firstSent.project || summary.projectId;
+      summary.projectName = firstSent.project || summary.projectName;
+      if (summary.senderAccount) {
+        summary.senderAccount.from = firstSent.senderEmail || summary.senderAccount.from;
+      }
+    }
     const timeline = buildTimeline(rawCampaign, recipientLogs);
 
     return NextResponse.json({

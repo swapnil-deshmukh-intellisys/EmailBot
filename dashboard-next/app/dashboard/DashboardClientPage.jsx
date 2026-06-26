@@ -515,8 +515,18 @@ export default function DashboardPage() {
   const [profileTimelineCustomTasks, setProfileTimelineCustomTasks] = useState([]);
   const projectAccounts = useMemo(() => {
     const filtered = filterAccountsByProject(accounts, project);
-    return project ? filtered : accounts;
-  }, [accounts, project]);
+    const list = project ? filtered : [...accounts];
+    if (selectedAccount) {
+      const hasSelected = list.some((a) => a.id === selectedAccount);
+      if (!hasSelected) {
+        const specialAcc = accounts.find((a) => a.id === selectedAccount);
+        if (specialAcc) {
+          list.push(specialAcc);
+        }
+      }
+    }
+    return list;
+  }, [accounts, project, selectedAccount]);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [selectedDraft, setSelectedDraft] = useState('');
   const [draftSubject, setDraftSubject] = useState('');

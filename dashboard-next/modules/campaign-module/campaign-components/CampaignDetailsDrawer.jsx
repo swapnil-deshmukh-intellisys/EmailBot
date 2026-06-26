@@ -224,6 +224,8 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
   const [composeSending, setComposeSending] = useState(false);
   const [composeError, setComposeError] = useState('');
   const [previousExpanded, setPreviousExpanded] = useState(false);
+  const [bulkReplying, setBulkReplying] = useState(false);
+  const [availableSenders, setAvailableSenders] = useState([]);
   const initialReplyHandledRef = useRef('');
 
   const loadDetail = useCallback(async ({ silent = false } = {}) => {
@@ -245,6 +247,16 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
   useEffect(() => {
     initialReplyHandledRef.current = '';
   }, [campaignId, initialReplyMode, initialRecipientEmail, initialRecipientLogId]);
+
+  useEffect(() => {
+    if (compose && !compose.senderActive && availableSenders.length === 0) {
+      apiFetchJson('/api/accounts')
+        .then((data) => {
+          setAvailableSenders(Array.isArray(data.accounts) ? data.accounts : []);
+        })
+        .catch(() => {});
+    }
+  }, [compose, availableSenders.length]);
 
   useEffect(() => {
     void loadDetail();
@@ -279,6 +291,49 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
       window.location.href = buildNextProcessDashboardUrl(payload);
     } catch (err) {
       setError(err.message || 'Unable to open next process workflow.');
+    }
+  };
+
+  // ─── Bulk Reply: Reply / Reply All to ALL sent recipients at once ────────────
+  const openBulkReplyWorkflow = (mode = 'reply_all') => {
+    if (!campaign || !detail) return;
+    setBulkReplying(true);
+    setNotice('');
+    setError('');
+    try {
+      const sentRecipients = (detail.recipients || []).filter((row) => recipientHasSentMail(row));
+      if (sentRecipients.length === 0) {
+        setError('No recipients with sent emails found in this campaign.');
+        setBulkReplying(false);
+        return;
+      }
+      const modeLabel = mode === 'reply_all' ? 'Reply All' : 'Reply';
+      const listId = String(campaign.listId || campaign.selectedListId || '').trim();
+      const payload = {
+        ...campaign,
+        listId,
+        selectedListId: listId,
+        bulkReplyMode: mode,
+        bulkReplySourceCampaignId: campaign._id,
+        bulkReplyRecipientIds: sentRecipients.map((row) => String(row._id || '')).filter(Boolean),
+        bulkReplyRecipientEmails: sentRecipients.map((row) => String(row.email || row.recipientEmail || '')).filter(Boolean),
+        bulkReplySourceCampaignName: campaign.name || '',
+        isBulkReply: true,
+        resumeToReviewList: false,
+        nextProcessMode: false,
+        workflowOpenStep: 2,
+        workflowStepLabel: `${modeLabel} to all ${sentRecipients.length} recipients`,
+        name: `${modeLabel}: ${campaign.name || 'Campaign'}`,
+        inlineTemplate: {},
+        resumedFromCampaignStatus: campaign.status || campaign.displayStatus || ''
+      };
+      window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
+      const params = new URLSearchParams({ bulkReply: '1', mode, workflowStep: '2' });
+      if (listId) { params.set('listId', listId); params.set('autoUpload', '1'); }
+      window.location.href = `/dashboard/user?${params.toString()}`;
+    } catch (err) {
+      setError(err.message || 'Unable to open bulk reply workflow.');
+      setBulkReplying(false);
     }
   };
 
@@ -393,7 +448,14 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
         bcc: '',
         subject: composeData.subject || `Re: ${composeData.originalSubject || campaign.name || ''}`,
         html: '<p></p>',
-        previous: composeData.previous || {}
+        previous: composeData.previous || {},
+        senderId: composeData.senderId || '',
+        senderEmail: composeData.senderEmail || '',
+        senderActive: composeData.senderActive !== false,
+        project: composeData.project || 'No project',
+        campaignName: composeData.campaignName || '',
+        draftName: composeData.draftName || '',
+        selectedSenderId: composeData.senderId || ''
       });
     } catch (err) {
       setComposeError(err.message || 'Unable to prepare reply.');
@@ -435,7 +497,8 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
           cc: compose.cc,
           bcc: compose.bcc,
           subject: compose.subject,
-          html: compose.html
+          html: compose.html,
+          senderId: compose.selectedSenderId || compose.senderId
         })
       });
       setNotice(data.message || 'Reply sent.');
@@ -501,6 +564,26 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
               </Button>
               <Button variant="secondary" size="sm" loading={refreshing} onClick={() => loadDetail({ silent: true })}>Refresh</Button>
               <Button variant="secondary" size="sm" onClick={syncReplies}>Sync Replies</Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={bulkReplying}
+                disabled={bulkReplying || !(detail?.recipients || []).some(recipientHasSentMail)}
+                onClick={() => openBulkReplyWorkflow('reply')}
+                title="Reply to all sent recipients of this campaign using a new draft"
+              >
+                📧 Reply Campaign
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={bulkReplying}
+                disabled={bulkReplying || !(detail?.recipients || []).some(recipientHasSentMail)}
+                onClick={() => openBulkReplyWorkflow('reply_all')}
+                title="Reply All to every sent recipient — opens draft selection workflow"
+              >
+                📧 Reply All Campaign
+              </Button>
               <Button as="a" href={`/api/campaigns/${campaignId}/export?format=csv`} variant="secondary" size="sm">Export CSV</Button>
               <Button as="a" href={`/api/campaigns/${campaignId}/export?format=xlsx`} variant="secondary" size="sm">Export Excel</Button>
               <Button variant="secondary" size="sm" onClick={copyTable}>Copy Table</Button>
@@ -539,7 +622,7 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
                   <tr>
                     <th>Client Name</th>
                     <th>Email</th>
-                    <th>Company & Title</th>
+                    <th>Company &amp; Title</th>
                     <th>Status</th>
                     <th>Last Sent Draft</th>
                     <th>Last Sent Time</th>
@@ -555,7 +638,7 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
                 <tbody>
                   {recipients.map((row) => {
                     const hasAnySentMail = recipientHasSentMail(row);
-                    
+
                     let lastSentStep = 0;
                     for (let step = 5; step >= 1; step--) {
                       const stepLog = getStep(row, step);
@@ -647,6 +730,49 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
                 <strong>{compose.modeLabel}</strong>
                 <button type="button" onClick={() => setCompose(null)} aria-label="Cancel reply">x</button>
               </div>
+
+              {/* Read-only original campaign metadata fields */}
+              <div className="campaign-compose-meta-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '12px', backgroundColor: 'var(--bg-subtle, #f8fafc)', borderRadius: '6px', marginBottom: '16px', border: '1px solid var(--border-subtle, #e2e8f0)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: '600' }}>From</span>
+                  <strong style={{ fontSize: '13px', color: 'var(--text-main, #1e293b)' }}>{compose.senderEmail}</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: '600' }}>Project</span>
+                  <strong style={{ fontSize: '13px', color: 'var(--text-main, #1e293b)' }}>{String(compose.project || 'No Project').toUpperCase()}</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: '600' }}>Campaign</span>
+                  <strong style={{ fontSize: '13px', color: 'var(--text-main, #1e293b)' }}>{compose.campaignName}</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', fontWeight: '600' }}>Recipient</span>
+                  <strong style={{ fontSize: '13px', color: 'var(--text-main, #1e293b)' }}>{compose.to}</strong>
+                </div>
+              </div>
+
+              {/* Warning alert and dropdown if original sender ID is inactive */}
+              {!compose.senderActive ? (
+                <div className="campaign-alert campaign-alert-warning" style={{ marginBottom: '16px', padding: '12px', borderRadius: '6px', border: '1px solid var(--warning, #f59e0b)', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#b45309' }}>
+                  ⚠️ This campaign was originally sent from <strong>{compose.senderEmail}</strong>.
+                  This Sender ID is currently unavailable.
+                  Please choose another approved Sender ID.
+                  <div style={{ marginTop: '8px' }}>
+                    <select
+                      value={compose.selectedSenderId || ''}
+                      onChange={(event) => setCompose((prev) => ({ ...prev, selectedSenderId: event.target.value }))}
+                      style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #f59e0b', backgroundColor: 'var(--bg-main, #fff)', color: 'var(--text-main, #000)', fontSize: '13px' }}
+                    >
+                      <option value="">-- Select Approved Sender ID --</option>
+                      {availableSenders.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.from} ({acc.label || acc.provider})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : null}
               {composeError ? <div className="campaign-alert campaign-alert-error">{composeError}</div> : null}
               <label className="campaign-compose-field">
                 <span>To</span>

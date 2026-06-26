@@ -3,6 +3,7 @@ import './theme.css';
 import './dashboard/reference-dashboard.css';
 import './campaigns/reference-redesign.css';
 import './client-data/reference-client-data.css';
+import './dashboard/user/profile/profile-modern.css';
 import { ThemeProvider } from '@/shared-components/layout-components/ThemeProvider';
 
 const themeInitScript = `
@@ -106,3 +107,4 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+

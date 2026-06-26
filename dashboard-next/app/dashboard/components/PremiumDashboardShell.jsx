@@ -883,6 +883,37 @@ export default function PremiumDashboardShell({
   const hasShownProceedWithoutListNoteRef = useRef(false);
   const hasShownCampaignMissingWarningRef = useRef(false);
   const hasShownOverviewWarningRef = useRef(false);
+  const pendingSenderEmailRef = useRef(null);
+  const pendingSenderIdRef = useRef(null);
+
+  useEffect(() => {
+    if ((pendingSenderEmailRef.current || pendingSenderIdRef.current) && senderAccounts.length > 0) {
+      const email = pendingSenderEmailRef.current;
+      const rawId = pendingSenderIdRef.current;
+
+      let matched = null;
+      if (rawId) {
+        matched = senderAccounts.find(
+          (account) =>
+            String(account.id) === rawId ||
+            String(account.id).endsWith(`:${rawId}`)
+        );
+      }
+
+      if (!matched && email) {
+        matched = senderAccounts.find(
+          (account) => String(account?.from || '').trim().toLowerCase() === email.toLowerCase()
+        );
+      }
+
+      if (matched) {
+        onSelectSenderAccount?.(matched.id);
+        pendingSenderEmailRef.current = null;
+        pendingSenderIdRef.current = null;
+      }
+    }
+  }, [senderAccounts, onSelectSenderAccount]);
+
   const [draftSubject, setDraftSubject] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [durationUnit, setDurationUnit] = useState(normalizeDurationUnit(initialDurationUnit || 'seconds'));
@@ -943,18 +974,99 @@ export default function PremiumDashboardShell({
   const effectiveDraftMessage = controlledDraftBody ?? draftMessage;
   const effectiveCampaignName = controlledCampaignName ?? campaignName;
   const effectiveCampaignSender = onSelectSenderAccount ? (selectedSenderAccountId || '') : campaignSender;
+
+  const PROJECT_PRESET_SENDERS = {
+    tec: [
+      'lily@theentrepreneurialchronicle.com',
+      'charlie@theentrepreneurialchronicle.com',
+      'robert@theentrepreneurialchronicle.com',
+      'mark@theentrepreneurialchronicle.com',
+      'juan@theentrepreneurialchronicle.com',
+      'manuel@theentrepreneurialchronicle.com',
+      'antonio@theentrepreneurialchronicle.com',
+      'john@theentrepreneurialchronicle.com',
+      'sam@theentrepreneurialchronicle.com',
+      'clara@theentrepreneurialchronicle.com',
+      'sophia@theentrepreneurialchronicle.com',
+      'jess@theentrepreneurialchronicle.com',
+      'diana@theentrepreneurialchronicle.com',
+      'victoria@theentrepreneurialchronicle.com',
+      'alina@theentrepreneurialchronicle.com',
+      'amelia@theentrepreneurialchronicle.com',
+      'grace@theentrepreneurialchronicle.com',
+      'eliana@theentrepreneurialchronicle.com',
+      'liam@theentrepreneurialchronicle.com',
+      'emma@theentrepreneurialchronicle.com',
+      'fiona@theentrepreneurialchronicle.com',
+      'daniel@theentrepreneurialchronicle.com',
+      'lacy@theentrepreneurialchronicle.com'
+    ],
+    tut: [
+      'matt@theunicorntimes.com',
+      'jordan@theunicorntimes.com',
+      'jessica@theunicorntimes.com',
+      'ethan@theunicorntimes.com',
+      'lily@theunicorntimes.com',
+      'jasmin@theunicorntimes.com',
+      'kevin@theunicorntimes.com',
+      'peter@theunicorntimes.com',
+      'tyler@theunicorntimes.com',
+      'olivia@theunicorntimes.com',
+      'allison@theunicorntimes.com',
+      'carmen@theunicorntimes.com',
+      'isla@theunicorntimes.com',
+      'jason@theunicorntimes.com',
+      'julia@theunicorntimes.com',
+      'juliana@theunicorntimes.com',
+      'lena@theunicorntimes.com',
+      'lisa@theunicorntimes.com',
+      'lucy@theunicorntimes.com',
+      'martina@theunicorntimes.com',
+      'mary@theunicorntimes.com',
+      'nora@theunicorntimes.com',
+      'valeria@theunicorntimes.com'
+    ]
+  };
+
   const visibleCampaignSenderAccounts = useMemo(() => {
     const selectedProject = String(campaignProjectFilter || '').trim().toLowerCase();
     if (!selectedProject) return [];
-    return senderAccounts.filter((account) => {
+    
+    const filtered = senderAccounts.filter((account) => {
       const from = String(account?.from || '').trim().toLowerCase();
       const accountProject = String(account?.project || '').trim().toLowerCase();
+      
       if (accountProject === selectedProject) return true;
-      if (selectedProject === 'tec') return from.endsWith('@theentrepreneurialchronicle.com');
-      if (selectedProject === 'tut') return from.endsWith('@theunicorntimes.com');
+      if (selectedProject === 'tec' && (from.endsWith('@theentrepreneurialchronicle.com') || from.endsWith('.theentrepreneurialchronicle.com'))) return true;
+      if (selectedProject === 'tut' && (from.endsWith('@theunicorntimes.com') || from.endsWith('.theunicorntimes.com'))) return true;
+      
+      const allowedList = PROJECT_PRESET_SENDERS[selectedProject] || [];
+      if (allowedList.some(email => email.toLowerCase() === from)) return true;
+      
       return false;
     });
-  }, [campaignProjectFilter, senderAccounts]);
+
+    const activeSenderId = String(effectiveCampaignSender || selectedSenderAccountId || '').trim();
+    const activeSenderEmail = String(pendingSenderEmailRef.current || '').trim().toLowerCase();
+
+    const hasActive = filtered.some(account => 
+      (activeSenderId && String(account.id) === activeSenderId) || 
+      (activeSenderEmail && String(account.from).toLowerCase() === activeSenderEmail)
+    );
+
+    if (!hasActive && (activeSenderId || activeSenderEmail)) {
+      const specialAccount = senderAccounts.find(account => 
+        (activeSenderId && String(account.id) === activeSenderId) || 
+        (activeSenderEmail && String(account.from).toLowerCase() === activeSenderEmail)
+      );
+      if (specialAccount) {
+        filtered.push(specialAccount);
+      }
+    }
+
+    return filtered;
+  }, [campaignProjectFilter, senderAccounts, effectiveCampaignSender, selectedSenderAccountId]);
+
   const workflowStepCount = workflowSteps?.length || DEFAULT_WORKFLOW_STEP_COUNT;
   const workflowCompletionChecks = useMemo(() => {
     const hasList = Boolean(selectedListId);
@@ -2397,9 +2509,14 @@ export default function PremiumDashboardShell({
       return;
     }
     setShowOverviewNotice(false);
-    setWorkflowPosition((current) => Math.max(current, 3));
+    const targetStep = (isNextProcessMode || isBulkReplyMode) ? 4 : 3;
+    setWorkflowPosition((current) => Math.max(current, targetStep));
     setShowOverviewPopup(false);
-    setShowCampaignPopup(true);
+    if (targetStep === 4) {
+      setShowSelectDraftPopup(true);
+    } else {
+      setShowCampaignPopup(true);
+    }
   };
   const handleOverviewBack = () => {
     setShowOverviewPopup(false);
@@ -2415,9 +2532,14 @@ export default function PremiumDashboardShell({
   };
   const handleOverviewNext = () => {
     setShowOverviewNotice(false);
-    setWorkflowPosition((current) => Math.max(current, 3));
+    const targetStep = (isNextProcessMode || isBulkReplyMode) ? 4 : 3;
+    setWorkflowPosition((current) => Math.max(current, targetStep));
     setShowOverviewPopup(false);
-    setShowCampaignPopup(true);
+    if (targetStep === 4) {
+      setShowSelectDraftPopup(true);
+    } else {
+      setShowCampaignPopup(true);
+    }
   };
     const campaignMissingFields = [
       !String(effectiveCampaignName || '').trim() ? 'Campaign Name is empty' : null,
@@ -2658,6 +2780,7 @@ export default function PremiumDashboardShell({
     }
   };
   const resetWorkflowAfterCampaignStart = () => {
+    // 1. Reset workflow navigation and UI popups
     setWorkflowPosition(1);
     setShowSchedulePopup(false);
     setShowScheduleSuccessPopup(false);
@@ -2673,6 +2796,48 @@ export default function PremiumDashboardShell({
     setSelectedDraftId('');
     setTestEmailSent(false);
     setTestEmailError('');
+
+    // 2. Reset process modes and refs
+    setIsNextProcessMode(false);
+    setIsBulkReplyMode(false);
+    if (pendingSenderEmailRef) pendingSenderEmailRef.current = null;
+    if (pendingSenderIdRef) pendingSenderIdRef.current = null;
+
+    // 3. Reset list/upload states
+    setSelectedUploadedList('');
+    setSelectedCustomList('');
+    setClientListName('');
+    setSelectedUploadFileName('');
+    setUploadedListId('');
+    onSelectList?.('');
+
+    // 4. Reset review / spreadsheet states
+    setOverviewRows([]);
+    setSelectedOverviewRowIds([]);
+    setReviewLocalColumns([]);
+
+    // 5. Reset campaign setup states
+    setCampaignName('');
+    onCampaignNameChange?.('');
+    setCampaignDescription('');
+    setCampaignTags([]);
+    setCampaignTagDraft('');
+    setCampaignProjectFilter('');
+    onSelectProject?.('');
+    setCampaignSender('');
+    onSelectSenderAccount?.('');
+
+    // 6. Reset draft / template states
+    onSelectedDraftTypeChange?.('');
+    onDraftSubjectChange?.('');
+    onDraftBodyChange?.('');
+    setDraftSubject('');
+    setDraftMessage('');
+
+    // 7. Reset schedule states
+    setSendMode('send_now');
+    setScheduledDateValue('');
+    setScheduledTimeValue('');
   };
   const handleScheduleStart = async () => {
     setScheduleInlineNotice(null);
@@ -2728,6 +2893,13 @@ export default function PremiumDashboardShell({
           : `Campaign started successfully. Campaign: ${details.campaignName}. Recipients: ${details.recipients}.`,
         'success'
       );
+
+      // Auto-refresh and completely end the process by redirecting to the clean dashboard URL
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/dashboard/user';
+        }
+      }, 1500);
     } catch (error) {
       const message = error?.message || 'Failed to schedule campaign.';
       setScheduleInlineNotice({ tone: 'error', message });
@@ -2796,17 +2968,35 @@ export default function PremiumDashboardShell({
   const resumeCampaignDraft = (campaign) => {
     if (!campaign) return;
     const isNextProcess = Boolean(campaign.nextProcessMode);
+    const isBulkReply = Boolean(campaign.isBulkReply);
     const nextDraftType = normalizeDraftType(campaign.nextDraftType || campaign.draftType || campaign.type || '');
     const nextDraft = isNextProcess && nextDraftType
       ? effectiveSavedDrafts.find((draft) => normalizeDraftType(draft.draftType || draft.category || '') === nextDraftType)
       : null;
     const campaignSenderFrom = String(campaign.senderFrom || campaign.senderAccount?.from || campaign.senderAccount?.user || '').trim().toLowerCase();
+    const rawSenderId = String(campaign.senderAccountId || campaign.senderAccount?._id || campaign.senderAccount?.id || '');
+
+    // Store in refs to handle async loading of senderAccounts
+    pendingSenderEmailRef.current = campaignSenderFrom || null;
+    pendingSenderIdRef.current = rawSenderId || null;
+
+    setIsNextProcessMode(isNextProcess);
+    setIsBulkReplyMode(isBulkReply);
+
+    const campaignProject = String(campaign.project || campaign.projectId || campaign.projectName || '').trim().toLowerCase();
+    if (campaignProject) {
+      onSelectProject?.(campaignProject);
+      setCampaignProjectFilter(campaignProject);
+    }
+
     const matchedSenderAccount = campaignSenderFrom
       ? senderAccounts.find((account) => String(account?.from || '').trim().toLowerCase() === campaignSenderFrom)
       : null;
     onCampaignNameChange?.(String(campaign.name || ''));
     onSelectList?.(String(campaign.listId || ''));
-    onSelectSenderAccount?.(String(campaign.senderAccountId || campaign.senderAccount?._id || campaign.senderAccount?.id || matchedSenderAccount?.id || ''));
+    
+    const resolvedSenderId = matchedSenderAccount?.id || rawSenderId;
+    onSelectSenderAccount?.(resolvedSenderId);
     onSelectedDraftTypeChange?.(nextDraftType);
     if (isNextProcess) {
       if (nextDraft) {
@@ -4973,7 +5163,11 @@ export default function PremiumDashboardShell({
                   className="wf-btn-secondary"
                   onClick={() => {
                     setShowSelectDraftPopup(false);
-                    setShowCampaignPopup(true);
+                    if (isNextProcessMode || isBulkReplyMode) {
+                      setShowOverviewPopup(true);
+                    } else {
+                      setShowCampaignPopup(true);
+                    }
                   }}
                 >
                   Back

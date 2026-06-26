@@ -1,11 +1,10 @@
 'use client';
 
-import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/app/components/layout/AppLayout';
 import { useTheme } from '@/shared-components/layout-components/ThemeProvider';
 
-const PROFILE_SECTIONS = ['profile', 'overview', 'settings', 'notifications', 'billing', 'security'];
+const PROFILE_SECTIONS = ['profile', 'security', 'preferences', 'notifications', 'activity', 'sessions', 'settings', 'billing', 'overview'];
 
 function normalizeProfileSection(section) {
   return PROFILE_SECTIONS.includes(section) ? section : 'profile';
@@ -34,194 +33,85 @@ function displayNameFromEmail(email = '') {
 }
 
 function initialsFromName(value = '') {
-  const parts = String(value || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return 'US';
   return parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
 }
 
-function formatDateTime(value) {
-  if (!value) return 'Just now';
+function formatDateTime(value, fallback = 'Not available') {
+  if (!value) return fallback;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Just now';
-  return new Intl.DateTimeFormat('en-US', {
+  if (Number.isNaN(date.getTime())) return fallback;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
     year: 'numeric',
-    hour: 'numeric',
+    hour: '2-digit',
     minute: '2-digit'
   }).format(date);
 }
 
+function formatDate(value, fallback = 'Not set') {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('en-IN').format(Number(value || 0));
+}
+
+function percent(numerator, denominator) {
+  const top = Number(numerator || 0);
+  const bottom = Number(denominator || 0);
+  if (!bottom) return '0%';
+  return `${Math.round((top / bottom) * 10000) / 100}%`;
+}
+
+function fieldValue(...values) {
+  for (const value of values) {
+    const next = String(value ?? '').trim();
+    if (next) return next;
+  }
+  return 'Not set';
+}
+
+function InfoField({ icon, label, value }) {
+  return (
+    <label className="imp-field">
+      <span>{label}</span>
+      <div>
+        <i className={`ti ${icon}`} aria-hidden="true" />
+        <input value={value || 'Not set'} readOnly />
+      </div>
+    </label>
+  );
+}
+
+function SummaryRow({ label, value, status }) {
+  return (
+    <div className="imp-summary-row">
+      <span>{label}</span>
+      {status ? <strong className="imp-status-pill">{value}</strong> : <strong>{value}</strong>}
+    </div>
+  );
+}
+
 export default function UserProfilePage({ initialSection = 'profile' }) {
   const { theme, setTheme } = useTheme();
-  const [profile, setProfile] = useState({ email: '', role: '', displayName: '', avatarName: '', avatarDataUrl: '', planName: 'Basic', notificationPrefs: {} });
-  const [creditSummary, setCreditSummary] = useState({ totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
-  const [creditTransactions, setCreditTransactions] = useState([]);
-  const [counts, setCounts] = useState({ campaigns: 0, lists: 0, mails: 0 });
-  const [mailPilotOverview, setMailPilotOverview] = useState({
-    user: {},
-    totals: {},
-    campaignStatusCounts: {},
-    projects: [],
-    connectedMailIds: [],
-    recentCampaigns: []
-  });
-  const [mailboxCounts, setMailboxCounts] = useState({ total: 0, unread: 0, read: 0, open: 0, junk: 0, spam: 0 });
-  const [overviewProjectFilter, setOverviewProjectFilter] = useState('all');
-  const [overviewStatusFilter, setOverviewStatusFilter] = useState('all');
-  const [accounts, setAccounts] = useState([]);
-  const [profilePhotoName, setProfilePhotoName] = useState('');
-  const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
-  const [profileNotificationPrefs, setProfileNotificationPrefs] = useState({
-    campaignUpdates: true,
-    replyAlerts: true,
-    weeklyReports: true
-  });
-  const [profilePasswordForm, setProfilePasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [message, setMessage] = useState('');
   const [activeSection, setActiveSection] = useState(normalizeProfileSection(initialSection));
-  const [selectedConnectedAccount, setSelectedConnectedAccount] = useState(null);
-  const [showCreditHistory, setShowCreditHistory] = useState(false);
-  const [workspaceSettings, setWorkspaceSettings] = useState({
-    density: 'comfortable',
-    reducedMotion: false,
-    defaultSendMode: 'scheduled',
-    defaultBatchSize: 25,
-    confirmBeforeStart: true,
-    rememberLastProject: true
-  });
-
-  const profileDisplayName = profile.displayName || displayNameFromEmail(profile.email);
-  const profileInitials = initialsFromName(profileDisplayName);
-  const profileRoleLabel = profile.role ? String(profile.role).replace(/_/g, ' ') : 'User';
-  const lowCreditWarning = Number(creditSummary.remainingCredits || 0) > 0 && Number(creditSummary.creditUsagePercent || 0) >= 80;
-  const billingUpgradeTarget = String(creditSummary.upgradeTargetPlan || '').trim();
-  const hasUpgrade = billingUpgradeTarget && billingUpgradeTarget !== String(profile.planName || 'Basic').trim();
-  const connectedAccounts = useMemo(() => accounts.slice(0, 3), [accounts]);
-  const overviewTotals = mailPilotOverview.totals || {};
-  const overviewProjects = Array.isArray(mailPilotOverview.projects) ? mailPilotOverview.projects : [];
-  const overviewStatuses = useMemo(
-    () => Object.keys(mailPilotOverview.campaignStatusCounts || {}).filter(Boolean),
-    [mailPilotOverview.campaignStatusCounts]
-  );
-  const filteredOverviewCampaigns = useMemo(() => {
-    const campaigns = Array.isArray(mailPilotOverview.recentCampaigns) ? mailPilotOverview.recentCampaigns : [];
-    return campaigns.filter((campaign) => {
-      const matchesProject = overviewProjectFilter === 'all' || campaign.projectId === overviewProjectFilter;
-      const matchesStatus = overviewStatusFilter === 'all' || String(campaign.status || '').toLowerCase() === overviewStatusFilter.toLowerCase();
-      return matchesProject && matchesStatus;
-    });
-  }, [mailPilotOverview.recentCampaigns, overviewProjectFilter, overviewStatusFilter]);
-  const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(Number(value || 0));
-  const accountSummary = (account) => ({
-    provider: String(account?.provider || '').trim() || 'Connected inbox',
-    status: String(account?.status || '').trim() || 'Active',
-    type: String(account?.label || '').trim() || 'Workspace account',
-    lastSync: formatDateTime(account?.lastSync || account?.updatedAt || account?.createdAt),
-    dailyLimit: String(account?.dailyLimit || '').trim() || '250',
-    sentToday: String(account?.sentToday ?? '').trim() || '0',
-    errors: String(account?.errors || '').trim() || '0',
-    health: String(account?.health || '').trim() || 'Good'
-  });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      try {
-        let accountsData = null;
-        const [meRes, accountsRes, campaignsRes, listsRes, creditsRes, overviewRes, mailboxRes] = await Promise.all([
-          fetch('/api/auth/me', { signal: controller.signal }),
-          fetch('/api/accounts?owned=1', { signal: controller.signal }),
-          fetch('/api/campaigns', { signal: controller.signal }).catch(() => null),
-          fetch('/api/lists', { signal: controller.signal }).catch(() => null),
-          fetch('/api/credits', { signal: controller.signal }).catch(() => null),
-          fetch('/api/profile/overview', { signal: controller.signal }).catch(() => null),
-          fetch('/api/mailbox-folders', { signal: controller.signal }).catch(() => null)
-        ]);
-
-        if (meRes.ok) {
-          const me = await meRes.json().catch(() => null);
-          const user = me?.user || {};
-          const saved = me?.profile || {};
-          setProfile({
-            email: String(user.email || '').trim(),
-            role: String(user.role || '').trim(),
-            displayName: String(saved.displayName || '').trim(),
-            avatarName: String(saved.avatarName || '').trim(),
-            avatarDataUrl: String(saved.avatarDataUrl || '').trim(),
-            planName: String(saved.planName || 'Basic').trim() || 'Basic',
-            notificationPrefs: saved.notificationPrefs || {}
-          });
-          setProfilePhotoName(String(saved.avatarName || '').trim());
-          setProfileAvatarDataUrl(String(saved.avatarDataUrl || '').trim());
-          setProfileNotificationPrefs({
-            campaignUpdates: Boolean(saved.notificationPrefs?.campaignUpdates ?? true),
-            replyAlerts: Boolean(saved.notificationPrefs?.replyAlerts ?? true),
-            weeklyReports: Boolean(saved.notificationPrefs?.weeklyReports ?? true)
-          });
-        }
-
-        if (accountsRes.ok) {
-          accountsData = await accountsRes.json().catch(() => null);
-          setAccounts(accountsData?.accounts || []);
-        }
-
-        const campaignsData = campaignsRes?.ok ? await campaignsRes.json().catch(() => null) : null;
-        const listsData = listsRes?.ok ? await listsRes.json().catch(() => null) : null;
-        const creditsData = creditsRes?.ok ? await creditsRes.json().catch(() => null) : null;
-        const overviewData = overviewRes?.ok ? await overviewRes.json().catch(() => null) : null;
-        const mailboxData = mailboxRes?.ok ? await mailboxRes.json().catch(() => null) : null;
-        const nextMailboxCounts = mailboxData?.mailCounts || mailboxData?.folderCounts || {};
-        setMailboxCounts({
-          total: Number(nextMailboxCounts.total || 0),
-          unread: Number(nextMailboxCounts.unread || 0),
-          read: Number(nextMailboxCounts.read || 0),
-          open: Number(nextMailboxCounts.open ?? nextMailboxCounts.read ?? 0),
-          junk: Number(nextMailboxCounts.junk || 0),
-          spam: Number(nextMailboxCounts.spam ?? nextMailboxCounts.junk ?? 0)
-        });
-        if (overviewData?.ok) {
-          setMailPilotOverview({
-            user: overviewData.user || {},
-            totals: overviewData.totals || {},
-            campaignStatusCounts: overviewData.campaignStatusCounts || {},
-            projects: Array.isArray(overviewData.projects) ? overviewData.projects : [],
-            connectedMailIds: Array.isArray(overviewData.connectedMailIds) ? overviewData.connectedMailIds : [],
-            recentCampaigns: Array.isArray(overviewData.recentCampaigns) ? overviewData.recentCampaigns : []
-          });
-        }
-        setCounts({
-          campaigns: Number(overviewData?.totals?.campaigns ?? (Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns.length : 0)),
-          lists: Number(overviewData?.totals?.lists ?? (Array.isArray(listsData?.lists) ? listsData.lists.length : 0)),
-          mails: Number(overviewData?.totals?.mailIds ?? (Array.isArray(accountsData?.accounts) ? accountsData.accounts.length : 0))
-        });
-        if (creditsData?.ok) {
-          setCreditSummary(creditsData.summary || { totalCredits: 6000, usedCredits: 0, remainingCredits: 6000, creditUsagePercent: 0 });
-          setCreditTransactions(Array.isArray(creditsData.transactions) ? creditsData.transactions : []);
-          if (creditsData.summary?.planName) {
-            setProfile((current) => ({
-              ...current,
-              planName: String(creditsData.summary.planName || current.planName || 'Basic')
-            }));
-          }
-        }
-      } catch (error) {
-        if (error?.name !== 'AbortError') {
-          setMessage('Profile data could not be loaded.');
-        }
-      }
-    };
-
-    load();
-    return () => controller.abort();
-  }, []);
+  const [profile, setProfile] = useState({});
+  const [sessionUser, setSessionUser] = useState({});
+  const [creditSummary, setCreditSummary] = useState({ totalCredits: 300, usedCredits: 0, remainingCredits: 300, creditUsagePercent: 0 });
+  const [overview, setOverview] = useState({ totals: {}, projects: [], connectedMailIds: [], recentCampaigns: [] });
+  const [accounts, setAccounts] = useState([]);
+  const [mailboxCounts, setMailboxCounts] = useState({ total: 0, unread: 0, read: 0, junk: 0 });
+  const [notificationPrefs, setNotificationPrefs] = useState({ campaignUpdates: true, replyAlerts: true, weeklyReports: true });
+  const [workspaceSettings, setWorkspaceSettings] = useState({ density: 'comfortable', reducedMotion: false, defaultSendMode: 'scheduled' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setActiveSection(normalizeProfileSection(initialSection));
@@ -231,9 +121,7 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
     try {
       const stored = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
       setWorkspaceSettings((current) => ({ ...current, ...stored }));
-    } catch {
-      // Keep safe defaults when browser storage is unavailable or malformed.
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -242,40 +130,146 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
     root.classList.toggle('ui-reduced-motion', Boolean(workspaceSettings.reducedMotion));
   }, [workspaceSettings.density, workspaceSettings.reducedMotion]);
 
-  const updateWorkspaceSetting = (key, value) => {
-    setWorkspaceSettings((current) => ({ ...current, [key]: value }));
-  };
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [meRes, accountsRes, creditsRes, overviewRes, mailboxRes] = await Promise.all([
+          fetch('/api/auth/me', { signal: controller.signal }),
+          fetch('/api/accounts?owned=1', { signal: controller.signal }).catch(() => null),
+          fetch('/api/credits', { signal: controller.signal }).catch(() => null),
+          fetch('/api/profile/overview', { signal: controller.signal }).catch(() => null),
+          fetch('/api/mailbox-folders', { signal: controller.signal }).catch(() => null)
+        ]);
+
+        if (meRes.ok) {
+          const me = await meRes.json().catch(() => null);
+          const savedProfile = me?.profile || {};
+          setSessionUser(me?.user || {});
+          setProfile(savedProfile);
+          setNotificationPrefs({
+            campaignUpdates: Boolean(savedProfile.notificationPrefs?.campaignUpdates ?? true),
+            replyAlerts: Boolean(savedProfile.notificationPrefs?.replyAlerts ?? true),
+            weeklyReports: Boolean(savedProfile.notificationPrefs?.weeklyReports ?? true)
+          });
+        }
+
+        if (accountsRes?.ok) {
+          const data = await accountsRes.json().catch(() => null);
+          setAccounts(Array.isArray(data?.accounts) ? data.accounts : []);
+        }
+
+        if (creditsRes?.ok) {
+          const data = await creditsRes.json().catch(() => null);
+          if (data?.ok) {
+            setCreditSummary(data.summary || {});
+          }
+        }
+
+        if (overviewRes?.ok) {
+          const data = await overviewRes.json().catch(() => null);
+          if (data?.ok) setOverview(data);
+        }
+
+        if (mailboxRes?.ok) {
+          const data = await mailboxRes.json().catch(() => null);
+          const counts = data?.mailCounts || data?.folderCounts || {};
+          setMailboxCounts({
+            total: Number(counts.total || 0),
+            unread: Number(counts.unread || 0),
+            read: Number(counts.read || 0),
+            junk: Number(counts.junk || counts.spam || 0)
+          });
+        }
+      } catch (error) {
+        if (error?.name !== 'AbortError') setMessage('Profile data could not be loaded.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+    return () => controller.abort();
+  }, []);
+
+  const email = fieldValue(profile.email, sessionUser.email, profile.identifier, sessionUser.identifier);
+  const displayName = fieldValue(profile.displayName, profile.name, sessionUser.name, displayNameFromEmail(email));
+  const roleLabel = fieldValue(profile.role, sessionUser.role, 'User').replace(/_/g, ' ');
+  const employeeId = fieldValue(profile.employeeId, sessionUser.employeeId, sessionUser.intellisysUserId, profile.intellisysUserId);
+  const phoneNumber = fieldValue(profile.phoneNumber, profile.phone, profile.mobile, profile.contactNumber);
+  const locationText = fieldValue(profile.location, [profile.city, profile.state, profile.country].filter(Boolean).join(', '));
+  const dateOfBirth = formatDate(profile.dateOfBirth || profile.dob || profile.birthDate);
+  const timeZone = fieldValue(profile.timezone, profile.timeZone, '(GMT +05:30) Asia/Kolkata');
+  const department = fieldValue(profile.department, profile.team, roleLabel.toLowerCase().includes('admin') ? 'Management' : 'Operations');
+  const lastIpAddress = fieldValue(profile.lastIpAddress, profile.lastIp, sessionUser.lastIpAddress, 'Not available');
+  const statusLabel = fieldValue(profile.status, sessionUser.status, 'active');
+  const avatarDataUrl = String(profile.avatarDataUrl || '').trim();
+  const initials = initialsFromName(displayName);
+  const totals = overview.totals || {};
+  const totalCredits = Number(creditSummary.totalCredits || profile.totalCredits || 0);
+  const usedCredits = Number(creditSummary.usedCredits || profile.usedCredits || 0);
+  const remainingCredits = Number(creditSummary.remainingCredits ?? Math.max(0, totalCredits - usedCredits));
+  const creditPercent = Math.max(0, Math.min(100, Number(creditSummary.creditUsagePercent || (totalCredits ? (usedCredits / totalCredits) * 100 : 0))));
+  const activeAccounts = useMemo(() => {
+    const direct = accounts.map((account) => ({
+      id: String(account.id || account._id || account.from || ''),
+      email: account.from || account.email,
+      provider: account.provider || account.label || 'SMTP',
+      status: account.status || 'Active',
+      updatedAt: account.updatedAt || account.createdAt
+    }));
+    const connected = (overview.connectedMailIds || []).map((account) => ({
+      id: String(account.id || account.email || ''),
+      email: account.email,
+      provider: account.provider || 'Connected mail',
+      status: account.status || 'Active',
+      updatedAt: account.updatedAt
+    }));
+    const byEmail = new Map();
+    [...direct, ...connected].filter((item) => item.email).forEach((item) => byEmail.set(String(item.email).toLowerCase(), item));
+    return Array.from(byEmail.values());
+  }, [accounts, overview.connectedMailIds]);
+
+  const stats = [
+    { icon: 'ti-send', label: 'Total Campaigns', value: formatNumber(totals.campaigns) },
+    { icon: 'ti-users', label: 'Total Clients', value: formatNumber(totals.lists) },
+    { icon: 'ti-mail', label: 'Emails Sent', value: formatNumber(totals.sent) },
+    { icon: 'ti-arrow-back-up', label: 'Replies Received', value: formatNumber(totals.replies) },
+    { icon: 'ti-eye', label: 'Open Rate', value: percent(totals.opens, totals.sent) },
+    { icon: 'ti-pointer', label: 'Click Rate', value: percent(totals.replies, totals.sent) }
+  ];
+
+  const tabs = [
+    { id: 'profile', label: 'Profile Information', icon: 'ti-user' },
+    { id: 'security', label: 'Account & Security', icon: 'ti-lock' },
+    { id: 'preferences', label: 'Preferences', icon: 'ti-settings' },
+    { id: 'notifications', label: 'Email Notifications', icon: 'ti-mail' },
+    { id: 'activity', label: 'Activity Log', icon: 'ti-history' },
+    { id: 'sessions', label: 'Sessions', icon: 'ti-device-desktop' }
+  ];
+
+  const topbarActions = [
+    { label: 'Profile', onClick: () => { window.location.href = profileSectionPath('profile'); } },
+    { label: 'Overview', onClick: () => { window.location.href = profileSectionPath('overview'); } },
+    { label: 'Settings', onClick: () => { window.location.href = profileSectionPath('settings'); } },
+    { label: 'Notifications', onClick: () => { window.location.href = profileSectionPath('notifications'); } },
+    { label: 'Billing', onClick: () => { window.location.href = profileSectionPath('billing'); } },
+    { label: 'Security', onClick: () => { window.location.href = profileSectionPath('security'); } }
+  ];
 
   const saveWorkspaceSettings = () => {
     try {
       window.localStorage.setItem('mailpilot:workspace-settings', JSON.stringify(workspaceSettings));
-      setMessage('Workspace settings saved.');
+      setMessage('Preferences saved.');
     } catch {
-      setMessage('Settings could not be saved in this browser.');
+      setMessage('Preferences could not be saved in this browser.');
     }
   };
 
-  const resetWorkspaceSettings = () => {
-    const defaults = {
-      density: 'comfortable',
-      reducedMotion: false,
-      defaultSendMode: 'scheduled',
-      defaultBatchSize: 25,
-      confirmBeforeStart: true,
-      rememberLastProject: true
-    };
-    setWorkspaceSettings(defaults);
-    setTheme('light');
-    try {
-      window.localStorage.removeItem('mailpilot:workspace-settings');
-    } catch {
-      // The visible defaults still apply if storage is unavailable.
-    }
-    setMessage('Workspace settings reset to defaults.');
-  };
-
-  const toggleNotificationPref = async (key) => {
-    setProfileNotificationPrefs((current) => {
+  const toggleNotificationPref = (key) => {
+    setNotificationPrefs((current) => {
       const next = { ...current, [key]: !current[key] };
       fetch('/api/profile', {
         method: 'PATCH',
@@ -286,7 +280,7 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
     });
   };
 
-  const handlePhotoUpload = async (event) => {
+  const handlePhotoUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -297,8 +291,7 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ avatarName: file.name, avatarDataUrl })
       }).catch(() => {});
-      setProfilePhotoName(file.name);
-      setProfileAvatarDataUrl(avatarDataUrl);
+      setProfile((current) => ({ ...current, avatarName: file.name, avatarDataUrl }));
       setMessage('Profile photo saved.');
     };
     reader.readAsDataURL(file);
@@ -308,684 +301,303 @@ export default function UserProfilePage({ initialSection = 'profile' }) {
     const res = await fetch('/api/profile/password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profilePasswordForm)
+      body: JSON.stringify(passwordForm)
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       setMessage(data?.error || 'Password change failed.');
       return;
     }
-    setProfilePasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setMessage('Password updated successfully.');
   };
 
-  const handleUpgradePlan = async () => {
-    if (!hasUpgrade) {
-      setMessage('Your plan is already at the highest tier.');
-      return;
-    }
-    try {
-      const nextPlanName = billingUpgradeTarget;
-      const nextPlanCredits = Number(creditSummary.upgradeTargetCredits || (profile.planName === 'Basic' ? 12000 : 30000));
-      const res = await fetch('/api/billing/upgrade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planName: nextPlanName,
-          totalCredits: nextPlanCredits
-        })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setMessage(data?.error || 'Plan upgrade failed.');
-        return;
-      }
-      if (data?.profile) {
-        setProfile((current) => ({
-          ...current,
-          planName: String(data.profile.planName || current.planName || 'Basic'),
-          notificationPrefs: data.profile.notificationPrefs || current.notificationPrefs
-        }));
-        setCreditSummary({
-          planName: String(data.profile.planName || creditSummary.planName || 'Basic'),
-          upgradeTargetPlan: String(data.profile.planName === 'Basic' ? 'Pro' : data.profile.planName === 'Pro' ? 'Enterprise' : ''),
-          upgradeTargetCredits: Number(data.profile.planName === 'Basic' ? 12000 : data.profile.planName === 'Pro' ? 30000 : data.profile.totalCredits || 0),
-          totalCredits: Number(data.profile.totalCredits || creditSummary.totalCredits || 6000),
-          usedCredits: Number(data.profile.usedCredits || creditSummary.usedCredits || 0),
-          remainingCredits: Number(data.profile.remainingCredits || creditSummary.remainingCredits || 0),
-          creditUsagePercent: Number(data.profile.creditUsagePercent || creditSummary.creditUsagePercent || 0)
-        });
-      }
-      setMessage(data?.message || 'Plan upgraded successfully.');
-    } catch (error) {
-      setMessage('Plan upgrade failed.');
-    }
-  };
-
-  const handleOpenBilling = () => {
-    window.location.href = profileSectionPath('billing');
-    setMessage('Billing section opened.');
-  };
-
-  const handleDownloadInvoice = async () => {
-    try {
-      const res = await fetch('/api/billing/invoice', { method: 'GET' });
-      if (!res.ok) {
-        setMessage('Invoice download failed.');
-        return;
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `mailbot-invoice-${(profile.email || 'profile').split('@')[0] || 'profile'}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      setMessage('Invoice downloaded.');
-    } catch (error) {
-      setMessage('Invoice download failed.');
-    }
-  };
-
-  const handleDisconnect = async (account) => {
-    await fetch(`/api/accounts/${encodeURIComponent(account.id)}`, { method: 'DELETE' }).catch(() => {});
-    setAccounts((current) => current.filter((item) => item.id !== account.id));
-    setMessage(`Disconnected ${account.from}.`);
-  };
-
-  const profileActions = [
-    { label: 'Profile', section: 'profile', href: profileSectionPath('profile') },
-    { label: 'Overview', section: 'overview', href: profileSectionPath('overview') },
-    { label: 'Settings', section: 'settings', href: profileSectionPath('settings') },
-    { label: 'Notifications', section: 'notifications', href: profileSectionPath('notifications') },
-    { label: 'Billing', section: 'billing', href: profileSectionPath('billing') },
-    { label: 'Security', section: 'security', href: profileSectionPath('security') }
-  ];
-  const sectionLinks = profileActions.map((item) => ({ ...item, label: item.label }));
-  const sectionLabelMap = {
-    profile: 'Profile overview',
-    overview: 'MailPilot overview',
-    settings: 'Settings',
-    notifications: 'Notifications',
-    billing: 'Billing',
-    security: 'Security'
-  };
-  const activeSectionLabel = sectionLabelMap[activeSection] || 'Profile overview';
-  const activeSectionTone = {
-    profile: 'tone-profile',
-    overview: 'tone-profile',
-    settings: 'tone-settings',
-    notifications: 'tone-notifications',
-    billing: 'tone-billing',
-    security: 'tone-security'
-  }[activeSection] || 'tone-profile';
+  const renderAvatar = (className) => (
+    avatarDataUrl ? <img className={`${className} imp-avatar-img`} src={avatarDataUrl} alt={displayName} /> : <span className={className}>{initials}</span>
+  );
 
   return (
     <AppLayout
       topbarProps={{
         title: 'Profile',
-        subtitle: '',
         profile: {
-            email: profile.email,
-            role: profile.role,
-            name: profileDisplayName,
-            initials: profileInitials,
-          avatarDataUrl: profileAvatarDataUrl,
+          email,
+          role: roleLabel,
+          name: displayName,
+          initials,
+          avatarDataUrl,
           replaceActions: true,
-          actions: profileActions.map((item) => ({ label: item.label, onClick: () => { window.location.href = item.href; } }))
+          actions: topbarActions
         }
       }}
     >
-      <section className="dashboard-profile-page">
-        <div className={`dashboard-profile-page-label ${activeSection ? 'is-active' : ''} ${activeSectionTone}`}>{activeSectionLabel}</div>
-        <aside className="dashboard-profile-side">
-          <div className="dashboard-profile-side-hero" id="profile">
-            <label className="dashboard-profile-upload dashboard-profile-upload-large">
-              <input type="file" accept="image/*" onChange={handlePhotoUpload} />
-              <span>Change Photo</span>
-            </label>
-            {profileAvatarDataUrl ? (
-              <img className="dashboard-profile-avatar-lg dashboard-profile-avatar-img" src={profileAvatarDataUrl} alt={profileDisplayName} />
-            ) : (
-              <span className="dashboard-profile-avatar-lg">{profileInitials}</span>
-            )}
-            <strong>{profileDisplayName}</strong>
-            <p>{profile.email || 'Signed in user'}</p>
-            <small>Role: {profileRoleLabel}</small>
-            {profilePhotoName ? <small>Photo: {profilePhotoName}</small> : null}
+      <section className="intellimail-profile-page">
+        <div className="imp-heading-row">
+          <div>
+            <div className="imp-breadcrumb"><span>Home</span><i className="ti ti-chevron-right" aria-hidden="true" /><strong>Profile</strong></div>
+            <h1>My Profile</h1>
+            <p>Manage your profile information, preferences and security settings.</p>
+          </div>
+          <button type="button" className="imp-edit-button" onClick={() => setMessage('Profile editing uses your connected database profile.') }>
+            <i className="ti ti-pencil" aria-hidden="true" /> Edit Profile
+          </button>
+        </div>
+
+        <article className="imp-hero-card">
+          <div className="imp-identity-block">
+            <div className="imp-photo-wrap">
+              {renderAvatar('imp-main-avatar')}
+              <label className="imp-photo-edit" aria-label="Change profile photo">
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} />
+                <i className="ti ti-pencil" aria-hidden="true" />
+              </label>
+            </div>
+            <div className="imp-identity-copy">
+              <div className="imp-name-row"><h2>{displayName}</h2><i className="ti ti-rosette-discount-check-filled" aria-hidden="true" /></div>
+              <span className="imp-role-badge">{roleLabel}</span>
+              <ul>
+                <li><i className="ti ti-mail" aria-hidden="true" /> {email}</li>
+                <li><i className="ti ti-phone" aria-hidden="true" /> {phoneNumber}</li>
+                <li><i className="ti ti-map-pin" aria-hidden="true" /> {locationText}</li>
+                <li><i className="ti ti-calendar" aria-hidden="true" /> Joined on {formatDateTime(profile.createdAt || sessionUser.createdAt, 'Not available')}</li>
+              </ul>
+            </div>
           </div>
 
-          <nav className="dashboard-profile-nav" aria-label="Profile sections">
-            {sectionLinks.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                className={`dashboard-profile-nav-item ${activeSection === item.section ? 'active' : ''} ${activeSection === item.section ? activeSectionTone : ''}`}
-                onClick={() => {
-                  window.location.href = item.href;
-                }}
-              >
-                {item.label}
+          <div className="imp-stat-grid" aria-busy={loading}>
+            {stats.map((stat) => (
+              <div className="imp-stat-item" key={stat.label}>
+                <span className="imp-stat-icon"><i className={`ti ${stat.icon}`} aria-hidden="true" /></span>
+                <div><small>{stat.label}</small><strong>{stat.value}</strong></div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="imp-tabs-card">
+          <nav className="imp-tabs" aria-label="Profile sections">
+            {tabs.map((tab) => (
+              <button key={tab.id} type="button" className={activeSection === tab.id ? 'active' : ''} onClick={() => setActiveSection(tab.id)}>
+                <i className={`ti ${tab.icon}`} aria-hidden="true" /> {tab.label}
               </button>
             ))}
           </nav>
 
-          <article className={`dashboard-profile-card dashboard-profile-card-compact ${activeSection === 'profile' ? 'tone-profile' : ''}`}>
-            <strong>Account Stats</strong>
-            <p>Quick snapshot of your dashboard usage and active workspace activity.</p>
-            <div className="dashboard-profile-stats">
-              <span><strong>{counts.campaigns}</strong><small>Campaigns</small></span>
-              <span><strong>{counts.lists}</strong><small>Lists</small></span>
-              <span><strong>{counts.mails}</strong><small>Mails</small></span>
-            </div>
-          </article>
-        </aside>
-
-        <main className="dashboard-profile-main">
-          {activeSection === 'overview' ? (
-          <article id="overview" className={`dashboard-profile-card dashboard-profile-overview-card ${activeSection === 'overview' ? 'tone-profile' : ''}`}>
-            <div className="dashboard-profile-overview-head">
-              <div>
-                <strong>MailPilot Overview</strong>
-                <p>Complete user activity, project IDs, campaign count, and mail usage for this profile.</p>
-              </div>
-              <div className="dashboard-profile-overview-actions">
-                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/campaigns'; }}>Campaigns</button>
-                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/mail-inbox'; }}>Mailbox</button>
-                <button type="button" className="ghost subtle" onClick={() => { window.location.href = '/client-data'; }}>Client Data</button>
-              </div>
-            </div>
-
-            <div className="dashboard-profile-identity-grid">
-              <span><small>User ID</small><strong>{mailPilotOverview.user?.id || profile.email || 'Not available'}</strong></span>
-              <span><small>Project View ID</small><strong>{overviewProjectFilter === 'all' ? 'All projects' : overviewProjectFilter}</strong></span>
-              <span><small>MailPilot Role</small><strong>{mailPilotOverview.user?.role || profileRoleLabel}</strong></span>
-              <span><small>Login Mail ID</small><strong>{mailPilotOverview.user?.email || profile.email || 'Not available'}</strong></span>
-            </div>
-
-            <div className="dashboard-profile-overview-metrics">
-              <span><strong>{formatNumber(overviewTotals.campaigns)}</strong><small>Total Campaigns</small></span>
-              <span><strong>{formatNumber(overviewTotals.runningCampaigns)}</strong><small>Running</small></span>
-              <span><strong>{formatNumber(overviewTotals.sent)}</strong><small>Mails Sent</small></span>
-              <span><strong>{formatNumber(overviewTotals.recipients)}</strong><small>Total Recipients</small></span>
-              <span><strong>{formatNumber(overviewTotals.opens)}</strong><small>Opens</small></span>
-              <span><strong>{formatNumber(overviewTotals.replies)}</strong><small>Replies</small></span>
-              <span><strong>{formatNumber(mailboxCounts.open || mailboxCounts.read || overviewTotals.opens)}</strong><small>Open Mail</small></span>
-              <span><strong>{formatNumber(mailboxCounts.junk)}</strong><small>Junk</small></span>
-              <span><strong>{formatNumber(mailboxCounts.spam || overviewTotals.spam)}</strong><small>Spam</small></span>
-              <span><strong>{formatNumber(overviewTotals.mailIds)}</strong><small>Mail IDs</small></span>
-              <span><strong>{formatNumber(overviewTotals.drafts)}</strong><small>Drafts</small></span>
-            </div>
-
-            <div className="dashboard-profile-filter-row">
-              <label>
-                <span>Project</span>
-                <select value={overviewProjectFilter} onChange={(event) => setOverviewProjectFilter(event.target.value)}>
-                  <option value="all">All projects</option>
-                  {overviewProjects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.name} ({project.id})</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Status</span>
-                <select value={overviewStatusFilter} onChange={(event) => setOverviewStatusFilter(event.target.value)}>
-                  <option value="all">All statuses</option>
-                  {overviewStatuses.map((status) => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="dashboard-profile-project-grid">
-              {overviewProjects.length ? overviewProjects.map((project) => (
-                <article key={project.id}>
-                  <div>
-                    <strong>{project.name}</strong>
-                    <small>ID: {project.id}</small>
-                  </div>
-                  <span>{formatNumber(project.campaigns)} campaigns</span>
-                  <span>{formatNumber(project.running)} running</span>
-                  <span>{formatNumber(project.sent)} sent</span>
-                </article>
-              )) : <p className="dashboard-profile-note">No project activity found yet.</p>}
-            </div>
-
-            <div className="dashboard-profile-table">
-              <div className="dashboard-profile-table-head">
-                <span>Campaign</span>
-                <span>Project ID</span>
-                <span>Status</span>
-                <span>Sent</span>
-                <span>Sender</span>
-              </div>
-              {filteredOverviewCampaigns.length ? filteredOverviewCampaigns.map((campaign) => (
-                <button
-                  key={campaign.id}
-                  type="button"
-                  className="dashboard-profile-table-row"
-                  onClick={() => { window.location.href = `/campaigns?campaign=${encodeURIComponent(campaign.id)}`; }}
-                >
-                  <span>{campaign.name}</span>
-                  <span>{campaign.projectId}</span>
-                  <span>{campaign.status}</span>
-                  <span>{formatNumber(campaign.sent)}</span>
-                  <span>{campaign.sender || 'No sender'}</span>
-                </button>
-              )) : <p className="dashboard-profile-note">No campaigns match this filter.</p>}
-            </div>
-
-            <div className="dashboard-profile-mail-id-grid">
-              {(mailPilotOverview.connectedMailIds || []).slice(0, 6).map((mailId) => (
-                <article key={mailId.id || mailId.email}>
-                  <strong>{mailId.email}</strong>
-                  <span>{mailId.provider} - {mailId.status}</span>
-                  <small>{formatNumber(mailId.sentToday)} / {formatNumber(mailId.dailyLimit)} sent today - {mailId.health}</small>
-                </article>
-              ))}
-              {!mailPilotOverview.connectedMailIds?.length ? <p className="dashboard-profile-note">No connected MailPilot sender IDs found.</p> : null}
-            </div>
-          </article>
-          ) : null}
-
           {activeSection === 'profile' ? (
-          <article className={`dashboard-profile-card ${activeSection === 'profile' ? 'tone-profile' : ''}`}>
-            <strong>Connected Accounts</strong>
-            <p>Review the mail accounts connected to your workspace.</p>
-            <div className="dashboard-profile-chip-row">
-              {connectedAccounts.length ? connectedAccounts.map((account) => (
-                <span key={account.id || account.from} className="dashboard-profile-chip">{account.from}</span>
-              )) : <span className="dashboard-profile-chip">{profile.email || 'No connected accounts'}</span>}
-            </div>
-            <p className="dashboard-profile-note">Connect or disconnect sender inboxes from the same workspace view.</p>
-            <div className="dashboard-profile-mini-metrics">
-              {connectedAccounts.length ? connectedAccounts.map((account) => {
-                const summary = accountSummary(account);
-                return (
-                  <article key={`${account.id || account.from}-metrics`}>
-                    <span>{summary.provider}</span>
-                    <strong>{summary.status}</strong>
-                    <small>{summary.lastSync}</small>
-                    <small>{summary.sentToday} sent today · {summary.health}</small>
-                  </article>
-                );
-              }) : (
-                <article>
-                  <span>{profile.email || 'Connected inbox'}</span>
-                  <strong>Active</strong>
-                  <small>Just now</small>
-                  <small>0 sent today · Good</small>
-                </article>
-              )}
-            </div>
-            <div className="dashboard-profile-action-row">
-              {connectedAccounts.length ? connectedAccounts.map((account) => (
-                <div key={account.id || account.from} className="dashboard-profile-account-actions">
-                  <button key={`${account.id || account.from}-manage`} type="button" className="ghost" onClick={() => setSelectedConnectedAccount(account)}>
-                    Connect / Manage
-                  </button>
-                  <button type="button" className="ghost subtle" onClick={() => handleDisconnect(account)}>
-                    Disconnect {account.from}
-                  </button>
+            <div className="imp-content-grid">
+              <section className="imp-panel imp-form-panel">
+                <h3>Personal Information</h3>
+                <div className="imp-field-grid">
+                  <InfoField icon="ti-user" label="Full Name" value={displayName} />
+                  <InfoField icon="ti-mail" label="Email Address" value={email} />
+                  <InfoField icon="ti-phone" label="Phone Number" value={phoneNumber} />
+                  <InfoField icon="ti-map-pin" label="Location" value={locationText} />
+                  <InfoField icon="ti-calendar" label="Date of Birth" value={dateOfBirth} />
+                  <InfoField icon="ti-world" label="Time Zone" value={timeZone} />
                 </div>
-              )) : null}
+
+                <div className="imp-divider" />
+                <h3>Professional Information</h3>
+                <div className="imp-professional-grid">
+                  <InfoField icon="ti-shield-star" label="Role" value={roleLabel} />
+                  <InfoField icon="ti-building" label="Department" value={department} />
+                  <InfoField icon="ti-id-badge-2" label="Employee ID" value={employeeId} />
+                </div>
+              </section>
+
+              <aside className="imp-side-stack">
+                <section className="imp-panel imp-summary-panel">
+                  <h3>Profile Summary</h3>
+                  <p>{roleLabel} with full access to all modules and settings. You can manage users, projects, campaigns, clients, templates, and system configurations.</p>
+                  <SummaryRow label="Login Email" value={email} />
+                  <SummaryRow label="Role" value={roleLabel} />
+                  <SummaryRow label="Access Level" value={roleLabel.toLowerCase().includes('admin') ? 'Full Access' : 'Assigned Access'} />
+                  <SummaryRow label="Last Login" value={formatDateTime(profile.lastLoginAt || sessionUser.lastLoginAt)} />
+                  <SummaryRow label="Last IP Address" value={lastIpAddress} />
+                  <SummaryRow label="Account Status" value={statusLabel} status />
+                </section>
+
+                <section className="imp-panel imp-photo-panel">
+                  <h3>Change Profile Photo <i className="ti ti-info-circle" aria-hidden="true" /></h3>
+                  <div className="imp-upload-row">
+                    {renderAvatar('imp-upload-avatar')}
+                    <div>
+                      <label className="imp-upload-button">
+                        <input type="file" accept="image/*" onChange={handlePhotoUpload} />
+                        <i className="ti ti-upload" aria-hidden="true" /> Upload New Photo
+                      </label>
+                      <small>{profile.avatarName || 'JPG, PNG or GIF. Max size 2MB'}</small>
+                    </div>
+                  </div>
+                </section>
+              </aside>
             </div>
-          </article>
           ) : null}
 
-          {activeSection === 'settings' ? (
-          <article id="settings" className={`dashboard-profile-card dashboard-settings-card ${activeSection === 'settings' ? 'tone-settings' : ''}`}>
-            <div className="dashboard-settings-head">
-              <div>
-                <span className="dashboard-settings-kicker">Workspace preferences</span>
-                <strong>Settings</strong>
-              </div>
-              <span className="dashboard-settings-status"><i className="ti ti-cloud-check" aria-hidden="true" /> Local workspace</span>
-            </div>
 
-            <section className="dashboard-settings-section">
-              <div className="dashboard-settings-section-head">
-                <i className="ti ti-palette" aria-hidden="true" />
-                <div><strong>Appearance</strong><small>Choose how the dashboard looks and feels.</small></div>
-              </div>
-              <div className="dashboard-settings-choice-grid dashboard-settings-theme-grid">
-                {[
-                  { value: 'light', label: 'Light', icon: 'ti-sun' },
-                  { value: 'dark', label: 'Dark', icon: 'ti-moon' },
-                  { value: 'colorful', label: 'Colorful', icon: 'ti-color-swatch' }
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`dashboard-settings-choice${theme === option.value ? ' active' : ''}`}
-                    onClick={() => setTheme(option.value)}
-                  >
-                    <i className={`ti ${option.icon}`} aria-hidden="true" />
-                    <span>{option.label}</span>
-                    {theme === option.value ? <i className="ti ti-check" aria-hidden="true" /> : null}
-                  </button>
-                ))}
-              </div>
-              <div className="dashboard-settings-row">
-                <div><strong>Interface density</strong><small>Compact shows more content; comfortable adds breathing room.</small></div>
-                <div className="dashboard-settings-segmented">
-                  {['comfortable', 'compact'].map((density) => (
-                    <button
-                      key={density}
-                      type="button"
-                      className={workspaceSettings.density === density ? 'active' : ''}
-                      onClick={() => updateWorkspaceSetting('density', density)}
-                    >
-                      {density === 'comfortable' ? 'Comfortable' : 'Compact'}
-                    </button>
+          {activeSection === 'overview' ? (
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Overview</h3>
+                <div className="imp-overview-grid">
+                  <SummaryRow label="Total Campaigns" value={formatNumber(totals.campaigns)} />
+                  <SummaryRow label="Total Clients" value={formatNumber(totals.lists)} />
+                  <SummaryRow label="Emails Sent" value={formatNumber(totals.sent)} />
+                  <SummaryRow label="Replies Received" value={formatNumber(totals.replies)} />
+                  <SummaryRow label="Open Rate" value={percent(totals.opens, totals.sent)} />
+                  <SummaryRow label="Click Rate" value={percent(totals.replies, totals.sent)} />
+                </div>
+                <div className="imp-activity-list imp-overview-list">
+                  {(overview.recentCampaigns || []).slice(0, 6).map((campaign) => (
+                    <article key={campaign.id || campaign.name}>
+                      <i className="ti ti-speakerphone" aria-hidden="true" />
+                      <div><strong>{campaign.name || 'Campaign'}</strong><small>{campaign.status || 'Draft'} - {campaign.projectName || 'Default project'} - {formatDateTime(campaign.updatedAt)}</small></div>
+                    </article>
                   ))}
+                  {!overview.recentCampaigns?.length ? <p className="imp-muted">No overview activity yet.</p> : null}
                 </div>
-              </div>
-              <label className="dashboard-settings-toggle-row">
-                <span><strong>Reduce motion</strong><small>Minimize animated movement throughout the dashboard.</small></span>
-                <input
-                  type="checkbox"
-                  checked={workspaceSettings.reducedMotion}
-                  onChange={(event) => updateWorkspaceSetting('reducedMotion', event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-            </section>
-
-            <section className="dashboard-settings-section">
-              <div className="dashboard-settings-section-head">
-                <i className="ti ti-send" aria-hidden="true" />
-                <div><strong>Campaign defaults</strong><small>Preselect sensible values when creating a campaign.</small></div>
-              </div>
-              <div className="dashboard-settings-form-grid">
-                <label>
-                  <span>Default send mode</span>
-                  <select value={workspaceSettings.defaultSendMode} onChange={(event) => updateWorkspaceSetting('defaultSendMode', event.target.value)}>
-                    <option value="scheduled">Schedule for later</option>
-                    <option value="send_now">Send now</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Default batch size</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={workspaceSettings.defaultBatchSize}
-                    onChange={(event) => updateWorkspaceSetting('defaultBatchSize', Math.max(1, Number(event.target.value || 1)))}
-                  />
-                </label>
-              </div>
-              <label className="dashboard-settings-toggle-row">
-                <span><strong>Confirm before campaign start</strong><small>Keep a final confirmation step before mail sending begins.</small></span>
-                <input
-                  type="checkbox"
-                  checked={workspaceSettings.confirmBeforeStart}
-                  onChange={(event) => updateWorkspaceSetting('confirmBeforeStart', event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-              <label className="dashboard-settings-toggle-row">
-                <span><strong>Remember last project</strong><small>Use your most recently selected project in new workflows.</small></span>
-                <input
-                  type="checkbox"
-                  checked={workspaceSettings.rememberLastProject}
-                  onChange={(event) => updateWorkspaceSetting('rememberLastProject', event.target.checked)}
-                />
-                <i aria-hidden="true" />
-              </label>
-            </section>
-
-            <div className="dashboard-settings-actions">
-              <button type="button" className="ghost subtle" onClick={resetWorkspaceSettings}>Reset defaults</button>
-              <button type="button" className="ghost dashboard-settings-save" onClick={saveWorkspaceSettings}>
-                <i className="ti ti-device-floppy" aria-hidden="true" /> Save settings
-              </button>
+              </section>
             </div>
-          </article>
-          ) : null}
-
-          {activeSection === 'notifications' ? (
-          <article id="notifications" className={`dashboard-profile-card ${activeSection === 'notifications' ? 'tone-notifications' : ''}`}>
-            <strong>Notifications</strong>
-            <p>Review alerts, campaign updates, and reply notifications in one place.</p>
-            <div className="dashboard-profile-checklist">
-              <label><input type="checkbox" checked={profileNotificationPrefs.campaignUpdates} onChange={() => toggleNotificationPref('campaignUpdates')} /> Campaign updates</label>
-              <label><input type="checkbox" checked={profileNotificationPrefs.replyAlerts} onChange={() => toggleNotificationPref('replyAlerts')} /> Reply alerts</label>
-              <label><input type="checkbox" checked={profileNotificationPrefs.weeklyReports} onChange={() => toggleNotificationPref('weeklyReports')} /> Weekly reports</label>
-            </div>
-            <div className="dashboard-profile-action-row">
-              <button type="button" className="ghost subtle" onClick={() => setMessage('Notification preferences saved locally and synced to your profile.')}>
-                View Notifications
-              </button>
-              <button type="button" className="ghost" onClick={() => setMessage('Notification preferences saved locally and synced to your profile.')}>
-                Save Preferences
-              </button>
-            </div>
-          </article>
           ) : null}
 
           {activeSection === 'billing' ? (
-          <article id="billing" className={`dashboard-profile-card ${activeSection === 'billing' ? 'tone-billing' : ''}`}>
-            <strong>Billing</strong>
-            <p>Plan details, usage credits, invoices, and upgrade options.</p>
-            <div className="dashboard-profile-stats compact">
-              <span><strong>{profile.planName || 'Basic'}</strong><small>Current Plan</small></span>
-              <span><strong>{creditSummary.remainingCredits}</strong><small>Credits Left</small></span>
-              <span><strong>7d</strong><small>Renewal</small></span>
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Billing</h3>
+                <div className="imp-overview-grid">
+                  <SummaryRow label="Current Plan" value={fieldValue(profile.planName, creditSummary.planName, 'Basic')} />
+                  <SummaryRow label="Total Credits" value={formatNumber(totalCredits)} />
+                  <SummaryRow label="Used Credits" value={formatNumber(usedCredits)} />
+                  <SummaryRow label="Remaining Credits" value={formatNumber(remainingCredits)} />
+                  <SummaryRow label="Usage" value={`${Math.round(creditPercent)}%`} />
+                  <SummaryRow label="Account Status" value={statusLabel} status />
+                </div>
+                <div className="imp-credit-card">
+                  <div><span>Credits</span><strong>{formatNumber(remainingCredits)} / {formatNumber(totalCredits)}</strong></div>
+                  <div className="imp-credit-track"><i style={{ width: `${creditPercent}%` }} /></div>
+                  <small>{Math.round(creditPercent)}% used this cycle.</small>
+                </div>
+              </section>
             </div>
-            <p className="dashboard-profile-note">Track plan usage, credits, and renewal timing before you upgrade.</p>
-            <div className="dashboard-profile-upgrade-mini">
-              <div>
-                <span>Current</span>
-                <strong>{profile.planName || 'Basic'}</strong>
-              </div>
-              <div>
-                <span>Next Plan</span>
-                <strong>{creditSummary.upgradeTargetPlan || (profile.planName === 'Basic' ? 'Pro' : 'Enterprise')}</strong>
-              </div>
-              <div>
-                <span>Credits Left</span>
-                <strong>{creditSummary.remainingCredits}</strong>
-              </div>
-            </div>
-            <div className="dashboard-profile-meter">
-              <div className="dashboard-profile-meter-track">
-                <i style={{ width: `${Math.max(0, Math.min(100, creditSummary.creditUsagePercent))}%` }} />
-              </div>
-              <small>{Math.round(creditSummary.creditUsagePercent)}% of credits used this cycle</small>
-            </div>
-            {lowCreditWarning ? <p className="dashboard-profile-note dashboard-profile-warning"><span>Low balance</span> Upgrade before sends stop.</p> : null}
-            <div className="dashboard-profile-chip-row dashboard-profile-billing-row">
-              <span className="dashboard-profile-chip">Invoice ready</span>
-              <span className="dashboard-profile-chip">Last payment: 07 Apr 2026</span>
-            </div>
-            <div className="dashboard-profile-action-row">
-              <button type="button" className="ghost" onClick={handleOpenBilling}>Open Billing</button>
-              <button type="button" className="ghost" onClick={handleDownloadInvoice}>
-                Download Invoice
-              </button>
-            </div>
-            <div className="dashboard-profile-action-row dashboard-profile-action-row-stack">
-              <button type="button" className="ghost subtle dashboard-profile-upgrade-secondary" onClick={handleUpgradePlan}>
-                {hasUpgrade ? `Upgrade to ${billingUpgradeTarget}` : 'Manage Plan'}
-              </button>
-            </div>
-            <div className="dashboard-profile-note" style={{ marginTop: 18 }}>Credit history</div>
-            <div className="dashboard-profile-transaction-list">
-              {creditTransactions.length ? creditTransactions.map((item) => (
-                <article key={item._id} className="dashboard-profile-transaction-item">
-                  <div>
-                    <strong>{item.reason || item.type}</strong>
-                    <p>{item.campaignName || item.recipientEmail || 'Credit change'}</p>
-                  </div>
-                  <div>
-                    <strong>{item.type === 'credit' ? '+' : '-'}{Math.abs(Number(item.credits || 0))}</strong>
-                    <p>{formatDateTime(item.createdAt)}</p>
-                  </div>
-                </article>
-              )) : <p className="dashboard-profile-note">No credit transactions yet.</p>}
-            </div>
-            <div className="dashboard-profile-action-row dashboard-profile-action-row-stack">
-              <button type="button" className="ghost subtle" onClick={() => setShowCreditHistory(true)}>
-                View all transactions
-              </button>
-            </div>
-          </article>
           ) : null}
-
           {activeSection === 'security' ? (
-          <article id="security" className={`dashboard-profile-card ${activeSection === 'security' ? 'tone-security' : ''}`}>
-            <strong>Security</strong>
-            <p>Password, sign-in activity, connected accounts, and account safety.</p>
-            <div className="dashboard-profile-checklist">
-              <label><input type="checkbox" defaultChecked /> Password protected</label>
-              <label><input type="checkbox" defaultChecked /> Signed-in device active</label>
-              <label><input type="checkbox" defaultChecked /> Logout on demand</label>
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Account & Security</h3>
+                <div className="imp-security-grid">
+                  <SummaryRow label="Status" value={statusLabel} status />
+                  <SummaryRow label="Password Changed" value={formatDateTime(profile.passwordChangedAt)} />
+                  <SummaryRow label="First Login" value={profile.isFirstLogin ? 'Yes' : 'No'} />
+                  <SummaryRow label="Connected Mail IDs" value={formatNumber(activeAccounts.length)} />
+                </div>
+                <div className="imp-password-grid">
+                  <input type="password" placeholder="Current password" value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))} />
+                  <input type="password" placeholder="New password" value={passwordForm.newPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))} />
+                  <input type="password" placeholder="Confirm new password" value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))} />
+                </div>
+                <button type="button" className="imp-primary-button" onClick={handlePasswordChange}><i className="ti ti-lock-check" aria-hidden="true" /> Update Password</button>
+              </section>
             </div>
-            <div className="dashboard-profile-password">
-              <input
-                type="password"
-                placeholder="Current password"
-                value={profilePasswordForm.currentPassword}
-                onChange={(event) => setProfilePasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-              />
-              <input
-                type="password"
-                placeholder="New password"
-                value={profilePasswordForm.newPassword}
-                onChange={(event) => setProfilePasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-              />
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                value={profilePasswordForm.confirmPassword}
-                onChange={(event) => setProfilePasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-              />
-            </div>
-            <div className="dashboard-profile-action-row">
-              <button type="button" className="ghost" onClick={handlePasswordChange}>
-                Change Password
-              </button>
-              <button type="button" className="ghost subtle" onClick={() => setMessage('Security controls are ready for account safety settings.')}>
-                Open Security
-              </button>
-            </div>
-          </article>
           ) : null}
 
-          {message ? <p className="dashboard-profile-message">{message}</p> : null}
-        </main>
-        {selectedConnectedAccount && typeof window !== 'undefined'
-          ? createPortal(
-              <div className="dashboard-profile-modal-backdrop" onClick={() => setSelectedConnectedAccount(null)}>
-                <div className="dashboard-profile-modal" onClick={(event) => event.stopPropagation()}>
-              <div className="dashboard-profile-modal-head">
-                <div>
-                  <strong>{selectedConnectedAccount.from}</strong>
-                  <p>Connect, manage, or disconnect this account.</p>
-                </div>
-                <button type="button" className="dashboard-profile-modal-close" onClick={() => setSelectedConnectedAccount(null)}>
-                  × Close
-                </button>
-              </div>
-              <div className="dashboard-profile-chip-row dashboard-profile-modal-meta">
-                <span className="dashboard-profile-chip">{accountSummary(selectedConnectedAccount).provider}</span>
-                <span className="dashboard-profile-chip">{accountSummary(selectedConnectedAccount).status}</span>
-                <span className="dashboard-profile-chip">{accountSummary(selectedConnectedAccount).type}</span>
-              </div>
-              <div className="dashboard-profile-modal-summary">
-                <article>
-                  <span>Mail ID</span>
-                  <strong>{selectedConnectedAccount.from}</strong>
-                </article>
-                <article>
-                  <span>Provider</span>
-                  <strong>{accountSummary(selectedConnectedAccount).provider}</strong>
-                </article>
-                <article>
-                  <span>Status</span>
-                  <strong>{accountSummary(selectedConnectedAccount).status}</strong>
-                </article>
-                <article>
-                  <span>Last Sync</span>
-                  <strong>{accountSummary(selectedConnectedAccount).lastSync}</strong>
-                </article>
-              </div>
-              <div className="dashboard-profile-modal-summary dashboard-profile-modal-summary-soft">
-                <article>
-                  <span>Daily Send Limit</span>
-                  <strong>{accountSummary(selectedConnectedAccount).dailyLimit}</strong>
-                </article>
-                <article>
-                  <span>Sent Today</span>
-                  <strong>{accountSummary(selectedConnectedAccount).sentToday}</strong>
-                </article>
-                <article>
-                  <span>Errors</span>
-                  <strong>{accountSummary(selectedConnectedAccount).errors}</strong>
-                </article>
-                <article>
-                  <span>Sync Health</span>
-                  <strong>{accountSummary(selectedConnectedAccount).health}</strong>
-                </article>
-              </div>
-              <div className="dashboard-profile-modal-actions">
-                <button type="button" className="ghost" onClick={() => setMessage(`Manage ${selectedConnectedAccount.from} from the connected accounts list.`)}>
-                  Open Account
-                </button>
-                <button type="button" className="ghost subtle" onClick={() => {
-                  handleDisconnect(selectedConnectedAccount);
-                  setSelectedConnectedAccount(null);
-                }}>
-                  Disconnect
-                </button>
-              </div>
-                </div>
-              </div>,
-              document.body
-            )
-          : null}
-        {showCreditHistory && typeof window !== 'undefined'
-          ? createPortal(
-              <div className="dashboard-profile-modal-backdrop" onClick={() => setShowCreditHistory(false)}>
-                <div className="dashboard-profile-modal dashboard-profile-credit-history-modal" onClick={(event) => event.stopPropagation()}>
-                  <div className="dashboard-profile-modal-head">
-                    <div>
-                      <strong>Credit transactions</strong>
-                      <p>Review credit debits, refunds, and balance changes.</p>
-                    </div>
-                    <button type="button" className="dashboard-profile-modal-close" onClick={() => setShowCreditHistory(false)}>
-                      × Close
+          {(activeSection === 'preferences' || activeSection === 'settings') ? (
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Preferences</h3>
+                <div className="imp-preference-grid">
+                  {['light', 'dark', 'colorful'].map((option) => (
+                    <button key={option} type="button" className={theme === option ? 'active' : ''} onClick={() => setTheme(option)}>
+                      <i className={`ti ${option === 'light' ? 'ti-sun' : option === 'dark' ? 'ti-moon' : 'ti-color-swatch'}`} aria-hidden="true" />
+                      <span>{option.charAt(0).toUpperCase() + option.slice(1)}</span>
                     </button>
-                  </div>
-                  <div className="dashboard-profile-credit-history-head">
-                    <span>Reason</span>
-                    <span>Amount</span>
-                    <span>Balance after</span>
-                    <span>Date</span>
-                  </div>
-                  <div className="dashboard-profile-credit-history-list">
-                    {creditTransactions.length ? creditTransactions.map((item) => (
-                      <article key={item._id} className="dashboard-profile-credit-history-row">
-                        <strong>{item.reason || item.type}</strong>
-                        <span className={item.type === 'credit' ? 'credit-positive' : 'credit-negative'}>
-                          {item.type === 'credit' ? '+' : '-'}{Math.abs(Number(item.credits || 0))}
-                        </span>
-                        <span>{Math.max(0, Number(item.balanceAfter || 0))}</span>
-                        <small>{formatDateTime(item.createdAt)}</small>
-                      </article>
-                    )) : <p className="dashboard-profile-note">No credit transactions yet.</p>}
-                  </div>
+                  ))}
                 </div>
-              </div>,
-              document.body
-            )
-          : null}
+                <div className="imp-setting-row">
+                  <span><strong>Interface density</strong><small>Choose comfortable or compact dashboard spacing.</small></span>
+                  <select value={workspaceSettings.density} onChange={(event) => setWorkspaceSettings((current) => ({ ...current, density: event.target.value }))}>
+                    <option value="comfortable">Comfortable</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </div>
+                <div className="imp-setting-row">
+                  <span><strong>Default send mode</strong><small>Used when creating new campaigns.</small></span>
+                  <select value={workspaceSettings.defaultSendMode} onChange={(event) => setWorkspaceSettings((current) => ({ ...current, defaultSendMode: event.target.value }))}>
+                    <option value="scheduled">Schedule for later</option>
+                    <option value="send_now">Send now</option>
+                  </select>
+                </div>
+                <label className="imp-toggle-row"><span><strong>Reduce motion</strong><small>Minimize dashboard animation.</small></span><input type="checkbox" checked={workspaceSettings.reducedMotion} onChange={(event) => setWorkspaceSettings((current) => ({ ...current, reducedMotion: event.target.checked }))} /></label>
+                <button type="button" className="imp-primary-button" onClick={saveWorkspaceSettings}><i className="ti ti-device-floppy" aria-hidden="true" /> Save Preferences</button>
+              </section>
+            </div>
+          ) : null}
+
+          {activeSection === 'notifications' ? (
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Email Notifications</h3>
+                {[
+                  ['campaignUpdates', 'Campaign updates', 'Receive status changes for campaign runs.'],
+                  ['replyAlerts', 'Reply alerts', 'Get notified when prospects reply.'],
+                  ['weeklyReports', 'Weekly reports', 'Receive weekly performance summaries.']
+                ].map(([key, title, copy]) => (
+                  <label className="imp-toggle-row" key={key}>
+                    <span><strong>{title}</strong><small>{copy}</small></span>
+                    <input type="checkbox" checked={Boolean(notificationPrefs[key])} onChange={() => toggleNotificationPref(key)} />
+                  </label>
+                ))}
+              </section>
+            </div>
+          ) : null}
+
+          {activeSection === 'activity' ? (
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Activity Log</h3>
+                <div className="imp-activity-list">
+                  {(overview.recentCampaigns || []).slice(0, 8).map((campaign) => (
+                    <article key={campaign.id || campaign.name}>
+                      <i className="ti ti-speakerphone" aria-hidden="true" />
+                      <div><strong>{campaign.name || 'Campaign'}</strong><small>{campaign.status || 'Draft'} - {campaign.projectName || 'Default project'} - {formatDateTime(campaign.updatedAt)}</small></div>
+                    </article>
+                  ))}
+                  {!overview.recentCampaigns?.length ? <p className="imp-muted">No recent campaign activity yet.</p> : null}
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {activeSection === 'sessions' ? (
+            <div className="imp-content-grid imp-single-grid">
+              <section className="imp-panel">
+                <h3>Sessions</h3>
+                <div className="imp-session-grid">
+                  {activeAccounts.length ? activeAccounts.map((account) => (
+                    <article key={account.id || account.email}>
+                      <i className="ti ti-mail-check" aria-hidden="true" />
+                      <div><strong>{account.email}</strong><small>{account.provider} - {account.status} - {formatDateTime(account.updatedAt)}</small></div>
+                    </article>
+                  )) : <p className="imp-muted">No connected mail sessions found.</p>}
+                </div>
+                <div className="imp-credit-card">
+                  <div><span>Credits</span><strong>{formatNumber(remainingCredits)} / {formatNumber(totalCredits)}</strong></div>
+                  <div className="imp-credit-track"><i style={{ width: `${creditPercent}%` }} /></div>
+                  <small>{Math.round(creditPercent)}% used this cycle. Mailbox total: {formatNumber(mailboxCounts.total)}.</small>
+                </div>
+              </section>
+            </div>
+          ) : null}
+
+          {message ? <p className="imp-message">{message}</p> : null}
+        </article>
       </section>
     </AppLayout>
   );
 }
+
+
+
+
+
+
+
