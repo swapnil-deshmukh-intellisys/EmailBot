@@ -4,6 +4,9 @@ import { requireUser } from '@/lib/apiAuth';
 import UserProfile from '@/models/UserProfile';
 import TargetApproval from '@/models/TargetApproval';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function toDateOrNull(value) {
   if (!value) return null;
   const date = new Date(value);

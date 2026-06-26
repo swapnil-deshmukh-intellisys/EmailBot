@@ -439,6 +439,9 @@ export default function DashboardPage() {
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [preview, setPreview] = useState([]);
+  const [parentCampaignId, setParentCampaignId] = useState('');
+  const [replyMode, setReplyMode] = useState('');
+  const [threadMetadata, setThreadMetadata] = useState(null);
   const [previewColumns, setPreviewColumns] = useState([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [selectedListReloadKey, setSelectedListReloadKey] = useState(0);
@@ -952,44 +955,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const raw = window.localStorage.getItem(DASHBOARD_DRAFT_STATE_KEY);
-      if (!raw) {
-        const settings = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
-        if (settings.defaultSendMode === 'scheduled' || settings.defaultSendMode === 'send_now') {
-          setScheduleMode(settings.defaultSendMode);
-        }
-        if (Number(settings.defaultBatchSize) >= 1) {
-          setBatchSize(String(Math.floor(Number(settings.defaultBatchSize))));
-        }
-        if (settings.rememberLastProject) {
-          setProject(String(window.localStorage.getItem('mailpilot:last-project') || ''));
-        }
-        return;
+      // Clear any temporary draft state on mount to ensure fresh launch on refresh
+      window.localStorage.removeItem(DASHBOARD_DRAFT_STATE_KEY);
+
+      const settings = JSON.parse(window.localStorage.getItem('mailpilot:workspace-settings') || '{}');
+      if (settings.defaultSendMode === 'scheduled' || settings.defaultSendMode === 'send_now') {
+        setScheduleMode(settings.defaultSendMode);
       }
-      const saved = JSON.parse(raw);
-      if (saved && typeof saved === 'object') {
-        setCampaignName(String(saved.campaignName || ''));
-        setDelaySeconds(Number(saved.delaySeconds || 60));
-        setBatchSize(String(saved.batchSize || '1'));
-        setRowRange('');
-        setSelectedAccount(String(saved.selectedAccount || ''));
-        setActiveAccount('');
-        setTestEmailTo(String(saved.testEmailTo || ''));
-        setSelectedDraft(String(saved.selectedDraft || ''));
-        setDraftSubject(String(saved.draftSubject || ''));
-        setDraftBody(String(saved.draftBody || ''));
-        setScheduledCountry(String(saved.scheduledCountry || 'india'));
-        setScheduledSlot(String(saved.scheduledSlot || ''));
-        setManualScheduledSlot(String(saved.manualScheduledSlot || ''));
-        setScheduledStartLabel(String(saved.scheduledStartLabel || ''));
-        setScheduleMode(String(saved.scheduleMode || 'send_now'));
-        setScheduleTimezone(String(saved.scheduleTimezone || 'Asia/Kolkata'));
-        setScheduledDateValue(String(saved.scheduledDateValue || ''));
-        setScheduledTimeValue(String(saved.scheduledTimeValue || ''));
-        setDurationUnit(normalizeDurationUnit(saved.durationUnit || 'seconds'));
+      if (Number(settings.defaultBatchSize) >= 1) {
+        setBatchSize(String(Math.floor(Number(settings.defaultBatchSize))));
+      }
+      if (settings.rememberLastProject) {
+        setProject(String(window.localStorage.getItem('mailpilot:last-project') || ''));
       }
     } catch (error) {
-      // Ignore bad saved dashboard state and continue with defaults.
+      // Ignore settings parsing errors
     }
   }, []);
 
@@ -1015,9 +995,24 @@ export default function DashboardPage() {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
-      if (!raw) return;
-      window.localStorage.removeItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
+      
+      // Clean the URL query parameters immediately so that refreshing the page stops the process!
+      if (window.location.search) {
+        window.history.replaceState(null, '', '/dashboard/user');
+      }
+
+      if (!raw) {
+        // If there's no resume payload, clear any leftover draft states so a refresh doesn't reopen the wizard
+        window.localStorage.removeItem(DASHBOARD_DRAFT_STATE_KEY);
+        return;
+      }
       const saved = JSON.parse(raw);
+      if (saved && saved.mode === 'reply_all_from_previous_campaign') {
+        setParentCampaignId(String(saved.sourceCampaignId || ''));
+        setReplyMode(String(saved.bulkReplyMode || 'reply_all'));
+        setThreadMetadata(saved.threadMetadata || null);
+      }
+      window.localStorage.removeItem(DASHBOARD_RESUME_CAMPAIGN_KEY);
       if (!saved || typeof saved !== 'object') return;
       if (saved.nextProcessMode) {
         setNextProcessCampaignId(String(saved.nextProcessSourceCampaignId || saved._id || ''));
@@ -2987,6 +2982,9 @@ const handleDeleteDraft = async (draft) => {
             bodyHtml: normalizeEmailDraftHtml(draftBody),
             bodyText: ''
           },
+          parentCampaignId: parentCampaignId || null,
+          replyMode: replyMode || '',
+          threadMetadata: threadMetadata || undefined,
           senderAccountId: selectedAccount || null,
           scheduleMode: effectiveSchedule.scheduleMode,
           scheduledAt: effectiveSchedule.scheduledAt ? effectiveSchedule.scheduledAt.toISOString() : null,
@@ -5336,10 +5334,14 @@ const normalizeSelectedListEmails = async () => {
             </div>
 
             <div className="user-row reference-sidebar-user">
-              <div className="user-avatar">AM</div>
+              {profileAvatarDataUrl ? (
+                <img className="user-avatar user-avatar-img" src={profileAvatarDataUrl} alt={profileDisplayName} />
+              ) : (
+                <div className="user-avatar">{profileInitials}</div>
+              )}
               <div className="user-copy">
-                <strong className="user-name">Akshay More</strong>
-                <small className="user-plan">Basic · Free forever</small>
+                <strong className="user-name">{profileDisplayName}</strong>
+                <small className="user-plan">{profileCredits.planName || 'Basic'} · Free forever</small>
               </div>
               <div className="user-actions">
                 <button type="button" className="icon-btn user-icon-btn" onClick={() => router.push('/dashboard/user/profile/settings')} aria-label="Settings"><i className="ti ti-settings" /></button>

@@ -295,41 +295,67 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
   };
 
   // ─── Bulk Reply: Reply / Reply All to ALL sent recipients at once ────────────
-  const openBulkReplyWorkflow = (mode = 'reply_all') => {
+  const openBulkReplyWorkflow = async (mode = 'reply_all') => {
     if (!campaign || !detail) return;
     setBulkReplying(true);
     setNotice('');
     setError('');
     try {
-      const sentRecipients = (detail.recipients || []).filter((row) => recipientHasSentMail(row));
-      if (sentRecipients.length === 0) {
-        setError('No recipients with sent emails found in this campaign.');
-        setBulkReplying(false);
-        return;
+      const res = await fetch(`/api/campaigns/${campaign._id}/reply-context?mode=${mode}`).catch(() => null);
+      if (!res || !res.ok) {
+        throw new Error('Reply All context could not be loaded.');
       }
+      const context = await res.json().catch(() => null);
+      if (!context || !context.success) {
+        throw new Error(context?.message || 'Reply All context could not be loaded.');
+      }
+
       const modeLabel = mode === 'reply_all' ? 'Reply All' : 'Reply';
-      const listId = String(campaign.listId || campaign.selectedListId || '').trim();
       const payload = {
-        ...campaign,
-        listId,
-        selectedListId: listId,
+        mode: 'reply_all_from_previous_campaign',
+        sourceCampaignId: campaign._id,
+        listId: context.listId || '',
+        selectedListId: context.listId || '',
+        customSheetName: context.customSheetName || '',
+        sheetMissing: Boolean(context.sheetMissing),
+        canReuseSheet: Boolean(context.canReuseSheet),
+        recipients: context.recipients || [],
+        
+        senderAccountId: context.senderAccountId || '',
+        senderEmail: context.senderEmail || '',
+        senderActive: Boolean(context.senderActive),
+        canReuseSender: Boolean(context.canReuseSender),
+
+        project: context.project || '',
+        projectId: context.projectId || '',
+        projectName: context.project || '',
+
         bulkReplyMode: mode,
         bulkReplySourceCampaignId: campaign._id,
-        bulkReplyRecipientIds: sentRecipients.map((row) => String(row._id || '')).filter(Boolean),
-        bulkReplyRecipientEmails: sentRecipients.map((row) => String(row.email || row.recipientEmail || '')).filter(Boolean),
-        bulkReplySourceCampaignName: campaign.name || '',
+        bulkReplySourceCampaignName: context.originalCampaignName || campaign.name || '',
         isBulkReply: true,
-        resumeToReviewList: false,
+        resumeToReviewList: Boolean(context.canReuseSheet),
         nextProcessMode: false,
-        workflowOpenStep: 2,
-        workflowStepLabel: `${modeLabel} to all ${sentRecipients.length} recipients`,
-        name: `${modeLabel}: ${campaign.name || 'Campaign'}`,
-        inlineTemplate: {},
+        workflowOpenStep: context.canReuseSheet ? 2 : 1,
+        workflowStepLabel: `${modeLabel} to all ${context.recipients?.length || 0} recipients`,
+        name: `Reply All - ${context.originalCampaignName || campaign.name || ''}`,
+        subject: `Re: ${context.subject || ''}`,
+        threadMetadata: context.threadMetadata || {},
+        originalSubject: context.subject || '',
+        draftId: context.draftId || '',
         resumedFromCampaignStatus: campaign.status || campaign.displayStatus || ''
       };
+
       window.localStorage.setItem(DASHBOARD_RESUME_CAMPAIGN_KEY, JSON.stringify(payload));
-      const params = new URLSearchParams({ bulkReply: '1', mode, workflowStep: '2' });
-      if (listId) { params.set('listId', listId); params.set('autoUpload', '1'); }
+      
+      const params = new URLSearchParams({
+        bulkReply: '1',
+        mode,
+        workflowStep: context.canReuseSheet ? '2' : '1'
+      });
+      if (payload.listId) {
+        params.set('listId', payload.listId);
+      }
       window.location.href = `/dashboard/user?${params.toString()}`;
     } catch (err) {
       setError(err.message || 'Unable to open bulk reply workflow.');

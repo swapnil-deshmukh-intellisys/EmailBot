@@ -4,6 +4,9 @@ import connectDB from '@/lib/mongodb';
 import { requireUser } from '@/lib/apiAuth';
 import UserProfile from '@/models/UserProfile';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function displayNameFromIdentifier(identifier = '') {
   const localPart = String(identifier || '')
     .trim()

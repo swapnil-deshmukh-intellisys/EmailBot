@@ -837,6 +837,17 @@ export default function PremiumDashboardShell({
   const [scheduleSuccessDetails, setScheduleSuccessDetails] = useState(null);
   const [scheduleInlineNotice, setScheduleInlineNotice] = useState(null);
   const [showDraftSummaryPopup, setShowDraftSummaryPopup] = useState(false);
+  const [isNextProcessMode, setIsNextProcessMode] = useState(false);
+  const [isBulkReplyMode, setIsBulkReplyMode] = useState(false);
+  const [sourceCampaignId, setSourceCampaignId] = useState('');
+  const [threadMetadata, setThreadMetadata] = useState({});
+  const [sheetMissing, setSheetMissing] = useState(false);
+  const [canReuseSheet, setCanReuseSheet] = useState(false);
+  const [senderActive, setSenderActive] = useState(true);
+  const [canReuseSender, setCanReuseSender] = useState(true);
+  const [originalCampaignName, setOriginalCampaignName] = useState('');
+  const [originalSheetName, setOriginalSheetName] = useState('');
+  const [originalRecipientCount, setOriginalRecipientCount] = useState(0);
   const [showClientListPopup, setShowClientListPopup] = useState(false);
   const [showOverviewPopup, setShowOverviewPopup] = useState(false);
   const [showOverviewNotice, setShowOverviewNotice] = useState(false);
@@ -1816,6 +1827,7 @@ export default function PremiumDashboardShell({
   }, [selectedTagFilters, tableSearch]);
 
   useEffect(() => {
+    if (isBulkReplyMode) return;
     if (!previewRows.length) {
       if (!previewColumns.length && !reviewLocalColumns.length) {
         setColumnMappings([]);
@@ -2982,6 +2994,52 @@ export default function PremiumDashboardShell({
 
     setIsNextProcessMode(isNextProcess);
     setIsBulkReplyMode(isBulkReply);
+    setSourceCampaignId(campaign.sourceCampaignId || '');
+    setThreadMetadata(campaign.threadMetadata || {});
+    setSheetMissing(Boolean(campaign.sheetMissing));
+    setCanReuseSheet(Boolean(campaign.canReuseSheet));
+    setSenderActive(Boolean(campaign.senderActive !== false));
+    setCanReuseSender(Boolean(campaign.canReuseSender !== false));
+    setOriginalCampaignName(campaign.bulkReplySourceCampaignName || campaign.name || '');
+    setOriginalSheetName(campaign.customSheetName || '');
+    setOriginalRecipientCount(campaign.recipients?.length || 0);
+
+    if (Array.isArray(campaign.recipients) && campaign.recipients.length > 0) {
+      const recs = campaign.recipients.map((r, idx) => ({
+        id: r.id || r._id || String(idx),
+        Name: r.Name || r.name || '',
+        Email: r.Email || r.email || '',
+        Company: r.Company || r.company || '',
+        Designation: r.Designation || r.designation || '',
+        Sector: r.Sector || r.sector || '',
+        Country: r.Country || r.country || '',
+        ...r
+      }));
+      setOverviewRows(recs);
+      
+      const firstRec = recs[0];
+      const cols = Array.from(new Set(Object.keys(firstRec).filter(k => k !== 'id' && k !== '_id')));
+      setColumnMappings(
+        cols.map((column) => {
+          return {
+            sheetColumn: column,
+            mappedField: /email/i.test(column)
+              ? 'Email'
+              : /name/i.test(column)
+                ? 'Name'
+                : /company/i.test(column)
+                  ? 'Company'
+                  : /designation|title/i.test(column)
+                    ? 'Designation'
+                    : /sector/i.test(column)
+                      ? 'Sector'
+                      : /country/i.test(column)
+                        ? 'Country'
+                        : 'Ignore'
+          };
+        })
+      );
+    }
 
     const campaignProject = String(campaign.project || campaign.projectId || campaign.projectName || '').trim().toLowerCase();
     if (campaignProject) {
@@ -3799,6 +3857,44 @@ export default function PremiumDashboardShell({
             </div>
 
             <div className="wf-body pr-uploadlist-body pr-uploadlist-split pr-uploadlist-always">
+              {isBulkReplyMode && (
+                sheetMissing ? (
+                  <div className="campaign-alert campaign-alert-warning" style={{ margin: '16px 24px 0 24px', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px', gridColumn: 'span 2', width: 'calc(100% - 48px)', boxSizing: 'border-box' }}>
+                    <span style={{ fontSize: '18px' }}>⚠️</span>
+                    <div>
+                      <strong>Original campaign sheet is missing.</strong>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Please select or upload a client sheet to proceed with the reply campaign.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="campaign-alert campaign-alert-success" style={{ margin: '16px 24px 0 24px', padding: '12px 16px', borderRadius: '8px', border: '1px solid #10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)', color: '#059669', display: 'flex', alignItems: 'center', gap: '8px', gridColumn: 'span 2', width: 'calc(100% - 48px)', boxSizing: 'border-box' }}>
+                    <span style={{ fontSize: '18px' }}>ℹ️</span>
+                    <div>
+                      <strong>Preloaded recipient sheet is ready.</strong>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Loaded sheet <strong>{originalSheetName || 'Original List'}</strong> ({originalRecipientCount} contacts) from campaign <strong>{originalCampaignName}</strong>.</p>
+                    </div>
+                  </div>
+                )
+              )}
+              {isBulkReplyMode && (
+                sheetMissing ? (
+                  <div className="campaign-alert campaign-alert-warning" style={{ margin: '16px 24px 0 24px', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px', gridColumn: 'span 2', width: 'calc(100% - 48px)', boxSizing: 'border-box' }}>
+                    <span style={{ fontSize: '18px' }}>⚠️</span>
+                    <div>
+                      <strong>Original campaign sheet is missing.</strong>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Please select or upload a client sheet to proceed with the reply campaign.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="campaign-alert campaign-alert-success" style={{ margin: '16px 24px 0 24px', padding: '12px 16px', borderRadius: '8px', border: '1px solid #10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)', color: '#059669', display: 'flex', alignItems: 'center', gap: '8px', gridColumn: 'span 2', width: 'calc(100% - 48px)', boxSizing: 'border-box' }}>
+                    <span style={{ fontSize: '18px' }}>ℹ️</span>
+                    <div>
+                      <strong>Preloaded recipient sheet is ready.</strong>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Loaded sheet <strong>{originalSheetName || 'Original List'}</strong> ({originalRecipientCount} contacts) from campaign <strong>{originalCampaignName}</strong>.</p>
+                    </div>
+                  </div>
+                )
+              )}
               <section className="pr-uploadlist-pane">
                 <div className="pr-uploadlist-section-copy">
                   <strong>Customize List</strong>
@@ -4834,6 +4930,24 @@ export default function PremiumDashboardShell({
                 />
               </label>
 
+              {isBulkReplyMode && !senderActive && (
+                <div className="campaign-alert campaign-alert-warning" style={{ margin: '0 0 16px 0', padding: '12px 16px', borderRadius: '8px', border: '1px solid #f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.08)', color: '#b45309', display: 'flex', alignItems: 'center', gap: '8px', boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '18px' }}>⚠️</span>
+                  <div>
+                    <strong>Original sender account is disconnected.</strong>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>The original sender <strong>{pendingSenderEmailRef.current || 'original sender'}</strong> is currently unavailable. Please choose an active approved Sender ID from the dropdown below.</p>
+                  </div>
+                </div>
+              )}
+              {isBulkReplyMode && !senderActive && (
+                <div className="campaign-alert campaign-alert-warning" style={{ margin: '0 0 16px 0', padding: '12px 16px', borderRadius: '8px', border: '1px solid #f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.08)', color: '#b45309', display: 'flex', alignItems: 'center', gap: '8px', boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '18px' }}>⚠️</span>
+                  <div>
+                    <strong>Original sender account is disconnected.</strong>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '13px', opacity: 0.9 }}>The original sender <strong>{pendingSenderEmailRef.current || 'original sender'}</strong> is currently unavailable. Please choose an active approved Sender ID from the dropdown below.</p>
+                  </div>
+                </div>
+              )}
               <div className="premium-campaign-grid premium-campaign-grid-main">
                 <label className="premium-campaign-field">
                   <span>Project</span>
@@ -4841,6 +4955,7 @@ export default function PremiumDashboardShell({
                     value={campaignProjectFilter}
                     onChange={(event) => setCampaignProjectFilter(event.target.value)}
                     aria-label="Select project"
+                    disabled={isNextProcessMode || isBulkReplyMode}
                   >
                     <option value="">Select project</option>
                     {projectOptions.map((item) => (
@@ -4858,6 +4973,7 @@ export default function PremiumDashboardShell({
                         onSelectSenderAccount?.(event.target.value);
                       }}
                       aria-label="Select sender ID"
+                      disabled={(isNextProcessMode || isBulkReplyMode) && senderActive}
                     >
                       <option value="">Select sender</option>
                       {visibleCampaignSenderAccounts.map((account) => (

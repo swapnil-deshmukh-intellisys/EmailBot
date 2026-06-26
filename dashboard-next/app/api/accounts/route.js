@@ -1,8 +1,11 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import PresetSender from '@/models/PresetSender';
 import SenderAccount from '@/models/SenderAccount';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { verifyAccountConnection } from '@/lib/emailSender';
 import { getProjectGraphConfig, getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { requireAuth, requireUser } from '@/lib/apiAuth';

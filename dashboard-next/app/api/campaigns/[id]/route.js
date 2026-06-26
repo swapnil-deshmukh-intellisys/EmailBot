@@ -67,9 +67,39 @@ export async function GET(req, { params }) {
       });
     }
 
-const rawCampaign = campaign.toObject ? campaign.toObject() : campaign;
+    const rawCampaign = campaign.toObject ? campaign.toObject() : campaign;
     const recipientLogs = await ensureRecipientLogsForCampaign(rawCampaign);
     const summary = serializeCampaignForList(rawCampaign, recipientLogs);
+
+    // Check if the associated LeadList exists, if not, recreate it from the recipient logs
+    if (campaign.listId) {
+      const LeadList = mongoose.models.LeadList || mongoose.model('LeadList');
+      const list = await LeadList.findOne({ _id: campaign.listId });
+      if (!list && recipientLogs.length > 0) {
+        const newLeads = recipientLogs.map(log => ({
+          Name: log.name || log.recipientEmail?.split('@')[0] || 'Recipient',
+          Email: log.recipientEmail || log.email || '',
+          Company: log.company || '',
+          Designation: log.designation || '',
+          Sector: log.sector || '',
+          Country: log.country || ''
+        })).filter(lead => lead.Email);
+
+        const newList = await LeadList.create({
+          name: `${campaign.name || 'Campaign'} - Recreated List`,
+          userEmail,
+          leads: newLeads,
+          leadCount: newLeads.length,
+          validRows: newLeads.length,
+          headers: ['Name', 'Email', 'Company', 'Designation', 'Sector', 'Country']
+        });
+
+        campaign.listId = newList._id;
+        await Campaign.updateOne({ _id: campaign._id }, { listId: newList._id });
+        summary.listId = newList._id;
+        summary.selectedListId = newList._id;
+      }
+    }
 
     // Auto-resolve and enforce the original sender ID and project from the first sent email
     const firstSent = await CampaignSentEmail.findOne({ campaignId: campaign._id, status: 'sent' }).sort({ sentAt: 1 }).lean();

@@ -14,6 +14,15 @@ const CampaignSchema = new mongoose.Schema(
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate', required: false },
     draftType: { type: String, default: '' },
     draftId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailDraft', default: null, index: true },
+    parentCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', default: null, index: true },
+    replyMode: { type: String, default: '' },
+    threadMetadata: {
+      messageId: { type: String, default: '' },
+      internetMessageId: { type: String, default: '' },
+      conversationId: { type: String, default: '' },
+      threadId: { type: String, default: '' },
+      references: [{ type: String }]
+    },
     inlineTemplate: {
       subject: { type: String, default: '' },
       body: { type: String, default: '' },

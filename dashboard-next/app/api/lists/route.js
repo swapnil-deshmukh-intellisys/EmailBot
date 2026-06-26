@@ -4,6 +4,9 @@ import LeadList from '@/models/LeadList';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { activeListFilter, moveExpiredUploadsToBin } from '@/app/api/client-data/_retention';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function jsonError(status = 500, message = 'Failed to load lead lists.') {
   return NextResponse.json(
     { success: false, code: 'LEAD_LISTS_LOAD_FAILED', message, error: message },

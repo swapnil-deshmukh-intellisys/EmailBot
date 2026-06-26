@@ -9,6 +9,9 @@ import LeadList from '@/models/LeadList';
 
 import EmailTemplate from '@/models/EmailTemplate';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { resolveSenderAccountById } from '@/lib/senderAccounts';
 import { buildAuthOwnerFilter, requireAuth } from '@/lib/apiAuth';
 import { getRunnerState } from '@/lib/campaignRunner';
@@ -29,9 +32,6 @@ import {
 } from '@/core-lib/campaign-engine/CampaignAnalyticsService';
 import { normalizeDraftType } from '@/app/lib/draftTypes';
 import { buildEmailParts } from '../../../components/email/EmailRenderingSystem';
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const MIN_CAMPAIGN_SEND_GAP_SECONDS = 60;
 const MAX_SCHEDULE_DELAY_MINUTES = 1440;
@@ -379,7 +379,10 @@ export async function POST(req) {
       scheduledDate,
       scheduledTime,
       timezone,
-      country
+      country,
+      parentCampaignId,
+      replyMode,
+      threadMetadata
     } = body;
 
     if (!name || !listId) {
@@ -500,7 +503,7 @@ export async function POST(req) {
     });
     const inlineTemplateHtml = inlineTemplateParts.bodyHtml;
     const autoReplyMode = REPLY_CAMPAIGN_TYPES.has(campaignType);
-    const replyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
+    const isReplyMode = typeof options?.replyMode === 'boolean' ? options.replyMode : autoReplyMode;
     const total = Number(list.totalLeads || 0);
     const batchSize = Math.max(1, Math.floor(parsedBatchSize));
     const duplicateCampaign = await Campaign.findOne({
@@ -518,7 +521,7 @@ export async function POST(req) {
       'options.delayInterval': storedDelayInterval,
       'options.durationUnit': normalizedDurationUnit,
       'options.delaySeconds': convertedDelaySeconds,
-      'options.replyMode': replyMode
+      'options.replyMode': isReplyMode
     }).lean();
 
     if (duplicateCampaign) {
@@ -542,6 +545,9 @@ export async function POST(req) {
 
       draftType: campaignType,
       draftId: draftId || null,
+      parentCampaignId: parentCampaignId || null,
+      replyMode: replyMode || '',
+      threadMetadata: threadMetadata || undefined,
 
       inlineTemplate: {
 

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import GraphOAuthAccount from '@/models/GraphOAuthAccount';
 import SenderAccount from '@/models/SenderAccount';
@@ -8,6 +8,9 @@ import WarmupAutoReplyLog from '@/models/WarmupAutoReplyLog';
 import { requireUser } from '@/lib/apiAuth';
 import { getRuntimeSenderAccounts } from '@/lib/senderAccounts';
 import { getWarmupAutoReplySetting, processWarmupAutoReplies } from '@/lib/warmupAutoReply';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const WARMUP_DRAFT_TYPE = 'cover_story';
 

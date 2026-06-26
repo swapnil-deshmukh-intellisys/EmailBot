@@ -1971,6 +1971,10 @@ a {
   overflow: visible;
 }
 
+.user-avatar-img {
+  object-fit: cover;
+}
+
 .dashboard-profile-photo-input {
   position: absolute;
   width: 1px;

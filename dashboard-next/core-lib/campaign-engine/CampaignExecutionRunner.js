@@ -1250,7 +1250,30 @@ export async function startCampaignRunner(campaignId, options = {}) {
 
         const account = accounts[(campaign.stats.sent + campaign.stats.failed) % accounts.length];
         const selectedTemplate = inlineTemplate || templateFromDb;
-        const storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
+        let storedThread = await getStoredThreadForLead(lead, account, campaign.userEmail || '');
+        if (!storedThread && campaign.parentCampaignId) {
+          // Fallback: query original sent email from parent campaign to restore thread headers
+          const CampaignSentEmail = mongoose.model('CampaignSentEmail');
+          const parentSent = await CampaignSentEmail.findOne({
+            campaignId: campaign.parentCampaignId,
+            recipientEmail: recipientEmail
+          }).sort({ sentAt: -1 }).lean();
+          
+          if (parentSent) {
+            storedThread = {
+              messageId: parentSent.messageId || '',
+              internetMessageId: parentSent.internetMessageId || '',
+              conversationId: parentSent.conversationId || '',
+              threadId: parentSent.threadId || parentSent.conversationId || '',
+              subject: parentSent.subject || '',
+              recipientEmail,
+              to: Array.isArray(parentSent.to) ? parentSent.to : [recipientEmail],
+              cc: Array.isArray(parentSent.cc) ? parentSent.cc : [],
+              bcc: Array.isArray(parentSent.bcc) ? parentSent.bcc : [],
+              references: Array.isArray(parentSent.references) ? parentSent.references : []
+            };
+          }
+        }
         const replyContext = lead?.thread?.messageId ? lead.thread : storedThread;
         const senderSlot = await waitForSenderSendSlot(state, campaign, account, delayMs, lastHeartbeatAt);
         lastHeartbeatAt = senderSlot.lastHeartbeatAt;

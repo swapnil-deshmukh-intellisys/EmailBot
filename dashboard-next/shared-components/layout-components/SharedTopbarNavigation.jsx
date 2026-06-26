@@ -55,7 +55,7 @@ export function Topbar({
   const profileDropdownRef = useRef(null);
   const mobileFiltersRef = useRef(null);
 
-  const shouldLoadProfile = !profile?.email && !profile?.identifier && !profile?.name && !profile?.displayName && !profile?.avatarDataUrl;
+  const shouldLoadProfile = !profile?.avatarDataUrl;
   const resolvedProfile = {
     ...(loadedProfile || {}),
     ...(profile || {}),
@@ -90,7 +90,7 @@ export function Topbar({
   }, [resolvedProfile, router]);
 
   useEffect(() => {
-    if (profile && !shouldLoadProfile) return;
+    if (!shouldLoadProfile) return;
     let active = true;
     fetch('/api/profile', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
@@ -248,3 +248,4 @@ export function Topbar({
 }
 
 export default Topbar;
+
