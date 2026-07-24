@@ -18,7 +18,18 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: 'Selected sheet id is required.' }, { status: 400 });
     }
 
-    const list = await LeadList.findOne(buildAuthOwnerFilter(auth, { _id: listId })).select('_id name leads').lean();
+    const now = new Date();
+    const list = await LeadList.findOneAndUpdate(
+      buildAuthOwnerFilter(auth, { _id: listId }),
+      {
+        $set: {
+          'dataCenterMeta.lastUsedAt': now,
+          'dataCenterMeta.campaignLastUsedAt': now,
+          'dataCenterMeta.lastCampaignSelectionBy': String(auth.currentUser?.email || auth.currentUser?.identifier || auth.session?.email || '')
+        }
+      },
+      { new: true }
+    ).select('_id name leads project projectName projectId dataCenterMeta').lean();
     if (!list) {
       return NextResponse.json({ ok: false, error: 'Selected sheet was not found for this user.' }, { status: 404 });
     }
@@ -28,6 +39,9 @@ export async function POST(req) {
       listId: String(list._id),
       name: list.name,
       count: Array.isArray(list.leads) ? list.leads.length : 0,
+      clientIds: Array.isArray(list.leads) ? list.leads.map((lead, index) => String(lead._id || lead.id || lead.Email || lead.email || index)).filter(Boolean) : [],
+      project: list.project || list.projectName || list.projectId || '',
+      lastUsed: list.dataCenterMeta?.lastUsedAt || list.dataCenterMeta?.campaignLastUsedAt || null,
       redirectUrl: '/campaigns'
     });
   } catch (error) {

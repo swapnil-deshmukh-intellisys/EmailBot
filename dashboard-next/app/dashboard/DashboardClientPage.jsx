@@ -31,6 +31,7 @@ import { TEMP_LOGIN_ACCOUNTS } from '../lib/dashboardRoles';
 import { inferDraftTypeFromDraft, normalizeDraftType } from '@/app/lib/draftTypes';
 import { buildEmailHtml } from '../../components/email/EmailRenderingSystem';
 import PremiumDashboardShell from './components/PremiumDashboardShell';
+import ExactDashboardPage from './components/ExactDashboardPage';
 import CampaignDetailsDrawer from '@/modules/campaign-module/campaign-components/CampaignDetailsDrawer';
 // import ScriptManager from "../dashboard/ScriptManager";
 
@@ -470,6 +471,8 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [activeAccount, setActiveAccount] = useState('');
+  const [dashboardTasks, setDashboardTasks] = useState([]);
+  const [dashboardTasksLoading, setDashboardTasksLoading] = useState(false);
   const [showAllUserActivity, setShowAllUserActivity] = useState(true);
   const [profileUser, setProfileUser] = useState({ email: '', role: '', displayName: '' });
   const [profileAvatarDataUrl, setProfileAvatarDataUrl] = useState('');
@@ -1425,7 +1428,7 @@ const handleDeleteDraft = async (draft) => {
         setActiveSavedDraftId(result.draft._id);
       }
       notify(isUpdatingExistingDraft ? 'Draft updated successfully.' : 'Draft added successfully.', 'success');
-      return { ok: true };
+      return { ok: true, draft: result.draft || result };
     } catch (err) {
       notify(err.message || 'Failed to save draft', 'error');
       throw err;
@@ -1712,59 +1715,84 @@ const handleDeleteDraft = async (draft) => {
     .map(({ _reply, ...item }) => item);
   const timelineCards = useMemo(() => {
     const sourceCampaigns = Array.isArray(campaigns) ? campaigns : [];
-    const campaignActivityCards = sourceCampaigns
-      .slice()
-      .sort((a, b) => {
-        const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime() || 0;
-        const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime() || 0;
-        return bTime - aTime;
-      })
-      .flatMap((campaign, index) => {
-        const rawStatus = String(campaign?.status || campaign?.tag || 'Pending').trim() || 'Pending';
-        const normalizedStatus = rawStatus.toLowerCase();
-        const campaignName = String(campaign?.name || campaign?.campaignName || `Campaign ${index + 1}`).trim();
-        const eventDate = campaign?.updatedAt || campaign?.createdAt || new Date();
-        const date = new Date(eventDate);
-        const dateLabel = Number.isNaN(date.getTime()) ? new Date().toLocaleDateString('en-GB') : date.toLocaleDateString('en-GB');
-        const timeLabel = Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const total = Number(campaign?.stats?.total || campaign?.totalRecipients || campaign?.total || 0);
-        const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
-        const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
-        const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
-        const statusType =
-          normalizedStatus === 'paused' ? 'Paused' :
-          normalizedStatus === 'completed' ? 'Completed' :
-          normalizedStatus === 'failed' ? 'Failed' :
-          normalizedStatus === 'draft' ? 'Draft' :
-          pending > 0 ? 'Pending' :
-          ACTIVE_CAMPAIGN_STATUSES.has(rawStatus) ? 'Active' :
-          rawStatus;
-        const cards = [{
-          id: `campaign-activity-${campaign?._id || campaign?.id || index}`,
-          date: dateLabel,
-          time: timeLabel,
-          title: `${statusType}: ${campaignName}`,
-          type: statusType,
-          text: `${sent} sent, ${pending} pending, ${failed} failed${total ? ` out of ${total}` : ''}.`,
-          status: normalizedStatus === 'completed' ? 'done' : normalizedStatus === 'failed' ? 'failed' : 'pending',
-          done: normalizedStatus === 'completed'
-        }];
-        if (pending > 0 && normalizedStatus !== 'completed') {
-          cards.push({
-            id: `campaign-pending-${campaign?._id || campaign?.id || index}`,
+    const allCards = [];
+
+    sourceCampaigns.forEach((campaign, index) => {
+      const campaignName = String(campaign?.name || campaign?.campaignName || `Campaign ${index + 1}`).trim();
+      const rawStatus = String(campaign?.status || campaign?.tag || 'Pending').trim() || 'Pending';
+      const normalizedStatus = rawStatus.toLowerCase();
+
+      // 1. Add individual client logs if present
+      if (Array.isArray(campaign?.logs)) {
+        campaign.logs.forEach((log, logIdx) => {
+          const rawMessage = String(log?.message || '').trim();
+          const logDate = log?.at ? new Date(log.at) : new Date();
+          const dateLabel = Number.isNaN(logDate.getTime()) ? new Date().toLocaleDateString('en-GB') : logDate.toLocaleDateString('en-GB');
+          const timeLabel = Number.isNaN(logDate.getTime()) ? '' : logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const timestamp = logDate.getTime() || 0;
+
+          let status = 'pending';
+          let type = 'Info';
+          if (/^sent:/i.test(rawMessage) || /sent/i.test(rawMessage)) {
+            status = 'complete';
+            type = 'Sent';
+          } else if (/failed/i.test(rawMessage) || /^fail/i.test(rawMessage)) {
+            status = 'failed';
+            type = 'Failed';
+          } else if (/sending/i.test(rawMessage)) {
+            status = 'running';
+            type = 'Sending';
+          }
+
+          allCards.push({
+            id: `log-activity-${campaign?._id || campaign?.id || index}-${logIdx}`,
             date: dateLabel,
             time: timeLabel,
-            title: `Pending mails: ${campaignName}`,
-            type: 'Pending',
-            text: `${pending} mails pending. Use campaign actions to pause, resume, or stop sending.`,
-            status: 'pending',
-            done: false
+            title: `${type}: ${campaignName}`,
+            type: type,
+            text: rawMessage,
+            status: status === 'complete' ? 'done' : status === 'failed' ? 'failed' : 'pending',
+            done: status === 'complete',
+            timestamp
           });
-        }
-        return cards;
-      });
+        });
+      }
 
-    if (campaignActivityCards.length) return campaignActivityCards.slice(0, 16);
+      // 2. Add the campaign-level card
+      const eventDate = campaign?.updatedAt || campaign?.createdAt || new Date();
+      const date = new Date(eventDate);
+      const dateLabel = Number.isNaN(date.getTime()) ? new Date().toLocaleDateString('en-GB') : date.toLocaleDateString('en-GB');
+      const timeLabel = Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const total = Number(campaign?.stats?.total || campaign?.totalRecipients || campaign?.total || 0);
+      const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+      const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
+      const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
+      const statusType =
+        normalizedStatus === 'paused' ? 'Paused' :
+        normalizedStatus === 'completed' ? 'Completed' :
+        normalizedStatus === 'failed' ? 'Failed' :
+        normalizedStatus === 'draft' ? 'Draft' :
+        pending > 0 ? 'Pending' :
+        ACTIVE_CAMPAIGN_STATUSES.has(rawStatus) ? 'Active' :
+        rawStatus;
+
+      allCards.push({
+        id: `campaign-activity-${campaign?._id || campaign?.id || index}`,
+        date: dateLabel,
+        time: timeLabel,
+        title: `${statusType}: ${campaignName}`,
+        type: statusType,
+        text: `${sent} sent, ${pending} pending, ${failed} failed${total ? ` out of ${total}` : ''}.`,
+        status: normalizedStatus === 'completed' ? 'done' : normalizedStatus === 'failed' ? 'failed' : 'pending',
+        done: normalizedStatus === 'completed',
+        timestamp: date.getTime() || 0
+      });
+    });
+
+    // Sort all cards by timestamp descending
+    allCards.sort((a, b) => b.timestamp - a.timestamp);
+
+    if (allCards.length) return allCards.slice(0, 30);
 
     return [{
       id: 'timeline-pipeline-empty',
@@ -2440,6 +2468,96 @@ const handleDeleteDraft = async (draft) => {
     return data;
   };
 
+  const loadDashboardTasks = useCallback(async () => {
+    try {
+      setDashboardTasksLoading(true);
+      const data = await safeFetchJson('/api/tasks?range=all');
+      setDashboardTasks(Array.isArray(data.tasks) ? data.tasks : []);
+    } catch (error) {
+      if (String(error?.message || '') === 'Unauthorized') {
+        router.replace('/login');
+        return;
+      }
+      notify(error.message || 'Failed to load notes and tasks.', 'error');
+    } finally {
+      setDashboardTasksLoading(false);
+    }
+  }, [router]);
+
+  const createDashboardTask = useCallback(async (kind = 'Task') => {
+    const title = window.prompt(`Add ${kind}`, '');
+    if (!String(title || '').trim()) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const data = await safeFetchJson('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: String(title || '').trim(),
+          priority: kind === 'Reminder' ? 'High' : 'Medium',
+          status: 'Pending',
+          dueDate: today,
+          projectName: project ? String(project).toUpperCase() : '',
+          notes: kind === 'Note' ? String(title || '').trim() : ''
+        })
+      });
+      if (data.task) setDashboardTasks((items) => [data.task, ...items]);
+      notify(`${kind} saved.`, 'success');
+    } catch (error) {
+      notify(error.message || `Failed to save ${kind.toLowerCase()}.`, 'error');
+    }
+  }, [project]);
+
+  const editDashboardTask = useCallback(async (task) => {
+    const taskId = task?.id || task?._id;
+    if (!taskId) return;
+    const title = window.prompt('Edit item', task.title || '');
+    if (!String(title || '').trim() || title === task.title) return;
+    try {
+      const data = await safeFetchJson(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: String(title || '').trim() })
+      });
+      if (data.task) {
+        setDashboardTasks((items) => items.map((item) => String(item.id || item._id) === String(taskId) ? data.task : item));
+      }
+      notify('Item updated.', 'success');
+    } catch (error) {
+      notify(error.message || 'Failed to update item.', 'error');
+    }
+  }, []);
+
+  const deleteDashboardTask = useCallback(async (task) => {
+    const taskId = task?.id || task?._id;
+    if (!taskId || !window.confirm('Delete this item?')) return;
+    try {
+      await safeFetchJson(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      setDashboardTasks((items) => items.filter((item) => String(item.id || item._id) !== String(taskId)));
+      notify('Item deleted.', 'success');
+    } catch (error) {
+      notify(error.message || 'Failed to delete item.', 'error');
+    }
+  }, []);
+
+  const completeDashboardTask = useCallback(async (task) => {
+    const taskId = task?.id || task?._id;
+    if (!taskId) return;
+    const nextStatus = String(task.status || '').toLowerCase() === 'completed' ? 'Pending' : 'Completed';
+    try {
+      const data = await safeFetchJson(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (data.task) {
+        setDashboardTasks((items) => items.map((item) => String(item.id || item._id) === String(taskId) ? data.task : item));
+      }
+      notify(nextStatus === 'Completed' ? 'Item marked complete.' : 'Item reopened.', 'success');
+    } catch (error) {
+      notify(error.message || 'Failed to update item status.', 'error');
+    }
+  }, []);
   const buildStatsUrl = (filterOverrides = {}) => {
     const effectiveDate =
       filterOverrides.selectedStatsDate !== undefined
@@ -2458,16 +2576,21 @@ const handleDeleteDraft = async (draft) => {
         ? filterOverrides.customStatsEndDate
         : customStatsEndDate;
 
+    const params = new URLSearchParams();
+    if (project) {
+      params.set('project', String(project).trim().toLowerCase());
+    }
     if (effectiveRange === 'customize' && effectiveCustomStartDate && effectiveCustomEndDate) {
-      return `/api/stats?range=customize&startDate=${encodeURIComponent(effectiveCustomStartDate)}&endDate=${encodeURIComponent(effectiveCustomEndDate)}`;
+      params.set('range', 'customize');
+      params.set('startDate', effectiveCustomStartDate);
+      params.set('endDate', effectiveCustomEndDate);
+    } else if (effectiveRange) {
+      params.set('range', effectiveRange);
+    } else if (effectiveDate) {
+      params.set('date', effectiveDate);
     }
-    if (effectiveRange) {
-      return `/api/stats?range=${encodeURIComponent(effectiveRange)}`;
-    }
-    if (effectiveDate) {
-      return `/api/stats?date=${encodeURIComponent(effectiveDate)}`;
-    }
-    return '/api/stats';
+    const qs = params.toString();
+    return qs ? `/api/stats?${qs}` : '/api/stats';
   };
 
   const buildCampaignsUrl = () => {
@@ -2475,9 +2598,6 @@ const handleDeleteDraft = async (draft) => {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}limit=80`;
     };
-    if (showAllUserActivity) {
-      return appendLimit('/api/campaigns');
-    }
     const params = new URLSearchParams();
     if (project) {
       params.set('project', String(project).trim().toLowerCase());
@@ -2710,6 +2830,9 @@ const handleDeleteDraft = async (draft) => {
   useEffect(() => {
     loadAll();
   }, [showAllUserActivity, project, selectedAccount, activeAccount, selectedStatsDate, selectedStatsRange, customStatsStartDate, customStatsEndDate]);
+  useEffect(() => {
+    loadDashboardTasks();
+  }, [loadDashboardTasks]);
 
   useEffect(() => {
     if (historyCampaigns.length > 0) {
@@ -3637,9 +3760,17 @@ const normalizeSelectedListEmails = async () => {
       ? previewColumns
       : Array.from(new Set(preview.flatMap((row) => Object.keys(row || {})).filter(Boolean)));
 
-  const addPreviewRow = (afterIndex = null) => {
+  const addPreviewRow = (afterIndex = null, initialRow = {}) => {
     const columns = getPreviewColumns();
-    const newRow = Object.fromEntries(columns.map((column) => [column, '']));
+    const safeInitialRow = initialRow && typeof initialRow === 'object' ? initialRow : {};
+    const nextColumns = Array.from(new Set([...columns, ...Object.keys(safeInitialRow).filter(Boolean)]));
+    const newRow = Object.fromEntries(nextColumns.map((column) => [column, safeInitialRow[column] ?? '']));
+    if (nextColumns.length !== columns.length) {
+      setPreviewColumns((current) => {
+        const baseColumns = current.length ? current : columns;
+        return Array.from(new Set([...baseColumns, ...nextColumns]));
+      });
+    }
     setPreview((prev) => {
       const insertIndex = Number.isInteger(afterIndex)
         ? Math.max(0, Math.min(prev.length, afterIndex + 1))
@@ -3862,7 +3993,207 @@ const normalizeSelectedListEmails = async () => {
   );
 
   const showSidebarBlankView = Boolean(activeSidebarView);
+  const formatExactDateTimeParts = (value) => {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return { time: '-', date: '-' };
+    return {
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    };
+  };
 
+  const exactStatsItems = useMemo(() => {
+    const totals = (performanceCampaigns || []).reduce((acc, item) => {
+      acc.total += Number(item.total || 0);
+      acc.sent += Number(item.sent || 0);
+      acc.pending += Number(item.pending || 0);
+      acc.failed += Number(item.failed || 0);
+      acc.bounced += Number(item.bounced || 0);
+      acc.spam += Number(item.spam || 0);
+      return acc;
+    }, { total: 0, sent: 0, pending: 0, failed: 0, bounced: 0, spam: 0 });
+    const safeTotal = Math.max(1, totals.total || totals.sent);
+    const rate = (value) => `${Math.round((Number(value || 0) / safeTotal) * 1000) / 10}%`;
+    return [
+      ['Total Sent', Number(totals.sent || 0).toLocaleString(), `${rate(totals.sent)} of filtered campaign mail`, 'ti-send', 'purple'],
+      ['Delivered', Number(totals.sent || 0).toLocaleString(), `${rate(totals.sent)} delivery rate`, 'ti-circle-check-filled', 'green'],
+      ['Pending', Number(totals.pending || 0).toLocaleString(), 'campaigns in queue', 'ti-clock-filled', 'orange'],
+      ['Failed', Number(totals.failed || 0).toLocaleString(), `${rate(totals.failed)} failure rate`, 'ti-circle-x-filled', 'red'],
+      ['Bounced', Number(totals.bounced || 0).toLocaleString(), `${rate(totals.bounced)} bounce rate`, 'ti-shield-filled', 'blue'],
+      ['Spam Complaints', Number(totals.spam || 0).toLocaleString(), `${rate(totals.spam)} complaint rate`, 'ti-alert-triangle-filled', 'amber']
+    ];
+  }, [performanceCampaigns]);
+
+  const exactDailyCounts = useMemo(() => {
+    const byDay = new Map();
+    (performanceCampaigns || []).forEach((item) => {
+      const rawDate = item.createdDate || item.publishDate || item.scheduledDate || '';
+      const parsed = rawDate ? new Date(rawDate) : null;
+      const key = parsed && !Number.isNaN(parsed.getTime())
+        ? parsed.toISOString().slice(0, 10)
+        : String(item.publishDate || 'Unknown');
+      byDay.set(key, Number(byDay.get(key) || 0) + Number(item.sent || 0));
+    });
+    const rows = Array.from(byDay.entries())
+      .sort(([a], [b]) => String(a).localeCompare(String(b)))
+      .slice(-10)
+      .map(([day, value]) => {
+        const parsed = new Date(day);
+        return {
+          label: parsed && !Number.isNaN(parsed.getTime())
+            ? parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+            : day,
+          value
+        };
+      });
+    if (rows.length) return rows;
+    const counts = Array.isArray(stats?.dailyMailCounts) ? stats.dailyMailCounts : [];
+    return counts.slice(-10).map((item) => ({
+      label: String(item?.date || item?.day || item?.label || '').slice(0, 6) || 'Day',
+      value: Number(item?.count || item?.sent || item?.value || 0)
+    }));
+  }, [performanceCampaigns, stats?.dailyMailCounts]);
+  const exactStatusLegend = useMemo(() => {
+    const colors = { Running: '#10b981', Scheduled: '#2563eb', Paused: '#f59e0b', Draft: '#cbd5e1' };
+    const counts = { Running: 0, Scheduled: 0, Paused: 0, Draft: 0 };
+    (campaigns || []).forEach((campaign) => {
+      const status = String(campaign?.displayStatus || campaign?.status || 'Draft').trim().toLowerCase();
+      if (status === 'running' || status === 'queued' || status === 'active') counts.Running += 1;
+      else if (status === 'scheduled') counts.Scheduled += 1;
+      else if (status === 'paused') counts.Paused += 1;
+      else counts.Draft += 1;
+    });
+    const total = Math.max(1, Object.values(counts).reduce((sum, value) => sum + value, 0));
+    return Object.entries(counts).map(([label, count]) => [label, colors[label], `${count} (${Math.round((count / total) * 1000) / 10}%)`, count]);
+  }, [campaigns]);
+
+  const exactCampaignRows = useMemo(() => performanceCampaigns.slice(0, 7).map((item) => ({
+    id: item.id,
+    name: item.name,
+    type: item.tag || item.status || 'Campaign',
+    project: item.project || '-',
+    status: item.status || 'Unknown',
+    recipients: Number(item.total || 0) || '-',
+    sent: Number(item.sent || 0) || 0,
+    openRate: item.sent ? `${Math.round((Number(item.open || 0) / Math.max(1, Number(item.sent || 0))) * 1000) / 10}%` : '-',
+    replyRate: item.sent ? `${Math.round((Number(item.replies || item.reply || 0) / Math.max(1, Number(item.sent || 0))) * 1000) / 10}%` : '-',
+    scheduled: item.scheduledDate || '-',
+    raw: item
+  })), [performanceCampaigns]);
+
+  const projectFilteredTasks = useMemo(() => {
+    const selectedProject = String(project || '').trim().toLowerCase();
+    return (dashboardTasks || []).filter((task) => {
+      if (!selectedProject) return true;
+      return String(task?.project || task?.projectName || '').trim().toLowerCase() === selectedProject;
+    });
+  }, [dashboardTasks, project]);
+
+  const exactTodoStats = useMemo(() => {
+    const all = projectFilteredTasks.length;
+    const completed = projectFilteredTasks.filter((task) => String(task.status || '').toLowerCase() === 'completed').length;
+    const overdue = projectFilteredTasks.filter((task) => String(task.status || '').toLowerCase() === 'overdue').length;
+    const pending = Math.max(0, all - completed);
+    return { all, pending, completed, overdue };
+  }, [projectFilteredTasks]);
+
+  const exactTodoItems = useMemo(() => projectFilteredTasks.slice(0, 6).map((task) => {
+    const due = task?.dueDate ? new Date(task.dueDate) : null;
+    const dueLabel = due && !Number.isNaN(due.getTime())
+      ? `${due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}${task.dueTime ? `, ${task.dueTime}` : ''}`
+      : (task?.dueTime || 'No date');
+    return {
+      id: task.id || task._id,
+      title: task.title || 'Untitled task',
+      time: dueLabel,
+      priority: task.priority || 'Medium',
+      status: task.status || 'Pending',
+      notes: task.notes || '',
+      raw: task
+    };
+  }), [projectFilteredTasks]);
+
+  const exactScheduleItems = useMemo(() => (campaigns || [])
+    .filter((campaign) => {
+      const status = String(campaign?.displayStatus || campaign?.status || '').toLowerCase();
+      return status === 'scheduled' || campaign?.scheduledAt || campaign?.schedule?.scheduledAt;
+    })
+    .slice()
+    .sort((a, b) => new Date(a?.scheduledAt || a?.schedule?.scheduledAt || a?.createdAt || 0) - new Date(b?.scheduledAt || b?.schedule?.scheduledAt || b?.createdAt || 0))
+    .slice(0, 5)
+    .map((campaign) => {
+      const parts = formatExactDateTimeParts(campaign?.scheduledAt || campaign?.schedule?.scheduledAt || campaign?.createdAt);
+      const projectName = inferProjectKeyFromCampaign(campaign, project).toUpperCase();
+      const total = Number(campaign?.stats?.total || campaign?.totalRecipients || campaign?.total || 0);
+      return { id: campaign?._id || campaign?.id, time: parts.time, date: parts.date, title: campaign?.name || 'Scheduled campaign', meta: `${projectName || 'Project'} Project - ${total.toLocaleString()} Recipients`, raw: campaign };
+    }), [campaigns, project]);
+
+  const exactActivityItems = useMemo(() => (campaigns || [])
+    .slice()
+    .sort((a, b) => {
+      const aTime = new Date(a?.updatedAt || a?.finishedAt || a?.startedAt || a?.scheduledAt || a?.createdAt || 0).getTime();
+      const bTime = new Date(b?.updatedAt || b?.finishedAt || b?.startedAt || b?.scheduledAt || b?.createdAt || 0).getTime();
+      return bTime - aTime;
+    })
+    .slice(0, 6)
+    .map((campaign, index) => {
+      const eventValue = campaign?.updatedAt || campaign?.finishedAt || campaign?.startedAt || campaign?.scheduledAt || campaign?.createdAt;
+      const parts = formatExactDateTimeParts(eventValue);
+      const rawStatus = String(campaign?.displayStatus || campaign?.status || 'Campaign').trim() || 'Campaign';
+      const status = rawStatus.toLowerCase();
+      const name = campaign?.name || campaign?.campaignName || `Campaign ${index + 1}`;
+      const total = Number(campaign?.stats?.total || campaign?.totalRecipients || campaign?.total || 0);
+      const sent = Number(campaign?.sentCount ?? campaign?.stats?.sent ?? 0);
+      const failed = Number(campaign?.failedCount ?? campaign?.stats?.failed ?? 0);
+      const pending = Number(campaign?.pendingCount ?? campaign?.stats?.pending ?? Math.max(total - sent - failed, 0));
+      const tone = status.includes('complete') || status.includes('running') || status.includes('sent')
+        ? 'green'
+        : status.includes('fail') || status.includes('stop')
+          ? 'red'
+          : status.includes('draft')
+            ? 'slate'
+            : 'blue';
+      const icon = tone === 'green' ? 'ti-send' : tone === 'red' ? 'ti-alert-triangle' : tone === 'blue' ? 'ti-pencil' : 'ti-link';
+      return {
+        id: `${campaign?._id || campaign?.id || name}-${index}`,
+        time: parts.time,
+        date: parts.date,
+        title: `${rawStatus}: ${name}`,
+        meta: `${sent} sent, ${pending} pending, ${failed} failed${total ? ` out of ${total}.` : '.'}`,
+        icon,
+        tone,
+        raw: campaign
+      };
+    }), [campaigns]);
+  const openExactWorkflowStep = (indexOrStep = 0, title = '') => {
+    const normalizedTitle = String(title || '').trim().toLowerCase();
+    const titleStepMap = {
+      'upload list': 1,
+      upload: 1,
+      review: 2,
+      'review list': 2,
+      campaign: 3,
+      drafts: 4,
+      draft: 4,
+      'select draft': 4,
+      summary: 5,
+      'draft summary': 5,
+      'test email': 6,
+      test: 6,
+      schedule: 7,
+      'schedule sending': 7
+    };
+    const numeric = Number(indexOrStep);
+    const indexBasedStep = Number.isFinite(numeric)
+      ? Math.max(1, Math.min(workflowSteps.length, Math.trunc(numeric) + 1))
+      : 1;
+    const step = titleStepMap[normalizedTitle] || indexBasedStep;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dashboard:open-workflow-step', {
+        detail: { step: Math.max(1, Math.min(workflowSteps.length, step || 1)), title }
+      }));
+    }
+  };
   if (!isMounted) {
     return (
       <main className="dashboard-shell">
@@ -3883,6 +4214,183 @@ const normalizeSelectedListEmails = async () => {
       </main>
     );
   }
+
+  return (
+    <main className="dashboard-shell dashboard-exact-only">
+      <ExactDashboardPage
+        onCreateCampaign={() => createAndStartCampaign()}
+        onNavigate={(href) => router.push(href)}
+        onSidebarToggle={() => setSidebarOpen((current) => !current)}
+        user={{ name: profileDisplayName, role: profileRoleLabel, initials: profileInitials, avatar: profileAvatarDataUrl }}
+        topbar={{
+          project,
+          projectOptions,
+          selectedSenderAccountId: selectedAccount,
+          senderAccounts: projectAccounts,
+          selectedRange: selectedStatsRange,
+          rangeLabel: reportRangeLabel,
+          rangeOptions: SUMMARY_RANGES,
+          notificationCount: logs.length
+        }}
+        onProjectChange={(value) => {
+          if (value === '__add__') addProjectOption();
+          else selectProject(value);
+        }}
+        onSenderChange={selectTopbarMail}
+        onRangeChange={applyRangeSelection}
+        statsItems={exactStatsItems}
+        workflowItems={workflowSteps.map((step) => [step.title.replace('Review List', 'Review').replace('Select Draft', 'Drafts').replace('Schedule Sending', 'Schedule'), step.action, step.index === 1 ? 'ti-upload' : step.index === 2 ? 'ti-users' : step.index === 3 ? 'ti-megaphone' : step.index === 4 ? 'ti-file-text' : step.index === 5 ? 'ti-layout-list' : step.index === 6 ? 'ti-mail-check' : 'ti-calendar-event'])}
+        onWorkflowStep={openExactWorkflowStep}
+        dailyCounts={exactDailyCounts}
+        statusLegend={exactStatusLegend}
+        totalCampaigns={campaigns.length}
+        campaignRows={exactCampaignRows}
+        onCampaignAction={(campaign) => {
+          const id = campaign?.id || campaign?.raw?.id || campaign?.raw?._id;
+          if (id) setSelectedCampaignId(id);
+        }}
+        todoItems={exactTodoItems}
+        todoStats={exactTodoStats}
+        todoLoading={dashboardTasksLoading}
+        onTodoAdd={createDashboardTask}
+        onTodoEdit={(item) => editDashboardTask(item.raw || item)}
+        onTodoDelete={(item) => deleteDashboardTask(item.raw || item)}
+        onTodoComplete={(item) => completeDashboardTask(item.raw || item)}
+        onTodoViewAll={() => router.push('/dashboard/user?view=todo')}
+        scheduleItems={exactScheduleItems}
+        onScheduleViewAll={() => router.push('/campaigns?status=scheduled')}
+        activityItems={exactActivityItems}
+        onActivityViewAll={() => router.push('/dashboard/user?view=timeline')}
+      />
+
+      <div style={{ display: 'none' }} aria-hidden="true">
+      <PremiumDashboardShell
+        reportDateLabel={reportDateLabel}
+        reportRangeLabel={reportRangeLabel}
+        reportMetricCards={reportMetricCards}
+        dailyMailCounts={stats.dailyMailCounts}
+        workflowSteps={workflowSteps}
+        completionRate={completionRate}
+        totalTrackedMails={totalTrackedMails}
+        notificationCards={notificationCards}
+        timelineCards={timelineCards}
+        timelineTaskStates={profileTimelineTasks}
+        onTimelineTaskStatesChange={handleTimelineTaskStateChange}
+        timelineCustomTasks={profileTimelineCustomTasks}
+        onTimelineCustomTaskAdd={handleTimelineCustomTaskAdd}
+        performanceCampaigns={performanceCampaigns}
+        campaignRefreshing={campaignRefreshing}
+        onRefreshCampaigns={() => refreshCampaignData({ source: 'manual-button' })}
+        calendarDays={calendarDays}
+        selectedAccountLabel={selectedAccountLabel}
+        senderAccounts={accounts}
+        selectedSenderAccountId={selectedAccount}
+        onSelectSenderAccount={(accountId) => {
+          setSelectedAccount(accountId);
+          const nextAccount = accounts.find((account) => account.id === accountId);
+          setActiveAccount(nextAccount?.from || '');
+        }}
+        senderEmptyMessage={
+          project
+            ? `No sender IDs added for this project.`
+            : 'No sender IDs available.'
+        }
+        project={project}
+        projectOptions={projectOptions}
+        barChartMetrics={barChartMetrics}
+        logs={logs}
+        workspaceOverviewItems={workspaceOverviewItems}
+        activeCampaign={activeCampaign}
+        activeCampaignProgressText={progressText}
+        lists={lists}
+        selectedListId={selectedListId}
+        selectedListName={selectedListName}
+        previewRows={preview}
+        previewColumns={previewColumns}
+        previewLoading={selectedListLoading}
+        onPreviewCellChange={updatePreviewCell}
+        onPreviewAddRow={addPreviewRow}
+        onPreviewAddColumn={addPreviewColumn}
+        onPreviewDeleteRow={deletePreviewRow}
+        onPreviewDeleteColumn={deletePreviewColumn}
+        onPreviewRenameColumn={renamePreviewColumn}
+        onPreviewSave={savePreviewEdits}
+        previewDirty={previewDirty}
+        onUploadFile={onUpload}
+        onSelectList={selectWorkflowList}
+        draftOptions={savedDrafts}
+        activeDraftId={activeSavedDraftId || ''}
+        onSelectSavedDraft={handleSavedDraftSelectById}
+        onSaveDraft={saveCurrentDraftScript}
+        draftSubject={draftSubject}
+        onDraftSubjectChange={setDraftSubject}
+        draftBody={draftBody}
+        onDraftBodyChange={setDraftBody}
+        testEmailTo={testEmailTo}
+        onTestEmailToChange={setTestEmailTo}
+        onSendTestEmail={sendTestEmail}
+        campaignName={campaignName}
+        onCampaignNameChange={setCampaignName}
+        selectedDraftType={selectedDraft}
+        onSelectedDraftTypeChange={setSelectedDraft}
+        onOpenReportRangePopup={() => setShowCustomRangePopup(true)}
+        onApplyReportRange={applyRangeSelection}
+        batchSize={batchSize}
+        onBatchSizeChange={setBatchSize}
+        rowRange={rowRange}
+        onRowRangeChange={setRowRange}
+        delaySeconds={delaySeconds}
+        onDelaySecondsChange={setDelaySeconds}
+        initialScheduleMode={scheduleMode}
+        initialScheduledDateValue={scheduledDateValue}
+        initialScheduledTimeValue={scheduledTimeValue}
+        initialScheduleTimezone={scheduleTimezone}
+        initialDurationUnit={durationUnit}
+        onCreateCampaign={createCampaign}
+        scheduledCountry={
+          String(scheduledCountry || '').toLowerCase() === 'usa'
+            ? 'USA'
+            : String(scheduledCountry || '').toLowerCase() === 'uk'
+              ? 'UK'
+              : String(scheduledCountry || '').toLowerCase() === 'uae'
+                ? 'UAE'
+                : String(scheduledCountry || '').charAt(0).toUpperCase() + String(scheduledCountry || '').slice(1)
+        }
+        onScheduledCountryChange={(value) => {
+          setScheduledCountry(String(value || '').toLowerCase());
+          setScheduledSlot('');
+        }}
+        scheduledSlot={scheduledSlot}
+        onScheduledSlotChange={setScheduledSlot}
+        manualScheduledSlot={manualScheduledSlot}
+        onManualScheduledSlotChange={setManualScheduledSlot}
+        onApplyManualScheduledSlot={applyPremiumShellScheduledTime}
+        onSaveSchedule={saveCampaignSchedule}
+        onStartCampaign={createAndStartCampaign}
+        onCampaignStartSuccess={resetCampaignWorkflowDraft}
+        onPauseCampaign={pauseCampaign}
+        onResumeCampaign={resumeCampaign}
+        onStopCampaign={stopCampaign}
+        onDeleteCampaign={deleteCampaign}
+          onShowMessage={notify}
+          creditSummary={profileCredits}
+          targetApprovalStatus={profileCredits.targetApprovalStatus}
+          targetApprovalRequestedAt={profileCredits.targetApprovalRequestedAt}
+          targetApprovalReviewedAt={profileCredits.targetApprovalReviewedAt}
+          targetApprovalReviewer={profileCredits.targetApprovalReviewer}
+          targetApprovalRequestNote={profileCredits.targetApprovalRequestNote}
+          onViewCampaignDetail={(campaignId, replyTarget = null) => {
+            setSelectedCampaignId(campaignId);
+            setCampaignReplyPrefill({
+              mode: String(replyTarget?.mode || '').trim(),
+              recipientEmail: String(replyTarget?.recipientEmail || '').trim(),
+              recipientLogId: String(replyTarget?.recipientLogId || '').trim()
+            });
+          }}
+        />
+      </div>
+    </main>
+  );
 
   return (
     <main
@@ -5235,7 +5743,1395 @@ const normalizeSelectedListEmails = async () => {
             max-width: 100% !important;
           }
         }
-      `}</style>
+
+        /* Final dashboard reference layer. Keep this last: it overrides legacy inline shell rules. */
+        html body main.dashboard-shell {
+          --dash-sidebar-width: 220px !important;
+          --dash-topbar-height: 66px !important;
+          background: #ffffff !important;
+          color: #071333 !important;
+        }
+
+        html body main.dashboard-shell > aside.sidebar.dashboard-sidebar {
+          width: 220px !important;
+          min-width: 220px !important;
+          max-width: 220px !important;
+          background: #ffffff !important;
+          border-right: 1px solid #e8ecf5 !important;
+          box-shadow: none !important;
+        }
+
+        html body main.dashboard-shell .dashboard-sidebar-card {
+          width: 100% !important;
+          height: 100% !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: #ffffff !important;
+        }
+
+        html body main.dashboard-shell .dashboard-brand {
+          height: 66px !important;
+          padding: 0 18px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 9px !important;
+          border: 0 !important;
+        }
+
+        html body main.dashboard-shell .logo-mark {
+          width: 29px !important;
+          height: 29px !important;
+          border-radius: 8px !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          font-size: 16px !important;
+        }
+
+        html body main.dashboard-shell .logo-text {
+          font-size: 18px !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          letter-spacing: -.02em !important;
+          color: #071333 !important;
+        }
+
+        html body main.dashboard-shell .logo-sub {
+          display: block !important;
+          margin-top: 2px !important;
+          font-size: 9px !important;
+          letter-spacing: .12em !important;
+          color: #94a3b8 !important;
+          font-weight: 800 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-sidebar-search {
+          display: block !important;
+          margin: 7px 15px 18px !important;
+        }
+
+        html body main.dashboard-shell .dashboard-sidebar-search .search-wrap {
+          height: 32px !important;
+          border: 1px solid #e8ecf5 !important;
+          border-radius: 8px !important;
+          background: #fbfcff !important;
+          box-shadow: none !important;
+        }
+
+        html body main.dashboard-shell .dashboard-sidebar-nav {
+          height: calc(100vh - 66px) !important;
+          padding: 0 !important;
+          overflow-y: auto !important;
+        }
+
+        html body main.dashboard-shell .reference-nav-label {
+          margin: 16px 22px 8px !important;
+          color: #7b86a4 !important;
+          font-size: 10px !important;
+          line-height: 1 !important;
+          font-weight: 900 !important;
+          letter-spacing: .045em !important;
+          text-transform: uppercase !important;
+        }
+
+        html body main.dashboard-shell .nav-item {
+          height: 36px !important;
+          margin: 1px 12px !important;
+          padding: 0 12px !important;
+          border: 0 !important;
+          border-radius: 7px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 12px !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          color: #24304f !important;
+          font-size: 12px !important;
+          line-height: 1 !important;
+          font-weight: 800 !important;
+          text-decoration: none !important;
+        }
+
+        html body main.dashboard-shell .nav-item.active {
+          background: #f0edff !important;
+          color: #4f46e5 !important;
+          box-shadow: inset 3px 0 0 #4f46e5 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-link-icon {
+          width: 16px !important;
+          min-width: 16px !important;
+          color: currentColor !important;
+          font-size: 16px !important;
+        }
+
+        html body main.dashboard-shell .dashboard-upgrade-card,
+        html body main.dashboard-shell .reference-sidebar-user {
+          display: none !important;
+        }
+
+        html body main.dashboard-shell > div.main.dashboard-main {
+          width: calc(100% - 220px) !important;
+          max-width: calc(100% - 220px) !important;
+          margin-left: 220px !important;
+          padding: 24px 24px 18px !important;
+          padding-top: 90px !important;
+          background: #ffffff !important;
+          overflow-x: hidden !important;
+        }
+
+        html body main.dashboard-shell > div.main.dashboard-main > header.topbar.dashboard-topbar.reference-topbar {
+          left: 220px !important;
+          width: calc(100% - 220px) !important;
+          max-width: calc(100% - 220px) !important;
+          height: 66px !important;
+          min-height: 66px !important;
+          padding: 0 24px !important;
+          border-bottom: 1px solid #e8ecf5 !important;
+          background: #ffffff !important;
+          box-shadow: none !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+
+        html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
+          width: 100% !important;
+          flex: 1 1 auto !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          gap: 12px !important;
+          margin: 0 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          display: flex !important;
+          align-items: center !important;
+          gap: 14px !important;
+          border: 0 !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          transform: none !important;
+        }
+
+        html body main.dashboard-shell .reference-topbar-control {
+          width: auto !important;
+          min-width: 192px !important;
+          height: 42px !important;
+          padding: 6px 10px !important;
+          border: 1px solid #e3e8f4 !important;
+          border-radius: 8px !important;
+          background: #ffffff !important;
+          display: grid !important;
+          grid-template-columns: 26px minmax(0, 1fr) 12px !important;
+          grid-template-rows: 13px 18px !important;
+          column-gap: 9px !important;
+          align-items: center !important;
+        }
+
+        html body main.dashboard-shell .reference-topbar-sender-control { min-width: 250px !important; }
+        html body main.dashboard-shell .reference-topbar-date-control { min-width: 225px !important; margin-left: 62px !important; }
+
+        html body main.dashboard-shell .reference-topbar-control > i {
+          grid-row: 1 / 3 !important;
+          width: 26px !important;
+          height: 26px !important;
+          border-radius: 8px !important;
+          background: #f1efff !important;
+          color: #4f46e5 !important;
+          display: grid !important;
+          place-items: center !important;
+          font-size: 15px !important;
+        }
+
+        html body main.dashboard-shell .reference-topbar-control > span {
+          font-size: 9px !important;
+          font-weight: 900 !important;
+          color: #4b5878 !important;
+        }
+
+        html body main.dashboard-shell .reference-topbar-control select.tb-select {
+          grid-column: 2 / 4 !important;
+          width: 100% !important;
+          max-width: none !important;
+          height: 18px !important;
+          min-height: 18px !important;
+          padding: 0 18px 0 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          background-color: transparent !important;
+          box-shadow: none !important;
+          color: #071333 !important;
+          font-size: 11px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-topbar-spacer {
+          flex: 1 1 auto !important;
+        }
+
+        html body main.dashboard-shell .reference-theme-toggle {
+          width: 62px !important;
+          height: 30px !important;
+          padding: 3px !important;
+          border-radius: 999px !important;
+          border: 1px solid #e5e9f4 !important;
+          display: flex !important;
+          gap: 3px !important;
+          background: #f8fafc !important;
+        }
+
+        html body main.dashboard-shell .reference-theme-toggle button,
+        html body main.dashboard-shell .reference-notification-button,
+        html body main.dashboard-shell .reference-create-campaign-button,
+        html body main.dashboard-shell .reference-card button {
+          box-shadow: none !important;
+          outline: 0 !important;
+          text-decoration: none !important;
+        }
+
+        html body main.dashboard-shell .reference-theme-toggle button {
+          width: 25px !important;
+          height: 25px !important;
+          min-height: 25px !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 999px !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #ffffff !important;
+        }
+
+        html body main.dashboard-shell .reference-notification-button {
+          position: relative !important;
+          width: 34px !important;
+          height: 34px !important;
+          min-height: 34px !important;
+          padding: 0 !important;
+          border: 0 !important;
+          background: transparent !important;
+          color: #34405f !important;
+        }
+
+        html body main.dashboard-shell .reference-notification-button span {
+          position: absolute !important;
+          top: -2px !important;
+          right: -2px !important;
+          width: 17px !important;
+          height: 17px !important;
+          display: grid !important;
+          place-items: center !important;
+          border-radius: 999px !important;
+          background: #4f46e5 !important;
+          color: #fff !important;
+          font-size: 9px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-topbar-profile {
+          width: 164px !important;
+          max-width: 164px !important;
+          min-width: 164px !important;
+          height: 42px !important;
+          min-height: 42px !important;
+          padding: 0 !important;
+          border: 0 !important;
+          background: transparent !important;
+          display: grid !important;
+          grid-template-columns: 34px 1fr 10px !important;
+          grid-template-rows: 18px 14px !important;
+          column-gap: 10px !important;
+          align-items: center !important;
+          box-shadow: none !important;
+        }
+
+        html body main.dashboard-shell .dashboard-topbar-avatar {
+          grid-row: 1 / 3 !important;
+          width: 34px !important;
+          height: 34px !important;
+          border-radius: 999px !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          font-size: 13px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-topbar-profile-name {
+          display: block !important;
+          grid-column: 2 !important;
+          grid-row: 1 !important;
+          max-width: none !important;
+          color: #071333 !important;
+          font-size: 12px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .dashboard-topbar-profile::after {
+          content: "Admin" !important;
+          grid-column: 2 !important;
+          grid-row: 2 !important;
+          color: #64748b !important;
+          font-size: 10px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-create-campaign-button {
+          height: 38px !important;
+          min-height: 38px !important;
+          padding: 0 17px !important;
+          border: 0 !important;
+          border-radius: 6px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          font-size: 12px !important;
+          font-weight: 900 !important;
+          box-shadow: 0 10px 18px rgba(79, 70, 229, .24) !important;
+        }
+
+        html body main.dashboard-shell .reference-page-body {
+          max-width: 1288px !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 14px !important;
+        }
+
+        html body main.dashboard-shell .reference-welcome-row {
+          height: 43px !important;
+          display: flex !important;
+          align-items: flex-start !important;
+        }
+
+        html body main.dashboard-shell .reference-welcome-row h1 {
+          margin: 0 0 5px !important;
+          color: #071333 !important;
+          font-size: 21px !important;
+          line-height: 1.05 !important;
+          font-weight: 900 !important;
+          letter-spacing: -.02em !important;
+        }
+
+        html body main.dashboard-shell .reference-welcome-row p {
+          margin: 0 !important;
+          color: #43516f !important;
+          font-size: 12px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-strip {
+          display: grid !important;
+          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+          gap: 12px !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-card {
+          height: 106px !important;
+          padding: 18px 16px !important;
+          display: grid !important;
+          grid-template-columns: 48px minmax(0, 1fr) !important;
+          gap: 13px !important;
+          align-items: center !important;
+          border: 1px solid #e4e9f4 !important;
+          border-radius: 9px !important;
+          background: #ffffff !important;
+          box-shadow: 0 8px 18px rgba(15,23,42,.025) !important;
+          min-width: 0 !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-icon {
+          width: 46px !important;
+          height: 46px !important;
+          border-radius: 999px !important;
+          display: grid !important;
+          place-items: center !important;
+          font-size: 23px !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-card.tone-purple .reference-stat-icon { background: #f0edff !important; color: #4f46e5 !important; }
+        html body main.dashboard-shell .reference-stat-card.tone-green .reference-stat-icon { background: #dcfce7 !important; color: #10b981 !important; }
+        html body main.dashboard-shell .reference-stat-card.tone-orange .reference-stat-icon { background: #ffedd5 !important; color: #f97316 !important; }
+        html body main.dashboard-shell .reference-stat-card.tone-red .reference-stat-icon { background: #ffe4e6 !important; color: #ef4444 !important; }
+        html body main.dashboard-shell .reference-stat-card.tone-blue .reference-stat-icon { background: #eaf2ff !important; color: #2563eb !important; }
+        html body main.dashboard-shell .reference-stat-card.tone-amber .reference-stat-icon { background: #fff1df !important; color: #f97316 !important; }
+
+        html body main.dashboard-shell .reference-stat-label {
+          display: block !important;
+          margin-bottom: 5px !important;
+          color: #111a3a !important;
+          font-size: 11px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-card strong {
+          display: block !important;
+          color: #071333 !important;
+          font-size: 21px !important;
+          line-height: 1 !important;
+          font-weight: 950 !important;
+        }
+
+        html body main.dashboard-shell .reference-stat-card small {
+          display: block !important;
+          margin-top: 14px !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+        }
+
+        html body main.dashboard-shell .reference-dashboard-grid {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) 390px !important;
+          gap: 16px !important;
+          align-items: start !important;
+        }
+
+        html body main.dashboard-shell .reference-dashboard-maincol,
+        html body main.dashboard-shell .reference-dashboard-sidecol {
+          display: flex !important;
+          flex-direction: column !important;
+          min-width: 0 !important;
+        }
+
+        html body main.dashboard-shell .reference-dashboard-maincol { gap: 14px !important; }
+        html body main.dashboard-shell .reference-dashboard-sidecol { gap: 10px !important; }
+
+        html body main.dashboard-shell .reference-card {
+          border: 1px solid #e4e9f4 !important;
+          border-radius: 9px !important;
+          background: #ffffff !important;
+          box-shadow: 0 8px 18px rgba(15,23,42,.025) !important;
+          overflow: hidden !important;
+          min-width: 0 !important;
+        }
+
+        html body main.dashboard-shell .reference-card-head {
+          min-height: 48px !important;
+          padding: 0 16px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 12px !important;
+          border-bottom: 0 !important;
+        }
+
+        html body main.dashboard-shell .reference-card-head h3 {
+          margin: 0 !important;
+          color: #071333 !important;
+          font-size: 13px !important;
+          font-weight: 950 !important;
+        }
+
+        html body main.dashboard-shell .reference-card-head p {
+          margin: 4px 0 0 !important;
+          color: #66728f !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-card-head > button,
+        html body main.dashboard-shell .reference-workflow-action {
+          height: 24px !important;
+          min-height: 24px !important;
+          padding: 0 10px !important;
+          border: 1px solid #e5e0ff !important;
+          border-radius: 999px !important;
+          background: #ffffff !important;
+          color: #4f46e5 !important;
+          font-size: 10px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-card {
+          height: 155px !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-track {
+          height: 98px !important;
+          padding: 0 28px 12px !important;
+          display: grid !important;
+          grid-template-columns: repeat(6, 1fr) !important;
+          align-items: start !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-step {
+          position: relative !important;
+          display: grid !important;
+          justify-items: center !important;
+          gap: 6px !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-line {
+          position: absolute !important;
+          top: 22px !important;
+          left: calc(50% + 23px) !important;
+          width: calc(100% - 46px) !important;
+          height: 2px !important;
+          background: #d9e1f0 !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-circle {
+          position: relative !important;
+          z-index: 1 !important;
+          width: 46px !important;
+          height: 46px !important;
+          min-height: 46px !important;
+          padding: 0 !important;
+          border-radius: 999px !important;
+          border: 1px solid #d9e1f0 !important;
+          background: #ffffff !important;
+          color: #64748b !important;
+          display: grid !important;
+          place-items: center !important;
+          font-size: 21px !important;
+          box-shadow: none !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-step.active .reference-workflow-circle {
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          border-color: #4f46e5 !important;
+          box-shadow: 0 10px 18px rgba(79,70,229,.22) !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-circle em {
+          position: absolute !important;
+          right: -2px !important;
+          top: -7px !important;
+          width: 16px !important;
+          height: 16px !important;
+          display: grid !important;
+          place-items: center !important;
+          border-radius: 999px !important;
+          background: #ffffff !important;
+          border: 1px solid #cfd7ea !important;
+          color: #66728f !important;
+          font-size: 9px !important;
+          font-style: normal !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-workflow-step > strong {
+          color: #071333 !important;
+          font-size: 11px !important;
+          font-weight: 950 !important;
+        }
+
+        html body main.dashboard-shell .reference-chart-row {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1.08fr) minmax(300px, .75fr) !important;
+          gap: 14px !important;
+        }
+
+        html body main.dashboard-shell .reference-line-card,
+        html body main.dashboard-shell .reference-donut-card {
+          height: 232px !important;
+          min-height: 232px !important;
+        }
+
+        html body main.dashboard-shell .reference-line-chart {
+          padding: 0 18px 12px !important;
+        }
+
+        html body main.dashboard-shell .reference-line-chart svg {
+          width: 100% !important;
+          height: 160px !important;
+          display: block !important;
+        }
+
+        html body main.dashboard-shell .reference-chart-labels {
+          display: grid !important;
+          grid-template-columns: repeat(10, 1fr) !important;
+          margin-top: -4px !important;
+          color: #273657 !important;
+          font-size: 9px !important;
+          font-weight: 800 !important;
+          text-align: center !important;
+        }
+
+        html body main.dashboard-shell .reference-donut-layout {
+          display: grid !important;
+          grid-template-columns: 138px 1fr !important;
+          gap: 18px !important;
+          align-items: center !important;
+          padding: 24px 18px 10px !important;
+        }
+
+        html body main.dashboard-shell .reference-donut {
+          width: 125px !important;
+          height: 125px !important;
+          min-width: 125px !important;
+          border-radius: 50% !important;
+          position: relative !important;
+          background: conic-gradient(#10b981 0 38%, #2563eb 38% 71%, #f59e0b 71% 90%, #cbd5e1 90% 100%) !important;
+        }
+
+        html body main.dashboard-shell .reference-donut::after {
+          content: "" !important;
+          position: absolute !important;
+          inset: 35px !important;
+          border-radius: 50% !important;
+          background: #ffffff !important;
+        }
+
+        html body main.dashboard-shell .reference-donut-legend {
+          display: grid !important;
+          gap: 13px !important;
+        }
+
+        html body main.dashboard-shell .reference-donut-legend div {
+          display: grid !important;
+          grid-template-columns: auto 1fr auto !important;
+          gap: 10px !important;
+          align-items: center !important;
+          color: #071333 !important;
+          font-size: 11px !important;
+        }
+
+        html body main.dashboard-shell .reference-donut-legend span {
+          width: 10px !important;
+          height: 10px !important;
+          border-radius: 999px !important;
+        }
+
+        html body main.dashboard-shell .reference-total-row {
+          display: flex !important;
+          justify-content: space-between !important;
+          padding: 0 18px !important;
+          color: #071333 !important;
+          font-size: 12px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table {
+          min-height: 269px !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table .reference-card-head {
+          min-height: 42px !important;
+        }
+
+        html body main.dashboard-shell .reference-table-wrap {
+          overflow-x: auto !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table table {
+          width: 100% !important;
+          border-collapse: separate !important;
+          border-spacing: 0 !important;
+          font-size: 11px !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table th {
+          height: 30px !important;
+          padding: 0 12px !important;
+          border-bottom: 1px solid #eef2f7 !important;
+          color: #4b5878 !important;
+          background: #ffffff !important;
+          font-size: 9px !important;
+          font-weight: 900 !important;
+          text-align: left !important;
+          text-transform: uppercase !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table td {
+          height: 39px !important;
+          padding: 4px 12px !important;
+          border-bottom: 1px solid #eef2f7 !important;
+          color: #071333 !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+          vertical-align: middle !important;
+        }
+
+        html body main.dashboard-shell .reference-campaign-link {
+          all: unset !important;
+          display: block !important;
+          max-width: 220px !important;
+          color: #4f46e5 !important;
+          font-size: 11px !important;
+          font-weight: 900 !important;
+          line-height: 1.2 !important;
+          cursor: pointer !important;
+        }
+
+        html body main.dashboard-shell .reference-recent-table td small {
+          display: block !important;
+          margin-top: 2px !important;
+          color: #64748b !important;
+          font-size: 9px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-project-badge,
+        html body main.dashboard-shell .reference-status-badge {
+          display: inline-flex !important;
+          align-items: center !important;
+          height: 18px !important;
+          padding: 0 7px !important;
+          border-radius: 4px !important;
+          background: #eef2ff !important;
+          color: #4f46e5 !important;
+          font-size: 9px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-status-badge.running { background: #dcfce7 !important; color: #047857 !important; }
+        html body main.dashboard-shell .reference-status-badge.scheduled { background: #dbeafe !important; color: #2563eb !important; }
+        html body main.dashboard-shell .reference-status-badge.paused { background: #ffedd5 !important; color: #ea580c !important; }
+        html body main.dashboard-shell .reference-status-badge.draft { background: #f1f5f9 !important; color: #475569 !important; }
+
+        html body main.dashboard-shell .reference-actions {
+          display: flex !important;
+          gap: 6px !important;
+        }
+
+        html body main.dashboard-shell .reference-actions button {
+          width: 23px !important;
+          height: 23px !important;
+          min-height: 23px !important;
+          padding: 0 !important;
+          border: 1px solid #e5e9f4 !important;
+          border-radius: 6px !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #ffffff !important;
+          color: #4f46e5 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-card { height: 366px !important; }
+        html body main.dashboard-shell .reference-schedule-card { height: 154px !important; }
+        html body main.dashboard-shell .reference-activity-card { height: 184px !important; }
+
+        html body main.dashboard-shell .reference-tabs {
+          height: 38px !important;
+          padding: 0 16px !important;
+          display: grid !important;
+          grid-template-columns: repeat(4, 1fr) !important;
+          border-bottom: 1px solid #edf1f7 !important;
+        }
+
+        html body main.dashboard-shell .reference-tabs button {
+          height: 38px !important;
+          min-height: 38px !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-bottom: 2px solid transparent !important;
+          border-radius: 0 !important;
+          background: transparent !important;
+          color: #475569 !important;
+          font-size: 10px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-tabs button.active {
+          color: #4f46e5 !important;
+          border-color: #4f46e5 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-stats {
+          display: grid !important;
+          grid-template-columns: repeat(4, 1fr) !important;
+          gap: 10px !important;
+          padding: 13px 16px 10px !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-stats span {
+          height: 48px !important;
+          border: 1px solid #e5e9f4 !important;
+          border-radius: 8px !important;
+          display: grid !important;
+          place-items: center !important;
+          color: #64748b !important;
+          font-size: 9px !important;
+          font-weight: 800 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-stats strong {
+          font-size: 16px !important;
+          color: #4f46e5 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-title-row {
+          display: flex !important;
+          justify-content: space-between !important;
+          align-items: center !important;
+          padding: 0 16px 8px !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-title-row strong {
+          font-size: 12px !important;
+          font-weight: 950 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-title-row button {
+          height: auto !important;
+          min-height: 0 !important;
+          padding: 0 !important;
+          border: 0 !important;
+          background: transparent !important;
+          color: #4f46e5 !important;
+          font-size: 10px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list,
+        html body main.dashboard-shell .reference-schedule-timeline,
+        html body main.dashboard-shell .reference-activity-list {
+          display: grid !important;
+          padding: 0 16px 13px !important;
+          gap: 5px !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list button,
+        html body main.dashboard-shell .reference-schedule-timeline button,
+        html body main.dashboard-shell .reference-activity-list button {
+          height: auto !important;
+          min-height: 0 !important;
+          padding: 3px 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          text-align: left !important;
+          color: inherit !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list button {
+          display: grid !important;
+          grid-template-columns: 16px 1fr auto !important;
+          gap: 10px !important;
+          align-items: start !important;
+        }
+
+        html body main.dashboard-shell .reference-timeline-dot {
+          width: 10px !important;
+          height: 10px !important;
+          margin-top: 3px !important;
+          border-radius: 50% !important;
+          background: #4f46e5 !important;
+          box-shadow: 0 0 0 4px #eef2ff !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list strong {
+          color: #071333 !important;
+          font-size: 11px !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list small {
+          grid-column: 2 !important;
+          color: #64748b !important;
+          font-size: 10px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-todo-list em {
+          grid-column: 3 !important;
+          grid-row: 1 / span 2 !important;
+          border-radius: 999px !important;
+          padding: 4px 8px !important;
+          background: #fee2e2 !important;
+          color: #ef4444 !important;
+          font-size: 9px !important;
+          font-style: normal !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline {
+          padding-top: 5px !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline button {
+          display: grid !important;
+          grid-template-columns: 58px 24px 1fr !important;
+          gap: 9px !important;
+          align-items: start !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline time,
+        html body main.dashboard-shell .reference-activity-list time {
+          color: #071333 !important;
+          font-size: 10px !important;
+          line-height: 1.05 !important;
+          font-weight: 900 !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline time small,
+        html body main.dashboard-shell .reference-activity-list time small {
+          display: block !important;
+          margin-top: 3px !important;
+          color: #64748b !important;
+          font-size: 8px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline > button > span {
+          width: 24px !important;
+          height: 24px !important;
+          border-radius: 50% !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          font-size: 13px !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline strong,
+        html body main.dashboard-shell .reference-activity-list strong {
+          color: #071333 !important;
+          font-size: 10px !important;
+          font-weight: 900 !important;
+          line-height: 1.1 !important;
+        }
+
+        html body main.dashboard-shell .reference-schedule-timeline div small,
+        html body main.dashboard-shell .reference-activity-list small {
+          color: #64748b !important;
+          font-size: 9px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-activity-list button {
+          display: grid !important;
+          grid-template-columns: 46px 22px 1fr !important;
+          gap: 8px !important;
+          align-items: start !important;
+        }
+
+        html body main.dashboard-shell .reference-activity-icon {
+          width: 22px !important;
+          height: 22px !important;
+          border-radius: 50% !important;
+          display: grid !important;
+          place-items: center !important;
+          font-size: 12px !important;
+        }
+
+        html body main.dashboard-shell .reference-activity-icon.tone-green { background: #dcfce7 !important; color: #16a34a !important; }
+        html body main.dashboard-shell .reference-activity-icon.tone-blue { background: #dbeafe !important; color: #2563eb !important; }
+        html body main.dashboard-shell .reference-activity-icon.tone-red { background: #fee2e2 !important; color: #ef4444 !important; }
+        html body main.dashboard-shell .reference-activity-icon.tone-slate { background: #f1f5f9 !important; color: #64748b !important; }
+
+        html body main.dashboard-shell .reference-tip {
+          height: 28px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 7px !important;
+          padding: 0 16px !important;
+          border-radius: 7px !important;
+          background: #f2efff !important;
+          color: #273657 !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-footer {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          color: #64748b !important;
+          font-size: 10px !important;
+          font-weight: 700 !important;
+        }
+
+        html body main.dashboard-shell .reference-footer nav {
+          display: flex !important;
+          gap: 22px !important;
+        }
+
+        html body main.dashboard-shell .reference-footer a {
+          color: #334155 !important;
+          text-decoration: none !important;
+        }
+
+        @media (max-width: 1400px) {
+          html body main.dashboard-shell .reference-topbar-date-control { margin-left: 0 !important; }
+          html body main.dashboard-shell .reference-topbar-control { min-width: 165px !important; }
+          html body main.dashboard-shell .reference-topbar-sender-control { min-width: 220px !important; }
+          html body main.dashboard-shell .reference-topbar-date-control { min-width: 205px !important; }
+          html body main.dashboard-shell .reference-dashboard-grid { grid-template-columns: minmax(0, 1fr) 350px !important; }
+        }
+
+        @media (max-width: 1180px) {
+          html body main.dashboard-shell .reference-stat-strip { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+          html body main.dashboard-shell .reference-dashboard-grid,
+          html body main.dashboard-shell .reference-chart-row { grid-template-columns: 1fr !important; }
+        }
+
+        @media (max-width: 760px) {
+          html body main.dashboard-shell .reference-stat-strip { grid-template-columns: 1fr !important; }
+          html body main.dashboard-shell .reference-workflow-card { overflow-x: auto !important; }
+          html body main.dashboard-shell .reference-workflow-track { min-width: 720px !important; }
+        }
+        /* Keep schedule rows inside the side card. */
+        html body main.dashboard-shell .reference-schedule-card {
+          height: 220px !important;
+          min-height: 220px !important;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline {
+          padding: 8px 16px 14px !important;
+          gap: 9px !important;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline button {
+          grid-template-columns: 64px 24px minmax(0, 1fr) !important;
+          gap: 10px !important;
+          padding: 5px 0 !important;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline strong {
+          font-size: 11px !important;
+          line-height: 1.15 !important;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline div small {
+          font-size: 9px !important;
+          line-height: 1.25 !important;
+        }
+        /* Keep activity rows inside the side card. */
+        html body main.dashboard-shell .reference-activity-card {
+          height: 260px !important;
+          min-height: 260px !important;
+        }
+        html body main.dashboard-shell .reference-activity-list {
+          padding: 8px 16px 14px !important;
+          gap: 9px !important;
+        }
+        html body main.dashboard-shell .reference-activity-list button {
+          grid-template-columns: 64px 24px minmax(0, 1fr) !important;
+          gap: 10px !important;
+          padding: 5px 0 !important;
+        }
+        html body main.dashboard-shell .reference-activity-list strong {
+          font-size: 11px !important;
+          line-height: 1.15 !important;
+        }
+        html body main.dashboard-shell .reference-activity-list small {
+          font-size: 9px !important;
+          line-height: 1.25 !important;
+        }
+        /* Keep todo rows inside the side card. */
+        html body main.dashboard-shell .reference-todo-card {
+          height: 390px !important;
+          min-height: 390px !important;
+        }
+        html body main.dashboard-shell .reference-todo-stats {
+          padding: 10px 16px !important;
+          gap: 8px !important;
+        }
+        html body main.dashboard-shell .reference-todo-stats span {
+          min-height: 48px !important;
+        }
+        html body main.dashboard-shell .reference-todo-title-row {
+          padding: 8px 16px 6px !important;
+        }
+        html body main.dashboard-shell .reference-todo-list {
+          padding: 6px 16px 8px !important;
+          gap: 8px !important;
+        }
+        html body main.dashboard-shell .reference-todo-list button {
+          padding: 6px 0 !important;
+          row-gap: 3px !important;
+        }
+        html body main.dashboard-shell .reference-todo-list strong {
+          line-height: 1.2 !important;
+        }
+        html body main.dashboard-shell .reference-todo-list small {
+          line-height: 1.25 !important;
+        }
+        /* Reduce todo header-to-tabs spacing. */
+        html body main.dashboard-shell .reference-todo-card .reference-card-head {
+          min-height: 42px !important;
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+        }
+        html body main.dashboard-shell .reference-todo-card .reference-tabs {
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+        }
+        html body main.dashboard-shell .reference-todo-card .reference-tabs button {
+          height: 32px !important;
+        }
+        /* Show todo timeline rail and dots. */
+        html body main.dashboard-shell .reference-todo-list {
+          position: relative !important;
+        }
+        html body main.dashboard-shell .reference-todo-list::before {
+          content: "";
+          position: absolute;
+          left: 22px;
+          top: 17px;
+          bottom: 17px;
+          width: 2px;
+          background: #dbe3f0;
+          border-radius: 999px;
+        }
+        html body main.dashboard-shell .reference-todo-list button {
+          position: relative !important;
+          z-index: 1;
+        }
+        html body main.dashboard-shell .reference-timeline-dot {
+          grid-column: 1 !important;
+          grid-row: 1 / span 2 !important;
+          width: 12px !important;
+          height: 12px !important;
+          margin-top: 3px !important;
+          border: 2px solid #ffffff !important;
+          border-radius: 50% !important;
+          background: #4f46e5 !important;
+          box-shadow: 0 0 0 3px #eef2ff !important;
+        }
+        /* Show schedule timeline rail and markers. */
+        html body main.dashboard-shell .reference-schedule-timeline {
+          position: relative !important;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline::before {
+          content: "";
+          position: absolute;
+          left: 102px;
+          top: 25px;
+          bottom: 25px;
+          width: 2px;
+          background: #dbe3f0;
+          border-radius: 999px;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline button {
+          position: relative !important;
+          z-index: 1;
+        }
+        html body main.dashboard-shell .reference-schedule-timeline > button > span {
+          width: 24px !important;
+          height: 24px !important;
+          display: grid !important;
+          place-items: center !important;
+          border: 2px solid #ffffff !important;
+          border-radius: 50% !important;
+          background: #4f46e5 !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 0 3px #eef2ff !important;
+        }
+        /* Show activity timeline rail and markers. */
+        html body main.dashboard-shell .reference-activity-list {
+          position: relative !important;
+        }
+        html body main.dashboard-shell .reference-activity-list::before {
+          content: "";
+          position: absolute;
+          left: 102px;
+          top: 25px;
+          bottom: 25px;
+          width: 2px;
+          background: #dbe3f0;
+          border-radius: 999px;
+        }
+        html body main.dashboard-shell .reference-activity-list button {
+          position: relative !important;
+          z-index: 1;
+        }
+        html body main.dashboard-shell .reference-activity-list > button > span {
+          width: 24px !important;
+          height: 24px !important;
+          display: grid !important;
+          place-items: center !important;
+          border: 2px solid #ffffff !important;
+          border-radius: 50% !important;
+          box-shadow: 0 0 0 3px #eef2ff !important;
+        }
+        /* Show seven recent campaign rows. */
+        html body main.dashboard-shell .reference-recent-table {
+          min-height: 350px !important;
+        }
+        /* Pin recent campaigns scrollbar to section bottom. */
+        html body main.dashboard-shell .reference-recent-table {
+          display: flex !important;
+          flex-direction: column !important;
+        }
+        html body main.dashboard-shell .reference-recent-table .reference-table-wrap {
+          flex: 1 1 auto !important;
+          min-height: 0 !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+        }
+        /* Persistent topbar hamburger before filters. */
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle {
+          flex: 0 0 38px !important;
+          width: 38px !important;
+          height: 38px !important;
+          min-width: 38px !important;
+          min-height: 38px !important;
+          padding: 0 !important;
+          border: 1px solid #e3e8f4 !important;
+          border-radius: 8px !important;
+          display: inline-grid !important;
+          place-items: center !important;
+          background: #ffffff !important;
+          color: #4f46e5 !important;
+          font-size: 20px !important;
+          cursor: pointer !important;
+          box-shadow: none !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle:hover {
+          background: #f5f3ff !important;
+          border-color: #c7d2fe !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          align-items: center !important;
+        }
+        /* Tighten topbar hamburger project gap. */
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          column-gap: 6px !important;
+          row-gap: 8px !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle {
+          margin-right: 0 !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle + .reference-topbar-control {
+          margin-left: 0 !important;
+        }
+        /* Compact topbar hamburger cluster layout. */
+        html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
+          justify-content: flex-start !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          flex: 0 1 auto !important;
+          width: auto !important;
+          justify-content: flex-start !important;
+          column-gap: 8px !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle {
+          flex: 0 0 38px !important;
+        }
+        /* Topbar final visual alignment cleanup. */
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          flex: 1 1 auto !important;
+          min-width: 0 !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile {
+          width: 188px !important;
+          min-width: 188px !important;
+          max-width: 188px !important;
+          grid-template-columns: 40px minmax(0, 1fr) !important;
+          column-gap: 10px !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-avatar {
+          width: 40px !important;
+          height: 40px !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile-name,
+        html body main.dashboard-shell .dashboard-topbar-profile::after {
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+        }
+        html body main.dashboard-shell .reference-create-campaign-button {
+          flex: 0 0 auto !important;
+          min-width: 184px !important;
+          justify-content: center !important;
+        }
+        /* Keep profile as final topbar item. */
+        html body main.dashboard-shell .reference-create-campaign-button {
+          order: 20 !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+          order: 30 !important;
+          margin-left: 0 !important;
+        }
+        /* Pin profile to far right end of topbar. */
+        html body main.dashboard-shell .reference-topbar-spacer {
+          flex: 1 1 auto !important;
+          min-width: 12px !important;
+        }
+        html body main.dashboard-shell .reference-theme-toggle,
+        html body main.dashboard-shell .reference-notification-button,
+        html body main.dashboard-shell .reference-create-campaign-button,
+        html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+          flex: 0 0 auto !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+          margin-left: 4px !important;
+        }
+        /* Topbar space utilization final pass. */
+        html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          flex-wrap: nowrap !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-filter-group {
+          flex: 1 1 auto !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          overflow: hidden !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-menu-toggle {
+          flex: 0 0 38px !important;
+          width: 38px !important;
+          min-width: 38px !important;
+        }
+        html body main.dashboard-shell .reference-topbar-control {
+          flex: 1 1 0 !important;
+          min-width: 150px !important;
+          max-width: none !important;
+          width: auto !important;
+        }
+        html body main.dashboard-shell .reference-topbar-sender-control {
+          flex-grow: 1.45 !important;
+        }
+        html body main.dashboard-shell .reference-topbar-date-control {
+          flex-grow: 1.15 !important;
+        }
+        html body main.dashboard-shell .reference-topbar-spacer {
+          display: none !important;
+          flex: 0 0 0 !important;
+          width: 0 !important;
+          min-width: 0 !important;
+        }
+        html body main.dashboard-shell .reference-theme-toggle,
+        html body main.dashboard-shell .reference-notification-button,
+        html body main.dashboard-shell .reference-create-campaign-button,
+        html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+          flex: 0 0 auto !important;
+          min-width: 0 !important;
+        }
+        html body main.dashboard-shell .reference-create-campaign-button {
+          width: auto !important;
+          min-width: 168px !important;
+          padding-left: 18px !important;
+          padding-right: 18px !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile-wrap {
+          order: 30 !important;
+          margin-left: 0 !important;
+        }
+        html body main.dashboard-shell .dashboard-topbar-profile {
+          width: 180px !important;
+          min-width: 180px !important;
+          max-width: 180px !important;
+        }
+        @media (max-width: 1180px) {
+          html body main.dashboard-shell .topbar-actions.dashboard-topbar-actions {
+            flex-wrap: wrap !important;
+          }
+          html body main.dashboard-shell .dashboard-topbar-filter-group {
+            flex: 1 1 100% !important;
+          }
+        }
+
+`}</style>
       <div
         className={`dashboard-sidebar-backdrop ${sidebarOpen && isMobileViewport ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
@@ -5295,8 +7191,12 @@ const normalizeSelectedListEmails = async () => {
                   <span>{item.label}</span>
                 </a>
               ))}
-              <div className="nav-section-label reference-nav-label">Campaigns</div>
-              {SIDEBAR_WORKSPACE_ITEMS.map((item) => renderSidebarNode(item))}
+              <div className="nav-section-label reference-nav-label">Performance</div>
+              {SIDEBAR_WORKSPACE_ITEMS.slice(0, 3).map((item) => renderSidebarNode(item))}
+              <div className="nav-section-label reference-nav-label">Sales & Action</div>
+              {SIDEBAR_WORKSPACE_ITEMS.slice(3, 8).map((item) => renderSidebarNode(item))}
+              <div className="nav-section-label reference-nav-label">Account & Settings</div>
+              {SIDEBAR_WORKSPACE_ITEMS.slice(8).map((item) => renderSidebarNode(item))}
             </nav>
             <div className="dashboard-sidebar-account-block">
             <div
@@ -5355,7 +7255,7 @@ const normalizeSelectedListEmails = async () => {
 
       <div className="main dashboard-main">
       <div id="dashboard-top" />
-      <header className="topbar dashboard-topbar">
+      <header className="topbar dashboard-topbar reference-topbar">
         <button
           type="button"
           className="dashboard-mobile-sidebar-toggle dashboard-hamburger-button"
@@ -5364,18 +7264,6 @@ const normalizeSelectedListEmails = async () => {
         >
           <i className="ti ti-menu-2" aria-hidden="true" />
         </button>
-        <div className="topbar-tabs dashboard-topbar-tabs">
-          {TOP_NAV_ITEMS.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className={`tb-tab dashboard-topbar-tab ${activeTopNav === item.label ? 'active' : ''}`}
-              onClick={() => handleTopNavSelect(item)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
 
         <div className="topbar-actions dashboard-topbar-actions">
           <button
@@ -5391,53 +7279,90 @@ const normalizeSelectedListEmails = async () => {
             ref={topbarMobileFiltersRef}
             className={`dashboard-topbar-filter-group ${showMobileFilters ? 'open' : ''}`}
           >
-          <select
-            className="tb-select dashboard-topbar-date-select"
-            value={selectedStatsRange || ''}
-            onChange={(event) => applyRangeSelection(event.target.value)}
-          >
-            <option value="">Select Date</option>
-            {SUMMARY_RANGES.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-            {userRangeOptions.map((item) => (
-              <option key={item.value} value={item.baseValue || '7d'}>{item.label}</option>
-            ))}
-          </select>
+            <button
+              type="button"
+              className="dashboard-topbar-menu-toggle"
+              onClick={() => setSidebarOpen((current) => !current)}
+              aria-label="Toggle sidebar menu"
+            >
+              <i className="ti ti-menu-2" aria-hidden="true" />
+            </button>
+            <label className="reference-topbar-control">
+              <i className="ti ti-home" aria-hidden="true" />
+              <span>Select Project</span>
+              <select
+                className="tb-select dashboard-topbar-project-select"
+                value={project || ''}
+                onChange={(event) => {
+                  if (event.target.value === '__add__') {
+                    addProjectOption();
+                    return;
+                  }
+                  selectProject(event.target.value);
+                }}
+              >
+                <option value="">TEC Project</option>
+                {projectOptions.map((item) => (
+                  <option key={item} value={item}>{item.toUpperCase()}</option>
+                ))}
+                <option value="__add__">Add Project</option>
+              </select>
+            </label>
 
-          <select
-            className="tb-select dashboard-topbar-project-select"
-            value={project || ''}
-            onChange={(event) => {
-              if (event.target.value === '__add__') {
-                addProjectOption();
-                return;
-              }
-              selectProject(event.target.value);
-            }}
-          >
-            <option value="">Select Project</option>
-            {projectOptions.map((item) => (
-              <option key={item} value={item}>{item.toUpperCase()}</option>
-            ))}
-            <option value="__add__">Add Project</option>
-          </select>
+            <label className="reference-topbar-control reference-topbar-sender-control">
+              <i className="ti ti-id-badge-2" aria-hidden="true" />
+              <span>Select ID</span>
+              <select
+                className="tb-select dashboard-topbar-sender-select"
+                value={selectedAccount || ''}
+                onChange={(event) => {
+                  if (!event.target.value) return;
+                  selectTopbarMail(event.target.value);
+                }}
+              >
+                <option value="">akshay.more@intellimail.com</option>
+                {projectAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.from}</option>
+                ))}
+                <option value="__oauth_add__">Add New Mail</option>
+              </select>
+            </label>
 
-          <select
-            className="tb-select dashboard-topbar-sender-select"
-            value={selectedAccount || ''}
-            onChange={(event) => {
-              if (!event.target.value) return;
-              selectTopbarMail(event.target.value);
-            }}
-          >
-            <option value="">Select Sender</option>
-            {projectAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.from}</option>
-            ))}
-            <option value="__oauth_add__">Add New Mail</option>
-          </select>
+            <label className="reference-topbar-control reference-topbar-date-control">
+              <i className="ti ti-calendar" aria-hidden="true" />
+              <span>Date Range</span>
+              <select
+                className="tb-select dashboard-topbar-date-select"
+                value={selectedStatsRange || ''}
+                onChange={(event) => applyRangeSelection(event.target.value)}
+              >
+                <option value="">12 Jun 2026 - 18 Jun 2026</option>
+                {SUMMARY_RANGES.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+                {userRangeOptions.map((item) => (
+                  <option key={item.value} value={item.baseValue || '7d'}>{item.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
+          <div className="reference-topbar-spacer" />
+          <div className="reference-theme-toggle" aria-label="Theme controls">
+            <button type="button" aria-label="Light mode"><i className="ti ti-sun" aria-hidden="true" /></button>
+            <button type="button" aria-label="Dark mode"><i className="ti ti-moon" aria-hidden="true" /></button>
+          </div>
+          <button type="button" className="reference-notification-button" aria-label="Notifications">
+            <i className="ti ti-bell" aria-hidden="true" />
+            <span>12</span>
+          </button>
+          <button
+            type="button"
+            className="reference-create-campaign-button"
+            onClick={() => createAndStartCampaign()}
+          >
+            <i className="ti ti-plus" aria-hidden="true" />
+            Create Campaign
+          </button>
           <div className="dashboard-topbar-profile-wrap" ref={topbarProfileDropdownRef}>
             <button
               type="button"
@@ -5861,6 +7786,53 @@ const normalizeSelectedListEmails = async () => {
 
       {error && error !== 'Request timeout: /api/stats' ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
+      <ExactDashboardPage
+        onCreateCampaign={() => createAndStartCampaign()}
+        onNavigate={(href) => router.push(href)}
+        onSidebarToggle={() => setSidebarOpen((current) => !current)}
+        user={{ name: profileDisplayName, role: profileRoleLabel, initials: profileInitials, avatar: profileAvatarDataUrl }}
+        topbar={{
+          project,
+          projectOptions,
+          selectedSenderAccountId: selectedAccount,
+          senderAccounts: projectAccounts,
+          selectedRange: selectedStatsRange,
+          rangeLabel: reportRangeLabel,
+          rangeOptions: SUMMARY_RANGES,
+          notificationCount: logs.length
+        }}
+        onProjectChange={(value) => {
+          if (value === '__add__') addProjectOption();
+          else selectProject(value);
+        }}
+        onSenderChange={selectTopbarMail}
+        onRangeChange={applyRangeSelection}
+        statsItems={exactStatsItems}
+        workflowItems={workflowSteps.map((step) => [step.title.replace('Review List', 'Review').replace('Select Draft', 'Drafts').replace('Schedule Sending', 'Schedule'), step.action, step.index === 1 ? 'ti-upload' : step.index === 2 ? 'ti-users' : step.index === 3 ? 'ti-megaphone' : step.index === 4 ? 'ti-file-text' : step.index === 5 ? 'ti-layout-list' : step.index === 6 ? 'ti-mail-check' : 'ti-calendar-event'])}
+        onWorkflowStep={openExactWorkflowStep}
+        dailyCounts={exactDailyCounts}
+        statusLegend={exactStatusLegend}
+        totalCampaigns={campaigns.length}
+        campaignRows={exactCampaignRows}
+        onCampaignAction={(campaign) => {
+          const id = campaign?.id || campaign?.raw?.id || campaign?.raw?._id;
+          if (id) setSelectedCampaignId(id);
+        }}
+        todoItems={exactTodoItems}
+        todoStats={exactTodoStats}
+        todoLoading={dashboardTasksLoading}
+        onTodoAdd={createDashboardTask}
+        onTodoEdit={(item) => editDashboardTask(item.raw || item)}
+        onTodoDelete={(item) => deleteDashboardTask(item.raw || item)}
+        onTodoComplete={(item) => completeDashboardTask(item.raw || item)}
+        onTodoViewAll={() => router.push('/dashboard/user?view=todo')}
+        scheduleItems={exactScheduleItems}
+        onScheduleViewAll={() => router.push('/campaigns?status=scheduled')}
+        activityItems={exactActivityItems}
+        onActivityViewAll={() => router.push('/dashboard/user?view=timeline')}
+      />
+
+      <div style={{ display: 'none' }} aria-hidden="true">
       <PremiumDashboardShell
         reportDateLabel={reportDateLabel}
         reportRangeLabel={reportRangeLabel}
@@ -5985,6 +7957,7 @@ const normalizeSelectedListEmails = async () => {
             });
           }}
         />
+      </div>
 
       {selectedCampaignId ? (
         <CampaignDetailsDrawer

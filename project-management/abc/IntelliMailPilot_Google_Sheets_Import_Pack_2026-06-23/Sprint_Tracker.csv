@@ -1,0 +1,8 @@
+Sprint,Features,Completed,In Progress,Pending,Bugs,Testing Status,Release Readiness,Health Status,This Week Completed,Next Week Plan
+Sprint 1 (Jun 23-Jul 6),"Baseline, tracker date fix, workflow UI, lint/build, QA strategy, auth start, client data, drafts, campaign preflight",2,4,5,Date serial import fixed; lint/build still pending,Manual / setup,Low,Yellow,"IMP-001, IMP-034","IMP-006, IMP-007, IMP-008, IMP-009, IMP-010, IMP-011, IMP-012, IMP-030"
+Sprint 2 (Jul 7-Jul 20),"Worker lifecycle, recipient safety, mail accounts, campaign tracking",0,0,6,TBD,Planned,Low,Yellow,,"IMP-012, IMP-013, IMP-015"
+Sprint 3 (Jul 21-Aug 3),"Worker lifecycle, recipient safety, mail accounts",0,0,5,TBD,Planned,Medium-Low,Yellow,,
+Sprint 4 (Aug 4-Aug 17),"Inbox, warm-up, billing, reporting",0,0,5,TBD,Planned,Medium,Yellow,,
+Sprint 5 (Aug 18-Aug 31),"Performance, accessibility, observability, data reliability",0,0,5,TBD,Planned,Medium,Yellow,,
+Sprint 6 (Sep 1-Sep 14),"CI/CD, ECS staging, legacy cleanup, UAT preparation",0,0,5,TBD,Planned,Medium-High,Yellow,,
+Sprint 7 (Sep 15-Oct 5),"UAT, release candidate, production deployment, hypercare",0,0,3,Exit criterion: no Sev-1/2,Planned,Target 90%+,Yellow,,

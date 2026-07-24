@@ -1,12 +1,12 @@
 import React from 'react';
 
 const STATS = [
-  { label: 'Total emails', key: 'total', icon: 'ti-mail', color: '#4f5bd5', bg: '#eef0fd' },
+  { label: 'Total Sent', key: 'total', icon: 'ti-send', color: '#4f46e5', bg: '#eef0ff', meta: '18.6% vs last 7 days' },
   { label: 'Delivered', key: 'sent', icon: 'ti-circle-check', color: '#059669', bg: '#ecfdf5' },
-  { label: 'Waiting to send', key: 'pending', icon: 'ti-clock-hour-3', color: '#d97706', bg: '#fffbeb' },
+  { label: 'Pending', key: 'pending', icon: 'ti-clock-hour-3', color: '#f59e0b', bg: '#fff7ed', meta: 'campaigns in queue' },
   { label: 'Failed', key: 'failed', icon: 'ti-circle-x', color: '#e11d48', bg: '#fff1f2' },
   { label: 'Bounced', key: 'bounced', icon: 'ti-arrow-back-up', color: '#0ea5e9', bg: '#f0f9ff' },
-  { label: 'Spam', key: 'spam', icon: 'ti-alert-triangle', color: '#a855f7', bg: '#fdf4ff' }
+  { label: 'Spam Complaints', key: 'spam', icon: 'ti-alert-triangle', color: '#f97316', bg: '#fff7ed', meta: 'complaint rate' }
 ];
 
 function normalizeStats(stats) {
@@ -37,7 +37,7 @@ export default function StatStrip({ stats = {} }) {
         const value = normalized[stat.key] ?? 0;
         const pct = normalized[`${stat.key}Pct`] ?? (stat.key === 'total' ? 100 : 0);
         const defaultMeta = stat.key === 'total'
-          ? 'Tracked emails'
+          ? (stat.meta || 'vs last 7 days')
           : `${Math.max(0, Math.min(100, Math.round(pct)))}% ${stat.key === 'sent' ? 'sent' : stat.key}`;
         const meta = normalized[`${stat.key}Meta`] || defaultMeta;
         return (
@@ -58,3 +58,4 @@ export default function StatStrip({ stats = {} }) {
     </div>
   );
 }
+

@@ -1,0 +1,35 @@
+Page,Module,Components,Framework,Status,Completion %
+/account/disabled,account,Link,Next.js 14 / React 18,Implemented - QA pending,76
+/account/pending,account,Link,Next.js 14 / React 18,Implemented - QA pending,76
+/campaigns,campaigns,"{ useCallback, useEffect, useMemo, useRef, useState }; { useRouter }; AppLayout; Badge",Next.js 14 / React 18,Implemented - QA pending,76
+/change-password,change-password,"{ useRouter }; { useMemo, useState }",Next.js 14 / React 18,Implemented - QA pending,76
+/client-data/client-list,client-data,"{ memo, useCallback, useEffect, useMemo, useRef, useState }; { useRouter }; AppLayout; Badge",Next.js 14 / React 18,Implemented - QA pending,76
+/client-data,client-data,{ redirect },Next.js 14 / React 18,Implemented - QA pending,76
+/client-data/upload-sheet,client-data,{ redirect },Next.js 14 / React 18,Implemented - QA pending,76
+/client-data/uploaded-files,client-data,{ redirect },Next.js 14 / React 18,Implemented - QA pending,76
+/dashboard/admin,dashboard,"{ cookies }; { redirect }; RoleDashboardShell; { getAuthCookieName, verifyAuthToken }",Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/admin/pending-requests,dashboard,"Link; { useEffect, useState }",Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/admin/users/:id,dashboard,"{ useEffect, useState }",Next.js 14 / React 18,Implemented - dynamic route QA pending,82
+/dashboard/admin/users,dashboard,"Link; { useEffect, useState }",Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/broadcasts,dashboard,DashboardClientPage,Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/manager,dashboard,"{ cookies }; { redirect }; RoleDashboardShell; { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrapper }",Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard,dashboard,"{ cookies }; { redirect }; { getAuthCookieName, verifyAuthToken }; { getDashboardPathForRole }",Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/user,dashboard,DashboardClientPage,Next.js 14 / React 18,Implemented - QA pending,82
+/dashboard/user/profile/:section,dashboard,UserProfilePage,Next.js 14 / React 18,Implemented - dynamic route QA pending,82
+/dashboard/user/profile,dashboard,"{ createPortal }; { useEffect, useMemo, useState }; AppLayout; { useTheme }",Next.js 14 / React 18,Implemented - QA pending,82
+/draft-templates,draft-templates,"{ useEffect, useMemo, useState }; AppLayout; Button",Next.js 14 / React 18,Implemented - QA pending,76
+/drafts/:id,drafts,DraftDetailClientPage,Next.js 14 / React 18,Implemented - dynamic route QA pending,76
+/drafts,drafts,DraftsClientPage,Next.js 14 / React 18,Implemented - QA pending,76
+/forgot-password,forgot-password,Link; { useState },Next.js 14 / React 18,Implemented - QA pending,76
+/leads,leads,"{ useEffect, useMemo, useState }; AppLayout; Button",Next.js 14 / React 18,Implemented - QA pending,76
+/login,login,"Link; { useRouter }; { useEffect, useMemo, useState }; { getSeedEmailPlaceholder, getSeedLoginPrefill, normalizeLoginType, TEMP_AUTH_ROLES }",Next.js 14 / React 18,Implemented - QA pending,76
+/mail-inbox,mail-inbox,"{ useCallback, useEffect, useMemo, useState }; AppLayout; Button; Badge",Next.js 14 / React 18,Implemented - QA pending,76
+,Landing,"{ cookies }; { redirect }; { getAuthCookieName, verifyAuthToken }; { getDashboardPathForRole }",Next.js 14 / React 18,Implemented - QA pending,76
+/report,report,"{ useEffect, useMemo, useState }; AppLayout; Button",Next.js 14 / React 18,Implemented - QA pending,76
+/request-access,request-access,Link; { useState },Next.js 14 / React 18,Implemented - QA pending,76
+/reset-password,reset-password,"Link; { Suspense, useState }; { useSearchParams }",Next.js 14 / React 18,Implemented - QA pending,76
+/sender-emails,sender-emails,"{ useEffect, useState }; AppLayout; Button",Next.js 14 / React 18,Implemented - QA pending,76
+/summary,summary,Page-local components,Next.js 14 / React 18,Implemented - QA pending,76
+/unauthorized,unauthorized,{ useRouter },Next.js 14 / React 18,Implemented - QA pending,76
+/user/master-inbox,user,MailInboxPage,Next.js 14 / React 18,Implemented - QA pending,76
+/warm-up,warm-up,"{ useEffect, useMemo, useRef, useState }; AppLayout; Button; { Card, CardContent }",Next.js 14 / React 18,Implemented - QA pending,76

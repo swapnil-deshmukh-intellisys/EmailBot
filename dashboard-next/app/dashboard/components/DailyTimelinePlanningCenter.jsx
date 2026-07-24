@@ -177,20 +177,39 @@ function taskPayload(form) {
   };
 }
 
-function TimelineStat({ label, value, tone = '' }) {
+function TimelineStat({ label, value, tone = '', active = false, onClick }) {
   return (
-    <span className={`planning-stat ${tone}`}>
-      <strong>{value}</strong>
-      <small>{label}</small>
-    </span>
+    <button
+      type="button"
+      className={`planning-stat ${tone} ${active ? 'active' : ''}`}
+      onClick={onClick}
+      style={{
+        background: active ? '#f5f3ff' : '#ffffff',
+        border: active ? '1px solid #4f46e5' : '1px solid #e2e8f0',
+        cursor: 'pointer',
+        textAlign: 'center',
+        padding: '12px 16px',
+        borderRadius: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4px',
+        transition: 'all 0.2s ease',
+        width: '100%',
+        outline: 'none'
+      }}
+    >
+      <strong style={{ fontSize: '20px', color: active ? '#4f46e5' : '#0f172a' }}>{value}</strong>
+      <small style={{ fontSize: '11px', fontWeight: '600', color: active ? '#4f46e5' : '#64748b', textTransform: 'uppercase' }}>{label}</small>
+    </button>
   );
 }
 
-function ReminderStrip({ reminders }) {
+function ReminderStrip({ reminders, onReminderClick }) {
   if (!reminders.length) return null;
 
   return (
-    <div className="planning-reminders">
+    <div className="planning-reminders" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
       {reminders.map((task) => {
         const state = task.reminderState || (task.status === 'Overdue' ? 'overdue' : isToday(task.dueDate) ? 'due-today' : 'assignment');
         const label = state === 'overdue'
@@ -200,7 +219,41 @@ function ReminderStrip({ reminders }) {
             : state === 'due-today'
               ? 'Due today'
               : `Assigned by ${task.assignedBy}`;
-        return <span key={`${task.id}-${state}`}>{label}: {task.title}</span>;
+        return (
+          <button
+            key={`${task.id}-${state}`}
+            type="button"
+            onClick={() => onReminderClick?.(task)}
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: '500',
+              color: '#475569',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+              outline: 'none'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#4f46e5';
+              e.currentTarget.style.background = '#f5f3ff';
+              e.currentTarget.style.color = '#4f46e5';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.background = '#f8fafc';
+              e.currentTarget.style.color = '#475569';
+            }}
+          >
+            <span style={{ fontWeight: '700', color: state === 'overdue' ? '#ef4444' : '#4f46e5' }}>{label}:</span>
+            <span>{task.title}</span>
+          </button>
+        );
       })}
     </div>
   );
@@ -210,38 +263,37 @@ function PlanningTask({ task, busyId, onEdit, onComplete, onDelete, onReassign, 
   const statusSlug = task.status.toLowerCase().replace(/\s+/g, '-');
 
   return (
-    <article className={`planning-task status-${statusSlug}`}>
-      <time>{formatDueTime(task.dueTime)}</time>
-      <div className="planning-task-body">
-        <div className="planning-task-head">
-          <strong>{task.title}</strong>
-          <span className={`planning-priority priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
-          <span className={`planning-status status-${statusSlug}`}>{task.status}</span>
+    <article className={`planning-task status-${statusSlug}`} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`planning-status status-${statusSlug}`} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>{task.status}</span>
+          <span className={`planning-priority priority-${task.priority.toLowerCase()}`} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>{task.priority}</span>
         </div>
-        <p>{task.description || 'No description added.'}</p>
-        <div className="planning-meta">
-          <em>Due Date: {formatDate(task.dueDate)}</em>
-          <em>Due Time: {formatDueTime(task.dueTime)}</em>
-          <em>Created Date: {formatDateTime(task.createdAt)}</em>
-          <em>Last Updated Date: {formatDateTime(task.updatedAt)}</em>
-          <em>Assigned by: {task.assignedBy}</em>
-          <em>Assigned to: {task.assignedTo}</em>
-          <em>Created by: {task.createdBy || task.userEmail || 'Self'}</em>
-          <em>Project: {task.projectName || task.projectId || 'No project'}</em>
-          <em>Category: {task.category}</em>
-          {task.reminderAt ? <em>Reminder: {formatDateTime(task.reminderAt)}</em> : null}
+        <time style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
+          {formatDate(task.dueDate)} {task.dueTime ? `at ${formatDueTime(task.dueTime)}` : ''}
+        </time>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <strong style={{ fontSize: '15px', color: '#0f172a', fontWeight: '600' }}>{task.title}</strong>
+        {task.description && <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>{task.description}</p>}
+      </div>
+
+      {task.notes && (
+        <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', borderLeft: '3px solid #4f46e5', fontSize: '12px', color: '#475569' }}>
+          <strong>Note:</strong> {task.notes}
         </div>
-        {task.notes ? <p className="planning-note">{task.notes}</p> : null}
-        <div className="planning-actions">
-          {task.status !== 'Completed' ? (
-            <button type="button" disabled={busyId === task.id} onClick={() => onComplete(task)}>Complete Task</button>
-          ) : null}
-          <button type="button" disabled={busyId === task.id} onClick={() => onEdit(task)}>Edit Task</button>
-          <button type="button" disabled={busyId === task.id} onClick={() => onReassign(task)}>Reassign Task</button>
-          <button type="button" disabled={busyId === task.id} onClick={() => onNote(task)}>Add Note</button>
-          <button type="button" disabled={busyId === task.id} onClick={() => onReminder(task)}>Add Reminder</button>
-          <button type="button" className="danger" disabled={busyId === task.id} onClick={() => onDelete(task)}>Delete Task</button>
-        </div>
+      )}
+
+      <div className="planning-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+        {task.status !== 'Completed' ? (
+          <button type="button" className="wf-btn-primary" disabled={busyId === task.id} onClick={() => onComplete(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Complete</button>
+        ) : null}
+        <button type="button" className="wf-btn-secondary" disabled={busyId === task.id} onClick={() => onEdit(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Edit</button>
+        <button type="button" className="wf-btn-secondary" disabled={busyId === task.id} onClick={() => onReassign(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Reassign</button>
+        <button type="button" className="wf-btn-secondary" disabled={busyId === task.id} onClick={() => onNote(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Note</button>
+        <button type="button" className="wf-btn-secondary" disabled={busyId === task.id} onClick={() => onReminder(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Reminder</button>
+        <button type="button" className="wf-btn-secondary danger" disabled={busyId === task.id} onClick={() => onDelete(task)} style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', color: '#ef4444' }}>Delete</button>
       </div>
     </article>
   );
@@ -261,6 +313,8 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
   const [busyId, setBusyId] = useState('');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM, dueDate: todayInput() });
+  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+  const [pendingSelectTaskId, setPendingSelectTaskId] = useState(null);
 
   const loadTasks = async (nextFilter = filter) => {
     const filters = {
@@ -293,6 +347,10 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
   };
 
   useEffect(() => {
+    setCurrentTaskIndex(0);
+  }, [filter, projectFilter, priorityFilter, statusFilter]);
+
+  useEffect(() => {
     void loadTasks(filter);
   }, [filter, projectFilter, priorityFilter, statusFilter]);
 
@@ -301,6 +359,16 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
       .filter((task) => taskMatchesFilter(task, projectFilter, priorityFilter, statusFilter))
       .sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0) || String(a.dueTime || '').localeCompare(String(b.dueTime || '')));
   }, [filteredTasks, projectFilter, priorityFilter, statusFilter]);
+
+  useEffect(() => {
+    if (pendingSelectTaskId && visibleTasks.length > 0) {
+      const index = visibleTasks.findIndex((t) => t.id === pendingSelectTaskId);
+      if (index !== -1) {
+        setCurrentTaskIndex(index);
+        setPendingSelectTaskId(null);
+      }
+    }
+  }, [visibleTasks, pendingSelectTaskId]);
 
   const groupedTasks = useMemo(() => {
     const groups = new Map();
@@ -513,29 +581,71 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
     <section className="panel planning-center-card">
       <div className="planning-head">
         <div>
-          <span className="section-title">Daily Timeline & Planning Center</span>
-          <small>Daily, weekly, future work planning, assignments, notes, and reminders.</small>
+          <span className="section-title">Planning Center</span>
         </div>
         <button type="button" className="sales-add-btn" onClick={() => openForm()}>Add Task</button>
       </div>
 
-      <div className="planning-stats">
-        <TimelineStat label="Today's Tasks" value={stats.today} />
-        <TimelineStat label="Pending Tasks" value={stats.pending} />
-        <TimelineStat label="Completed Tasks" value={stats.completed} tone="complete" />
-        <TimelineStat label="Overdue Tasks" value={stats.overdue} tone="danger" />
-        <TimelineStat label="Upcoming Tasks" value={stats.upcoming} />
+      <div className="planning-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        <TimelineStat
+          label="Today's Tasks"
+          value={stats.today}
+          active={filter === 'today' && statusFilter === ''}
+          onClick={() => {
+            setFilter('today');
+            setStatusFilter('');
+          }}
+        />
+        <TimelineStat
+          label="Pending Tasks"
+          value={stats.pending}
+          active={statusFilter === 'Pending'}
+          onClick={() => {
+            setFilter('my');
+            setStatusFilter('Pending');
+          }}
+        />
+        <TimelineStat
+          label="Completed Tasks"
+          value={stats.completed}
+          tone="complete"
+          active={filter === 'completed' && statusFilter === ''}
+          onClick={() => {
+            setFilter('completed');
+            setStatusFilter('');
+          }}
+        />
+        <TimelineStat
+          label="Overdue Tasks"
+          value={stats.overdue}
+          tone="danger"
+          active={filter === 'overdue' && statusFilter === ''}
+          onClick={() => {
+            setFilter('overdue');
+            setStatusFilter('');
+          }}
+        />
+        <TimelineStat
+          label="Upcoming Tasks"
+          value={stats.upcoming}
+          active={filter === 'upcoming' && statusFilter === ''}
+          onClick={() => {
+            setFilter('upcoming');
+            setStatusFilter('');
+          }}
+        />
       </div>
 
-      <ReminderStrip reminders={reminders} />
-
-      <div className="planning-filters">
-        {FILTERS.map(([label, value]) => (
-          <button key={value} type="button" className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <ReminderStrip
+        reminders={reminders}
+        onReminderClick={(clickedTask) => {
+          setFilter('my');
+          setProjectFilter('');
+          setPriorityFilter('');
+          setStatusFilter('');
+          setPendingSelectTaskId(clickedTask.id);
+        }}
+      />
 
       <div className="planning-filter-selects">
         <label>
@@ -562,28 +672,56 @@ export default function DailyTimelinePlanningCenter({ onShowMessage }) {
       </div>
 
       {error ? <p className="sales-error-state">{error}</p> : null}
-      {loading ? <p className="sales-empty-state compact">Loading planning timeline...</p> : null}
 
       <div className="planning-list">
-        {!loading && !groupedTasks.length ? <p className="sales-empty-state">No planning tasks match this view. Add a task for today, tomorrow, this week, or a future date.</p> : null}
-        {groupedTasks.map(([label, items]) => (
-          <div key={label} className="planning-day-group">
-            <div className="planning-day-label">{label}</div>
-            {items.map((task) => (
-              <PlanningTask
-                key={task.id}
-                task={task}
-                busyId={busyId}
-                onEdit={openForm}
-                onComplete={completeTask}
-                onDelete={deleteTask}
-                onReassign={reassignTask}
-                onNote={addTaskNote}
-                onReminder={addReminder}
-              />
-            ))}
+        {loading ? (
+          <p className="sales-empty-state compact">Loading planning timeline...</p>
+        ) : !visibleTasks.length ? (
+          <p className="sales-empty-state">No planning tasks match this view. Add a task for today, tomorrow, this week, or a future date.</p>
+        ) : (
+          <div>
+            <div className="planning-day-label" style={{ marginBottom: '12px', fontSize: '13px', fontWeight: '700', color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {groupLabel(visibleTasks[currentTaskIndex]?.dueDate)}
+            </div>
+            
+            <PlanningTask
+              task={visibleTasks[currentTaskIndex]}
+              busyId={busyId}
+              onEdit={openForm}
+              onComplete={completeTask}
+              onDelete={deleteTask}
+              onReassign={reassignTask}
+              onNote={addTaskNote}
+              onReminder={addReminder}
+            />
+
+            {visibleTasks.length > 1 && (
+              <div className="planning-slider-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  className="wf-btn-secondary"
+                  disabled={currentTaskIndex === 0}
+                  onClick={() => setCurrentTaskIndex((prev) => Math.max(0, prev - 1))}
+                  style={{ padding: '6px 12px', fontSize: '12px', cursor: currentTaskIndex === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  ← Previous
+                </button>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>
+                  Task {currentTaskIndex + 1} of {visibleTasks.length}
+                </span>
+                <button
+                  type="button"
+                  className="wf-btn-secondary"
+                  disabled={currentTaskIndex === visibleTasks.length - 1}
+                  onClick={() => setCurrentTaskIndex((prev) => Math.min(visibleTasks.length - 1, prev + 1))}
+                  style={{ padding: '6px 12px', fontSize: '12px', cursor: currentTaskIndex === visibleTasks.length - 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </div>
-        ))}
+        )}
       </div>
 
       {formOpen ? (

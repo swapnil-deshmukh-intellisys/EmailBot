@@ -75,7 +75,7 @@
 .pr-uploadlist-pane {
   display: flex !important;
   flex-direction: column !important;
-  gap: 16px !important;
+  gap: 12px !important;
   padding: 24px !important;
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
@@ -445,7 +445,7 @@
   .pr-uploadlist-split,
   .pr-uploadlist-always {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
+    gap: 12px !important;
     height: auto !important;
     overflow-y: auto !important;
     padding: 16px !important;
@@ -458,13 +458,13 @@
 
 /* Fresh two-column upload popup polish */
 .pr-uploadlist-always {
-  padding: 22px 54px 20px !important;
-  gap: 30px !important;
+  padding: 18px 44px 18px !important;
+  gap: 22px !important;
 }
 
 .pr-uploadlist-always .pr-uploadlist-pane {
-  padding: 26px 28px !important;
-  gap: 16px !important;
+  padding: 20px 22px !important;
+  gap: 12px !important;
   border-color: #dbe3ef !important;
   box-shadow: 0 14px 30px rgba(15, 23, 42, .04) !important;
 }
@@ -582,7 +582,7 @@
 
 .pr-uploadlist-uploaded-box {
   max-height: none !important;
-  min-height: 104px !important;
+  min-height: 220px !important;
   flex: 1 1 0 !important;
 }
 
@@ -693,4 +693,4826 @@
 .pr-uploadlist-always .pr-uploadlist-item input[type="radio"]:focus-visible {
   outline: 2px solid rgba(79, 70, 229, .18) !important;
   outline-offset: 2px !important;
+}
+
+/* Campaign workflow upload step: show multiple uploaded lists without changing popup size. */
+.pr-uploadlist-modal .pr-uploadlist-always {
+  padding: 18px 44px !important;
+  gap: 22px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-always .pr-uploadlist-pane {
+  padding: 20px 22px !important;
+  gap: 12px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-always .pr-uploadlist-uploadbox {
+  min-height: 56px !important;
+  padding: 8px 12px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-always .pr-uploadlist-uploadicon,
+.pr-uploadlist-modal .pr-uploadlist-always .pr-uploadlist-uploadicon.success {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-box {
+  min-height: 220px !important;
+  flex: 1 1 auto !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll {
+  min-height: 0 !important;
+  max-height: 228px !important;
+  overflow-y: auto !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.pr-uploadlist-modal .pr-uploadlist-uploaded-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Campaign Workflow Step 1: saved client list picker */
+.campaign-list-picker-modal {
+  display: flex !important;
+  flex-direction: column !important;
+  height: min(92vh, 900px) !important;
+  max-height: min(92vh, 900px) !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, .18), 0 12px 32px rgba(79, 70, 229, .08) !important;
+}
+
+.campaign-list-picker-header {
+  flex: 0 0 92px;
+  display: grid;
+  grid-template-columns: auto minmax(250px, 360px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 36px;
+  background: #ffffff;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.campaign-list-picker-back,
+.campaign-list-picker-close {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #e4e8f2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.campaign-list-picker-close {
+  font-size: 20px;
+  color: #1f2937;
+}
+
+.campaign-list-picker-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.campaign-list-picker-icon,
+.campaign-list-picker-intro-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, .22);
+}
+
+.campaign-list-picker-heading h3,
+.campaign-list-picker-toolbar h3 {
+  margin: 0;
+  color: #101827;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.campaign-list-picker-heading p,
+.campaign-list-picker-toolbar p,
+.campaign-list-picker-intro-card p,
+.campaign-list-picker-upload-card p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.campaign-list-picker-stepper {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(70px, 1fr));
+  align-items: start;
+  gap: 0;
+  min-width: 0;
+}
+
+.campaign-list-picker-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.campaign-list-picker-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: calc(50% + 19px);
+  width: calc(100% - 38px);
+  height: 2px;
+  background: #dbe2ee;
+}
+
+.campaign-list-picker-step.active:not(:last-child)::after {
+  background: linear-gradient(90deg, #4f46e5, #dbe2ee);
+}
+
+.campaign-list-picker-step span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid #dbe2ee;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+}
+
+.campaign-list-picker-step.active span {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, .24);
+}
+
+.campaign-list-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 30px 18px;
+  overflow: hidden;
+  background: #fbfcff;
+}
+
+.campaign-list-picker-alert {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.campaign-list-picker-alert.warning {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.campaign-list-picker-alert.success {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #047857;
+}
+
+.campaign-list-picker-topline {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(520px, .9fr);
+  gap: 18px;
+}
+
+.campaign-list-picker-intro-card,
+.campaign-list-picker-stats,
+.campaign-list-picker-side-panel,
+.campaign-list-picker-content,
+.campaign-list-picker-upload-card {
+  border: 1px solid #e5e9f4;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .04);
+}
+
+.campaign-list-picker-intro-card {
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 12px;
+}
+
+.campaign-list-picker-intro-card strong,
+.campaign-list-picker-upload-card strong {
+  color: #111827;
+  font-size: 15px;
+}
+
+.campaign-list-picker-intro-icon {
+  background: #ede9fe;
+  color: #4f46e5;
+  box-shadow: none;
+}
+
+.campaign-list-picker-stats {
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.campaign-list-picker-stats div {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 0 24px;
+  border-right: 1px solid #edf0f7;
+}
+
+.campaign-list-picker-stats div:last-child {
+  border-right: 0;
+}
+
+.campaign-list-picker-stats strong {
+  color: #101827;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.campaign-list-picker-stats span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.campaign-list-picker-stats .danger strong { color: #dc2626; }
+.campaign-list-picker-stats .success strong { color: #059669; }
+
+.campaign-list-picker-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 25%) minmax(0, 75%);
+  gap: 24px;
+}
+
+.campaign-list-picker-sidebar {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+}
+
+.campaign-list-picker-search {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #dfe5f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.campaign-list-picker-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #111827;
+  font-weight: 700;
+}
+
+.campaign-list-picker-side-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 18px 16px;
+}
+
+.campaign-list-picker-side-panel h4 {
+  margin: 0 0 12px;
+  color: #111827;
+  font-size: 13px;
+}
+
+.campaign-list-picker-side-panel button,
+.campaign-list-picker-check {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 12px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.campaign-list-picker-side-panel button.active {
+  background: #f0edff;
+  color: #4f46e5;
+}
+
+.campaign-list-picker-side-panel small,
+.campaign-list-picker-check small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.campaign-list-picker-side-panel hr {
+  border: 0;
+  height: 1px;
+  background: #edf0f7;
+  margin: 14px 0 16px;
+}
+
+.campaign-list-picker-check {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding-left: 0;
+}
+
+.campaign-list-picker-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #4f46e5;
+}
+
+.campaign-list-picker-upload-card {
+  flex: 0 0 auto;
+  border-radius: 10px;
+  padding: 18px;
+  background: linear-gradient(135deg, #ffffff, #f4f1ff);
+}
+
+.campaign-list-picker-upload-btn {
+  display: grid;
+  place-items: center;
+  margin-top: 14px;
+  height: 38px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  color: #4f46e5;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.campaign-list-picker-content {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.campaign-list-picker-toolbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) 180px 180px 180px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid #edf0f7;
+  background: #ffffff;
+}
+
+.campaign-list-picker-toolbar select,
+.campaign-list-picker-refresh {
+  height: 42px;
+  border: 1px solid #dfe5f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.campaign-list-picker-refresh {
+  min-width: 82px;
+  color: #4f46e5;
+  cursor: pointer;
+}
+
+.campaign-list-picker-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.campaign-list-picker-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #1f2937;
+  font-size: 12px;
+}
+
+.campaign-list-picker-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 44px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e9f4;
+  color: #64748b;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  text-align: left;
+  padding: 0 12px;
+}
+
+.campaign-list-picker-table th button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.campaign-list-picker-table td {
+  height: 62px;
+  border-bottom: 1px solid #f0f3f8;
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+
+.campaign-list-picker-table tr:hover td {
+  background: #fbfbff;
+}
+
+.campaign-list-picker-table tr.selected td {
+  background: #f5f3ff;
+  border-top: 1px solid #c4b5fd;
+  border-bottom: 1px solid #c4b5fd;
+}
+
+.campaign-list-picker-table tr.selected td:first-child {
+  border-left: 3px solid #4f46e5;
+}
+
+.campaign-list-picker-table .check {
+  width: 36px;
+  text-align: center;
+}
+
+.campaign-list-picker-table input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #4f46e5;
+}
+
+.campaign-list-picker-name-cell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.campaign-list-picker-name-cell .sheet-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #dcfce7;
+  color: #047857;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.campaign-list-picker-name-cell strong,
+.campaign-list-picker-name-cell small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-list-picker-name-cell strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+.campaign-list-picker-name-cell small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.campaign-list-picker-name-cell em {
+  border-radius: 999px;
+  background: #4f46e5;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.campaign-list-picker-project,
+.campaign-list-picker-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  max-width: 118px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.campaign-list-picker-project.tut { background: #dcfce7; color: #047857; }
+.campaign-list-picker-project.other { background: #f1f5f9; color: #475569; }
+.campaign-list-picker-status { background: #ecfdf5; color: #047857; }
+
+.campaign-list-picker-use {
+  height: 34px;
+  min-width: 124px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.campaign-list-picker-table tr.selected .campaign-list-picker-use {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.campaign-list-picker-skeleton-row span {
+  display: block;
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f5f9, #e5e7eb, #f1f5f9);
+  background-size: 200% 100%;
+  animation: campaignListSkeleton 1.1s linear infinite;
+}
+
+@keyframes campaignListSkeleton {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.campaign-list-picker-empty-row td {
+  height: 220px;
+  text-align: center;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-empty-row strong,
+.campaign-list-picker-empty-row span {
+  display: block;
+}
+
+.campaign-list-picker-empty-row strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.campaign-list-picker-empty-row span {
+  margin-top: 8px;
+  color: #64748b;
+}
+
+.campaign-list-picker-table-footer {
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+  border-top: 1px solid #edf0f7;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.campaign-list-picker-pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campaign-list-picker-pages button {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid #dfe5f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.campaign-list-picker-pages button.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.campaign-list-picker-pages button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.campaign-list-picker-tip {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 18px 14px;
+  padding: 10px 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 9px;
+  background: #fbfaff;
+}
+
+.campaign-list-picker-tip span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.campaign-list-picker-tip p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.campaign-list-picker-tip button {
+  height: 34px;
+  border: 1px solid #c4b5fd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #4f46e5;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.campaign-list-picker-footer {
+  flex: 0 0 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: #ffffff;
+  border-top: 1px solid #edf0f7;
+}
+
+.campaign-list-picker-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.campaign-list-picker-cancel,
+.campaign-list-picker-back-footer,
+.campaign-list-picker-next {
+  height: 42px;
+  min-width: 106px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.campaign-list-picker-cancel {
+  border: 1px solid #dfe5f0;
+  background: #ffffff;
+  color: #111827;
+}
+
+.campaign-list-picker-back-footer {
+  border: 1px solid #e5e7eb;
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.campaign-list-picker-next {
+  border: 0;
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, .24);
+}
+
+.campaign-list-picker-next.is-disabled,
+.campaign-list-picker-next:disabled {
+  background: #eef2f7;
+  color: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1200px) {
+  .campaign-list-picker-header {
+    grid-template-columns: auto minmax(220px, 1fr) auto;
+  }
+
+  .campaign-list-picker-stepper {
+    display: none;
+  }
+
+  .campaign-list-picker-topline,
+  .campaign-list-picker-main {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-list-picker-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .campaign-list-picker-search,
+  .campaign-list-picker-upload-card {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .campaign-list-picker-modal {
+    width: calc(100vw - 20px) !important;
+    height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  .campaign-list-picker-header {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .campaign-list-picker-body {
+    padding: 14px;
+  }
+
+  .campaign-list-picker-topline {
+    gap: 12px;
+  }
+
+  .campaign-list-picker-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .campaign-list-picker-sidebar,
+  .campaign-list-picker-toolbar {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .campaign-list-picker-search,
+  .campaign-list-picker-upload-card {
+    grid-column: auto;
+  }
+
+  .campaign-list-picker-toolbar select,
+  .campaign-list-picker-refresh {
+    width: 100%;
+  }
+
+  .campaign-list-picker-tip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .campaign-list-picker-tip button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Reference-match refinements for Campaign Workflow Step 1 */
+.premium-calendar-modal.wf-modal.campaign-list-picker-modal,
+.wf-modal.campaign-list-picker-modal,
+.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(96vw, 1700px) !important;
+  max-width: min(96vw, 1700px) !important;
+  height: min(92vh, 900px) !important;
+  max-height: min(92vh, 900px) !important;
+  min-height: min(92vh, 900px) !important;
+  border-radius: 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  flex: 0 0 96px !important;
+  height: 96px !important;
+  padding: 18px 38px !important;
+  grid-template-columns: 38px minmax(260px, 390px) minmax(640px, 1fr) 38px !important;
+  gap: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back,
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back::before {
+  content: "<";
+  font-size: 22px;
+  line-height: 1;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-close::before {
+  content: "x";
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  font-size: 19px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  font-size: 12.5px !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  grid-template-columns: repeat(7, minmax(76px, 1fr)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step {
+  gap: 7px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 31px !important;
+  height: 31px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 15px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  gap: 16px !important;
+  padding: 22px 30px 16px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  grid-template-columns: minmax(0, 1fr) minmax(560px, .92fr) !important;
+  gap: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  min-height: 88px !important;
+  height: 88px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  padding: 16px 22px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 62px;
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) 230px 230px 230px 56px minmax(150px, 190px);
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #e5e9f4;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .035);
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 42px !important;
+  min-height: 42px !important;
+  border: 1px solid #dfe5f0 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  box-sizing: border-box !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search {
+  padding: 0 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row select {
+  width: 100% !important;
+  padding: 0 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh {
+  min-width: 0 !important;
+  width: 48px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  position: relative !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh::before {
+  content: "R";
+  color: #64748b;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-create-btn {
+  display: grid !important;
+  place-items: center !important;
+  border-color: #c4b5fd !important;
+  color: #4f46e5 !important;
+  cursor: pointer !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  grid-template-columns: minmax(260px, 25%) minmax(0, 75%) !important;
+  gap: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar,
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  flex: 1 1 auto !important;
+  padding: 17px 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  margin-bottom: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  min-height: 35px !important;
+  font-size: 12.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 16px 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 36px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  flex: 0 0 48px !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  font-size: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar p {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 43px !important;
+  padding: 0 10px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 60px !important;
+  padding: 7px 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1160px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex: 0 0 48px !important;
+  min-height: 48px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  margin: 10px 18px 12px !important;
+  padding: 9px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  flex: 0 0 70px !important;
+  height: 70px !important;
+  min-height: 70px !important;
+  padding: 0 28px !important;
+}
+
+@media (max-width: 1500px) {
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: 38px minmax(240px, 330px) minmax(520px, 1fr) 38px !important;
+    padding-left: 28px !important;
+    padding-right: 28px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: minmax(260px, 1fr) 180px 180px 180px 52px 160px;
+  }
+}
+
+/* Screenshot-fit pass: keep Step 1 content visible on 1365x768 style screens */
+.premium-calendar-modal.wf-modal.campaign-list-picker-modal,
+.wf-modal.campaign-list-picker-modal,
+.pr-uploadlist-modal.campaign-list-picker-modal {
+  height: min(900px, calc(100dvh - 48px)) !important;
+  min-height: 0 !important;
+  max-height: min(900px, calc(100dvh - 48px)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header,
+.campaign-list-picker-modal .campaign-list-picker-body,
+.campaign-list-picker-modal .campaign-list-picker-topline,
+.campaign-list-picker-modal .campaign-list-picker-control-row,
+.campaign-list-picker-modal .campaign-list-picker-main,
+.campaign-list-picker-modal .campaign-list-picker-footer,
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats,
+.campaign-list-picker-modal .campaign-list-picker-content,
+.campaign-list-picker-modal .campaign-list-picker-side-panel,
+.campaign-list-picker-modal .campaign-list-picker-upload-card,
+.campaign-list-picker-modal .campaign-list-picker-table-footer,
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  box-sizing: border-box !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  flex-basis: 88px !important;
+  height: 88px !important;
+  min-height: 88px !important;
+  max-height: 88px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  gap: 12px !important;
+  padding: 18px 30px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  height: 82px !important;
+  min-height: 82px !important;
+  max-height: 82px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 82px !important;
+  min-height: 82px !important;
+  max-height: 82px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 15px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 58px !important;
+  height: 58px !important;
+  min-height: 58px !important;
+  max-height: 58px !important;
+  padding: 8px 16px !important;
+  align-items: center !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  margin: 0 0 8px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel hr {
+  margin: 9px 0 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 12px 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin-top: 4px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  margin-top: 10px !important;
+  height: 34px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  flex-basis: 42px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  min-height: 170px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 36px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 46px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell strong {
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell small {
+  font-size: 10px !important;
+  margin-top: 2px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use {
+  height: 30px !important;
+  min-width: 112px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex-basis: 44px !important;
+  min-height: 44px !important;
+  height: 44px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  flex-basis: 62px !important;
+  height: 62px !important;
+  min-height: 62px !important;
+  max-height: 62px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-cancel,
+.campaign-list-picker-modal .campaign-list-picker-back-footer,
+.campaign-list-picker-modal .campaign-list-picker-next {
+  height: 38px !important;
+}
+
+@media (min-height: 860px) {
+  .campaign-list-picker-modal .campaign-list-picker-tip {
+    display: grid !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table td {
+    height: 56px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table-wrap {
+    min-height: 300px !important;
+  }
+}
+/* Production Step 1 table actions and selection polish. */
+.campaign-list-picker-modal .campaign-list-picker-row-action {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid #e6e0ff !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: #6557ff !important;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, .08) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-row-action:hover {
+  border-color: #c4b5fd !important;
+  background: #f5f3ff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table tr.selected {
+  outline: 2px solid rgba(79, 70, 229, .42) !important;
+  outline-offset: -2px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell em {
+  color: #4f46e5 !important;
+  background: #ede9fe !important;
+  border: 1px solid #ddd6fe !important;
+  border-radius: 999px !important;
+  padding: 3px 8px !important;
+  font-size: 10px !important;
+  font-style: normal !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use {
+  white-space: nowrap !important;
+}
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  border-style: dashed !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card:focus-within,
+.campaign-list-picker-modal .campaign-list-picker-upload-card:hover {
+  border-color: #c4b5fd !important;
+  background: #fbfaff !important;
+}
+
+/* Step 1 final reference-fit override */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(1700px, calc(100vw - 72px)) !important;
+  height: min(900px, calc(100vh - 72px)) !important;
+  max-width: min(1700px, calc(100vw - 72px)) !important;
+  max-height: min(900px, calc(100vh - 72px)) !important;
+  display: grid !important;
+  grid-template-rows: 126px minmax(0, 1fr) 92px !important;
+  overflow: hidden !important;
+  border: 1px solid #e4e9f2 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: 0 26px 72px rgba(15, 23, 42, .22) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  height: 126px !important;
+  display: grid !important;
+  grid-template-columns: 56px minmax(360px, 440px) minmax(0, 1fr) 56px !important;
+  align-items: center !important;
+  gap: 24px !important;
+  padding: 0 40px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back,
+.campaign-list-picker-modal .campaign-list-picker-close {
+  display: grid !important;
+  place-items: center !important;
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  padding: 0 !important;
+  border: 1px solid #ddd6fe !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #4f46e5 !important;
+  font-size: 30px !important;
+  box-shadow: 0 14px 30px rgba(79, 70, 229, .10) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back::before,
+.campaign-list-picker-modal .campaign-list-picker-close::before,
+.campaign-list-picker-modal .campaign-list-picker-refresh::before {
+  content: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 20px !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon,
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 999px !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  font-size: 26px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  margin: 0 !important;
+  color: #0f172a !important;
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  margin: 9px 0 0 !important;
+  color: #0f172a !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(74px, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step {
+  position: relative !important;
+  display: grid !important;
+  justify-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  z-index: 2 !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 46px !important;
+  height: 46px !important;
+  border: 1px solid #d8dee9 !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step.active span {
+  border-color: #4f46e5 !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(79, 70, 229, .25) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  min-width: max-content !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 23px !important;
+  left: calc(50% + 24px) !important;
+  right: calc(-50% + 24px) !important;
+  height: 2px !important;
+  background: #dbe3ef !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step.active:not(:last-child)::after {
+  background: #8b7cf6 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 26px 44px 22px !important;
+  background: #fbfcff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(560px, .95fr) !important;
+  gap: 24px !important;
+  margin-bottom: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats,
+.campaign-list-picker-modal .campaign-list-picker-control-row,
+.campaign-list-picker-modal .campaign-list-picker-side-panel,
+.campaign-list-picker-modal .campaign-list-picker-upload-card,
+.campaign-list-picker-modal .campaign-list-picker-content {
+  border: 1px solid #dfe6f1 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  min-height: 118px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 22px !important;
+  padding: 24px 30px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 68px !important;
+  height: 68px !important;
+  border-radius: 18px !important;
+  background: #ede9fe !important;
+  color: #5b4bff !important;
+  font-size: 33px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 8px !important;
+  color: #111827 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  min-height: 118px !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  display: grid !important;
+  align-content: center !important;
+  gap: 8px !important;
+  padding: 0 36px !important;
+  border-right: 1px solid #e5e7eb !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div:last-child {
+  border-right: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 28px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  color: #111827 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  display: grid !important;
+  grid-template-columns: minmax(330px, 1.6fr) minmax(170px, .95fr) minmax(170px, .95fr) minmax(170px, .95fr) 72px minmax(190px, .9fr) !important;
+  gap: 20px !important;
+  align-items: center !important;
+  padding: 12px 22px !important;
+  margin-bottom: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  width: 100% !important;
+  height: 60px !important;
+  min-height: 60px !important;
+  border: 1px solid #d9e0ea !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search {
+  grid-template-columns: 72px minmax(0, 1fr) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search span {
+  display: grid !important;
+  place-items: center !important;
+  height: 100% !important;
+  color: #111827 !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search input {
+  height: 100% !important;
+  border: 0 !important;
+  padding: 0 18px 0 0 !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-create-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  padding: 0 18px !important;
+  cursor: pointer !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-refresh {
+  color: #64748b !important;
+  font-size: 22px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-create-btn {
+  color: #4f46e5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  display: grid !important;
+  grid-template-columns: 420px minmax(0, 1fr) !important;
+  gap: 34px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  display: grid !important;
+  gap: 20px !important;
+  align-content: start !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  margin: 0 !important;
+  padding: 20px 24px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  min-height: 42px !important;
+  margin: 0 16px !important;
+  padding: 0 14px !important;
+  border-radius: 9px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button.active {
+  background: #f1edff !important;
+  color: #4f46e5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 22px 24px !important;
+  background: #faf7ff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 20px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 10px 0 18px !important;
+  color: #111827 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 48px !important;
+  border-radius: 8px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  height: 64px !important;
+  padding: 0 30px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  margin: 0 !important;
+  font-size: 21px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar p {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  max-height: 275px !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1220px !important;
+  table-layout: fixed !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 62px !important;
+  padding: 0 16px !important;
+  background: #fbfcff !important;
+  color: #4f46e5 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 72px !important;
+  padding: 12px 16px !important;
+  color: #1f2937 !important;
+  font-size: 16px !important;
+  vertical-align: middle !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell {
+  grid-template-columns: 42px minmax(0, 1fr) auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 12px !important;
+  font-size: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon::before {
+  content: "\ea6a";
+  font-family: "tabler-icons";
+  color: #16a34a;
+  font-size: 22px;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell strong,
+.campaign-list-picker-modal .campaign-list-picker-name-cell small {
+  max-width: 260px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  min-height: 50px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  min-height: 58px !important;
+  margin: 16px auto 0 !important;
+  max-width: 820px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  height: 92px !important;
+  padding: 0 40px !important;
+  border-top: 1px solid #e5e7eb !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-cancel,
+.campaign-list-picker-modal .campaign-list-picker-back-footer,
+.campaign-list-picker-modal .campaign-list-picker-next {
+  height: 60px !important;
+  min-width: 150px !important;
+  border-radius: 10px !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 1500px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: calc(100vw - 48px) !important;
+    height: calc(100vh - 48px) !important;
+    max-width: calc(100vw - 48px) !important;
+    max-height: calc(100vh - 48px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: 52px minmax(300px, 380px) minmax(0, 1fr) 52px !important;
+    gap: 18px !important;
+    padding: 0 28px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-template-columns: repeat(7, minmax(64px, 1fr)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step small {
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    padding: 22px 30px 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 360px minmax(0, 1fr) !important;
+    gap: 24px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: minmax(280px, 1.5fr) repeat(3, minmax(150px, .9fr)) 64px minmax(170px, .9fr) !important;
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: 52px minmax(0, 1fr) 52px !important;
+    height: auto !important;
+    min-height: 132px !important;
+    padding: 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-column: 1 / -1 !important;
+    order: 4 !important;
+    overflow-x: auto !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline,
+  .campaign-list-picker-modal .campaign-list-picker-main,
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Step 1 exact compact reference override */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(1800px, calc(100vw - 24px)) !important;
+  height: min(960px, calc(100vh - 24px)) !important;
+  max-width: min(1800px, calc(100vw - 24px)) !important;
+  max-height: min(960px, calc(100vh - 24px)) !important;
+  grid-template-rows: 100px minmax(0, 1fr) 82px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .16) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  height: 100px !important;
+  grid-template-columns: minmax(330px, 380px) minmax(0, 1fr) 42px !important;
+  gap: 24px !important;
+  padding: 0 30px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 999px !important;
+  font-size: 21px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  font-size: 24px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  margin-top: 6px !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  white-space: normal !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-size: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  grid-template-columns: repeat(6, minmax(82px, 1fr)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:first-child {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 16px !important;
+  left: calc(50% + 16px) !important;
+  right: calc(-50% + 16px) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  padding: 24px 26px 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  grid-template-columns: minmax(0, 1.1fr) minmax(520px, .9fr) !important;
+  gap: 26px !important;
+  margin-bottom: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  min-height: 92px !important;
+  padding: 18px 22px !important;
+  gap: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 10px !important;
+  font-size: 26px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 6px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  min-height: 76px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  gap: 5px !important;
+  padding: 0 22px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  grid-template-columns: minmax(250px, 1.35fr) minmax(170px, .85fr) minmax(170px, .85fr) minmax(170px, .85fr) 50px minmax(170px, .75fr) !important;
+  gap: 14px !important;
+  padding: 16px !important;
+  margin-bottom: 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 40px !important;
+  min-height: 40px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search {
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search span {
+  width: 0 !important;
+  overflow: hidden !important;
+  font-size: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search::before {
+  content: "\eb1c" !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 36px !important;
+  color: #64748b !important;
+  font-family: "tabler-icons" !important;
+  font-size: 17px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search input {
+  padding: 0 12px 0 0 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-refresh {
+  font-size: 17px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-create-btn {
+  color: #4f46e5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  grid-template-columns: 294px minmax(0, 1fr) !important;
+  gap: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  padding: 16px 20px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  min-height: 38px !important;
+  margin: 0 14px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 8px 0 16px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 38px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  height: 48px !important;
+  padding: 0 22px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  max-height: 532px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1060px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 40px !important;
+  padding: 0 12px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 58px !important;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon::before {
+  font-size: 17px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell {
+  grid-template-columns: 30px minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell strong,
+.campaign-list-picker-modal .campaign-list-picker-name-cell small {
+  max-width: 240px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell strong {
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell small {
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-project,
+.campaign-list-picker-modal .campaign-list-picker-status,
+.campaign-list-picker-modal .campaign-list-picker-use {
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use {
+  min-height: 32px !important;
+  padding: 0 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  min-height: 52px !important;
+  margin: 16px 0 0 !important;
+  max-width: 890px !important;
+  padding: 0 16px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip span {
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip button {
+  height: 34px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  height: 82px !important;
+  padding: 0 30px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-cancel,
+.campaign-list-picker-modal .campaign-list-picker-back-footer,
+.campaign-list-picker-modal .campaign-list-picker-next {
+  height: 42px !important;
+  min-width: 94px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-next {
+  min-width: 116px !important;
+}
+
+@media (max-width: 1366px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: calc(100vw - 20px) !important;
+    height: calc(100vh - 20px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: minmax(300px, 340px) minmax(0, 1fr) 38px !important;
+    padding: 0 24px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    padding: 20px 24px 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+    gap: 20px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline {
+    grid-template-columns: minmax(0, 1fr) minmax(470px, .85fr) !important;
+  }
+}
+
+@media (max-height: 820px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    height: calc(100vh - 18px) !important;
+    max-height: calc(100vh - 18px) !important;
+    grid-template-rows: 78px minmax(0, 1fr) 64px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    height: 78px !important;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) 34px !important;
+    padding: 0 24px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading {
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-icon {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 19px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading h3 {
+    font-size: 22px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading p {
+    margin-top: 3px !important;
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-close {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    font-size: 22px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-template-columns: repeat(6, minmax(72px, 1fr)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step {
+    gap: 5px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step span {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 13px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step small {
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+    top: 14px !important;
+    left: calc(50% + 14px) !important;
+    right: calc(-50% + 14px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    padding: 16px 24px 10px !important;
+    overflow: hidden !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline {
+    grid-template-columns: minmax(0, 1.12fr) minmax(430px, .88fr) !important;
+    gap: 18px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-card {
+    min-height: 74px !important;
+    padding: 12px 16px !important;
+    gap: 13px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 10px !important;
+    font-size: 22px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+    font-size: 15px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-card p {
+    margin-top: 4px !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stats {
+    min-height: 74px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stats div {
+    gap: 4px !important;
+    padding: 0 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stats strong {
+    font-size: 17px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stats span {
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: minmax(230px, 1.35fr) minmax(150px, .82fr) minmax(150px, .82fr) minmax(150px, .82fr) 46px minmax(155px, .72fr) !important;
+    gap: 12px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+  .campaign-list-picker-modal .campaign-list-picker-control-row select,
+  .campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+  .campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+    height: 34px !important;
+    min-height: 34px !important;
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-search {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-search::before {
+    width: 32px !important;
+    font-size: 15px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-search input {
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 250px minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-sidebar {
+    gap: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+    padding: 11px 16px !important;
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-side-panel button,
+  .campaign-list-picker-modal .campaign-list-picker-check {
+    min-height: 30px !important;
+    margin: 0 10px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-side-panel hr {
+    margin: 8px 14px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-upload-card {
+    padding: 14px 16px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+    font-size: 13px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-upload-card p {
+    margin: 6px 0 10px !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-upload-btn {
+    height: 32px !important;
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-toolbar {
+    height: 42px !important;
+    padding: 0 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+    font-size: 13px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table-wrap {
+    max-height: max(240px, calc(100vh - 420px)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table {
+    min-width: 1020px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table th {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table td {
+    height: 46px !important;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-name-cell {
+    grid-template-columns: 26px minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon::before {
+    font-size: 15px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-name-cell strong {
+    font-size: 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-name-cell small {
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table-footer {
+    min-height: 38px !important;
+    padding: 0 16px !important;
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-pages button {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-tip {
+    min-height: 38px !important;
+    margin-top: 10px !important;
+    padding: 0 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-tip p {
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-tip button {
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-footer {
+    height: 64px !important;
+    padding: 0 24px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-cancel,
+  .campaign-list-picker-modal .campaign-list-picker-back-footer,
+  .campaign-list-picker-modal .campaign-list-picker-next {
+    height: 36px !important;
+    min-width: 86px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Keep Step 1 readable and fully fitted inside the available screen. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: calc(100vw - 36px) !important;
+  height: 128vh !important;
+  max-width: calc(100vw - 36px) !important;
+  max-height: 128vh !important;
+  transform: translate(-50%, -50%) scale(.75) !important;
+  transform-origin: center center !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  max-height: 520px !important;
+}
+
+/* Use the existing popup space better without changing the popup size. */
+.campaign-list-picker-modal .campaign-list-picker-body {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline,
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  align-items: stretch !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  min-height: 0 !important;
+  height: 100% !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  height: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip,
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex: 0 0 auto !important;
+}
+
+/* Use horizontal space more efficiently inside Step 1. */
+.campaign-list-picker-modal .campaign-list-picker-body {
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  gap: 14px !important;
+  grid-template-columns: minmax(0, 1.05fr) minmax(430px, .95fr) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  gap: 10px !important;
+  grid-template-columns: minmax(250px, 1.6fr) minmax(140px, .75fr) minmax(140px, .75fr) minmax(150px, .8fr) 42px minmax(160px, .8fr) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  gap: 14px !important;
+  grid-template-columns: 250px minmax(0, 1fr) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  width: 100% !important;
+  min-width: 980px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(1),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(1) {
+  width: 34px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(2),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(2) {
+  width: 280px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(3),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(3) {
+  width: 105px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(4),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(4) {
+  width: 105px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(5),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(5) {
+  width: 78px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(6),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(6),
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(7),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(7) {
+  width: 96px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(8),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(8) {
+  width: 160px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(9),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(9) {
+  width: 76px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(10),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(10) {
+  width: 58px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th:nth-child(11),
+.campaign-list-picker-modal .campaign-list-picker-table td:nth-child(11) {
+  width: 136px !important;
+}
+
+/* Auto-fit the My Lists & Sheets sidebar content. */
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding: 10px 10px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  flex: 0 0 auto !important;
+  padding: 8px 10px !important;
+  border-bottom: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  flex: 0 0 auto !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  margin: 1px 0 !important;
+  padding: 0 8px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-check {
+  grid-template-columns: 14px minmax(0, 1fr) auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-check input {
+  width: 12px !important;
+  height: 12px !important;
+  margin: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button span,
+.campaign-list-picker-modal .campaign-list-picker-check span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel small,
+.campaign-list-picker-modal .campaign-list-picker-check small {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel hr {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  margin: 6px 0 !important;
+}
+
+/* Step 1 responsive reset: remove fighting scale/height hacks and make the layout stable. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(1500px, calc(100vw - 32px)) !important;
+  height: min(860px, calc(100vh - 32px)) !important;
+  max-width: min(1500px, calc(100vw - 32px)) !important;
+  max-height: min(860px, calc(100vh - 32px)) !important;
+  transform: translate(-50%, -50%) !important;
+  grid-template-rows: 94px minmax(0, 1fr) 72px !important;
+  border-radius: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  height: 94px !important;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr) 40px !important;
+  gap: 22px !important;
+  padding: 0 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  font-size: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  grid-template-columns: repeat(6, minmax(72px, 1fr)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+  padding: 20px 24px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline,
+.campaign-list-picker-modal .campaign-list-picker-control-row,
+.campaign-list-picker-modal .campaign-list-picker-main {
+  margin: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(430px, .85fr) !important;
+  gap: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  min-height: 78px !important;
+  padding: 14px 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 46px !important;
+  height: 46px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  min-height: 78px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  padding: 0 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 19px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(150px, .82fr) minmax(150px, .82fr) minmax(160px, .85fr) 46px minmax(170px, .82fr) !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 38px !important;
+  min-height: 38px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  display: grid !important;
+  grid-template-columns: 280px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: 46px minmax(0, 1fr) 42px 46px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  width: 100% !important;
+  min-width: 1080px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 38px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 50px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  height: 72px !important;
+  padding: 0 28px !important;
+}
+
+@media (max-width: 1200px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: calc(100vw - 20px) !important;
+    height: calc(100vh - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100vh - 20px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: minmax(270px, 330px) minmax(0, 1fr) 36px !important;
+    gap: 14px !important;
+    padding: 0 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    overflow-x: auto !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline {
+    grid-template-columns: 1fr !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(130px, .7fr)) 42px minmax(150px, .8fr) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 230px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+    grid-template-rows: auto auto !important;
+    height: auto !important;
+    min-height: 112px !important;
+    padding: 14px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-column: 1 / -1 !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    overflow: auto !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row,
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Step 1 viewport-fit polish: keep the reference layout visible without oversized spacing. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(1460px, calc(100vw - 28px)) !important;
+  height: min(820px, calc(100vh - 28px)) !important;
+  max-width: calc(100vw - 28px) !important;
+  max-height: calc(100vh - 28px) !important;
+  display: grid !important;
+  grid-template-rows: 84px minmax(0, 1fr) 64px !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  transform: translate(-50%, -50%) scale(.75) !important;
+  transform-origin: center center !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  height: 84px !important;
+  min-height: 84px !important;
+  display: grid !important;
+  grid-template-columns: 40px minmax(240px, 330px) minmax(0, 1fr) 38px !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 0 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back,
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 38px !important;
+  height: 38px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  align-items: center !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  margin: 0 0 3px !important;
+  font-size: 22px !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  margin: 0 !important;
+  font-size: 11.5px !important;
+  line-height: 1.2 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  grid-template-columns: repeat(7, minmax(58px, 1fr)) !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 29px !important;
+  height: 29px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  margin-top: 5px !important;
+  font-size: 9.5px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 14px !important;
+  left: calc(50% + 16px) !important;
+  width: calc(100% - 32px) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 14px 20px 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr) !important;
+  gap: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 66px !important;
+  min-height: 66px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  min-width: 0 !important;
+  padding: 0 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  margin-top: 4px !important;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 1.35fr) minmax(138px, .78fr) minmax(138px, .78fr) minmax(148px, .82fr) 40px minmax(160px, .78fr) !important;
+  gap: 9px !important;
+  padding: 8px 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 34px !important;
+  min-height: 34px !important;
+  border-radius: 9px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  display: grid !important;
+  grid-template-columns: 250px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 9px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 8px 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  margin: 0 !important;
+  padding: 2px 2px 5px !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  height: 24px !important;
+  min-height: 24px !important;
+  margin: 0 !important;
+  padding: 0 7px !important;
+  border-radius: 7px !important;
+  font-size: 10.5px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel small,
+.campaign-list-picker-modal .campaign-list-picker-check small {
+  font-size: 9.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel hr {
+  margin: 5px 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 10px 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 4px 0 8px !important;
+  font-size: 10.5px !important;
+  line-height: 1.2 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  display: grid !important;
+  grid-template-rows: 40px minmax(0, 1fr) 34px 38px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar p {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1010px !important;
+  width: 100% !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 32px !important;
+  padding: 5px 7px !important;
+  font-size: 9px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 41px !important;
+  padding: 5px 7px !important;
+  font-size: 10.5px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td strong {
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td small {
+  font-size: 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use-btn {
+  min-height: 26px !important;
+  height: 26px !important;
+  padding: 0 9px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer,
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  min-height: 0 !important;
+  padding: 6px 12px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer button {
+  height: 38px !important;
+  min-width: 112px !important;
+  font-size: 11.5px !important;
+}
+
+@media (max-width: 1180px) {
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: 36px minmax(210px, 280px) minmax(0, 1fr) 36px !important;
+    gap: 10px !important;
+    padding: 0 14px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading h3 {
+    font-size: 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading p {
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    overflow-x: auto !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    padding: 12px 14px 9px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline {
+    grid-template-columns: 1fr !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-card,
+  .campaign-list-picker-modal .campaign-list-picker-stats {
+    height: 58px !important;
+    min-height: 58px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(112px, .7fr)) 36px minmax(132px, .8fr) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 210px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: calc(100vw - 12px) !important;
+    height: calc(100vh - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    max-height: calc(100vh - 12px) !important;
+    grid-template-rows: auto minmax(0, 1fr) 60px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    height: auto !important;
+    min-height: 108px !important;
+    grid-template-columns: minmax(0, 1fr) 34px !important;
+    grid-template-rows: auto auto !important;
+    padding: 10px 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-back {
+    display: none !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-column: 1 / -1 !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    overflow: auto !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row,
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Step 1 final reference-fit: match the supplied design in the available browser view. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: min(1500px, calc(100vw - 24px)) !important;
+  height: min(820px, calc(100vh - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: calc(100vh - 24px) !important;
+  display: grid !important;
+  grid-template-rows: 84px minmax(0, 1fr) 62px !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
+  transform: translate(-50%, -50%) !important;
+  transform-origin: center center !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  height: 84px !important;
+  min-height: 84px !important;
+  display: grid !important;
+  grid-template-columns: minmax(300px, 430px) minmax(0, 1fr) 38px !important;
+  align-items: center !important;
+  gap: 22px !important;
+  padding: 0 28px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: center !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  margin: 0 0 5px !important;
+  color: #0f172a !important;
+  font-size: 22px !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  display: block !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  color: #475569 !important;
+  font-size: 11.5px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(58px, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step {
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  margin-top: 5px !important;
+  color: #64748b !important;
+  font-size: 9.5px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 14px !important;
+  left: calc(50% + 16px) !important;
+  width: calc(100% - 32px) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 38px !important;
+  height: 38px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+  gap: 12px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 16px 24px 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr) !important;
+  gap: 14px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 68px !important;
+  min-height: 68px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  grid-template-columns: 42px minmax(0, 1fr) !important;
+  gap: 13px !important;
+  padding: 11px 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 42px !important;
+  height: 42px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 14.5px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  padding: 0 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  margin-top: 4px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  display: grid !important;
+  grid-template-columns: minmax(250px, 1.35fr) minmax(140px, .78fr) minmax(140px, .78fr) minmax(150px, .82fr) 40px minmax(165px, .78fr) !important;
+  gap: 10px !important;
+  padding: 8px 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 34px !important;
+  min-height: 34px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  display: grid !important;
+  grid-template-columns: 270px minmax(0, 1fr) !important;
+  gap: 14px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  overflow: hidden !important;
+  padding: 9px 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  padding: 4px 4px 6px !important;
+  font-size: 11.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  height: 25px !important;
+  min-height: 25px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 10px 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 4px 0 8px !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  display: grid !important;
+  grid-template-rows: 38px minmax(0, 1fr) 34px 36px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  min-height: 38px !important;
+  padding: 0 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar p {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  width: 100% !important;
+  min-width: 1020px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table th {
+  height: 31px !important;
+  padding: 5px 7px !important;
+  font-size: 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 39px !important;
+  padding: 5px 7px !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td strong {
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td small {
+  font-size: 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer,
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  padding: 5px 12px !important;
+  font-size: 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  height: 62px !important;
+  min-height: 62px !important;
+  padding: 0 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer button {
+  height: 36px !important;
+  min-width: 110px !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 1280px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: calc(100vw - 24px) !important;
+    height: calc(100vh - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr) 36px !important;
+    gap: 12px !important;
+    padding: 0 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading h3 {
+    font-size: 18px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-heading p {
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-template-columns: repeat(7, minmax(48px, 1fr)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step small {
+    font-size: 8.5px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+}
+
+/* Step 1 reference restore: taller modal, primary saved-list table, fixed footer. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: 94vw !important;
+  max-width: 1680px !important;
+  height: min(90vh, 900px) !important;
+  max-height: calc(100vh - 24px) !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-radius: 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  flex: 0 0 88px !important;
+  height: 88px !important;
+  min-height: 88px !important;
+  grid-template-columns: minmax(300px, 430px) minmax(0, 1fr) 44px !important;
+  gap: 24px !important;
+  padding: 0 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  font-size: 24px !important;
+  line-height: 1.08 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  margin-top: 6px !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 16px !important;
+  left: calc(50% + 18px) !important;
+  width: calc(100% - 36px) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  overflow: hidden !important;
+  padding: 20px 28px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr) !important;
+  gap: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 86px !important;
+  min-height: 86px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  grid-template-columns: 52px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  padding: 16px 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 52px !important;
+  height: 52px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 6px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(280px, 1.35fr) minmax(150px, .78fr) minmax(150px, .78fr) minmax(160px, .82fr) 48px minmax(190px, .78fr) !important;
+  gap: 14px !important;
+  padding: 12px 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 44px !important;
+  min-height: 44px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: 300px minmax(0, 1fr) !important;
+  gap: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  padding: 4px 0 10px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 6px 0 12px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  flex: 0 0 46px !important;
+  min-height: 46px !important;
+  padding: 0 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  font-size: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1050px !important;
+  font-size: 13px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 3 !important;
+  height: 44px !important;
+  padding: 8px 10px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 54px !important;
+  padding: 8px 10px !important;
+  font-size: 12.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td strong {
+  font-size: 12.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td small {
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex: 0 0 42px !important;
+  min-height: 42px !important;
+  padding: 6px 16px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  flex: 0 0 42px !important;
+  min-height: 42px !important;
+  padding: 7px 16px !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  flex: 0 0 72px !important;
+  height: 72px !important;
+  min-height: 72px !important;
+  padding: 0 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer button {
+  height: 44px !important;
+  min-width: 132px !important;
+  font-size: 13px !important;
+}
+
+@media (max-width: 1366px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: 96vw !important;
+    height: min(90vh, calc(100vh - 24px)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    gap: 12px !important;
+    padding: 16px 22px 12px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 260px minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table td {
+    height: 50px !important;
+  }
+}
+
+/* Step 1 Upload List final fit: keep the reference layout visible on real laptop screens. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: 94vw !important;
+  max-width: 1680px !important;
+  height: calc(100vh - 16px) !important;
+  max-height: calc(100vh - 16px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  flex: 0 0 76px !important;
+  height: 76px !important;
+  min-height: 76px !important;
+  padding: 12px 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  padding: 14px 28px 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  flex: 0 0 70px !important;
+  min-height: 70px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr) !important;
+  gap: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 70px !important;
+  min-height: 70px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  grid-template-columns: 46px minmax(0, 1fr) !important;
+  gap: 14px !important;
+  padding: 12px 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 46px !important;
+  height: 46px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  font-size: 17px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 4px !important;
+  font-size: 12.5px !important;
+  line-height: 1.25 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  font-size: 22px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  margin-top: 4px !important;
+  font-size: 11.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 54px !important;
+  min-height: 54px !important;
+  display: grid !important;
+  grid-template-columns: minmax(260px, 1.35fr) minmax(150px, .78fr) minmax(150px, .78fr) minmax(160px, .82fr) 46px minmax(190px, .78fr) !important;
+  gap: 12px !important;
+  padding: 7px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: 292px minmax(0, 1fr) !important;
+  gap: 20px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar,
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  padding: 2px 0 8px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 4px 0 10px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  flex: 0 0 40px !important;
+  min-height: 40px !important;
+  padding: 0 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  flex: 1 1 360px !important;
+  min-height: 360px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  min-width: 1120px !important;
+  font-size: 12.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 4 !important;
+  height: 38px !important;
+  padding: 6px 9px !important;
+  font-size: 10.5px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 44px !important;
+  padding: 6px 9px !important;
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td strong {
+  font-size: 12px !important;
+  line-height: 1.12 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td small {
+  font-size: 10.5px !important;
+  line-height: 1.1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex: 0 0 38px !important;
+  min-height: 38px !important;
+  padding: 4px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  flex: 0 0 38px !important;
+  min-height: 38px !important;
+  padding: 6px 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  flex: 0 0 64px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer button {
+  height: 40px !important;
+  min-width: 128px !important;
+}
+
+@media (max-height: 850px) {
+  .campaign-list-picker-modal .campaign-list-picker-tip {
+    display: none !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table-wrap {
+    flex-basis: 390px !important;
+    min-height: 390px !important;
+  }
+}
+
+@media (max-width: 1366px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: 96vw !important;
+    height: calc(100vh - 16px) !important;
+    max-height: calc(100vh - 16px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    padding: 12px 22px 8px !important;
+    gap: 8px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-table-wrap {
+    min-height: 380px !important;
+  }
+}
+
+/* Step 1 exact reference pass: saved lists are primary, upload is secondary. */
+.premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+  width: 94vw !important;
+  max-width: 1700px !important;
+  height: min(900px, calc(100vh - 16px)) !important;
+  max-height: calc(100vh - 16px) !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.22) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  flex: 0 0 86px !important;
+  height: 86px !important;
+  min-height: 86px !important;
+  display: grid !important;
+  grid-template-columns: minmax(310px, 430px) minmax(0, 1fr) 44px !important;
+  align-items: center !important;
+  gap: 24px !important;
+  padding: 0 30px !important;
+  border-bottom: 1px solid #e8edf5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading {
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+  color: #ffffff !important;
+  background: #4f35e8 !important;
+  box-shadow: 0 16px 34px rgba(79, 53, 232, 0.24) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading h3 {
+  margin: 0 0 5px !important;
+  color: #101828 !important;
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-heading p {
+  margin: 0 !important;
+  color: #516078 !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(64px, 1fr)) !important;
+  align-items: start !important;
+  gap: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step span {
+  width: 32px !important;
+  height: 32px !important;
+  border: 1px solid #d9e2ef !important;
+  color: #101828 !important;
+  background: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step.active span {
+  color: #ffffff !important;
+  border-color: #4f35e8 !important;
+  background: #4f35e8 !important;
+  box-shadow: 0 10px 22px rgba(79, 53, 232, 0.2) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step small {
+  margin-top: 7px !important;
+  color: #66758f !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step:not(:last-child)::after {
+  top: 16px !important;
+  left: calc(50% + 20px) !important;
+  width: calc(100% - 40px) !important;
+  height: 2px !important;
+  background: #dbe4f0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-step.active:not(:last-child)::after {
+  background: linear-gradient(90deg, #4f35e8 0%, #4f35e8 42%, #dbe4f0 42%, #dbe4f0 100%) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-close {
+  width: 42px !important;
+  height: 42px !important;
+  color: #111827 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-body {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+  padding: 24px 30px 14px !important;
+  background: #fbfcff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-topline {
+  flex: 0 0 84px !important;
+  min-height: 84px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.07fr) minmax(440px, .93fr) !important;
+  gap: 28px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card,
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  height: 84px !important;
+  min-height: 84px !important;
+  border: 1px solid #e0e7f2 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.035) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card {
+  grid-template-columns: 52px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  padding: 16px 22px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 12px !important;
+  color: #5b45f5 !important;
+  background: #efeaff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card strong {
+  color: #101828 !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-intro-card p {
+  margin-top: 7px !important;
+  color: #526078 !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div {
+  align-content: center !important;
+  padding: 0 22px !important;
+  border-right: 1px solid #e5ebf4 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats div:last-child {
+  border-right: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats strong {
+  color: #101828 !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats .danger strong {
+  color: #e11d48 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats .success strong {
+  color: #16a34a !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-stats span {
+  margin-top: 6px !important;
+  color: #66758f !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row {
+  flex: 0 0 58px !important;
+  min-height: 58px !important;
+  display: grid !important;
+  grid-template-columns: minmax(280px, 1.3fr) minmax(170px, .8fr) minmax(170px, .8fr) minmax(170px, .82fr) 48px minmax(170px, .76fr) !important;
+  gap: 14px !important;
+  padding: 8px 18px !important;
+  border: 1px solid #e0e7f2 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search {
+  position: relative !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search span {
+  position: absolute !important;
+  left: 14px !important;
+  top: 50% !important;
+  width: 18px !important;
+  height: 18px !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  transform: translateY(-50%) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search span::before {
+  content: "\ea6e" !important;
+  font-family: "tabler-icons" !important;
+  color: #66758f !important;
+  font-size: 17px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-search input {
+  padding-left: 42px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-search,
+.campaign-list-picker-modal .campaign-list-picker-control-row select,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-refresh,
+.campaign-list-picker-modal .campaign-list-picker-control-row .campaign-list-picker-create-btn {
+  height: 42px !important;
+  min-height: 42px !important;
+  border: 1px solid #dce5f1 !important;
+  border-radius: 8px !important;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-create-btn {
+  color: #4f35e8 !important;
+  border-color: #bdb4ff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-main {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: 300px minmax(0, 1fr) !important;
+  gap: 24px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-sidebar {
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel,
+.campaign-list-picker-modal .campaign-list-picker-upload-card,
+.campaign-list-picker-modal .campaign-list-picker-content {
+  border: 1px solid #e0e7f2 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel {
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel h4 {
+  padding: 0 0 12px !important;
+  color: #101828 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button,
+.campaign-list-picker-modal .campaign-list-picker-check {
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  border-radius: 7px !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel button.active {
+  color: #4f35e8 !important;
+  background: #f1edff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-side-panel hr {
+  margin: 14px 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card {
+  padding: 18px 20px !important;
+  background: #faf7ff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card strong {
+  color: #4f35e8 !important;
+  font-size: 12.5px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-card p {
+  margin: 8px 0 12px !important;
+  color: #53617b !important;
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-upload-btn {
+  height: 38px !important;
+  min-height: 38px !important;
+  border-radius: 7px !important;
+  color: #4f35e8 !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-content {
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar {
+  flex: 0 0 46px !important;
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  border-bottom: 1px solid #e8edf5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar h3 {
+  color: #101828 !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-toolbar p {
+  display: none !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-wrap {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table {
+  width: 100% !important;
+  min-width: 1120px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 12px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+  height: 38px !important;
+  padding: 6px 10px !important;
+  color: #66758f !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e8edf5 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td {
+  height: 50px !important;
+  padding: 7px 10px !important;
+  color: #24344f !important;
+  border-bottom: 1px solid #eef2f7 !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table tr.selected {
+  outline: 2px solid #6d5dfc !important;
+  outline-offset: -2px !important;
+  background: #f4f1ff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td strong {
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table td small {
+  margin-top: 3px !important;
+  color: #66758f !important;
+  font-size: 10.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell {
+  gap: 9px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon {
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+  color: transparent !important;
+  background: #d9fbe7 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-name-cell .sheet-icon::before {
+  content: "\ea6d" !important;
+  font-family: "tabler-icons" !important;
+  color: #16a34a !important;
+  font-size: 16px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-use {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border-color: #c9c2ff !important;
+  border-radius: 7px !important;
+  color: #4f35e8 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-table-footer {
+  flex: 0 0 38px !important;
+  min-height: 38px !important;
+  padding: 4px 18px !important;
+  border-top: 1px solid #e8edf5 !important;
+  font-size: 11.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-pages button {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  border-radius: 7px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-pages button:first-child,
+.campaign-list-picker-modal .campaign-list-picker-pages button:last-child {
+  width: auto !important;
+  min-width: 48px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip {
+  flex: 0 0 42px !important;
+  min-height: 42px !important;
+  width: min(100%, 1000px) !important;
+  margin: 14px auto 0 !important;
+  padding: 7px 16px !important;
+  border: 1px solid #d8d0ff !important;
+  border-radius: 8px !important;
+  color: #4338ca !important;
+  background: #f4f1ff !important;
+  font-size: 11.5px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-tip button {
+  height: 30px !important;
+  border-radius: 7px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer {
+  flex: 0 0 72px !important;
+  height: 72px !important;
+  min-height: 72px !important;
+  padding: 0 30px !important;
+  border-top: 1px solid #e8edf5 !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer button {
+  height: 40px !important;
+  min-width: 110px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-next {
+  min-width: 120px !important;
+  color: #ffffff !important;
+  border-color: #4f35e8 !important;
+  background: #4f35e8 !important;
+  box-shadow: 0 12px 24px rgba(79, 53, 232, 0.24) !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-next.is-disabled,
+.campaign-list-picker-modal .campaign-list-picker-back-footer:disabled {
+  color: #94a3b8 !important;
+  border-color: #e7edf5 !important;
+  background: #eef2f7 !important;
+  box-shadow: none !important;
+}
+
+@media (max-height: 850px) {
+  .campaign-list-picker-modal .campaign-list-picker-body {
+    gap: 10px !important;
+    padding-top: 14px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-topline {
+    flex-basis: 74px !important;
+    min-height: 74px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-intro-card,
+  .campaign-list-picker-modal .campaign-list-picker-stats {
+    height: 74px !important;
+    min-height: 74px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-control-row {
+    flex-basis: 52px !important;
+    min-height: 52px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-tip {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1366px) {
+  .premium-calendar-modal.wf-modal.pr-uploadlist-modal.campaign-list-picker-modal {
+    width: 96vw !important;
+    max-width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+    max-height: calc(100vh - 16px) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header,
+  .campaign-list-picker-modal .campaign-list-picker-body,
+  .campaign-list-picker-modal .campaign-list-picker-footer {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: minmax(270px, 360px) minmax(0, 1fr) 40px !important;
+    gap: 16px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-stepper {
+    grid-template-columns: repeat(7, minmax(54px, 1fr)) !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-step small {
+    font-size: 8.5px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-main {
+    grid-template-columns: 280px minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
 }

@@ -1,0 +1,11 @@
+Risk Type,Description,Severity,Owner,Mitigation Plan,Status
+Quality,No committed ESLint configuration; lint prompts interactively,High,Akshay / Full-stack,"Add config, baseline violations, enforce in CI",Open
+Testing,Only utility/diagnostic scripts found; no meaningful automated product suite,Critical,Akshay / Full-stack,Implement test pyramid and release gates,Open
+Delivery Safety,"Campaign concurrency, stale recovery and recipient dedupe are high-impact",Critical,Akshay / Full-stack,"Crash, race, retry and duplicate-send test matrix",Open
+Security,"Broad auth, OAuth and mailbox surface needs systematic security validation",Critical,Akshay / Full-stack,"OWASP review, token/secret audit, negative tests",Open
+Maintainability,PremiumDashboardShell.jsx and globals.css are very large and change-prone,High,Akshay / Full-stack,Split by domain and reduce global override debt,Open
+Data Reliability,39 models without formal migration/versioning framework,High,Akshay / Full-stack,"Migration registry, backups, restore rehearsal",Open
+Operations,Worker/web separation exists in docs but staging proof is incomplete,High,Akshay / Full-stack,ECS staging deployment and failure drills,Open
+Scope,"One full-stack owner is carrying product, QA, DevOps and PM responsibilities",High,Project Sponsor,Add QA/reviewer capacity or extend dates,Open
+Legacy,Multiple legacy runtimes can cause confusion and dependency/security drift,Medium,Akshay / Full-stack,Archive or decommission after production parity,Open
+Planning,"Progress percentages are evidence-based estimates, not measured time-sheet data",Medium,Akshay / Full-stack,Update Daily_Updates with actual hours and acceptance evidence,Accepted for baseline

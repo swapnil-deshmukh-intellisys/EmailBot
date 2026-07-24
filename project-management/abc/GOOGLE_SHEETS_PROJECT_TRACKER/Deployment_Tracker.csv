@@ -1,0 +1,5 @@
+Environment,Frontend Version,Backend Version,Database Version,Status
+Local Development,Next.js 14.2.5 working tree,App Router APIs + worker,MongoDB/Mongoose 8.18 schemas,Active; lint setup missing
+Local Production Build,Pending clean rebuild,Pending clean rebuild,Shared development DB,Build was interrupted on 2026-06-23
+Staging ECS,Not verified,Web + worker templates exist,MongoDB Atlas expected,Planned
+Production ECS,Not released from this baseline,Not released from this baseline,Backup/restore proof pending,Not ready

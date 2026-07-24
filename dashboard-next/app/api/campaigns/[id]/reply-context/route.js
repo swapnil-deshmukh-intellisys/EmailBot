@@ -140,6 +140,7 @@ export async function GET(req, { params }) {
       senderEmail: originalSenderEmail,
       draftId: campaign.draftId || '',
       subject: campaign.inlineTemplate?.subject || campaign.name || '',
+      bodyHtml: campaign.inlineTemplate?.bodyHtml || campaign.inlineTemplate?.body || '',
       recipients,
       recipientLogs,
       sentEmailMetadata: sentEmails.map(e => ({

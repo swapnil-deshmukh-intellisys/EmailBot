@@ -1,0 +1,33 @@
+Task ID,Today's Tasks,Tomorrow Tasks,Day After Tomorrow Tasks,This Week Update,Next Week Plan,Estimated Hours,Priority,Dependencies,Status
+IMP-002,Pending update: Finish four-column schedule details layout and six-column delivery settings,,,In Progress - 80%,,4,High,Current uncommitted workflow changes,Pending Update
+IMP-003,Pending update: Commit a non-interactive ESLint configuration and resolve baseline violations,,,Not Started - 0%,,8,Critical,None,Pending Update
+IMP-004,Pending update: Run clean production build and document warnings,,,Not Started - 0%,,6,Critical,"IMP-002, IMP-003",Pending Update
+IMP-005,"Define test pyramid, fixtures, environments, and release gates",,,Not Started - 0%,,8,Critical,IMP-001,Not Started
+IMP-006,"Automate login, logout, session, role routing, pending and disabled account flows",,,Not Started - 0%,"Automate login, logout, session, role routing, pending and disabled account flows",18,Critical,IMP-005,Not Started
+IMP-007,,"Audit cookie flags, JWT expiry, token crypto, password reset and secret handling",,Not Started - 0%,"Audit cookie flags, JWT expiry, token crypto, password reset and secret handling",20,Critical,IMP-006,Not Started
+IMP-008,"Harden XLSX/CSV upload, preview, commit and validation errors",,,In Progress - 70%,"Harden XLSX/CSV upload, preview, commit and validation errors",24,High,IMP-005,In Progress
+IMP-009,,,,In Progress - 68%,"Verify bulk edit/delete, duplicate detection, bin and restore workflows",28,High,IMP-008,In Progress
+IMP-010,,,,,"Stabilize draft editor, templates, file text extraction and preview",24,High,IMP-005,In Progress
+IMP-011,,,,,"Validate audience, sender, content, credits and scheduling before creation",30,Critical,"IMP-006, IMP-008, IMP-010",In Progress
+IMP-012,,,,,"Test queue, locks, heartbeat, stale recovery, pause, resume, stop and completion",40,Critical,IMP-011,In Progress
+IMP-013,,,,,,32,Critical,IMP-012,In Progress
+IMP-014,,,,,,28,High,IMP-012,In Progress
+IMP-015,,,,,,36,Critical,IMP-006,In Progress
+IMP-016,,,,,,40,High,IMP-015,In Progress
+IMP-017,,,,,,40,High,IMP-015,In Progress
+IMP-018,,,,,,30,High,IMP-006,In Progress
+IMP-019,,,,,,32,Critical,IMP-012,In Progress
+IMP-020,,,,,,36,High,"IMP-014, IMP-019",In Progress
+IMP-021,,,,,,28,Medium,IMP-006,In Progress
+IMP-022,,,,,,40,High,IMP-004,Not Started
+IMP-023,,,,,,36,High,"IMP-012, IMP-016, IMP-020",Not Started
+IMP-024,,,,,,32,High,IMP-012,Not Started
+IMP-025,,,,,,28,Critical,"IMP-003, IMP-005",Not Started
+IMP-026,,,,,,36,Critical,"IMP-024, IMP-025",In Progress
+IMP-027,,,,,,32,Critical,IMP-023,Not Started
+IMP-028,,,,,,24,Medium,"IMP-026, IMP-027",Not Started
+IMP-029,,,,,,36,High,IMP-004,Not Started
+IMP-030,"Execute manual QA at 320, 375, 430, 768, 1024, 1280, 1440 and 1920 pixels",,,In Progress - 35%,"Execute manual QA at 320, 375, 430, 768, 1024, 1280, 1440 and 1920 pixels",32,High,"IMP-002, IMP-004",In Progress
+IMP-031,,,,,,40,Critical,IMP-006 through IMP-030,Not Started
+IMP-032,,,,,,32,Critical,IMP-031,Not Started
+IMP-033,,,,,,40,High,IMP-032,Not Started

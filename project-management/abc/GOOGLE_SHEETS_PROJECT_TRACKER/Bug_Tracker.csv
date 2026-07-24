@@ -1,0 +1,7 @@
+Bug ID,Module,Severity,Assigned To,ETA,Status
+BUG-001,Engineering Quality,Critical,Akshay / Full-stack,25-06-2026,Open - ESLint configuration missing
+BUG-002,Schedule Workflow,High,Akshay / Full-stack,24-06-2026,In Progress - build verification interrupted
+BUG-003,Responsive UI,High,Akshay / Full-stack,05-07-2026,Open - manual viewport matrix incomplete
+BUG-004,Automated Testing,Critical,Akshay / Full-stack,10-07-2026,Open - no product test suite
+BUG-005,Campaign Engine,Critical,Akshay / Full-stack,21-07-2026,Risk - duplicate-send and recovery proof missing
+BUG-006,Legacy Campaign Engine,Medium,Akshay / Full-stack,10-09-2026,Open - unresolved msal dependency in legacy service

@@ -342,6 +342,7 @@ export default function CampaignDetailsDrawer({ campaignId, initialReplyMode = '
         subject: `Re: ${context.subject || ''}`,
         threadMetadata: context.threadMetadata || {},
         originalSubject: context.subject || '',
+        originalBody: context.bodyHtml || '',
         draftId: context.draftId || '',
         resumedFromCampaignStatus: campaign.status || campaign.displayStatus || ''
       };

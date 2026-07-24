@@ -1,0 +1,2091 @@
+/* Final shared workflow popup fit.
+   Imported last so every workflow step uses the same viewport behavior as Step 1. */
+.review-list-v2-backdrop,
+.campaign-v2-backdrop,
+.select-draft-v2-backdrop,
+.draft-summary-v2-backdrop,
+.test-email-v2-backdrop,
+.schedule-v2-backdrop {
+  display: grid !important;
+  place-items: center !important;
+  padding: 8px !important;
+  overflow: hidden !important;
+}
+
+/* LAST WINNER: equal, readable workflow chrome.
+   This intentionally sits at the file end because older Step 1 rules are very specific. */
+.campaign-list-picker-modal,
+.review-list-v2-modal,
+.campaign-v2-modal,
+.select-draft-v2-modal,
+.draft-summary-v2-modal,
+.test-email-v2-modal,
+.schedule-v2-modal {
+  --wf-header-h: 64px;
+  --wf-footer-h: 48px;
+  --wf-btn-h: 34px;
+  --wf-title-icon: 36px;
+  --wf-step-dot: 24px;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header,
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  display: grid !important;
+  flex: 0 0 var(--wf-header-h) !important;
+  height: var(--wf-header-h) !important;
+  min-height: var(--wf-header-h) !important;
+  max-height: var(--wf-header-h) !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  padding: 0 22px !important;
+  border-bottom: 1px solid #e8edf5 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  grid-template-columns: minmax(300px, 430px) minmax(0, 1fr) 36px !important;
+  gap: 18px !important;
+}
+
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  grid-template-columns: minmax(300px, 430px) minmax(0, 1fr) 36px !important;
+  gap: 18px !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-back {
+  display: none !important;
+}
+
+.campaign-list-picker-heading,
+.review-list-v2-titleblock,
+.campaign-v2-title,
+.select-draft-v2-title,
+.draft-summary-v2-title,
+.test-email-v2-title,
+.schedule-v2-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-heading > div,
+.review-list-v2-titleblock > div,
+.campaign-v2-title > div,
+.select-draft-v2-title > div,
+.draft-summary-v2-title > div,
+.test-email-v2-title > div,
+.schedule-v2-title > div {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-icon,
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 var(--wf-title-icon) !important;
+  width: var(--wf-title-icon) !important;
+  height: var(--wf-title-icon) !important;
+  min-width: var(--wf-title-icon) !important;
+  min-height: var(--wf-title-icon) !important;
+  max-width: var(--wf-title-icon) !important;
+  max-height: var(--wf-title-icon) !important;
+  font-size: 17px !important;
+  line-height: 1 !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-heading h3,
+.review-list-v2-titleblock h3,
+.campaign-v2-title h3,
+.select-draft-v2-title h3,
+.draft-summary-v2-title h3,
+.test-email-v2-title h3,
+.schedule-v2-title h3 {
+  display: block !important;
+  margin: 0 0 4px !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  color: #101828 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0 !important;
+}
+
+.campaign-list-picker-heading p,
+.review-list-v2-titleblock p,
+.campaign-v2-title p,
+.select-draft-v2-title p,
+.draft-summary-v2-title p,
+.test-email-v2-title p,
+.schedule-v2-title p {
+  display: block !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  color: #516078 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-stepper,
+.review-list-v2-progress,
+.campaign-v2-stepper,
+.select-draft-v2-stepper,
+.draft-summary-v2-stepper,
+.test-email-v2-stepper,
+.schedule-v2-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(62px, 1fr)) !important;
+  align-items: center !important;
+  gap: 0 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 58px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-step,
+.review-list-v2-progress-step,
+.campaign-v2-step,
+.select-draft-v2-step,
+.draft-summary-v2-step,
+.test-email-v2-step,
+.schedule-v2-step {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-step span,
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--wf-step-dot) !important;
+  height: var(--wf-step-dot) !important;
+  min-width: var(--wf-step-dot) !important;
+  min-height: var(--wf-step-dot) !important;
+  max-width: var(--wf-step-dot) !important;
+  max-height: var(--wf-step-dot) !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-step small,
+.review-list-v2-progress-step small,
+.campaign-v2-step small,
+.select-draft-v2-step small,
+.draft-summary-v2-step small,
+.test-email-v2-step small,
+.schedule-v2-step b {
+  display: block !important;
+  max-width: 78px !important;
+  overflow: hidden !important;
+  color: #66758f !important;
+  text-align: center !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+.campaign-list-picker-close,
+.review-list-v2-close,
+.campaign-v2-close,
+.select-draft-v2-close,
+.draft-summary-v2-close,
+.test-email-v2-close,
+.schedule-v2-close {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  max-width: 34px !important;
+  max-height: 34px !important;
+  padding: 0 !important;
+  color: #4f46e5 !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer,
+.review-list-v2-footer,
+.campaign-v2-footer,
+.select-draft-v2-footer,
+.draft-summary-v2-footer,
+.test-email-v2-footer,
+.schedule-v2-footer {
+  display: flex !important;
+  flex: 0 0 var(--wf-footer-h) !important;
+  height: var(--wf-footer-h) !important;
+  min-height: var(--wf-footer-h) !important;
+  max-height: var(--wf-footer-h) !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  overflow: hidden !important;
+  padding: 0 22px !important;
+  border-top: 1px solid #e8edf5 !important;
+  background: #ffffff !important;
+}
+
+.campaign-list-picker-footer > div,
+.review-list-v2-footer > div,
+.campaign-v2-footer > div,
+.select-draft-v2-footer > div,
+.draft-summary-v2-footer > div,
+.test-email-v2-footer > div,
+.schedule-v2-footer > div {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.campaign-list-picker-footer :where(button),
+.review-list-v2-footer :where(button),
+.campaign-v2-footer :where(button),
+.select-draft-v2-footer :where(button),
+.draft-summary-v2-footer :where(button),
+.test-email-v2-footer :where(button),
+.schedule-v2-footer :where(button) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: var(--wf-btn-h) !important;
+  min-height: var(--wf-btn-h) !important;
+  max-height: var(--wf-btn-h) !important;
+  min-width: 104px !important;
+  padding: 0 14px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  border-radius: 9px !important;
+}
+
+@media (max-width: 1366px), (max-height: 820px) {
+  .campaign-list-picker-modal,
+  .review-list-v2-modal,
+  .campaign-v2-modal,
+  .select-draft-v2-modal,
+  .draft-summary-v2-modal,
+  .test-email-v2-modal,
+  .schedule-v2-modal {
+    --wf-header-h: 58px;
+    --wf-footer-h: 42px;
+    --wf-btn-h: 30px;
+    --wf-title-icon: 31px;
+    --wf-step-dot: 21px;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header,
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    gap: 12px !important;
+    grid-template-columns: minmax(250px, 340px) minmax(0, 1fr) 32px !important;
+  }
+
+  .campaign-list-picker-heading h3,
+  .review-list-v2-titleblock h3,
+  .campaign-v2-title h3,
+  .select-draft-v2-title h3,
+  .draft-summary-v2-title h3,
+  .test-email-v2-title h3,
+  .schedule-v2-title h3 {
+    font-size: 16px !important;
+  }
+
+  .campaign-list-picker-heading p,
+  .review-list-v2-titleblock p,
+  .campaign-v2-title p,
+  .select-draft-v2-title p,
+  .draft-summary-v2-title p,
+  .test-email-v2-title p,
+  .schedule-v2-title p {
+    font-size: 10px !important;
+  }
+
+  .campaign-list-picker-stepper,
+  .review-list-v2-progress,
+  .campaign-v2-stepper,
+  .select-draft-v2-stepper,
+  .draft-summary-v2-stepper,
+  .test-email-v2-stepper,
+  .schedule-v2-stepper {
+    grid-template-columns: repeat(7, minmax(48px, 1fr)) !important;
+    height: 52px !important;
+  }
+
+  .campaign-list-picker-step small,
+  .review-list-v2-progress-step small,
+  .campaign-v2-step small,
+  .select-draft-v2-step small,
+  .draft-summary-v2-step small,
+  .test-email-v2-step small,
+  .schedule-v2-step b {
+    max-width: 62px !important;
+    font-size: 8px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-footer,
+  .review-list-v2-footer,
+  .campaign-v2-footer,
+  .select-draft-v2-footer,
+  .draft-summary-v2-footer,
+  .test-email-v2-footer,
+  .schedule-v2-footer {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .campaign-list-picker-footer :where(button),
+  .review-list-v2-footer :where(button),
+  .campaign-v2-footer :where(button),
+  .select-draft-v2-footer :where(button),
+  .draft-summary-v2-footer :where(button),
+  .test-email-v2-footer :where(button),
+  .schedule-v2-footer :where(button) {
+    min-width: 86px !important;
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+    font-size: 11px !important;
+  }
+}
+
+.review-list-v2-modal,
+.campaign-v2-modal,
+.select-draft-v2-modal,
+.draft-summary-v2-modal,
+.test-email-v2-modal,
+.schedule-v2-modal {
+  width: 94vw !important;
+  max-width: 1680px !important;
+  height: calc(100vh - 16px) !important;
+  max-height: calc(100vh - 16px) !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-radius: 20px !important;
+}
+
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  flex: 0 0 auto !important;
+  min-height: 84px !important;
+  max-height: 112px !important;
+  overflow: hidden !important;
+}
+
+.review-list-v2-footer,
+.campaign-v2-footer,
+.select-draft-v2-footer,
+.draft-summary-v2-footer,
+.test-email-v2-footer,
+.schedule-v2-footer {
+  flex: 0 0 auto !important;
+  height: 72px !important;
+  min-height: 72px !important;
+  max-height: 72px !important;
+  overflow: hidden !important;
+}
+
+.review-list-v2-body,
+.campaign-v2-body,
+.select-draft-v2-main,
+.draft-summary-v2-main,
+.test-email-v2-main,
+.schedule-v2-main {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.review-list-v2-table-card,
+.review-list-v2-table-scroll,
+.campaign-v2-grid,
+.campaign-v2-left,
+.campaign-v2-right,
+.campaign-v2-sendprefs,
+.campaign-v2-right-bottom,
+.select-draft-v2-content,
+.select-draft-v2-grid,
+.draft-summary-v2-sidebar,
+.draft-summary-v2-content,
+.draft-summary-v2-editor,
+.draft-summary-v2-editor-shell,
+.test-email-v2-left,
+.test-email-v2-right,
+.test-email-v2-preview-card,
+.test-email-v2-preview-window,
+.schedule-v2-left,
+.schedule-v2-right,
+.schedule-v2-preview,
+.schedule-v2-preview-box,
+.schedule-v2-preview-body {
+  min-height: 0 !important;
+}
+
+.review-list-v2-table-scroll,
+.campaign-v2-left,
+.campaign-v2-right,
+.select-draft-v2-sidebar,
+.select-draft-v2-grid,
+.draft-summary-v2-sidebar,
+.test-email-v2-left,
+.test-email-v2-right,
+.test-email-v2-preview-window,
+.schedule-v2-left,
+.schedule-v2-right,
+.schedule-v2-preview-body {
+  overflow: auto !important;
+}
+
+.review-list-v2-table-card,
+.campaign-v2-grid,
+.select-draft-v2-content,
+.draft-summary-v2-content,
+.test-email-v2-right,
+.schedule-v2-right {
+  flex: 1 1 0 !important;
+}
+
+.campaign-v2-left,
+.campaign-v2-right,
+.draft-summary-v2-content,
+.test-email-v2-left,
+.test-email-v2-right,
+.schedule-v2-left,
+.schedule-v2-right {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.draft-summary-v2-editor {
+  flex: 1 1 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.draft-summary-v2-editor-shell {
+  flex: 1 1 0 !important;
+}
+
+.draft-summary-v2-editor-shell .premium-template-editor,
+.draft-summary-v2-editor-shell .rich-text-editor,
+.draft-summary-v2-editor-shell [contenteditable="true"] {
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+.test-email-v2-preview-card,
+.schedule-v2-preview {
+  flex: 1 1 0 !important;
+}
+
+.campaign-v2-header {
+  width: 100% !important;
+  height: 94px !important;
+  min-height: 94px !important;
+  max-height: 94px !important;
+  display: grid !important;
+  grid-template-columns: minmax(330px, 430px) minmax(0, 1fr) 44px !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 0 30px !important;
+}
+
+.campaign-v2-title {
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+.campaign-v2-title > span {
+  width: 52px !important;
+  height: 52px !important;
+  font-size: 24px !important;
+}
+
+.campaign-v2-title h3 {
+  font-size: 24px !important;
+  line-height: 1.05 !important;
+  margin: 0 0 6px !important;
+  white-space: nowrap !important;
+}
+
+.campaign-v2-title p {
+  max-width: 310px !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  margin: 0 !important;
+}
+
+.campaign-v2-stepper {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(62px, 1fr)) !important;
+  overflow: visible !important;
+}
+
+.campaign-v2-step {
+  min-width: 0 !important;
+}
+
+.campaign-v2-step > span {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 13px !important;
+}
+
+.campaign-v2-step small {
+  max-width: 78px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 10px !important;
+}
+
+.campaign-v2-close {
+  justify-self: end !important;
+  align-self: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  margin: 0 !important;
+}
+
+.campaign-v2-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 14px 28px 10px !important;
+}
+
+.campaign-v2-list-card {
+  flex: 0 0 78px !important;
+  min-height: 78px !important;
+  padding: 12px 18px !important;
+}
+
+.campaign-v2-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr) !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+}
+
+.campaign-v2-info {
+  flex: 0 0 44px !important;
+  min-height: 44px !important;
+  padding: 0 16px !important;
+}
+
+@media (max-width: 1366px), (max-height: 820px) {
+  .review-list-v2-modal,
+  .campaign-v2-modal,
+  .select-draft-v2-modal,
+  .draft-summary-v2-modal,
+  .test-email-v2-modal,
+  .schedule-v2-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+    max-height: calc(100vh - 16px) !important;
+  }
+
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    min-height: 78px !important;
+    max-height: 92px !important;
+  }
+
+  .campaign-v2-header {
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+    grid-template-columns: minmax(250px, 310px) minmax(0, 1fr) 38px !important;
+    gap: 10px !important;
+    padding: 0 18px !important;
+  }
+
+  .campaign-v2-title {
+    gap: 10px !important;
+  }
+
+  .campaign-v2-title > span {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 20px !important;
+  }
+
+  .campaign-v2-title h3 {
+    font-size: 20px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .campaign-v2-title p {
+    max-width: 235px !important;
+    font-size: 10.5px !important;
+  }
+
+  .campaign-v2-stepper {
+    grid-template-columns: repeat(7, minmax(46px, 1fr)) !important;
+  }
+
+  .campaign-v2-step > span {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 11px !important;
+  }
+
+  .campaign-v2-step small {
+    max-width: 58px !important;
+    font-size: 8px !important;
+  }
+
+  .campaign-v2-close {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .campaign-v2-body {
+    gap: 8px !important;
+    padding: 10px 18px 8px !important;
+  }
+
+  .campaign-v2-list-card {
+    flex-basis: 64px !important;
+    min-height: 64px !important;
+    padding: 8px 14px !important;
+  }
+
+  .campaign-v2-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr) !important;
+    gap: 10px !important;
+  }
+
+  .review-list-v2-footer,
+  .campaign-v2-footer,
+  .select-draft-v2-footer,
+  .draft-summary-v2-footer,
+  .test-email-v2-footer,
+  .schedule-v2-footer {
+    height: 64px !important;
+    min-height: 64px !important;
+    max-height: 64px !important;
+  }
+}
+
+/* Final workflow chrome normalization.
+   Keeps popup size/position unchanged, but makes header/footer content readable,
+   equal, and aligned across Step 1 through Step 7. */
+.campaign-list-picker-modal,
+.review-list-v2-modal,
+.campaign-v2-modal,
+.select-draft-v2-modal,
+.draft-summary-v2-modal,
+.test-email-v2-modal,
+.schedule-v2-modal {
+  --wf-chrome-header: 64px;
+  --wf-chrome-footer: 48px;
+  --wf-chrome-control: 34px;
+  --wf-chrome-icon: 34px;
+  --wf-chrome-step: 24px;
+}
+
+.campaign-list-picker-modal *,
+.review-list-v2-modal *,
+.campaign-v2-modal *,
+.select-draft-v2-modal *,
+.draft-summary-v2-modal *,
+.test-email-v2-modal *,
+.schedule-v2-modal * {
+  box-sizing: border-box;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header,
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  flex: 0 0 var(--wf-chrome-header) !important;
+  height: var(--wf-chrome-header) !important;
+  min-height: var(--wf-chrome-header) !important;
+  max-height: var(--wf-chrome-header) !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  display: grid !important;
+  grid-template-columns: var(--wf-chrome-control) minmax(260px, 360px) minmax(0, 1fr) var(--wf-chrome-control) !important;
+  gap: 12px !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  display: grid !important;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr) var(--wf-chrome-control) !important;
+  gap: 12px !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+.campaign-list-picker-heading,
+.review-list-v2-titleblock,
+.campaign-v2-title,
+.select-draft-v2-title,
+.draft-summary-v2-title,
+.test-email-v2-title,
+.schedule-v2-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-heading > div,
+.review-list-v2-titleblock > div,
+.campaign-v2-title > div,
+.select-draft-v2-title > div,
+.draft-summary-v2-title > div,
+.test-email-v2-title > div,
+.schedule-v2-title > div {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-heading h3,
+.review-list-v2-titleblock h3,
+.campaign-v2-title h3,
+.select-draft-v2-title h3,
+.draft-summary-v2-title h3,
+.test-email-v2-title h3,
+.schedule-v2-title h3 {
+  display: block !important;
+  margin: 0 0 4px !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 1.08rem !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0 !important;
+}
+
+.campaign-list-picker-heading p,
+.review-list-v2-titleblock p,
+.campaign-v2-title p,
+.select-draft-v2-title p,
+.draft-summary-v2-title p,
+.test-email-v2-title p,
+.schedule-v2-title p {
+  display: block !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.68rem !important;
+  line-height: 1.15 !important;
+}
+
+.campaign-list-picker-icon,
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--wf-chrome-icon) !important;
+  height: var(--wf-chrome-icon) !important;
+  min-width: var(--wf-chrome-icon) !important;
+  min-height: var(--wf-chrome-icon) !important;
+  max-width: var(--wf-chrome-icon) !important;
+  max-height: var(--wf-chrome-icon) !important;
+  font-size: 0.95rem !important;
+  line-height: 1 !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-back,
+.campaign-list-picker-close,
+.review-list-v2-close,
+.campaign-v2-close,
+.select-draft-v2-close,
+.draft-summary-v2-close,
+.test-email-v2-close,
+.schedule-v2-close {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--wf-chrome-control) !important;
+  height: var(--wf-chrome-control) !important;
+  min-width: var(--wf-chrome-control) !important;
+  min-height: var(--wf-chrome-control) !important;
+  max-width: var(--wf-chrome-control) !important;
+  max-height: var(--wf-chrome-control) !important;
+  padding: 0 !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-stepper,
+.review-list-v2-progress,
+.campaign-v2-stepper,
+.select-draft-v2-stepper,
+.draft-summary-v2-stepper,
+.test-email-v2-stepper,
+.schedule-v2-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(54px, 1fr)) !important;
+  align-items: center !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 56px !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-step,
+.review-list-v2-progress-step,
+.campaign-v2-step,
+.select-draft-v2-step,
+.draft-summary-v2-step,
+.test-email-v2-step,
+.schedule-v2-step {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-step span,
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--wf-chrome-step) !important;
+  height: var(--wf-chrome-step) !important;
+  min-width: var(--wf-chrome-step) !important;
+  min-height: var(--wf-chrome-step) !important;
+  max-width: var(--wf-chrome-step) !important;
+  max-height: var(--wf-chrome-step) !important;
+  font-size: 0.68rem !important;
+  line-height: 1 !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-step small,
+.review-list-v2-progress-step small,
+.campaign-v2-step small,
+.select-draft-v2-step small,
+.draft-summary-v2-step small,
+.test-email-v2-step small,
+.schedule-v2-step b {
+  display: block !important;
+  max-width: 72px !important;
+  overflow: hidden !important;
+  text-align: center !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.58rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer,
+.review-list-v2-footer,
+.campaign-v2-footer,
+.select-draft-v2-footer,
+.draft-summary-v2-footer,
+.test-email-v2-footer,
+.schedule-v2-footer {
+  display: flex !important;
+  flex: 0 0 var(--wf-chrome-footer) !important;
+  height: var(--wf-chrome-footer) !important;
+  min-height: var(--wf-chrome-footer) !important;
+  max-height: var(--wf-chrome-footer) !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  overflow: hidden !important;
+  padding: 0 20px !important;
+}
+
+.campaign-list-picker-footer > div,
+.review-list-v2-footer > div,
+.campaign-v2-footer > div,
+.select-draft-v2-footer > div,
+.draft-summary-v2-footer > div,
+.test-email-v2-footer > div,
+.schedule-v2-footer > div {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-footer :where(button),
+.review-list-v2-footer :where(button),
+.campaign-v2-footer :where(button),
+.select-draft-v2-footer :where(button),
+.draft-summary-v2-footer :where(button),
+.test-email-v2-footer :where(button),
+.schedule-v2-footer :where(button) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: var(--wf-chrome-control) !important;
+  min-height: var(--wf-chrome-control) !important;
+  max-height: var(--wf-chrome-control) !important;
+  min-width: 92px !important;
+  max-width: none !important;
+  padding: 0 14px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.78rem !important;
+  line-height: 1 !important;
+  border-radius: 9px !important;
+}
+
+.campaign-list-picker-modal :where(button, input, select, textarea),
+.review-list-v2-modal :where(button, input, select, textarea),
+.campaign-v2-modal :where(button, input, select, textarea),
+.select-draft-v2-modal :where(button, input, select, textarea),
+.draft-summary-v2-modal :where(button, input, select, textarea),
+.test-email-v2-modal :where(button, input, select, textarea),
+.schedule-v2-modal :where(button, input, select, textarea) {
+  min-width: 0;
+}
+
+@media (max-width: 1366px), (max-height: 820px) {
+  .campaign-list-picker-modal,
+  .review-list-v2-modal,
+  .campaign-v2-modal,
+  .select-draft-v2-modal,
+  .draft-summary-v2-modal,
+  .test-email-v2-modal,
+  .schedule-v2-modal {
+    --wf-chrome-header: 56px;
+    --wf-chrome-footer: 42px;
+    --wf-chrome-control: 30px;
+    --wf-chrome-icon: 30px;
+    --wf-chrome-step: 21px;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: var(--wf-chrome-control) minmax(230px, 320px) minmax(0, 1fr) var(--wf-chrome-control) !important;
+    gap: 9px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    grid-template-columns: minmax(255px, 350px) minmax(0, 1fr) var(--wf-chrome-control) !important;
+    gap: 9px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .campaign-list-picker-heading h3,
+  .review-list-v2-titleblock h3,
+  .campaign-v2-title h3,
+  .select-draft-v2-title h3,
+  .draft-summary-v2-title h3,
+  .test-email-v2-title h3,
+  .schedule-v2-title h3 {
+    font-size: 0.96rem !important;
+  }
+
+  .campaign-list-picker-heading p,
+  .review-list-v2-titleblock p,
+  .campaign-v2-title p,
+  .select-draft-v2-title p,
+  .draft-summary-v2-title p,
+  .test-email-v2-title p,
+  .schedule-v2-title p {
+    font-size: 0.62rem !important;
+  }
+
+  .campaign-list-picker-stepper,
+  .review-list-v2-progress,
+  .campaign-v2-stepper,
+  .select-draft-v2-stepper,
+  .draft-summary-v2-stepper,
+  .test-email-v2-stepper,
+  .schedule-v2-stepper {
+    grid-template-columns: repeat(7, minmax(46px, 1fr)) !important;
+    height: 50px !important;
+  }
+
+  .campaign-list-picker-step small,
+  .review-list-v2-progress-step small,
+  .campaign-v2-step small,
+  .select-draft-v2-step small,
+  .draft-summary-v2-step small,
+  .test-email-v2-step small,
+  .schedule-v2-step b {
+    max-width: 60px !important;
+    font-size: 0.52rem !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-footer,
+  .review-list-v2-footer,
+  .campaign-v2-footer,
+  .select-draft-v2-footer,
+  .draft-summary-v2-footer,
+  .test-email-v2-footer,
+  .schedule-v2-footer {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .campaign-list-picker-footer :where(button),
+  .review-list-v2-footer :where(button),
+  .campaign-v2-footer :where(button),
+  .select-draft-v2-footer :where(button),
+  .draft-summary-v2-footer :where(button),
+  .test-email-v2-footer :where(button),
+  .schedule-v2-footer :where(button) {
+    min-width: 82px !important;
+    padding: 0 11px !important;
+    font-size: 0.72rem !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .review-list-v2-modal,
+  .campaign-v2-modal,
+  .select-draft-v2-modal,
+  .draft-summary-v2-modal,
+  .test-email-v2-modal,
+  .schedule-v2-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Shared final header normalization for every workflow popup.
+   Keeps the modal chrome in one stable row: title | stepper | close. */
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  width: 100% !important;
+  height: 94px !important;
+  min-height: 94px !important;
+  max-height: 94px !important;
+  display: grid !important;
+  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr) 44px !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 0 30px !important;
+  overflow: hidden !important;
+}
+
+.review-list-v2-titleblock,
+.campaign-v2-title,
+.select-draft-v2-title,
+.draft-summary-v2-title,
+.test-email-v2-title,
+.schedule-v2-title {
+  width: auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span {
+  flex: 0 0 auto !important;
+  width: 50px !important;
+  height: 50px !important;
+  font-size: 23px !important;
+}
+
+.review-list-v2-titleblock h3,
+.campaign-v2-title h3,
+.select-draft-v2-title h3,
+.draft-summary-v2-title h3,
+.test-email-v2-title h3,
+.schedule-v2-title h3 {
+  margin: 0 0 5px !important;
+  color: #0f172a !important;
+  font-size: 23px !important;
+  line-height: 1.05 !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+.review-list-v2-titleblock p,
+.campaign-v2-title p,
+.select-draft-v2-title p,
+.draft-summary-v2-title p,
+.test-email-v2-title p,
+.schedule-v2-title p {
+  margin: 0 !important;
+  max-width: 320px !important;
+  color: #475569 !important;
+  font-size: 12.5px !important;
+  line-height: 1.22 !important;
+  font-weight: 650 !important;
+}
+
+.review-list-v2-progress,
+.campaign-v2-stepper,
+.select-draft-v2-stepper,
+.draft-summary-v2-stepper,
+.test-email-v2-stepper,
+.schedule-v2-stepper {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  order: initial !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: initial !important;
+  flex-basis: auto !important;
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(60px, 1fr)) !important;
+  align-items: start !important;
+  overflow: visible !important;
+}
+
+.review-list-v2-progress-step,
+.campaign-v2-step,
+.select-draft-v2-step,
+.draft-summary-v2-step,
+.test-email-v2-step,
+.schedule-v2-step {
+  min-width: 0 !important;
+  gap: 6px !important;
+}
+
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span {
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 12px !important;
+}
+
+.review-list-v2-progress-step small,
+.campaign-v2-step small,
+.select-draft-v2-step small,
+.draft-summary-v2-step small,
+.test-email-v2-step small,
+.schedule-v2-step b {
+  display: block !important;
+  max-width: 78px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 9.5px !important;
+  line-height: 1.1 !important;
+}
+
+.review-list-v2-close,
+.campaign-v2-close,
+.select-draft-v2-close,
+.draft-summary-v2-close,
+.test-email-v2-close,
+.schedule-v2-close {
+  justify-self: end !important;
+  align-self: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 1366px), (max-height: 820px) {
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+    grid-template-columns: minmax(245px, 310px) minmax(0, 1fr) 38px !important;
+    gap: 10px !important;
+    padding: 0 18px !important;
+  }
+
+  .review-list-v2-titleblock,
+  .campaign-v2-title,
+  .select-draft-v2-title,
+  .draft-summary-v2-title,
+  .test-email-v2-title,
+  .schedule-v2-title {
+    gap: 10px !important;
+  }
+
+  .review-list-v2-stepicon,
+  .campaign-v2-title > span,
+  .select-draft-v2-title > span,
+  .draft-summary-v2-title > span,
+  .test-email-v2-title > span,
+  .schedule-v2-title > span {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 19px !important;
+  }
+
+  .review-list-v2-titleblock h3,
+  .campaign-v2-title h3,
+  .select-draft-v2-title h3,
+  .draft-summary-v2-title h3,
+  .test-email-v2-title h3,
+  .schedule-v2-title h3 {
+    font-size: 19px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .review-list-v2-titleblock p,
+  .campaign-v2-title p,
+  .select-draft-v2-title p,
+  .draft-summary-v2-title p,
+  .test-email-v2-title p,
+  .schedule-v2-title p {
+    max-width: 230px !important;
+    font-size: 10.25px !important;
+  }
+
+  .review-list-v2-progress,
+  .campaign-v2-stepper,
+  .select-draft-v2-stepper,
+  .draft-summary-v2-stepper,
+  .test-email-v2-stepper,
+  .schedule-v2-stepper {
+    grid-template-columns: repeat(7, minmax(44px, 1fr)) !important;
+  }
+
+  .review-list-v2-progress-step span,
+  .campaign-v2-step > span,
+  .select-draft-v2-step > span,
+  .draft-summary-v2-step > span,
+  .test-email-v2-step > span,
+  .schedule-v2-step span {
+    width: 25px !important;
+    height: 25px !important;
+    font-size: 10.5px !important;
+  }
+
+  .review-list-v2-progress-step small,
+  .campaign-v2-step small,
+  .select-draft-v2-step small,
+  .draft-summary-v2-step small,
+  .test-email-v2-step small,
+  .schedule-v2-step b {
+    max-width: 56px !important;
+    font-size: 7.75px !important;
+  }
+
+  .review-list-v2-close,
+  .campaign-v2-close,
+  .select-draft-v2-close,
+  .draft-summary-v2-close,
+  .test-email-v2-close,
+  .schedule-v2-close {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    grid-template-columns: 1fr 38px !important;
+  }
+
+  .review-list-v2-progress,
+  .campaign-v2-stepper,
+  .select-draft-v2-stepper,
+  .draft-summary-v2-stepper,
+  .test-email-v2-stepper,
+  .schedule-v2-stepper {
+    display: none !important;
+  }
+}
+
+/* 10% inner-content compacting only.
+   Do not alter modal width, height, border radius, or workflow behavior. */
+.campaign-list-picker-modal,
+.review-list-v2-modal,
+.campaign-v2-modal,
+.select-draft-v2-modal,
+.draft-summary-v2-modal,
+.test-email-v2-modal,
+.schedule-v2-modal {
+  --wf-compact-text: 0.9;
+  --wf-compact-gap: 0.9;
+}
+
+.campaign-list-picker-modal :where(h3, h4),
+.review-list-v2-modal :where(h3, h4),
+.campaign-v2-modal :where(h3, h4),
+.select-draft-v2-modal :where(h3, h4),
+.draft-summary-v2-modal :where(h3, h4),
+.test-email-v2-modal :where(h3, h4),
+.schedule-v2-modal :where(h3, h4) {
+  font-size: 90% !important;
+}
+
+.campaign-list-picker-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.review-list-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.campaign-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.select-draft-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.draft-summary-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.test-email-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.schedule-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button) {
+  font-size: 90% !important;
+}
+
+.campaign-list-picker-modal :where(button, input, select, textarea),
+.review-list-v2-modal :where(button, input, select, textarea),
+.campaign-v2-modal :where(button, input, select, textarea),
+.select-draft-v2-modal :where(button, input, select, textarea),
+.draft-summary-v2-modal :where(button, input, select, textarea),
+.test-email-v2-modal :where(button, input, select, textarea),
+.schedule-v2-modal :where(button, input, select, textarea) {
+  min-height: 0 !important;
+}
+
+.campaign-list-picker-modal :where(button, input, select),
+.review-list-v2-modal :where(button, input, select),
+.campaign-v2-modal :where(button, input, select),
+.select-draft-v2-modal :where(button, input, select),
+.draft-summary-v2-modal :where(button, input, select),
+.test-email-v2-modal :where(button, input, select),
+.schedule-v2-modal :where(button, input, select) {
+  max-height: 40px !important;
+}
+
+.campaign-list-picker-control-row :where(input, select, button, label),
+.review-list-v2-toolbar :where(input, select, button),
+.campaign-v2-form-grid :where(input, select),
+.campaign-v2-pref-grid :where(select, button),
+.campaign-v2-settings-grid :where(input, select),
+.select-draft-v2-sidebar :where(input, select),
+.select-draft-v2-toolbar :where(select, button),
+.draft-summary-v2-subject :where(input, button),
+.draft-summary-v2-editor-shell :where(button, select),
+.test-email-v2-main :where(input, select, button),
+.schedule-v2-main :where(input, select, button) {
+  height: 36px !important;
+}
+
+.campaign-list-picker-body {
+  gap: 16px !important;
+  padding: 22px 27px 16px !important;
+}
+
+.review-list-v2-body {
+  gap: 9px !important;
+  padding: 13px 25px 9px !important;
+}
+
+.campaign-v2-body {
+  gap: 11px !important;
+  padding: 13px 25px 9px !important;
+}
+
+.select-draft-v2-content {
+  padding: 25px !important;
+}
+
+.select-draft-v2-main,
+.draft-summary-v2-main,
+.test-email-v2-main,
+.schedule-v2-main {
+  gap: 18px !important;
+  padding: 22px !important;
+}
+
+.campaign-list-picker-modal :where(.campaign-list-picker-intro-card, .campaign-list-picker-side-panel, .campaign-list-picker-content, .campaign-list-picker-upload-card, .campaign-list-picker-tip),
+.review-list-v2-modal :where(.review-list-v2-summary, .review-list-v2-card, .review-list-v2-quick-add, .review-list-v2-bulk),
+.campaign-v2-modal :where(.campaign-v2-card),
+.select-draft-v2-modal :where(.select-draft-v2-card, .select-draft-v2-tip),
+.draft-summary-v2-modal :where(.draft-summary-v2-card, .draft-summary-v2-overview, .draft-summary-v2-editor, .draft-summary-v2-upload, .draft-summary-v2-attachment, .draft-summary-v2-spam),
+.test-email-v2-modal :where(.test-email-v2-card, .test-email-v2-preview-card, .test-email-v2-warning, .test-email-v2-history, .test-email-v2-info),
+.schedule-v2-modal :where(.schedule-v2-card, .schedule-v2-note, .schedule-v2-duration) {
+  padding: 12px 14px !important;
+}
+
+.campaign-list-picker-stats > div,
+.review-list-v2-kpis > article,
+.review-list-v2-quality-card,
+.campaign-v2-list-card,
+.campaign-v2-info {
+  padding: 10px 14px !important;
+}
+
+.campaign-list-picker-table th,
+.campaign-list-picker-table td,
+.review-list-v2-table th,
+.review-list-v2-table td,
+.test-email-v2-history th,
+.test-email-v2-history td {
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+.campaign-list-picker-step span,
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span,
+.campaign-list-picker-icon,
+.campaign-list-picker-intro-icon,
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span {
+  scale: 0.9 !important;
+}
+
+/* 20% inner-content compacting.
+   Popup dimensions, border radius, layout structure, and behavior stay unchanged. */
+.campaign-list-picker-modal,
+.review-list-v2-modal,
+.campaign-v2-modal,
+.select-draft-v2-modal,
+.draft-summary-v2-modal,
+.test-email-v2-modal,
+.schedule-v2-modal {
+  --wf-compact-control-height: 32px;
+  --wf-compact-card-padding-y: 10px;
+  --wf-compact-card-padding-x: 12px;
+}
+
+.campaign-list-picker-heading h3,
+.campaign-list-picker-toolbar h3,
+.review-list-v2-titleblock h3,
+.campaign-v2-title h3,
+.select-draft-v2-title h3,
+.draft-summary-v2-title h3,
+.test-email-v2-title h3,
+.schedule-v2-title h3,
+.review-list-v2-modal h4,
+.campaign-v2-modal h4,
+.select-draft-v2-modal h4,
+.draft-summary-v2-modal h4,
+.test-email-v2-modal h4,
+.schedule-v2-modal h4 {
+  font-size: 1.05rem !important;
+}
+
+.campaign-list-picker-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.review-list-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.campaign-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.select-draft-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.draft-summary-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.test-email-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button),
+.schedule-v2-modal :where(p, label, small, span, strong, b, em, th, td, input, select, textarea, button) {
+  font-size: 0.8rem !important;
+}
+
+.campaign-list-picker-control-row :where(input, select, button, label),
+.campaign-list-picker-footer :where(button),
+.review-list-v2-toolbar :where(input, select, button),
+.review-list-v2-footer :where(button),
+.campaign-v2-form-grid :where(input, select),
+.campaign-v2-pref-grid :where(select, button),
+.campaign-v2-settings-grid :where(input, select),
+.campaign-v2-footer :where(button),
+.select-draft-v2-sidebar :where(input, select),
+.select-draft-v2-toolbar :where(select, button),
+.select-draft-v2-footer :where(button),
+.draft-summary-v2-subject :where(input, button),
+.draft-summary-v2-editor-shell :where(button, select),
+.draft-summary-v2-footer :where(button),
+.test-email-v2-main :where(input, select, button),
+.test-email-v2-footer :where(button),
+.schedule-v2-main :where(input, select, button),
+.schedule-v2-footer :where(button) {
+  height: var(--wf-compact-control-height) !important;
+  min-height: var(--wf-compact-control-height) !important;
+  max-height: var(--wf-compact-control-height) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.campaign-list-picker-body {
+  gap: 14px !important;
+  padding: 18px 23px 14px !important;
+}
+
+.review-list-v2-body,
+.campaign-v2-body {
+  gap: 8px !important;
+  padding: 11px 21px 8px !important;
+}
+
+.select-draft-v2-content {
+  padding: 21px !important;
+}
+
+.select-draft-v2-main,
+.draft-summary-v2-main,
+.test-email-v2-main,
+.schedule-v2-main {
+  gap: 14px !important;
+  padding: 18px !important;
+}
+
+.campaign-list-picker-topline,
+.campaign-list-picker-control-row,
+.campaign-list-picker-main,
+.campaign-v2-grid,
+.campaign-v2-right-bottom,
+.select-draft-v2-grid,
+.draft-summary-v2-bottom,
+.test-email-v2-main,
+.schedule-v2-main {
+  gap: 12px !important;
+}
+
+.campaign-list-picker-modal :where(.campaign-list-picker-intro-card, .campaign-list-picker-side-panel, .campaign-list-picker-content, .campaign-list-picker-upload-card, .campaign-list-picker-tip),
+.review-list-v2-modal :where(.review-list-v2-summary, .review-list-v2-card, .review-list-v2-quick-add, .review-list-v2-bulk),
+.campaign-v2-modal :where(.campaign-v2-card),
+.select-draft-v2-modal :where(.select-draft-v2-card, .select-draft-v2-tip),
+.draft-summary-v2-modal :where(.draft-summary-v2-card, .draft-summary-v2-overview, .draft-summary-v2-editor, .draft-summary-v2-upload, .draft-summary-v2-attachment, .draft-summary-v2-spam),
+.test-email-v2-modal :where(.test-email-v2-card, .test-email-v2-preview-card, .test-email-v2-warning, .test-email-v2-history, .test-email-v2-info),
+.schedule-v2-modal :where(.schedule-v2-card, .schedule-v2-note, .schedule-v2-duration) {
+  padding: var(--wf-compact-card-padding-y) var(--wf-compact-card-padding-x) !important;
+}
+
+.campaign-list-picker-stats > div,
+.review-list-v2-kpis > article,
+.review-list-v2-quality-card,
+.campaign-v2-list-card,
+.campaign-v2-info {
+  padding: 8px 11px !important;
+}
+
+.campaign-list-picker-table th,
+.campaign-list-picker-table td,
+.review-list-v2-table th,
+.review-list-v2-table td,
+.test-email-v2-history th,
+.test-email-v2-history td {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.campaign-list-picker-table tr,
+.review-list-v2-table tr,
+.test-email-v2-history tr {
+  height: auto !important;
+}
+
+.campaign-list-picker-step span,
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span,
+.campaign-list-picker-icon,
+.campaign-list-picker-intro-icon,
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span,
+.campaign-list-picker-modal i,
+.review-list-v2-modal i,
+.campaign-v2-modal i,
+.select-draft-v2-modal i,
+.draft-summary-v2-modal i,
+.test-email-v2-modal i,
+.schedule-v2-modal i {
+  scale: 0.8 !important;
+}
+
+.campaign-list-picker-step small,
+.review-list-v2-progress-step small,
+.campaign-v2-step small,
+.select-draft-v2-step small,
+.draft-summary-v2-step small,
+.test-email-v2-step small,
+.schedule-v2-step b {
+  font-size: 0.7rem !important;
+}
+
+/* 50% shorter workflow header/footer chrome.
+   Modal dimensions and body layout stay unchanged; only fixed header/footer bands shrink. */
+.campaign-list-picker-modal .campaign-list-picker-header,
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  flex: 0 0 47px !important;
+  height: 47px !important;
+  min-height: 47px !important;
+  max-height: 47px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  align-items: center !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-header {
+  display: grid !important;
+  grid-template-columns: 30px minmax(220px, 320px) minmax(0, 1fr) 30px !important;
+  gap: 8px !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+.review-list-v2-header,
+.campaign-v2-header,
+.select-draft-v2-header,
+.draft-summary-v2-header,
+.test-email-v2-header,
+.schedule-v2-header {
+  display: grid !important;
+  grid-template-columns: minmax(230px, 330px) minmax(0, 1fr) 30px !important;
+  gap: 8px !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+.campaign-list-picker-heading,
+.review-list-v2-titleblock,
+.campaign-v2-title,
+.select-draft-v2-title,
+.draft-summary-v2-title,
+.test-email-v2-title,
+.schedule-v2-title {
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-heading h3,
+.review-list-v2-titleblock h3,
+.campaign-v2-title h3,
+.select-draft-v2-title h3,
+.draft-summary-v2-title h3,
+.test-email-v2-title h3,
+.schedule-v2-title h3 {
+  font-size: 0.95rem !important;
+  line-height: 1 !important;
+  margin: 0 0 2px !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-heading p,
+.review-list-v2-titleblock p,
+.campaign-v2-title p,
+.select-draft-v2-title p,
+.draft-summary-v2-title p,
+.test-email-v2-title p,
+.schedule-v2-title p {
+  max-width: 260px !important;
+  font-size: 0.62rem !important;
+  line-height: 1.08 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-icon,
+.review-list-v2-stepicon,
+.campaign-v2-title > span,
+.select-draft-v2-title > span,
+.draft-summary-v2-title > span,
+.test-email-v2-title > span,
+.schedule-v2-title > span {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  font-size: 0.85rem !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-back,
+.campaign-list-picker-close,
+.review-list-v2-close,
+.campaign-v2-close,
+.select-draft-v2-close,
+.draft-summary-v2-close,
+.test-email-v2-close,
+.schedule-v2-close {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  font-size: 0.9rem !important;
+  line-height: 1 !important;
+}
+
+.campaign-list-picker-stepper,
+.review-list-v2-progress,
+.campaign-v2-stepper,
+.select-draft-v2-stepper,
+.draft-summary-v2-stepper,
+.test-email-v2-stepper,
+.schedule-v2-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(34px, 1fr)) !important;
+  align-items: center !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  height: 43px !important;
+}
+
+.campaign-list-picker-step,
+.review-list-v2-progress-step,
+.campaign-v2-step,
+.select-draft-v2-step,
+.draft-summary-v2-step,
+.test-email-v2-step,
+.schedule-v2-step {
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.campaign-list-picker-step span,
+.review-list-v2-progress-step span,
+.campaign-v2-step > span,
+.select-draft-v2-step > span,
+.draft-summary-v2-step > span,
+.test-email-v2-step > span,
+.schedule-v2-step span {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  font-size: 0.58rem !important;
+  line-height: 20px !important;
+  scale: 1 !important;
+}
+
+.campaign-list-picker-step small,
+.review-list-v2-progress-step small,
+.campaign-v2-step small,
+.select-draft-v2-step small,
+.draft-summary-v2-step small,
+.test-email-v2-step small,
+.schedule-v2-step b {
+  max-width: 54px !important;
+  font-size: 0.52rem !important;
+  line-height: 1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.campaign-list-picker-modal .campaign-list-picker-footer,
+.review-list-v2-footer,
+.campaign-v2-footer,
+.select-draft-v2-footer,
+.draft-summary-v2-footer,
+.test-email-v2-footer,
+.schedule-v2-footer {
+  flex: 0 0 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  align-items: center !important;
+  overflow: hidden !important;
+}
+
+.campaign-list-picker-footer > div,
+.review-list-v2-footer > div,
+.campaign-v2-footer > div,
+.select-draft-v2-footer > div,
+.draft-summary-v2-footer > div,
+.test-email-v2-footer > div,
+.schedule-v2-footer > div {
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.campaign-list-picker-footer :where(button),
+.review-list-v2-footer :where(button),
+.campaign-v2-footer :where(button),
+.select-draft-v2-footer :where(button),
+.draft-summary-v2-footer :where(button),
+.test-email-v2-footer :where(button),
+.schedule-v2-footer :where(button) {
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  min-width: 78px !important;
+  padding: 0 11px !important;
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+  border-radius: 8px !important;
+}
+
+@media (max-width: 1366px), (max-height: 820px) {
+  .campaign-list-picker-modal .campaign-list-picker-header,
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    flex-basis: 41px !important;
+    height: 41px !important;
+    min-height: 41px !important;
+    max-height: 41px !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-header {
+    grid-template-columns: 26px minmax(190px, 270px) minmax(0, 1fr) 26px !important;
+    gap: 6px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .review-list-v2-header,
+  .campaign-v2-header,
+  .select-draft-v2-header,
+  .draft-summary-v2-header,
+  .test-email-v2-header,
+  .schedule-v2-header {
+    grid-template-columns: minmax(205px, 280px) minmax(0, 1fr) 26px !important;
+    gap: 6px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .campaign-list-picker-heading h3,
+  .review-list-v2-titleblock h3,
+  .campaign-v2-title h3,
+  .select-draft-v2-title h3,
+  .draft-summary-v2-title h3,
+  .test-email-v2-title h3,
+  .schedule-v2-title h3 {
+    font-size: 0.84rem !important;
+  }
+
+  .campaign-list-picker-heading p,
+  .review-list-v2-titleblock p,
+  .campaign-v2-title p,
+  .select-draft-v2-title p,
+  .draft-summary-v2-title p,
+  .test-email-v2-title p,
+  .schedule-v2-title p {
+    max-width: 215px !important;
+    font-size: 0.55rem !important;
+  }
+
+  .campaign-list-picker-icon,
+  .review-list-v2-stepicon,
+  .campaign-v2-title > span,
+  .select-draft-v2-title > span,
+  .draft-summary-v2-title > span,
+  .test-email-v2-title > span,
+  .schedule-v2-title > span {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+  }
+
+  .campaign-list-picker-back,
+  .campaign-list-picker-close,
+  .review-list-v2-close,
+  .campaign-v2-close,
+  .select-draft-v2-close,
+  .draft-summary-v2-close,
+  .test-email-v2-close,
+  .schedule-v2-close {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+  }
+
+  .campaign-list-picker-stepper,
+  .review-list-v2-progress,
+  .campaign-v2-stepper,
+  .select-draft-v2-stepper,
+  .draft-summary-v2-stepper,
+  .test-email-v2-stepper,
+  .schedule-v2-stepper {
+    grid-template-columns: repeat(7, minmax(28px, 1fr)) !important;
+    height: 38px !important;
+  }
+
+  .campaign-list-picker-step span,
+  .review-list-v2-progress-step span,
+  .campaign-v2-step > span,
+  .select-draft-v2-step > span,
+  .draft-summary-v2-step > span,
+  .test-email-v2-step > span,
+  .schedule-v2-step span {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
+    font-size: 0.52rem !important;
+    line-height: 18px !important;
+  }
+
+  .campaign-list-picker-step small,
+  .review-list-v2-progress-step small,
+  .campaign-v2-step small,
+  .select-draft-v2-step small,
+  .draft-summary-v2-step small,
+  .test-email-v2-step small,
+  .schedule-v2-step b {
+    max-width: 46px !important;
+    font-size: 0.46rem !important;
+  }
+
+  .campaign-list-picker-modal .campaign-list-picker-footer,
+  .review-list-v2-footer,
+  .campaign-v2-footer,
+  .select-draft-v2-footer,
+  .draft-summary-v2-footer,
+  .test-email-v2-footer,
+  .schedule-v2-footer {
+    flex-basis: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .campaign-list-picker-footer :where(button),
+  .review-list-v2-footer :where(button),
+  .campaign-v2-footer :where(button),
+  .select-draft-v2-footer :where(button),
+  .draft-summary-v2-footer :where(button),
+  .test-email-v2-footer :where(button),
+  .schedule-v2-footer :where(button) {
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
+    min-width: 70px !important;
+    padding: 0 9px !important;
+    font-size: 0.66rem !important;
+  }
+}

@@ -1,0 +1,16 @@
+Feature,Unit Test,Integration Test,Manual Test,UAT,Status
+Authentication and RBAC,Missing,Missing / not evidenced,Required,Not started,Red
+Dashboard and role workspaces,Missing,Missing / not evidenced,Partial,Not started,Red
+Client data and lead lists,Missing,Missing / not evidenced,Required,Not started,Red
+Drafts and templates,Missing,Missing / not evidenced,Required,Not started,Red
+Campaign workflow,Missing,Missing / not evidenced,Required,Not started,Red
+Campaign execution worker,Missing,Missing / not evidenced,Required,Not started,Red
+Sender accounts and OAuth,Missing,Missing / not evidenced,Required,Not started,Red
+Unified mailbox,Missing,Missing / not evidenced,Required,Not started,Red
+Warm-up automation,Missing,Missing / not evidenced,Required,Not started,Red
+Reports and analytics,Missing,Missing / not evidenced,Required,Not started,Red
+Admin and subscriptions,Missing,Missing / not evidenced,Required,Not started,Red
+"Tasks, calendar and productivity",Missing,Missing / not evidenced,Required,Not started,Red
+Observability and operations,Missing,Missing / not evidenced,Required,Not started,Red
+Automated QA,Missing,Missing / not evidenced,Required,Not started,Red
+CI/CD and deployment,Missing,Missing / not evidenced,Required,Not started,Red

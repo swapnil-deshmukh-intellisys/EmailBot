@@ -41667,13 +41667,7 @@ html body main.dashboard-shell .planning-stat {
 }
 
 html body main.dashboard-shell .planning-stat::after {
-  content: '';
-  position: absolute;
-  inset: auto 12px 10px 12px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #4f5bd5, #38bdf8);
-  opacity: 0.34;
+  display: none !important;
 }
 
 html body main.dashboard-shell .planning-stat:hover,

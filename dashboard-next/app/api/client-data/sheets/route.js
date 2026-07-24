@@ -41,10 +41,33 @@ export async function GET(req) {
           uploadedAt: 1,
           createdAt: 1,
           autoDeleteAt: 1,
+          updatedAt: 1,
+          createdBy: 1,
+          status: 1,
+          description: 1,
+          dataCenterMeta: 1,
           project: 1,
           projectId: 1,
           projectName: 1,
-          leadCount: { $size: { $ifNull: ['$leads', []] } }
+          leadCount: { $size: { $ifNull: ['$leads', []] } },
+          repeatedCount: {
+            $size: {
+              $filter: {
+                input: { $ifNull: ['$leads', []] },
+                as: 'lead',
+                cond: { $eq: ['$$lead.validationStatus', 'Duplicate'] }
+              }
+            }
+          },
+          contactedCount: {
+            $size: {
+              $filter: {
+                input: { $ifNull: ['$leads', []] },
+                as: 'lead',
+                cond: { $in: ['$$lead.status', ['Sent', 'Sending', 'Bounced', 'Spam']] }
+              }
+            }
+          }
         }
       },
       { $sort: { uploadedAt: -1, createdAt: -1 } }
@@ -58,8 +81,16 @@ export async function GET(req) {
       project: normalizeProject(list.project || list.projectId || list.projectName || list.name || list.sourceFile || 'unassigned'),
       uploadedAt: list.uploadedAt || null,
       createdAt: list.createdAt || null,
+      updatedAt: list.updatedAt || null,
+      lastUsed: list.dataCenterMeta?.lastUsedAt || list.dataCenterMeta?.campaignLastUsedAt || list.updatedAt || list.uploadedAt || list.createdAt || null,
       autoDeleteAt: list.autoDeleteAt || null,
-      leadCount: Number(list.leadCount || 0)
+      leadCount: Number(list.leadCount || 0),
+      clientCount: Number(list.leadCount || 0),
+      repeatedCount: Number(list.repeatedCount || 0),
+      contactedCount: Number(list.contactedCount || 0),
+      createdBy: list.createdBy || list.dataCenterMeta?.createdByEmail || '',
+      status: list.status || (list.autoDeleteAt ? 'Temporary' : 'Active'),
+      description: list.description || list.dataCenterMeta?.description || ''
     }));
     const scopedLists = requestedProject && requestedProject !== 'unassigned'
       ? mappedLists.filter((list) => list.project === requestedProject)

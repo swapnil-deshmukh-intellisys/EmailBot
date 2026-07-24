@@ -1,0 +1,42 @@
+Table,Relationships,Indexes,Migration,Seed Data,Completion %
+ActivityLogModel,UserProfile,3 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CalendarEvent,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+Campaign,"UserProfile, LeadList, EmailTemplate, EmailDraft",32 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignEmailReply,"UserProfile, Campaign, EmailDraft, CampaignRecipientLog",2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignRecipientClaim,"Campaign, LeadList",1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignRecipientLog,"UserProfile, Campaign",10 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignReply,"UserProfile, Campaign, LeadList",2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignSentEmail,"UserProfile, Campaign, EmailDraft, CampaignRecipientLog",2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CampaignWorkerHeartbeat,No explicit Mongoose ref,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+ClientBinRecord,"UserProfile, ClientSheet, ClientRecord, LeadList",2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+ClientRecord,"UserProfile, ClientSheet",5 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+ClientSheet,"UserProfile, LeadList",6 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+ConnectedMailAccount,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+CreditTransaction,Campaign,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+EmailDraft,UserProfile,4 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+EmailTemplate,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+EmailThread,"Campaign, EmailDraft, UserProfile",1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+GraphOAuthAccount,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+LeadList,UserProfile,19 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+MailDraft,"UserProfile, Campaign",1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+MailFolderCache,UserProfile,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+MailMessageCache,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+MailSyncState,UserProfile,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+PresetSender,No explicit Mongoose ref,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+Project,No explicit Mongoose ref,Index review required,Schema exists; migration/versioning framework pending,Defaults present; seed script review required,65
+RecipientSendLock,"Campaign, LeadList",Index review required,Schema exists; migration/versioning framework pending,Defaults present; seed script review required,65
+SenderAccount,"UserProfile, Project",9 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+SenderId,"UserProfile, Project",Index review required,Schema exists; migration/versioning framework pending,Defaults present; seed script review required,65
+SignupRequest,No explicit Mongoose ref,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+TargetApproval,No explicit Mongoose ref,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+TimelineTask,No explicit Mongoose ref,4 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+UpgradeRequest,UserProfile,2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+UploadFile,"UserProfile, LeadList",1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+UserProfile,No explicit Mongoose ref,3 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+UserSubscription,UserProfile,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WarmupAutoReplyLog,No explicit Mongoose ref,1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WarmupAutoReplySetting,"EmailDraft, LeadList",1 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WarmupConversation,"UserProfile, WarmupSheet",3 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WarmupMessage,"UserProfile, WarmupConversation",2 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WarmupSheet,UserProfile,3 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76
+WorkUpdate,No explicit Mongoose ref,3 declared index(es),Schema exists; migration/versioning framework pending,Defaults present; seed script review required,76

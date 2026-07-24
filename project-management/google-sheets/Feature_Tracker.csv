@@ -1,0 +1,16 @@
+Feature,Frontend,Backend,Database,API,Testing,Deployment,Overall Status,Completion %
+Authentication and RBAC,82,78,78,80,25,45,Yellow,65
+Dashboard and role workspaces,84,76,70,76,30,45,Yellow,64
+Client data and lead lists,80,76,78,78,32,45,Yellow,65
+Drafts and templates,82,72,72,75,30,45,Yellow,63
+Campaign workflow,86,74,76,78,35,48,Yellow,66
+Campaign execution worker,70,78,76,76,22,48,Yellow,62
+Sender accounts and OAuth,74,76,72,78,25,45,Yellow,62
+Unified mailbox,76,74,74,76,24,42,Yellow,61
+Warm-up automation,72,70,72,72,20,40,Yellow,58
+Reports and analytics,78,68,70,72,22,42,Yellow,59
+Admin and subscriptions,78,76,74,78,28,45,Yellow,63
+"Tasks, calendar and productivity",76,72,72,74,25,42,Yellow,60
+Observability and operations,45,58,55,60,18,38,Red,46
+Automated QA,20,20,25,20,12,20,Red,20
+CI/CD and deployment,35,45,50,45,15,45,Red,39

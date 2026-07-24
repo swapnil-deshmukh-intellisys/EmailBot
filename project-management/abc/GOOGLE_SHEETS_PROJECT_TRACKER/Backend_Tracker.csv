@@ -1,0 +1,11 @@
+Service,Controller,Business Logic,Middleware,Authentication,Status,Completion %
+Authentication,ApiAuthGuard / AuthSessionService,"JWT sessions, role and account status checks",Route guards and cookie security,JWT + password flows,Implemented; security tests pending,72
+Campaign Engine,CampaignExecutionRunner,"Preflight, mail merge, credits, locks, retries",Worker ownership and heartbeat,Session-scoped campaign APIs,Implemented; high-risk QA pending,68
+Campaign Scheduler,CampaignQueueScheduler,Queue polling and stale recovery,Worker heartbeat,Worker tick and health endpoints,Implemented; soak tests pending,66
+Mail Delivery,GraphAndSmtpMailSender,Provider dispatch and fallback,Sender resolution,Graph and SMTP,Implemented; provider tests pending,70
+Mailbox,MicrosoftGraphMailboxService,"Folders, messages and actions",OAuth token handling,Mailbox and Outlook APIs,Implemented; integration tests pending,68
+Warm-up,WarmupAutoCommunicationService / WarmupAutoReplyService,Conversation scheduling and replies,Rate and safety controls,Warm-up APIs,Implemented; safety QA pending,60
+Billing,SubscriptionCreditService,"Credit reset, reserve and ledger",Authenticated ownership,Billing and report APIs,Implemented; reconciliation pending,65
+Client Data,Route-local controllers + validation,"Upload, normalize, CRUD, duplicates, bin",Owner scoping,Client data APIs,Implemented; consolidation pending,70
+Analytics,CampaignAnalyticsService,Aggregations and summaries,Authenticated reporting,Dashboard/report APIs,Implemented; metric reconciliation pending,64
+Logging,ActivityLogService,Operational activity records,Actor and owner context,Activity/debug endpoints,Implemented; observability incomplete,58
